@@ -1,0 +1,54 @@
+services:
+  # API Backend - Production
+  - type: web
+    name: swalo-api
+    env: node
+    region: frankfurt
+    plan: free
+    branch: main
+    # Build optimisé pour démarrage rapide
+    buildCommand: |
+      # Install dependencies
+      pnpm install
+      # Générer Prisma client
+      cd apps/api && npx prisma@5.22.0 generate
+      # Build l'API
+      cd ../.. && pnpm --filter @swalo/api exec nest build
+      # Nettoyer le cache pour réduire la taille
+      pnpm store prune
+    startCommand: "node apps/api/dist/main.js"
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false
+        # À configurer manuellement depuis Neon (https://neon.tech)
+        # Utiliser la Pooled connection string de la branche 'main'
+      - key: JWT_SECRET
+        sync: false
+        # À configurer manuellement dans Render Dashboard
+      - key: JWT_REFRESH_SECRET
+        sync: false
+        # À configurer manuellement dans Render Dashboard
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+
+# Base de données externe Neon (PostgreSQL Serverless)
+# Avantages Neon vs Render PostgreSQL:
+# - 512 MB gratuit (vs 1 GB Render mais Render compte vers limite 750h)
+# - Serverless avec autoscaling
+# - Branching pour dev/staging
+# - Pas de spin down
+# - Meilleure performance
+# - Connection pooling intégré (PgBouncer)
+#
+# Configuration requise:
+# 1. Créer compte sur https://console.neon.tech
+# 2. Créer nouveau projet "swalo-production"
+# 3. Copier la connection string
+# 4. Ajouter dans Render Dashboard > Environment Variables

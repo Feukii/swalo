@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Développement local uniquement)
+  # En production, utiliser Neon (https://neon.tech)
+  postgres:
+    image: postgres:16-alpine
+    container_name: swalo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-swalo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-swalo_password}
+      POSTGRES_DB: ${POSTGRES_DB:-swalo_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - swalo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-swalo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - local  # Activer uniquement en dev local
+
+  # API Backend
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: swalo-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Dev local: PostgreSQL local
+      # Production: Utiliser DATABASE_URL depuis .env avec Neon
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-swalo}:${POSTGRES_PASSWORD:-swalo_password}@postgres:5432/${POSTGRES_DB:-swalo_db}?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-change_this_secret_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_this_refresh_secret_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      RUN_DB_SEED: ${RUN_DB_SEED:-false}
+    ports:
+      - "3000:3000"
+    networks:
+      - swalo-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 -O- http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - local  # Activer en dev local avec PostgreSQL local
+
+  # Web Frontend
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: swalo-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+    ports:
+      - "80:80"
+    networks:
+      - swalo-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 --spider http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  swalo-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

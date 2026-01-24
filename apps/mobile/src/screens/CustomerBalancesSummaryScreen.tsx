@@ -1,0 +1,263 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Users } from '../components/icons/SimpleIcons';
+import { ScreenHeader, ListItem, KPICard } from '../components/ui';
+import { Colors, Spacing } from '../constants/theme-v2';
+import { formatMoney } from '../utils/money';
+import { customersApi } from '../lib/api';
+
+interface CustomerBalancesSummaryScreenProps {
+  navigation: any;
+}
+
+interface CustomerWithBalance {
+  id: string;
+  name: string;
+  first_name?: string;
+  phone?: string;
+  is_active: boolean;
+  total_balance: number;
+}
+
+export default function CustomerBalancesSummaryScreen({
+  navigation,
+}: CustomerBalancesSummaryScreenProps) {
+  const [customers, setCustomers] = useState<CustomerWithBalance[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await customersApi.getAll();
+      setCustomers(data);
+    } catch (error: any) {
+      console.error('Erreur chargement clients:', error);
+      if (error.message === 'Unauthorized') {
+        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
+          {
+            text: 'OK',
+            onPress: () => navigation.replace('LoginPin'),
+          },
+        ]);
+      } else {
+        Alert.alert('Erreur', 'Impossible de charger les clients');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCustomers();
+    setRefreshing(false);
+  };
+
+  const getPersonName = (person: { name: string; first_name?: string }): string => {
+    return person.first_name ? `${person.first_name} ${person.name}` : person.name;
+  };
+
+  // Filter and sort customers by balance (highest debt first)
+  const filteredCustomers = customers
+    .filter(customer => {
+      const fullName = `${customer.first_name || ''} ${customer.name}`.toLowerCase();
+      const query = searchQuery.toLowerCase();
+      return fullName.includes(query) || customer.phone?.includes(query);
+    })
+    .sort((a, b) => b.total_balance - a.total_balance);
+
+  // Calculate summary stats
+  const totalOwedToUs = customers
+    .filter(c => c.total_balance > 0)
+    .reduce((sum, c) => sum + c.total_balance, 0);
+
+  const totalWeOwe = customers
+    .filter(c => c.total_balance < 0)
+    .reduce((sum, c) => sum + Math.abs(c.total_balance), 0);
+
+  const customersWithDebt = customers.filter(c => c.total_balance > 0).length;
+  const customersWeOwe = customers.filter(c => c.total_balance < 0).length;
+
+  const getBalanceColor = (balance: number) => {
+    if (balance > 0) return Colors.success.main; // They owe us - green
+    if (balance < 0) return Colors.danger.main; // We owe them - red
+    return Colors.muted.foreground; // Zero - gray
+  };
+
+  const getBalanceBadge = (balance: number) => {
+    if (balance > 0) {
+      return { text: 'Nous doit', variant: 'success' as const };
+    }
+    if (balance < 0) {
+      return { text: 'On lui doit', variant: 'danger' as const };
+    }
+    return { text: 'Soldé', variant: 'default' as const };
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader title="Soldes Clients" showBack={true} onBack={() => navigation.goBack()} />
+
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* Summary Stats */}
+        <View style={styles.statsRow}>
+          <View style={{ flex: 1 }}>
+            <KPICard
+              label="Clients nous doivent"
+              value={formatMoney(totalOwedToUs)}
+              icon={<Users size={20} color={Colors.success.main} />}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <KPICard
+              label="On doit aux clients"
+              value={formatMoney(totalWeOwe)}
+              icon={<Users size={20} color={Colors.danger.main} />}
+            />
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={{ flex: 1 }}>
+            <KPICard label="Clients débiteurs" value={String(customersWithDebt)} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <KPICard label="Clients à rembourser" value={String(customersWeOwe)} />
+          </View>
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchCard}>
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Rechercher un client..."
+            placeholderTextColor={Colors.muted.foreground}
+          />
+        </View>
+
+        {/* Customers List */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Soldes par client</Text>
+            <Text style={styles.cardSubtitle}>
+              {filteredCustomers.length} client{filteredCustomers.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary[900]} />
+            </View>
+          ) : filteredCustomers.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Users size={48} color={Colors.muted.foreground} />
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
+              </Text>
+            </View>
+          ) : (
+            filteredCustomers.map(customer => (
+              <ListItem
+                key={customer.id}
+                icon={<Users size={20} color={getBalanceColor(customer.total_balance)} />}
+                title={getPersonName(customer)}
+                subtitle={`${customer.total_balance < 0 ? '-' : ''}${formatMoney(Math.abs(customer.total_balance))}`}
+                badge={getBalanceBadge(customer.total_balance)}
+                onClick={() => navigation.navigate('CustomerDetails', { id: customer.id })}
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  content: {
+    flex: 1,
+    padding: Spacing.lg,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  searchCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing['2xl'],
+  },
+  searchInput: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: Spacing['2xl'],
+  },
+  cardHeader: {
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: Colors.muted.foreground,
+  },
+  loadingContainer: {
+    paddingVertical: Spacing['3xl'],
+    alignItems: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Spacing['3xl'],
+    gap: Spacing.md,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.muted.foreground,
+  },
+});

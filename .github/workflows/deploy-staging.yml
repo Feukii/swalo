@@ -1,0 +1,118 @@
+name: Deploy SWALO Staging
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # Test & Build
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint || true
+
+      - name: Build packages (with Turbo cache)
+        run: pnpm turbo build --filter=@swalo/core
+
+      - name: Build API
+        run: |
+          cd apps/api
+          pnpm exec prisma generate
+          pnpm build
+
+      - name: Build Web
+        run: cd apps/web && pnpm build
+        env:
+          VITE_API_URL: ${{ vars.STAGING_API_URL || 'https://swalo-api.onrender.com/api' }}
+
+  # Deploy Web to Vercel (Preview)
+  deploy-web-staging:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel (Preview)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Pas de --prod pour staging, c'est un preview deployment
+          working-directory: ./
+
+  # Deploy API to Render Staging (si configuré)
+  notify-render-staging:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Trigger Render Staging Deploy
+        if: secrets.RENDER_DEPLOY_HOOK_STAGING != ''
+        run: |
+          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}" ]; then
+            echo "Triggering Render staging deployment..."
+            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"
+          else
+            echo "No staging deploy hook configured, skipping..."
+            echo "Note: Configure RENDER_DEPLOY_HOOK_STAGING secret for separate staging service"
+          fi
+
+  # Summary
+  staging-summary:
+    needs: [test, deploy-web-staging, notify-render-staging]
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "=== SWALO Staging Deployment Summary ==="
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.actor }}"
+          echo ""
+          echo "Test: ${{ needs.test.result }}"
+          echo "Web Deploy: ${{ needs.deploy-web-staging.result }}"
+          echo "API Deploy: ${{ needs.notify-render-staging.result }}"
+          echo ""
+          echo "Staging URLs:"
+          echo "- Web: Check Vercel Dashboard for preview URL"
+          echo "- API: https://swalo-api.onrender.com/api/health"
