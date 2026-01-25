@@ -22,10 +22,13 @@ import {
   Filter,
   X,
   Check,
+  Upload,
+  FileSpreadsheet,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { productsApi } from '../lib/api';
+import { productsApi, importApi } from '../lib/api';
+import * as DocumentPicker from 'expo-document-picker';
 import { formatMoney } from '../utils/money';
 
 interface Product {
@@ -125,6 +128,18 @@ export default function ProductCatalogScreen({ navigation }: any) {
     brand?: string;
   }>({});
   const [isHierarchySaving, setIsHierarchySaving] = useState(false);
+
+  // Import modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<{ name: string; content: string } | null>(null);
+  const [importPreview, setImportPreview] = useState<{
+    valid_count: number;
+    invalid_count: number;
+    errors: Array<{ row: number; field: string; message: string }>;
+    preview_rows: Array<any>;
+  } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStep, setImportStep] = useState<'select' | 'preview' | 'success'>('select');
 
   const loadData = async () => {
     setIsLoading(true);
@@ -382,6 +397,96 @@ export default function ProductCatalogScreen({ navigation }: any) {
     }
   };
 
+  // Import functions
+  const openImportModal = () => {
+    setShowImportModal(true);
+    setImportStep('select');
+    setImportFile(null);
+    setImportPreview(null);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPreview(null);
+    setImportStep('select');
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'text/csv',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+
+      // Read file content as base64
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+      const reader = new FileReader();
+
+      reader.onloadend = async () => {
+        const base64Content = (reader.result as string).split(',')[1];
+        setImportFile({ name: file.name, content: base64Content });
+
+        // Preview the import
+        setIsImporting(true);
+        try {
+          const preview = await importApi.previewCatalog(base64Content, file.name);
+          setImportPreview(preview);
+          setImportStep('preview');
+        } catch (error: any) {
+          console.error('Erreur lors de la prévisualisation:', error);
+          Alert.alert('Erreur', error.message || 'Impossible de lire le fichier');
+        } finally {
+          setIsImporting(false);
+        }
+      };
+
+      reader.readAsDataURL(blob);
+    } catch (error: any) {
+      console.error('Erreur lors de la sélection du fichier:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de sélectionner le fichier');
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importFile) return;
+
+    setIsImporting(true);
+    try {
+      const result = await importApi.confirmCatalog(importFile.content, importFile.name);
+      setImportStep('success');
+      Alert.alert(
+        'Import réussi',
+        `${result.created_count || 0} article(s) créé(s), ${result.updated_count || 0} mis à jour`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              closeImportModal();
+              loadData();
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error("Erreur lors de l'import:", error);
+      Alert.alert('Erreur', error.message || "Impossible d'importer le catalogue");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Suggestions filtrées
   const filteredFamilySuggestions = filters.families.filter(f =>
     f.toLowerCase().includes(formData.family.toLowerCase())
@@ -521,12 +626,18 @@ export default function ProductCatalogScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Stats rapides */}
+        {/* Stats rapides et bouton import */}
         <View style={styles.statsBar}>
           <Text style={styles.statsText}>
             {products.length} article{products.length > 1 ? 's' : ''}
           </Text>
-          {isLoading && <ActivityIndicator size="small" color={Colors.primary[900]} />}
+          <View style={styles.statsBarActions}>
+            {isLoading && <ActivityIndicator size="small" color={Colors.primary[900]} />}
+            <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
+              <Upload size={16} color={Colors.primary[900]} />
+              <Text style={styles.importButtonText}>Importer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Liste des produits */}
@@ -1295,6 +1406,142 @@ export default function ProductCatalogScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
+
+      {/* Import Modal */}
+      <Modal
+        visible={showImportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeImportModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Importer un catalogue</Text>
+              <TouchableOpacity onPress={closeImportModal}>
+                <X size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {importStep === 'select' && (
+                <View style={styles.importSelectContainer}>
+                  <View style={styles.importIconContainer}>
+                    <FileSpreadsheet size={64} color={Colors.primary[900]} />
+                  </View>
+                  <Text style={styles.importTitle}>Sélectionnez un fichier</Text>
+                  <Text style={styles.importSubtitle}>
+                    Formats acceptés: CSV, Excel (.xls, .xlsx)
+                  </Text>
+                  <Text style={styles.importHint}>
+                    Le fichier doit contenir les colonnes: famille, type_article, marque, reference,
+                    prix_achat, prix_vente
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.importPickButton}
+                    onPress={pickDocument}
+                    disabled={isImporting}
+                  >
+                    {isImporting ? (
+                      <ActivityIndicator size="small" color={Colors.primary.foreground} />
+                    ) : (
+                      <>
+                        <Upload size={20} color={Colors.primary.foreground} />
+                        <Text style={styles.importPickButtonText}>Choisir un fichier</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {importStep === 'preview' && importPreview && (
+                <View style={styles.importPreviewContainer}>
+                  <View style={styles.importPreviewHeader}>
+                    <View style={styles.importPreviewStat}>
+                      <Text style={styles.importPreviewStatValue}>{importPreview.valid_count}</Text>
+                      <Text style={styles.importPreviewStatLabel}>Valides</Text>
+                    </View>
+                    <View style={styles.importPreviewStat}>
+                      <Text style={[styles.importPreviewStatValue, { color: Colors.danger.main }]}>
+                        {importPreview.invalid_count}
+                      </Text>
+                      <Text style={styles.importPreviewStatLabel}>Invalides</Text>
+                    </View>
+                  </View>
+
+                  {importFile && (
+                    <View style={styles.importFileInfo}>
+                      <FileSpreadsheet size={20} color={Colors.primary[900]} />
+                      <Text style={styles.importFileName}>{importFile.name}</Text>
+                    </View>
+                  )}
+
+                  {importPreview.errors.length > 0 && (
+                    <View style={styles.importErrors}>
+                      <Text style={styles.importErrorsTitle}>
+                        Erreurs ({importPreview.errors.length})
+                      </Text>
+                      {importPreview.errors.slice(0, 5).map((error, index) => (
+                        <View key={index} style={styles.importErrorItem}>
+                          <Text style={styles.importErrorRow}>Ligne {error.row}</Text>
+                          <Text style={styles.importErrorMessage}>
+                            {error.field}: {error.message}
+                          </Text>
+                        </View>
+                      ))}
+                      {importPreview.errors.length > 5 && (
+                        <Text style={styles.importErrorMore}>
+                          +{importPreview.errors.length - 5} autres erreurs
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {importPreview.preview_rows && importPreview.preview_rows.length > 0 && (
+                    <View style={styles.importPreviewRows}>
+                      <Text style={styles.importPreviewRowsTitle}>Aperçu</Text>
+                      {importPreview.preview_rows.slice(0, 3).map((row, index) => (
+                        <View key={index} style={styles.importPreviewRow}>
+                          <Text style={styles.importPreviewRowName}>
+                            {row.name || `${row.family} - ${row.article_type} - ${row.brand}`}
+                          </Text>
+                          <Text style={styles.importPreviewRowPrice}>
+                            {formatMoney(row.sell_price || 0)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+
+            {importStep === 'preview' && (
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalCancelButton} onPress={closeImportModal}>
+                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalSaveButton,
+                    importPreview?.valid_count === 0 && styles.modalButtonDisabled,
+                  ]}
+                  onPress={confirmImport}
+                  disabled={isImporting || importPreview?.valid_count === 0}
+                >
+                  {isImporting ? (
+                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
+                  ) : (
+                    <Text style={styles.modalSaveButtonText}>
+                      Importer {importPreview?.valid_count || 0} article(s)
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1413,9 +1660,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
+  statsBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
   statsText: {
     fontSize: 14,
     color: Colors.muted.foreground,
+  },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary[50],
+    borderRadius: 8,
+  },
+  importButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary[900],
   },
   listContent: {
     padding: Spacing.md,
@@ -1900,5 +2166,151 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: Colors.primary[900],
+  },
+  // Import Modal Styles
+  importSelectContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  importIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  importTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  importSubtitle: {
+    fontSize: 14,
+    color: Colors.muted.foreground,
+    marginBottom: Spacing.md,
+  },
+  importHint: {
+    fontSize: 12,
+    color: Colors.muted.foreground,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  importPickButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary[900],
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    borderRadius: 12,
+  },
+  importPickButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.primary.foreground,
+  },
+  importPreviewContainer: {
+    paddingVertical: Spacing.md,
+  },
+  importPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  importPreviewStat: {
+    alignItems: 'center',
+  },
+  importPreviewStatValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.success.main,
+  },
+  importPreviewStatLabel: {
+    fontSize: 13,
+    color: Colors.muted.foreground,
+  },
+  importFileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    marginBottom: Spacing.lg,
+  },
+  importFileName: {
+    fontSize: 14,
+    color: Colors.primary[900],
+    fontWeight: '500',
+  },
+  importErrors: {
+    backgroundColor: Colors.danger.main + '10',
+    borderRadius: 8,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  importErrorsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.danger.main,
+    marginBottom: Spacing.sm,
+  },
+  importErrorItem: {
+    marginBottom: Spacing.sm,
+  },
+  importErrorRow: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.danger.main,
+  },
+  importErrorMessage: {
+    fontSize: 12,
+    color: Colors.text,
+  },
+  importErrorMore: {
+    fontSize: 12,
+    color: Colors.muted.foreground,
+    fontStyle: 'italic',
+    marginTop: Spacing.sm,
+  },
+  importPreviewRows: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: Spacing.md,
+  },
+  importPreviewRowsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  importPreviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  importPreviewRowName: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+  },
+  importPreviewRowPrice: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary[900],
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
   },
 });
