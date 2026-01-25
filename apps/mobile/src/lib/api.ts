@@ -102,10 +102,11 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET' });
   }
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: any, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+      headers,
     });
   }
 
@@ -749,10 +750,14 @@ export const inventoryApi = {
     notes?: string;
   }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/batches', {
-      ...data,
-      device_id: deviceInfo.device_id,
-    });
+    console.log('📦 Creating stock batch:', { ...data, device_id: deviceInfo.device_id });
+    const result = await api.post<any>(
+      '/inventory/batches',
+      data,
+      { 'x-device-id': deviceInfo.device_id }
+    );
+    console.log('✅ Stock batch created:', result);
+    return result;
   },
   getProductBatches: async (productId: string) => {
     return api.get<any>(`/inventory/products/${productId}/batches`);

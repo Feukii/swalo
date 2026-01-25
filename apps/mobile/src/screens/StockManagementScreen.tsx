@@ -143,7 +143,7 @@ export default function StockManagementScreen({ navigation }: any) {
       const newStock = (selectedProduct.current_stock || 0) + quantity;
 
       // Créer un lot de stock avec les prix (ajoute aussi le mouvement d'inventaire)
-      await inventoryApi.createBatch({
+      const result = await inventoryApi.createBatch({
         product_id: selectedProduct.id,
         quantity: quantity,
         cost_price: buyPrice,
@@ -151,21 +151,18 @@ export default function StockManagementScreen({ navigation }: any) {
         notes: 'Approvisionnement',
       });
 
+      console.log('✅ Approvisionnement réussi:', result);
+
+      // Fermer le modal et recharger immédiatement
+      closeStockModal();
+      await loadProducts();
+
       Alert.alert(
         'Approvisionnement enregistré',
         `+${quantity} unités ajoutées\n\n` +
           `Nouveau stock: ${newStock} unités\n` +
           `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
-          `Prix de vente: ${formatMoney(sellPrice)}/unité`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              closeStockModal();
-              loadProducts();
-            },
-          },
-        ]
+          `Prix de vente: ${formatMoney(sellPrice)}/unité`
       );
     } catch (error: any) {
       console.error("Erreur lors de l'approvisionnement:", error);

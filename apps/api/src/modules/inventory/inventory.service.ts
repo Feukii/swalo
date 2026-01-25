@@ -1,10 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { MovementType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -121,6 +123,10 @@ export class InventoryService {
     notes?: string;
     device_id: string;
   }) {
+    this.logger.log(
+      `Creating stock batch: product=${data.product_id}, qty=${data.quantity}, cost=${data.cost_price}, sell=${data.sell_price}`
+    );
+
     // Fermer la validité du lot précédent (si existe)
     const previousBatch = await this.prisma.stockBatch.findFirst({
       where: {
@@ -181,6 +187,9 @@ export class InventoryService {
         },
       });
 
+      this.logger.log(
+        `Stock batch created: batch_id=${batch.id}, product=${data.product_id}, qty=${data.quantity}`
+      );
       return batch;
     });
   }
