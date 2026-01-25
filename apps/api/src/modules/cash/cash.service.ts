@@ -96,8 +96,10 @@ export class CashService {
         },
       });
 
-      // Si c'est un règlement fournisseur (sortie avec supplier_id), traiter le paiement de dette
-      if (dto.supplier_id && dto.type === 'OUT') {
+      // Si c'est un paiement fournisseur (sortie avec supplier_id), traiter le paiement de dette
+      // IMPORTANT: Ne pas traiter automatiquement si c'est un 'reglement_fournisseur'
+      // car une dette négative a déjà été créée pour ajuster le solde
+      if (dto.supplier_id && dto.type === 'OUT' && dto.category !== 'reglement_fournisseur') {
         // Trouver les dettes impayées du fournisseur
         const unpaidDebts = await tx.supplierDebt.findMany({
           where: {
@@ -147,8 +149,10 @@ export class CashService {
         }
       }
 
-      // Si c'est un remboursement client (entrée avec customer_id), traiter le paiement de créance
-      if (dto.customer_id && dto.type === 'IN') {
+      // Si c'est un paiement client (entrée avec customer_id), traiter le paiement de créance
+      // IMPORTANT: Ne pas traiter automatiquement si c'est un 'remboursement_client'
+      // car une créance négative a déjà été créée pour ajuster le solde
+      if (dto.customer_id && dto.type === 'IN' && dto.category !== 'remboursement_client') {
         // Trouver les créances impayées du client
         const unpaidReceivables = await tx.clientReceivable.findMany({
           where: {

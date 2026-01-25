@@ -57,8 +57,11 @@ interface CustomerStats {
 
 interface SupplierStats {
   // Solde actuel (toutes périodes confondues)
-  totalBalance: number;
-  suppliersWithDebt: number;
+  totalBalance: number; // Solde net (positif - négatif)
+  totalPositiveBalance: number; // Dettes fournisseurs (on leur doit)
+  totalNegativeBalance: number; // Remboursements dus par fournisseurs (ils nous doivent)
+  suppliersWithDebt: number; // Fournisseurs à qui on doit
+  suppliersToRefund: number; // Fournisseurs qui nous doivent
   // Transactions de la période
   debtsCreated: number; // Dettes créées pendant la période
   paymentsMade: number; // Paiements effectués pendant la période
@@ -66,6 +69,7 @@ interface SupplierStats {
   debtsCount: number;
   paymentsCount: number;
   top3Creditors: Array<{ name: string; amount: number }>;
+  top3ToRefund: Array<{ name: string; amount: number }>; // Fournisseurs qui nous doivent
 }
 
 interface CashEntry {
@@ -506,42 +510,72 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       ]);
 
       let totalBalance = 0;
+      let totalPositiveBalance = 0; // Dettes (on leur doit)
+      let totalNegativeBalance = 0; // Remboursements (ils nous doivent)
       const suppliersWithDebtSet = new Set<string>();
+      const suppliersToRefundSet = new Set<string>();
       let debtsCreated = 0;
       let paymentsMade = 0;
       let debtsCount = 0;
       let paymentsCount = 0;
       const supplierBalances: { [supplierId: string]: { name: string; balance: number } } = {};
 
-      // Traiter les dettes (achats à crédit)
+      // Traiter les dettes (achats à crédit et ajustements)
       if (Array.isArray(debtsData)) {
         debtsData.forEach((debt: any) => {
           if (!debt) return;
 
-          // Calculer le solde actuel (toutes dettes non soldées)
-          if (debt.status === 'PENDING' || debt.status === 'PARTIAL') {
-            const balance = debt.balance || 0;
-            totalBalance += balance;
+          const balance = debt.balance || 0;
+          const supplierName = debt.supplier
+            ? debt.supplier.first_name
+              ? `${debt.supplier.first_name} ${debt.supplier.name}`
+              : debt.supplier.name
+            : 'Fournisseur inconnu';
 
-            if (debt.supplier_id) {
-              suppliersWithDebtSet.add(debt.supplier_id);
+          // Calculer le solde actuel - inclure toutes les dettes non annulées
+          // Les dettes PAID avec balance négatif sont des remboursements dus par le fournisseur
+          if (debt.status !== 'CANCELLED') {
+            // Pour les dettes PENDING/PARTIAL avec balance > 0 (on leur doit)
+            if (
+              (debt.status === 'PENDING' || debt.status === 'PARTIAL') &&
+              balance > 0
+            ) {
+              totalBalance += balance;
+              totalPositiveBalance += balance;
 
-              // Accumuler la dette par fournisseur pour le top 3
-              const supplierName = debt.supplier
-                ? debt.supplier.first_name
-                  ? `${debt.supplier.first_name} ${debt.supplier.name}`
-                  : debt.supplier.name
-                : 'Fournisseur inconnu';
+              if (debt.supplier_id) {
+                suppliersWithDebtSet.add(debt.supplier_id);
 
-              if (!supplierBalances[debt.supplier_id]) {
-                supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
+                if (!supplierBalances[debt.supplier_id]) {
+                  supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
+                }
+                supplierBalances[debt.supplier_id].balance += balance;
               }
-              supplierBalances[debt.supplier_id].balance += balance;
+            }
+
+            // Pour les dettes avec balance négatif (fournisseur nous doit - remboursement)
+            // Cela inclut les dettes PAID avec montant négatif (ajustements)
+            if (balance < 0) {
+              totalBalance += balance;
+              totalNegativeBalance += Math.abs(balance);
+
+              if (debt.supplier_id) {
+                suppliersToRefundSet.add(debt.supplier_id);
+
+                if (!supplierBalances[debt.supplier_id]) {
+                  supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
+                }
+                supplierBalances[debt.supplier_id].balance += balance;
+              }
             }
           }
 
-          // Dettes créées pendant la période (inclut les achats à crédit)
-          if (debt.created_at && isInPeriod(debt.created_at, periodDates.start, periodDates.end)) {
+          // Dettes créées pendant la période (seulement montants positifs = achats à crédit)
+          if (
+            debt.created_at &&
+            debt.amount > 0 &&
+            isInPeriod(debt.created_at, periodDates.start, periodDates.end)
+          ) {
             debtsCreated += debt.amount || 0;
             debtsCount++;
           }
@@ -549,7 +583,6 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
           // Paiements effectués pendant la période (sur les dettes)
           if (debt.payments && Array.isArray(debt.payments)) {
             debt.payments.forEach((payment: any) => {
-              // Vérifier les deux champs possibles pour la date
               const paymentDate = payment.payment_date || payment.created_at;
               if (
                 payment &&
@@ -574,11 +607,14 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         });
       }
 
-      // Construire la liste des créditeurs
+      // Construire les listes des créditeurs et des fournisseurs qui nous doivent
       const creditorsList: Array<{ name: string; amount: number }> = [];
-      Object.entries(supplierBalances).forEach(([supplierId, data]) => {
+      const refundList: Array<{ name: string; amount: number }> = [];
+      Object.entries(supplierBalances).forEach(([, data]) => {
         if (data.balance > 0) {
           creditorsList.push({ name: data.name, amount: data.balance });
+        } else if (data.balance < 0) {
+          refundList.push({ name: data.name, amount: Math.abs(data.balance) });
         }
       });
 
@@ -587,28 +623,37 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
       // Trier par montant décroissant et prendre les 3 premiers
       const top3Creditors = creditorsList.sort((a, b) => b.amount - a.amount).slice(0, 3);
+      const top3ToRefund = refundList.sort((a, b) => b.amount - a.amount).slice(0, 3);
 
       setSupplierStats({
         totalBalance,
+        totalPositiveBalance,
+        totalNegativeBalance,
         suppliersWithDebt: suppliersWithDebtSet.size,
+        suppliersToRefund: suppliersToRefundSet.size,
         debtsCreated,
         paymentsMade,
         periodNet,
         debtsCount,
         paymentsCount,
         top3Creditors,
+        top3ToRefund,
       });
     } catch (error) {
       console.error('Erreur chargement stats fournisseurs:', error);
       setSupplierStats({
         totalBalance: 0,
+        totalPositiveBalance: 0,
+        totalNegativeBalance: 0,
         suppliersWithDebt: 0,
+        suppliersToRefund: 0,
         debtsCreated: 0,
         paymentsMade: 0,
         periodNet: 0,
         debtsCount: 0,
         paymentsCount: 0,
         top3Creditors: [],
+        top3ToRefund: [],
       });
     }
   };
@@ -986,15 +1031,39 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
           {suppliersExpanded && supplierStats && (
             <>
-              {/* Solde total dettes */}
-              <View style={[styles.kpiBox, styles.kpiBoxDanger]}>
-                <Text style={styles.kpiLabel}>Solde Total Dettes</Text>
-                <Text style={styles.kpiValue}>{formatMoney(supplierStats.totalBalance)}</Text>
-                <Text style={styles.kpiSubtext}>
-                  {supplierStats.suppliersWithDebt} fournisseur
-                  {supplierStats.suppliersWithDebt > 1 ? 's' : ''} à payer
-                </Text>
+              {/* Soldes fournisseurs (dettes et remboursements séparés) */}
+              <View style={styles.statsRow}>
+                <View style={[styles.statBox, styles.statBoxOrange]}>
+                  <Text style={styles.statLabel}>Nous leur devons</Text>
+                  <Text style={styles.statValue}>
+                    {formatMoney(supplierStats.totalPositiveBalance)}
+                  </Text>
+                  <Text style={styles.statCount}>
+                    {supplierStats.suppliersWithDebt} fournisseur
+                    {supplierStats.suppliersWithDebt > 1 ? 's' : ''}
+                  </Text>
+                </View>
+
+                <View style={[styles.statBox, styles.statBoxGreen]}>
+                  <Text style={styles.statLabel}>Ils nous doivent</Text>
+                  <Text style={styles.statValue}>
+                    {formatMoney(supplierStats.totalNegativeBalance)}
+                  </Text>
+                  <Text style={styles.statCount}>
+                    {supplierStats.suppliersToRefund} fournisseur
+                    {supplierStats.suppliersToRefund > 1 ? 's' : ''} à récupérer
+                  </Text>
+                </View>
               </View>
+
+              {/* Alerte si fournisseurs nous doivent */}
+              {supplierStats.totalNegativeBalance > 0 && (
+                <View style={[styles.alertBox, { backgroundColor: Colors.success.background }]}>
+                  <Text style={[styles.alertText, { color: Colors.success.main }]}>
+                    💰 Vos fournisseurs vous doivent {formatMoney(supplierStats.totalNegativeBalance)}
+                  </Text>
+                </View>
+              )}
 
               {/* Dettes / Paiements de la période */}
               <View style={styles.statsRow}>
@@ -1011,7 +1080,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
                 </View>
               </View>
 
-              {/* Top 3 fournisseurs */}
+              {/* Top 3 fournisseurs à payer */}
               {supplierStats.top3Creditors.length > 0 && (
                 <View style={styles.topSection}>
                   <Text style={styles.topTitle}>Top 3 - Plus grandes dettes</Text>
@@ -1027,9 +1096,32 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
                 </View>
               )}
 
+              {/* Top 3 fournisseurs qui nous doivent */}
+              {supplierStats.top3ToRefund.length > 0 && (
+                <View style={[styles.topSection, { borderTopColor: Colors.success.main }]}>
+                  <Text style={[styles.topTitle, { color: Colors.success.main }]}>
+                    Fournisseurs qui nous doivent
+                  </Text>
+                  {supplierStats.top3ToRefund.map((supplier, index) => (
+                    <View key={index} style={styles.topItem}>
+                      <View style={[styles.topRank, { backgroundColor: Colors.success.background }]}>
+                        <Text style={[styles.topRankText, { color: Colors.success.main }]}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text style={styles.topName}>{supplier.name}</Text>
+                      <Text style={[styles.topAmount, { color: Colors.success.main }]}>
+                        +{formatMoney(supplier.amount)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {supplierStats.debtsCount === 0 &&
                 supplierStats.paymentsCount === 0 &&
-                supplierStats.top3Creditors.length === 0 && (
+                supplierStats.top3Creditors.length === 0 &&
+                supplierStats.top3ToRefund.length === 0 && (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyText}>
                       Aucune activité fournisseur sur cette période
