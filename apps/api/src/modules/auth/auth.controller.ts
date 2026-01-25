@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Request, Patch } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request, Patch, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   LoginDto,
@@ -59,6 +59,16 @@ export class AuthController {
   @Post('create-shop')
   async createShop(@Body() dto: CreateShopDto) {
     return this.authService.createShop(dto);
+  }
+
+  /**
+   * GET /api/auth/verify-shop/:code
+   * Vérifie si une boutique existe (endpoint public pour diagnostic)
+   * Ne retourne pas de données sensibles
+   */
+  @Get('verify-shop/:code')
+  async verifyShop(@Param('code') code: string) {
+    return this.authService.verifyShopExists(code);
   }
 
   /**

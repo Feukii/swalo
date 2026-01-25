@@ -242,9 +242,10 @@ export class AuthService {
       }
     }
 
-    // Vérifier et gérer l'appareil pour les employés (un seul appareil autorisé)
-    if (deviceInfo && userRole.role === 'EMPLOYEE') {
-      // Vérifier si cet appareil est déjà enregistré et actif
+    // Traçabilité des appareils pour tous les utilisateurs
+    // Restriction appareil unique seulement pour les EMPLOYEE
+    if (deviceInfo) {
+      // Vérifier si cet appareil est déjà enregistré
       const existingDevice = await this.prisma.userDevice.findUnique({
         where: {
           user_id_shop_id_device_id: {
@@ -255,26 +256,33 @@ export class AuthService {
         },
       });
 
-      if (existingDevice && !existingDevice.is_active) {
-        throw new UnauthorizedException(
-          'Cet appareil a été révoqué. Contactez votre administrateur.'
-        );
-      }
-
-      if (!existingDevice) {
-        // Vérifier s'il y a déjà un autre appareil actif
-        const activeDevices = await this.prisma.userDevice.findMany({
-          where: {
-            user_id: user.id,
-            shop_id: shop.id,
-            is_active: true,
-          },
-        });
-
-        if (activeDevices.length > 0) {
+      if (existingDevice) {
+        if (!existingDevice.is_active) {
           throw new UnauthorizedException(
-            'Ce code PIN est déjà utilisé sur un autre appareil. Un seul appareil est autorisé par employé.'
+            'Cet appareil a été révoqué. Contactez votre administrateur.'
           );
+        }
+        // Mettre à jour la date de dernière connexion
+        await this.prisma.userDevice.update({
+          where: { id: existingDevice.id },
+          data: { last_login_at: new Date() },
+        });
+      } else {
+        // Pour EMPLOYEE uniquement: vérifier restriction appareil unique
+        if (userRole.role === 'EMPLOYEE') {
+          const activeDevices = await this.prisma.userDevice.findMany({
+            where: {
+              user_id: user.id,
+              shop_id: shop.id,
+              is_active: true,
+            },
+          });
+
+          if (activeDevices.length > 0) {
+            throw new UnauthorizedException(
+              'Ce code PIN est déjà utilisé sur un autre appareil. Un seul appareil est autorisé par employé.'
+            );
+          }
         }
 
         // Enregistrer le nouvel appareil
@@ -288,12 +296,6 @@ export class AuthService {
             last_login_at: new Date(),
             is_active: true,
           },
-        });
-      } else {
-        // Mettre à jour la date de dernière connexion
-        await this.prisma.userDevice.update({
-          where: { id: existingDevice.id },
-          data: { last_login_at: new Date() },
         });
       }
     }
@@ -548,6 +550,36 @@ export class AuthService {
         name: updatedShop.name,
       },
       message: 'Code boutique modifié avec succès',
+    };
+  }
+
+  /**
+   * Vérifie si une boutique existe par son code
+   * Endpoint public pour diagnostic - ne retourne pas de données sensibles
+   */
+  async verifyShopExists(code: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { code, deleted: false },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+    });
+
+    if (!shop) {
+      return {
+        exists: false,
+        message: 'Aucune boutique trouvée avec ce code',
+      };
+    }
+
+    return {
+      exists: true,
+      shop: {
+        name: shop.name,
+        code: shop.code,
+      },
     };
   }
 }

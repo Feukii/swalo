@@ -150,6 +150,13 @@ export const authApi = {
     await AsyncStorage.removeItem('access_token');
     await AsyncStorage.removeItem('user');
   },
+  verifyShop: async (code: string) => {
+    return api.get<{
+      exists: boolean;
+      message?: string;
+      shop?: { name: string; code: string };
+    }>(`/auth/verify-shop/${code}`);
+  },
 };
 
 // Cash API
