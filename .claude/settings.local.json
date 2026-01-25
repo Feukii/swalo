@@ -123,7 +123,8 @@
       "Bash(npx prisma db pull:*)",
       "Bash(npm run build:*)",
       "Bash(chmod:*)",
-      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")"
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(npx prettier:*)"
     ],
     "deny": [],
     "ask": []
