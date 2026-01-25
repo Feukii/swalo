@@ -55,7 +55,8 @@ interface CustomerDetails {
     paid_amount: number;
     status: string;
     created_at: string;
-    note?: string;
+    description?: string;
+    notes?: string;
     payments: Array<{
       id: string;
       amount: number;
@@ -206,7 +207,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     customerData.receivables.forEach(receivable => {
       // Skip receivables that are PAID status with description "Remboursement effectué"
       // These are created to offset negative balances during customer refunds
-      if (receivable.status === 'PAID' && receivable.note?.includes('Remboursement')) {
+      const isRefundReceivable =
+        receivable.status === 'PAID' &&
+        (receivable.description?.includes('Remboursement') ||
+          receivable.notes?.includes('Remboursement'));
+      if (isRefundReceivable) {
         return;
       }
 
@@ -214,7 +219,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         type: 'receivable',
         date: receivable.created_at,
         amount: receivable.amount,
-        note: receivable.note,
+        note: receivable.description || receivable.notes,
         status: receivable.status,
       });
 

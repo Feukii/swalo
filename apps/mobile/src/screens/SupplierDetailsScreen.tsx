@@ -52,7 +52,8 @@ interface SupplierDetails {
     paid_amount: number;
     status: string;
     created_at: string;
-    note?: string;
+    description?: string;
+    notes?: string;
     payments: Array<{
       id: string;
       amount: number;
@@ -586,11 +587,20 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
     // Add debts
     supplier.debts.forEach(debt => {
+      // Skip debts that are negative amounts with "Remboursement" in description
+      // These are created to track supplier refunds and would duplicate the cash entry
+      const isRefundDebt =
+        debt.amount < 0 &&
+        (debt.description?.includes('Remboursement') || debt.notes?.includes('Remboursement'));
+      if (isRefundDebt) {
+        return;
+      }
+
       transactions.push({
         type: 'debt',
         date: debt.created_at,
         amount: debt.amount,
-        note: debt.note,
+        note: debt.description || debt.notes,
         status: debt.status,
         debtAmount: debt.amount,
       });
