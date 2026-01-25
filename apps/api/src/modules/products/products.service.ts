@@ -1,59 +1,112 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   /**
    * Créer un nouveau produit
    */
   async create(shopId: string, dto: CreateProductDto, deviceId?: string) {
-    // Vérifier l'unicité du SKU dans la boutique
-    const existingProduct = await this.prisma.product.findFirst({
-      where: {
-        shop_id: shopId,
-        sku: dto.sku,
-        deleted: false,
-      },
-    });
+    this.logger.log(`Creating product: sku=${dto.sku}, name=${dto.name}, shopId=${shopId}`);
 
-    if (existingProduct) {
-      throw new ConflictException(`Un produit avec le SKU "${dto.sku}" existe déjà`);
+    // Validation de base
+    if (!shopId) {
+      this.logger.error('shopId is missing');
+      throw new BadRequestException('Shop ID manquant');
     }
 
-    // Créer le produit
-    const product = await this.prisma.product.create({
-      data: {
-        id: uuidv4(),
-        shop_id: shopId,
-        sku: dto.sku,
-        barcode: dto.barcode,
-        name: dto.name,
-        description: dto.description,
-        category: dto.category,
-        family: dto.family,
-        article_type: dto.article_type,
-        brand: dto.brand,
-        reference: dto.reference,
-        unit: dto.unit || 'unit',
-        tax_rate: dto.tax_rate || 0,
-        cost_price: dto.cost_price,
-        sell_price: dto.sell_price,
-        is_active: dto.is_active !== undefined ? dto.is_active : true,
-        alert_threshold: dto.alert_threshold || 5,
-        image_url: dto.image_url,
-        device_id: deviceId,
-        client_op_id: uuidv4(),
-      },
-    });
+    if (!dto.sku || !dto.name) {
+      this.logger.error(`Missing required fields: sku=${dto.sku}, name=${dto.name}`);
+      throw new BadRequestException('SKU et nom sont requis');
+    }
 
-    // Récupérer le produit avec son stock
-    return this.findOneWithStock(product.id, shopId);
+    try {
+      // Vérifier l'unicité du SKU dans la boutique
+      const existingProduct = await this.prisma.product.findFirst({
+        where: {
+          shop_id: shopId,
+          sku: dto.sku,
+          deleted: false,
+        },
+      });
+
+      if (existingProduct) {
+        this.logger.warn(`SKU already exists: ${dto.sku}`);
+        throw new ConflictException(`Un produit avec le SKU "${dto.sku}" existe déjà`);
+      }
+
+      // Créer le produit
+      const product = await this.prisma.product.create({
+        data: {
+          id: uuidv4(),
+          shop_id: shopId,
+          sku: dto.sku,
+          barcode: dto.barcode,
+          name: dto.name,
+          description: dto.description,
+          category: dto.category,
+          family: dto.family,
+          article_type: dto.article_type,
+          brand: dto.brand,
+          reference: dto.reference,
+          unit: dto.unit || 'unit',
+          tax_rate: dto.tax_rate || 0,
+          cost_price: dto.cost_price,
+          sell_price: dto.sell_price,
+          is_active: dto.is_active !== undefined ? dto.is_active : true,
+          alert_threshold: dto.alert_threshold || 5,
+          image_url: dto.image_url,
+          device_id: deviceId,
+          client_op_id: uuidv4(),
+        },
+      });
+
+      this.logger.log(`Product created successfully: id=${product.id}, sku=${product.sku}`);
+
+      // Récupérer le produit avec son stock
+      return await this.findOneWithStock(product.id, shopId);
+    } catch (error) {
+      // Re-throw si c'est déjà une exception HTTP
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Log l'erreur avec détails
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        this.logger.error(
+          `Prisma error creating product: code=${error.code}, meta=${JSON.stringify(error.meta)}`,
+          error.stack
+        );
+
+        // Gérer les erreurs Prisma spécifiques
+        if (error.code === 'P2002') {
+          const target = (error.meta?.target as string[]) || [];
+          throw new ConflictException(`Contrainte unique violée: ${target.join(', ')}`);
+        }
+      } else {
+        this.logger.error(
+          `Error creating product: ${(error as Error).message}`,
+          (error as Error).stack
+        );
+      }
+
+      throw error;
+    }
   }
 
   /**

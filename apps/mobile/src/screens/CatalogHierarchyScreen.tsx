@@ -309,7 +309,13 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
       loadData(); // Recharger les données
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
+      // Extraire le message d'erreur de l'API
+      const errorMessage =
+        error.response?.data?.message?.[0] ||
+        error.response?.data?.message ||
+        error.message ||
+        'Impossible de sauvegarder';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setIsSaving(false);
     }

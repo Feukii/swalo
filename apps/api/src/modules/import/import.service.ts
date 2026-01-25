@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import * as XLSX from 'xlsx';
 import { mapColumnName, REQUIRED_COLUMNS, DEFAULT_VALUES } from './column-mapping';
@@ -37,6 +37,8 @@ export interface ImportPreviewResult {
 
 @Injectable()
 export class ImportService {
+  private readonly logger = new Logger(ImportService.name);
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -314,7 +316,12 @@ export class ImportService {
           },
         });
         imported++;
-      } catch {
+      } catch (error: any) {
+        // Log l'erreur avec le détail du produit concerné
+        this.logger.error(
+          `Failed to import product: sku=${sku}, name=${name}, error=${error.message || error.code || 'Unknown'}`,
+          error.stack
+        );
         skipped++;
       }
     }
