@@ -1469,8 +1469,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
                     Formats acceptés: CSV, Excel (.xls, .xlsx)
                   </Text>
                   <Text style={styles.importHint}>
-                    Le fichier doit contenir les colonnes: famille, type_article, marque, reference,
-                    prix_achat, prix_vente
+                    Colonnes requises: Code Article, Libellé Article{'\n'}
+                    Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix vente
                   </Text>
                   <TouchableOpacity
                     style={styles.importPickButton}

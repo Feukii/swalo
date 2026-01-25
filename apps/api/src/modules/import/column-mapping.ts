@@ -22,6 +22,7 @@ export const COLUMN_ALIASES: Record<string, string> = {
   libelle: 'name',
   'libelle article': 'name',
   libelle_article: 'name',
+  'libelle article (designation)': 'name',
   designation: 'name',
   'designation article': 'name',
   description: 'name',
