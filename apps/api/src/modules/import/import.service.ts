@@ -24,10 +24,13 @@ interface ValidationError {
 
 export interface ImportPreviewResult {
   total_rows: number;
-  valid_rows: number;
-  invalid_rows: number;
+  valid_count: number;
+  invalid_count: number;
+  valid_rows: number; // Alias for valid_count
+  invalid_rows: number; // Alias for invalid_count
   errors: ValidationError[];
-  preview: ImportRow[];
+  preview_rows: ImportRow[];
+  preview: ImportRow[]; // Alias for preview_rows
   columns_found: string[];
   columns_mapped: Record<string, string>;
 }
@@ -204,10 +207,14 @@ export class ImportService {
 
     return {
       total_rows: jsonData.length,
+      valid_count: validRows.length,
+      invalid_count: jsonData.length - validRows.length,
+      // Aliases for backward compatibility
       valid_rows: validRows.length,
       invalid_rows: jsonData.length - validRows.length,
       errors: errors.slice(0, 100), // Limiter a 100 erreurs
-      preview: validRows.slice(0, 10), // Apercu des 10 premiers
+      preview_rows: validRows.slice(0, 10), // Apercu des 10 premiers
+      preview: validRows.slice(0, 10), // Alias
       columns_found: columnsFound,
       columns_mapped: columnMapping,
     };
@@ -317,6 +324,9 @@ export class ImportService {
       imported,
       skipped,
       total: jsonData.length,
+      // Aliases for frontend compatibility
+      created_count: imported,
+      updated_count: 0, // This import only creates, doesn't update
     };
   }
 

@@ -414,48 +414,83 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
   const pickDocument = async () => {
     try {
+      console.log('📂 Opening document picker...');
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'text/csv',
+          'text/plain', // Some CSV files are detected as text/plain
           'application/vnd.ms-excel',
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '*/*', // Fallback for any file type
         ],
         copyToCacheDirectory: true,
       });
 
+      console.log('📄 Document picker result:', JSON.stringify(result, null, 2));
+
       if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log('❌ Document selection cancelled');
         return;
       }
 
       const file = result.assets[0];
+      console.log('📄 Selected file:', file.name, 'URI:', file.uri);
 
       // Read file content as base64
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
-      const reader = new FileReader();
+      setIsImporting(true);
+      try {
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        console.log('📦 File blob size:', blob.size, 'bytes');
 
-      reader.onloadend = async () => {
-        const base64Content = (reader.result as string).split(',')[1];
-        setImportFile({ name: file.name, content: base64Content });
+        const reader = new FileReader();
 
-        // Preview the import
-        setIsImporting(true);
-        try {
-          const preview = await importApi.previewCatalog(base64Content, file.name);
-          setImportPreview(preview);
-          setImportStep('preview');
-        } catch (error: any) {
-          console.error('Erreur lors de la prévisualisation:', error);
-          Alert.alert('Erreur', error.message || 'Impossible de lire le fichier');
-        } finally {
+        reader.onerror = () => {
+          console.error('❌ FileReader error:', reader.error);
+          Alert.alert('Erreur', 'Impossible de lire le contenu du fichier');
           setIsImporting(false);
-        }
-      };
+        };
 
-      reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          try {
+            const base64Content = (reader.result as string).split(',')[1];
+            console.log('📤 Base64 content length:', base64Content?.length || 0);
+
+            if (!base64Content) {
+              Alert.alert('Erreur', 'Le fichier semble vide');
+              setIsImporting(false);
+              return;
+            }
+
+            setImportFile({ name: file.name, content: base64Content });
+
+            // Preview the import
+            console.log('🔄 Calling preview API...');
+            const preview = await importApi.previewCatalog(base64Content, file.name);
+            console.log('✅ Preview result:', JSON.stringify(preview, null, 2));
+            setImportPreview(preview);
+            setImportStep('preview');
+          } catch (error: any) {
+            console.error('❌ Erreur lors de la prévisualisation:', error);
+            Alert.alert(
+              'Erreur',
+              error.message || "Impossible de prévisualiser le fichier. Vérifiez le format et les colonnes."
+            );
+          } finally {
+            setIsImporting(false);
+          }
+        };
+
+        reader.readAsDataURL(blob);
+      } catch (fetchError: any) {
+        console.error('❌ Error fetching file:', fetchError);
+        Alert.alert('Erreur', 'Impossible de lire le fichier sélectionné');
+        setIsImporting(false);
+      }
     } catch (error: any) {
-      console.error('Erreur lors de la sélection du fichier:', error);
+      console.error('❌ Erreur lors de la sélection du fichier:', error);
       Alert.alert('Erreur', error.message || 'Impossible de sélectionner le fichier');
+      setIsImporting(false);
     }
   };
 

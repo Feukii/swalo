@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     height: 56,
   },
   backButton: {
-    width: 44,
+    minWidth: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'flex-start',
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   rightAction: {
-    width: 44,
+    minWidth: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'flex-end',
