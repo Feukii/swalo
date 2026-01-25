@@ -102,7 +102,7 @@ export default function SaleScreen() {
   const filteredProducts = products
     .filter(
       p =>
-        p.reference_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.family?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.article_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.brand?.toLowerCase().includes(searchQuery.toLowerCase())

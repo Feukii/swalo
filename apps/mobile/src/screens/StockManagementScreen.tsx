@@ -25,18 +25,18 @@ import {
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { productsApi } from '../lib/api';
+import { productsApi, inventoryApi } from '../lib/api';
 
 interface StockItem {
   id: string;
-  reference_number: string;
+  reference: string;
   family: string;
   article_type: string;
   brand: string;
   current_stock: number;
-  min_stock_threshold: number;
-  unit_price?: number;
-  selling_price?: number;
+  alert_threshold: number;
+  cost_price?: number;
+  sell_price?: number;
 }
 
 export default function StockManagementScreen({ navigation }: any) {
@@ -90,7 +90,7 @@ export default function StockManagementScreen({ navigation }: any) {
       const query = searchQuery.toLowerCase();
       const filtered = products.filter(
         p =>
-          p.reference_number?.toLowerCase().includes(query) ||
+          p.reference?.toLowerCase().includes(query) ||
           p.family?.toLowerCase().includes(query) ||
           p.article_type?.toLowerCase().includes(query) ||
           p.brand?.toLowerCase().includes(query)
@@ -102,8 +102,8 @@ export default function StockManagementScreen({ navigation }: any) {
   const openStockModal = (product: StockItem) => {
     setSelectedProduct(product);
     setStockQuantity('');
-    setUnitPrice(product.unit_price ? String(product.unit_price) : '');
-    setSellingPrice(product.selling_price ? String(product.selling_price) : '');
+    setUnitPrice(product.cost_price ? String(product.cost_price) : '');
+    setSellingPrice(product.sell_price ? String(product.sell_price) : '');
     setShowStockModal(true);
   };
 
@@ -142,11 +142,13 @@ export default function StockManagementScreen({ navigation }: any) {
     try {
       const newStock = (selectedProduct.current_stock || 0) + quantity;
 
-      // Mettre à jour le stock et les prix
-      await productsApi.update(selectedProduct.id, {
-        current_stock: newStock,
-        unit_price: buyPrice,
-        selling_price: sellPrice,
+      // Créer un lot de stock avec les prix (ajoute aussi le mouvement d'inventaire)
+      await inventoryApi.createBatch({
+        product_id: selectedProduct.id,
+        quantity: quantity,
+        cost_price: buyPrice,
+        sell_price: sellPrice,
+        notes: 'Approvisionnement',
       });
 
       Alert.alert(
@@ -175,7 +177,7 @@ export default function StockManagementScreen({ navigation }: any) {
 
   const getStockStatus = (product: StockItem) => {
     const stock = product.current_stock || 0;
-    const threshold = product.min_stock_threshold || 0;
+    const threshold = product.alert_threshold || 0;
 
     if (stock === 0) return 'out';
     if (stock <= threshold) return 'low';
@@ -211,7 +213,7 @@ export default function StockManagementScreen({ navigation }: any) {
   const lowStockCount = products.filter(p => getStockStatus(p) === 'low').length;
   const outOfStockCount = products.filter(p => getStockStatus(p) === 'out').length;
   const totalValue = products.reduce(
-    (sum, p) => sum + (p.current_stock || 0) * (p.unit_price || 0),
+    (sum, p) => sum + (p.current_stock || 0) * (p.cost_price || 0),
     0
   );
 
@@ -285,7 +287,7 @@ export default function StockManagementScreen({ navigation }: any) {
               <View key={product.id} style={styles.productCard}>
                 <View style={styles.productHeader}>
                   <View style={styles.productInfo}>
-                    <Text style={styles.productReference}>{product.reference_number}</Text>
+                    <Text style={styles.productReference}>{product.reference}</Text>
                     <Text style={styles.productName}>{product.family}</Text>
                     <Text style={styles.productDetails}>
                       {product.article_type} - {product.brand}
@@ -305,13 +307,13 @@ export default function StockManagementScreen({ navigation }: any) {
                     </Text>
                   </View>
 
-                  {product.unit_price && product.selling_price && (
+                  {product.cost_price && product.sell_price && (
                     <View style={styles.priceInfo}>
                       <Text style={styles.priceLabel}>
-                        Achat: {formatMoney(product.unit_price)}
+                        Achat: {formatMoney(product.cost_price)}
                       </Text>
                       <Text style={styles.priceLabel}>
-                        Vente: {formatMoney(product.selling_price)}
+                        Vente: {formatMoney(product.sell_price)}
                       </Text>
                     </View>
                   )}
