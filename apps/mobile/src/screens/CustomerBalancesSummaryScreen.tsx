@@ -105,7 +105,7 @@ export default function CustomerBalancesSummaryScreen({
       return { text: 'Nous doit', variant: 'success' as const };
     }
     if (balance < 0) {
-      return { text: 'On lui doit', variant: 'danger' as const };
+      return { text: 'Remboursement dû', variant: 'danger' as const };
     }
     return { text: 'Soldé', variant: 'default' as const };
   };
@@ -130,7 +130,7 @@ export default function CustomerBalancesSummaryScreen({
           </View>
           <View style={{ flex: 1 }}>
             <KPICard
-              label="On doit aux clients"
+              label="Remboursements dus"
               value={formatMoney(totalWeOwe)}
               icon={<Users size={20} color={Colors.danger.main} />}
             />

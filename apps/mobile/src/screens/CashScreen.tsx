@@ -336,22 +336,25 @@ export default function CashScreen({ navigation }: any) {
         const currentBalance = fullCustomer.stats?.total_balance || 0;
 
         // Créer une créance négative (réduit le solde)
+        // Le backend définira automatiquement status='PAID' pour les montants négatifs
         await receivablesApi.create({
           customer_id: selectedCustomerId,
           amount: -amountValue, // Montant négatif pour réduire le solde
-          description: note || `Paiement de ${customerName}`,
+          description: note || `Paiement reçu de ${customerName}`,
         });
 
         // Calculer le nouveau solde
         const newBalance = currentBalance - amountValue;
 
-        // Message selon le résultat
-        const message =
-          newBalance > 0
-            ? `Remboursement de ${formatMoney(amountValue)} enregistré.\nNouveau solde: ${formatMoney(newBalance)}`
-            : newBalance < 0
-              ? `Remboursement de ${formatMoney(amountValue)} enregistré.\nNouveau solde: -${formatMoney(Math.abs(newBalance))}\n⚠️ Vous devez rendre ${formatMoney(Math.abs(newBalance))} au client.`
-              : `Remboursement de ${formatMoney(amountValue)} enregistré.\nLa dette est totalement remboursée!`;
+        // Message selon le résultat - clair sur qui doit quoi
+        let message: string;
+        if (newBalance > 0) {
+          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le client nous doit encore ${formatMoney(newBalance)})`;
+        } else if (newBalance < 0) {
+          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ REMBOURSEMENT DÛ AU CLIENT\nMontant à rendre: ${formatMoney(Math.abs(newBalance))}\n\nLe client a payé ${formatMoney(Math.abs(newBalance))} de plus que sa dette.`;
+        } else {
+          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\n✅ La dette est totalement soldée!`;
+        }
 
         Alert.alert('Succès', message);
 
@@ -360,7 +363,7 @@ export default function CashScreen({ navigation }: any) {
           type: 'IN',
           category: entryCategory,
           amount: amountValue,
-          note: note || `Paiement de ${customerName}`,
+          note: note || `Paiement reçu de ${customerName}`,
           customer_id: selectedCustomerId,
         });
       } else {

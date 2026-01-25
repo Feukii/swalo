@@ -40,8 +40,11 @@ interface SalesStats {
 
 interface CustomerStats {
   // Solde actuel (toutes périodes confondues)
-  totalBalance: number;
-  customersWithDebt: number;
+  totalBalance: number; // Solde net (positif - négatif)
+  totalPositiveBalance: number; // Créances clients (ils nous doivent)
+  totalNegativeBalance: number; // Remboursements dus (nous leur devons)
+  customersWithDebt: number; // Clients qui nous doivent
+  customersToRefund: number; // Clients à qui nous devons
   // Transactions de la période
   receivablesCreated: number; // Créances créées pendant la période
   paymentsReceived: number; // Paiements reçus pendant la période
@@ -49,6 +52,7 @@ interface CustomerStats {
   receivablesCount: number;
   paymentsCount: number;
   top3Debtors: Array<{ name: string; amount: number }>;
+  top3ToRefund: Array<{ name: string; amount: number }>; // Clients à rembourser
 }
 
 interface SupplierStats {
@@ -334,44 +338,72 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       ]);
 
       let totalBalance = 0;
+      let totalPositiveBalance = 0; // Créances (clients nous doivent)
+      let totalNegativeBalance = 0; // Remboursements (nous devons aux clients)
       const customersWithDebtSet = new Set<string>();
+      const customersToRefundSet = new Set<string>();
       let receivablesCreated = 0;
       let paymentsReceived = 0;
       let receivablesCount = 0;
       let paymentsCount = 0;
       const debtorsList: Array<{ name: string; amount: number; customerId: string }> = [];
+      const refundList: Array<{ name: string; amount: number; customerId: string }> = [];
       const customerBalances: { [customerId: string]: { name: string; balance: number } } = {};
 
-      // Traiter les créances (ventes à crédit)
+      // Traiter les créances (ventes à crédit et ajustements)
       if (Array.isArray(receivablesData)) {
         receivablesData.forEach((receivable: any) => {
           if (!receivable) return;
 
-          // Calculer le solde actuel (toutes créances non soldées)
-          if (receivable.status === 'PENDING' || receivable.status === 'PARTIAL') {
-            const balance = receivable.balance || 0;
-            totalBalance += balance;
+          const balance = receivable.balance || 0;
+          const customerName = receivable.customer
+            ? receivable.customer.first_name
+              ? `${receivable.customer.first_name} ${receivable.customer.name}`
+              : receivable.customer.name
+            : 'Client inconnu';
 
-            if (receivable.customer_id) {
-              customersWithDebtSet.add(receivable.customer_id);
+          // Calculer le solde actuel - inclure toutes les créances non annulées
+          // Les créances PAID avec balance négatif sont des remboursements dus
+          if (receivable.status !== 'CANCELLED') {
+            // Pour les créances PENDING/PARTIAL avec balance > 0 (client nous doit)
+            if (
+              (receivable.status === 'PENDING' || receivable.status === 'PARTIAL') &&
+              balance > 0
+            ) {
+              totalBalance += balance;
+              totalPositiveBalance += balance;
 
-              // Accumuler la dette par client pour le top 3
-              const customerName = receivable.customer
-                ? receivable.customer.first_name
-                  ? `${receivable.customer.first_name} ${receivable.customer.name}`
-                  : receivable.customer.name
-                : 'Client inconnu';
+              if (receivable.customer_id) {
+                customersWithDebtSet.add(receivable.customer_id);
 
-              if (!customerBalances[receivable.customer_id]) {
-                customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
+                if (!customerBalances[receivable.customer_id]) {
+                  customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
+                }
+                customerBalances[receivable.customer_id].balance += balance;
               }
-              customerBalances[receivable.customer_id].balance += balance;
+            }
+
+            // Pour les créances avec balance négatif (nous devons au client - remboursement)
+            // Cela inclut les créances PAID avec montant négatif (ajustements)
+            if (balance < 0) {
+              totalBalance += balance;
+              totalNegativeBalance += Math.abs(balance);
+
+              if (receivable.customer_id) {
+                customersToRefundSet.add(receivable.customer_id);
+
+                if (!customerBalances[receivable.customer_id]) {
+                  customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
+                }
+                customerBalances[receivable.customer_id].balance += balance;
+              }
             }
           }
 
-          // Créances créées pendant la période (inclut les ventes à crédit)
+          // Créances créées pendant la période (seulement montants positifs = ventes à crédit)
           if (
             receivable.created_at &&
+            receivable.amount > 0 &&
             isInPeriod(receivable.created_at, periodDates.start, periodDates.end)
           ) {
             receivablesCreated += receivable.amount || 0;
@@ -381,7 +413,6 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
           // Paiements reçus pendant la période (sur les créances)
           if (receivable.payments && Array.isArray(receivable.payments)) {
             receivable.payments.forEach((payment: any) => {
-              // Vérifier les deux champs possibles pour la date
               const paymentDate = payment.payment_date || payment.created_at;
               if (
                 payment &&
@@ -406,43 +437,59 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         });
       }
 
-      // Construire la liste des débiteurs
+      // Construire les listes des débiteurs et des clients à rembourser
       Object.entries(customerBalances).forEach(([customerId, data]) => {
         if (data.balance > 0) {
           debtorsList.push({ name: data.name, amount: data.balance, customerId });
+        } else if (data.balance < 0) {
+          refundList.push({ name: data.name, amount: Math.abs(data.balance), customerId });
         }
       });
 
       // Net de la période = créances créées - paiements reçus
       const periodNet = receivablesCreated - paymentsReceived;
 
-      // Trier par montant décroissant et prendre les 3 premiers
+      // Top 3 débiteurs (clients qui nous doivent le plus)
       const top3Debtors = debtorsList
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 3)
+        .map(d => ({ name: d.name, amount: d.amount }));
+
+      // Top 3 clients à rembourser (nous leur devons le plus)
+      const top3ToRefund = refundList
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 3)
         .map(d => ({ name: d.name, amount: d.amount }));
 
       setCustomerStats({
         totalBalance,
+        totalPositiveBalance,
+        totalNegativeBalance,
         customersWithDebt: customersWithDebtSet.size,
+        customersToRefund: customersToRefundSet.size,
         receivablesCreated,
         paymentsReceived,
         periodNet,
         receivablesCount,
         paymentsCount,
         top3Debtors,
+        top3ToRefund,
       });
     } catch (error) {
       console.error('Erreur chargement stats clients:', error);
       setCustomerStats({
         totalBalance: 0,
+        totalPositiveBalance: 0,
+        totalNegativeBalance: 0,
         customersWithDebt: 0,
+        customersToRefund: 0,
         receivablesCreated: 0,
         paymentsReceived: 0,
         periodNet: 0,
         receivablesCount: 0,
         paymentsCount: 0,
         top3Debtors: [],
+        top3ToRefund: [],
       });
     }
   };
@@ -822,15 +869,40 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
           {customersExpanded && customerStats && (
             <>
-              {/* Solde total créances */}
-              <View style={[styles.kpiBox, styles.kpiBoxSuccess]}>
-                <Text style={styles.kpiLabel}>Solde Total Créances</Text>
-                <Text style={styles.kpiValue}>{formatMoney(customerStats.totalBalance)}</Text>
-                <Text style={styles.kpiSubtext}>
-                  {customerStats.customersWithDebt} client
-                  {customerStats.customersWithDebt > 1 ? 's' : ''} avec dette
-                </Text>
+              {/* Soldes clients (créances et remboursements séparés) */}
+              <View style={styles.statsRow}>
+                <View style={[styles.statBox, styles.statBoxGreen]}>
+                  <Text style={styles.statLabel}>Clients nous doivent</Text>
+                  <Text style={styles.statValue}>
+                    {formatMoney(customerStats.totalPositiveBalance)}
+                  </Text>
+                  <Text style={styles.statCount}>
+                    {customerStats.customersWithDebt} client
+                    {customerStats.customersWithDebt > 1 ? 's' : ''}
+                  </Text>
+                </View>
+
+                <View style={[styles.statBox, styles.statBoxRed]}>
+                  <Text style={styles.statLabel}>Remboursements dus</Text>
+                  <Text style={styles.statValue}>
+                    {formatMoney(customerStats.totalNegativeBalance)}
+                  </Text>
+                  <Text style={styles.statCount}>
+                    {customerStats.customersToRefund} client
+                    {customerStats.customersToRefund > 1 ? 's' : ''} à rembourser
+                  </Text>
+                </View>
               </View>
+
+              {/* Alerte si remboursements dus */}
+              {customerStats.totalNegativeBalance > 0 && (
+                <View style={styles.alertBox}>
+                  <Text style={styles.alertText}>
+                    ⚠️ Vous devez rembourser {formatMoney(customerStats.totalNegativeBalance)} à vos
+                    clients
+                  </Text>
+                </View>
+              )}
 
               {/* Créances / Paiements de la période */}
               <View style={styles.statsRow}>
@@ -851,10 +923,10 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
                 </View>
               </View>
 
-              {/* Top 3 clients */}
+              {/* Top 3 clients débiteurs */}
               {customerStats.top3Debtors.length > 0 && (
                 <View style={styles.topSection}>
-                  <Text style={styles.topTitle}>Top 3 - Plus grandes créances</Text>
+                  <Text style={styles.topTitle}>Top 3 - Clients débiteurs</Text>
                   {customerStats.top3Debtors.map((debtor, index) => (
                     <View key={index} style={styles.topItem}>
                       <View style={styles.topRank}>
@@ -867,9 +939,32 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
                 </View>
               )}
 
+              {/* Top 3 clients à rembourser */}
+              {customerStats.top3ToRefund.length > 0 && (
+                <View style={[styles.topSection, { borderTopColor: Colors.danger.main }]}>
+                  <Text style={[styles.topTitle, { color: Colors.danger.main }]}>
+                    Clients à rembourser
+                  </Text>
+                  {customerStats.top3ToRefund.map((client, index) => (
+                    <View key={index} style={styles.topItem}>
+                      <View style={[styles.topRank, { backgroundColor: Colors.danger.background }]}>
+                        <Text style={[styles.topRankText, { color: Colors.danger.main }]}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <Text style={styles.topName}>{client.name}</Text>
+                      <Text style={[styles.topAmount, { color: Colors.danger.main }]}>
+                        -{formatMoney(client.amount)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {customerStats.receivablesCount === 0 &&
                 customerStats.paymentsCount === 0 &&
-                customerStats.top3Debtors.length === 0 && (
+                customerStats.top3Debtors.length === 0 &&
+                customerStats.top3ToRefund.length === 0 && (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyText}>Aucune activité client sur cette période</Text>
                   </View>
@@ -1396,5 +1491,19 @@ const styles = StyleSheet.create({
   distributionCount: {
     fontSize: 11,
     color: Colors.muted.foreground,
+  },
+  alertBox: {
+    backgroundColor: Colors.danger.background,
+    borderWidth: 1,
+    borderColor: Colors.danger.main,
+    borderRadius: 12,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  alertText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.danger.main,
+    textAlign: 'center',
   },
 });

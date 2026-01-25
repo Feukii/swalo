@@ -8,14 +8,21 @@ export class ReceivablesService {
   constructor(private prisma: PrismaService) {}
 
   async create(shopId: string, dto: CreateReceivableDto) {
+    // Pour les montants négatifs (remboursements/ajustements de solde),
+    // le statut est automatiquement 'PAID' car ce n'est pas une dette en attente
+    const isNegativeAmount = dto.amount < 0;
+    const status = isNegativeAmount ? 'PAID' : 'PENDING';
+    const description =
+      dto.description || (isNegativeAmount ? 'Remboursement - Ajustement de solde' : undefined);
+
     const receivable = await this.prisma.clientReceivable.create({
       data: {
         amount: dto.amount,
         paid_amount: 0,
         balance: dto.amount,
-        description: dto.description,
+        description,
         notes: dto.notes,
-        status: 'PENDING',
+        status,
         shop: {
           connect: { id: shopId },
         },
