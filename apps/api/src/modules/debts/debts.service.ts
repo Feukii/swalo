@@ -13,7 +13,8 @@ export class DebtsService {
     const isNegativeAmount = dto.amount < 0;
     const status = isNegativeAmount ? 'PAID' : 'PENDING';
     const description =
-      dto.description || (isNegativeAmount ? 'Remboursement - Ajustement de solde fournisseur' : undefined);
+      dto.description ||
+      (isNegativeAmount ? 'Remboursement - Ajustement de solde fournisseur' : undefined);
 
     const debt = await this.prisma.supplierDebt.create({
       data: {

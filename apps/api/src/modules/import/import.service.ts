@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import * as XLSX from 'xlsx';
+import { mapColumnName, REQUIRED_COLUMNS, DEFAULT_VALUES } from './column-mapping';
 
 interface ImportRow {
   sku: string;
@@ -28,24 +29,12 @@ export interface ImportPreviewResult {
   errors: ValidationError[];
   preview: ImportRow[];
   columns_found: string[];
+  columns_mapped: Record<string, string>;
 }
 
 @Injectable()
 export class ImportService {
   constructor(private prisma: PrismaService) {}
-
-  /**
-   * Colonnes requises pour l'import
-   */
-  private readonly REQUIRED_COLUMNS = ['sku', 'name', 'cost_price', 'sell_price'];
-  private readonly OPTIONAL_COLUMNS = [
-    'family',
-    'article_type',
-    'brand',
-    'reference',
-    'unit',
-    'alert_threshold',
-  ];
 
   /**
    * Parse le fichier Excel/CSV et retourne un aperçu avec validation
@@ -87,14 +76,28 @@ export class ImportService {
       throw new BadRequestException('Aucune donnée trouvée dans le fichier');
     }
 
-    // Vérifier les colonnes
+    // Verifier les colonnes et appliquer le mapping
     const firstRow = jsonData[0] as Record<string, any>;
-    const columnsFound = Object.keys(firstRow).map(c => c.toLowerCase().trim());
+    const originalColumns = Object.keys(firstRow);
+    const columnMapping: Record<string, string> = {};
 
-    // Vérifier les colonnes requises
-    const missingColumns = this.REQUIRED_COLUMNS.filter(col => !columnsFound.includes(col));
+    // Mapper chaque colonne originale vers son nom standard
+    for (const col of originalColumns) {
+      const mappedName = mapColumnName(col);
+      columnMapping[col] = mappedName;
+    }
+
+    const columnsFound = Object.values(columnMapping);
+
+    // Verifier les colonnes requises (sku et name sont obligatoires)
+    const missingColumns = REQUIRED_COLUMNS.filter(col => !columnsFound.includes(col));
     if (missingColumns.length > 0) {
-      throw new BadRequestException(`Colonnes requises manquantes: ${missingColumns.join(', ')}`);
+      const suggestions = missingColumns.map(col => {
+        if (col === 'sku') return 'sku (ou "Code Article")';
+        if (col === 'name') return 'name (ou "Libelle Article", "Designation")';
+        return col;
+      });
+      throw new BadRequestException(`Colonnes requises manquantes: ${suggestions.join(', ')}`);
     }
 
     // Récupérer les SKU existants pour détecter les doublons
@@ -111,19 +114,30 @@ export class ImportService {
 
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i] as Record<string, any>;
-      const rowNumber = i + 2; // +2 car ligne 1 = headers, index commence à 0
+      const rowNumber = i + 2; // +2 car ligne 1 = headers, index commence a 0
 
-      // Normaliser les clés
+      // Normaliser les cles avec le mapping de colonnes
       const normalizedRow: Record<string, any> = {};
       for (const [key, value] of Object.entries(row)) {
-        normalizedRow[key.toLowerCase().trim()] = value;
+        const mappedKey = mapColumnName(key);
+        normalizedRow[mappedKey] = value;
       }
 
       // Extraire les valeurs
       const sku = String(normalizedRow.sku || '').trim();
       const name = String(normalizedRow.name || '').trim();
-      const costPrice = this.parseNumber(normalizedRow.cost_price);
-      const sellPrice = this.parseNumber(normalizedRow.sell_price);
+
+      // Appliquer les valeurs par defaut pour les prix si non specifies
+      const costPriceRaw = normalizedRow.cost_price;
+      const sellPriceRaw = normalizedRow.sell_price;
+      const costPrice =
+        costPriceRaw !== undefined && costPriceRaw !== ''
+          ? this.parseNumber(costPriceRaw)
+          : (DEFAULT_VALUES.cost_price as number);
+      const sellPrice =
+        sellPriceRaw !== undefined && sellPriceRaw !== ''
+          ? this.parseNumber(sellPriceRaw)
+          : (DEFAULT_VALUES.sell_price as number);
 
       // Validations
       let hasError = false;
@@ -152,11 +166,12 @@ export class ImportService {
         hasError = true;
       }
 
+      // Les prix peuvent etre 0 par defaut, mais pas negatifs
       if (costPrice === null || costPrice < 0) {
         errors.push({
           row: rowNumber,
           field: 'cost_price',
-          message: "Prix d'achat invalide",
+          message: "Prix d'achat invalide (doit etre >= 0)",
         });
         hasError = true;
       }
@@ -165,7 +180,7 @@ export class ImportService {
         errors.push({
           row: rowNumber,
           field: 'sell_price',
-          message: 'Prix de vente invalide',
+          message: 'Prix de vente invalide (doit etre >= 0)',
         });
         hasError = true;
       }
@@ -191,9 +206,10 @@ export class ImportService {
       total_rows: jsonData.length,
       valid_rows: validRows.length,
       invalid_rows: jsonData.length - validRows.length,
-      errors: errors.slice(0, 100), // Limiter à 100 erreurs
-      preview: validRows.slice(0, 10), // Aperçu des 10 premiers
+      errors: errors.slice(0, 100), // Limiter a 100 erreurs
+      preview: validRows.slice(0, 10), // Apercu des 10 premiers
       columns_found: columnsFound,
+      columns_mapped: columnMapping,
     };
   }
 
@@ -236,15 +252,27 @@ export class ImportService {
     const seenSKUs = new Set<string>();
 
     for (const row of jsonData) {
+      // Normaliser les cles avec le mapping de colonnes
       const normalizedRow: Record<string, any> = {};
       for (const [key, value] of Object.entries(row as Record<string, any>)) {
-        normalizedRow[key.toLowerCase().trim()] = value;
+        const mappedKey = mapColumnName(key);
+        normalizedRow[mappedKey] = value;
       }
 
       const sku = String(normalizedRow.sku || '').trim();
       const name = String(normalizedRow.name || '').trim();
-      const costPrice = this.parseNumber(normalizedRow.cost_price);
-      const sellPrice = this.parseNumber(normalizedRow.sell_price);
+
+      // Appliquer les valeurs par defaut pour les prix
+      const costPriceRaw = normalizedRow.cost_price;
+      const sellPriceRaw = normalizedRow.sell_price;
+      const costPrice =
+        costPriceRaw !== undefined && costPriceRaw !== ''
+          ? this.parseNumber(costPriceRaw)
+          : (DEFAULT_VALUES.cost_price as number);
+      const sellPrice =
+        sellPriceRaw !== undefined && sellPriceRaw !== ''
+          ? this.parseNumber(sellPriceRaw)
+          : (DEFAULT_VALUES.sell_price as number);
 
       // Skip si invalide ou doublon
       if (
