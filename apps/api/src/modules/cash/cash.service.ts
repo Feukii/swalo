@@ -150,9 +150,11 @@ export class CashService {
       }
 
       // Si c'est un paiement client (entrée avec customer_id), traiter le paiement de créance
-      // IMPORTANT: Ne pas traiter automatiquement si c'est un 'remboursement_client'
-      // car une créance négative a déjà été créée pour ajuster le solde
-      if (dto.customer_id && dto.type === 'IN' && dto.category !== 'remboursement_client') {
+      // IMPORTANT: Ne pas traiter automatiquement si c'est:
+      // - 'remboursement_client': une créance négative a déjà été créée pour ajuster le solde
+      // - 'vente': une vente cash ne doit pas affecter le solde des créances du client
+      const excludedCategories = ['remboursement_client', 'vente'];
+      if (dto.customer_id && dto.type === 'IN' && !excludedCategories.includes(dto.category)) {
         // Trouver les créances impayées du client
         const unpaidReceivables = await tx.clientReceivable.findMany({
           where: {
