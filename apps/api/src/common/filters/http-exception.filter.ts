@@ -131,11 +131,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
         };
       }
       default: {
-        this.logger.error(`Unhandled Prisma Error [${error.code}]: ${error.message}`);
+        this.logger.error(
+          `Unhandled Prisma Error [${error.code}]: ${error.message}`,
+          JSON.stringify({ code: error.code, meta: error.meta, clientVersion: error.clientVersion })
+        );
         return {
           status: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: 'Erreur de base de données',
-          details: `Code: ${error.code}`,
+          message: `Erreur de base de données (${error.code})`,
+          details: error.message,
         };
       }
     }
