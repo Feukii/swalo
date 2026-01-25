@@ -324,46 +324,49 @@ export default function CashScreen({ navigation }: any) {
         });
         Alert.alert('Succès', 'Vente à crédit enregistrée');
       } else if (entryCategory === 'remboursement_client') {
-        // Remboursement client : le client nous paye (réduit sa dette)
-        // On crée une créance NÉGATIVE pour réduire le solde
+        // Remboursement client : le CLIENT nous paye (nous rembourse)
+        // Impact Caisse : ENTRÉE (IN) - l'argent entre dans notre caisse
+        // Impact Solde Client : DIMINUE toujours (créance négative)
+        // Exemples:
+        //   - Solde 10000, remboursement 3000 → nouveau solde 7000
+        //   - Solde -5000, remboursement 2500 → nouveau solde -7500
         const customer = customers.find(c => c.id === selectedCustomerId);
         const customerName = customer
           ? `${customer.first_name || ''} ${customer.name}`.trim()
           : 'Client';
 
-        // Récupérer le solde actuel
+        // Récupérer le solde actuel pour le message
         const fullCustomer = await customersApi.getOne(selectedCustomerId);
         const currentBalance = fullCustomer.stats?.total_balance || 0;
 
-        // Créer une créance négative (réduit le solde)
-        // Le backend définira automatiquement status='PAID' pour les montants négatifs
+        // Créer une créance NÉGATIVE pour diminuer le solde client
         await receivablesApi.create({
           customer_id: selectedCustomerId,
-          amount: -amountValue, // Montant négatif pour réduire le solde
-          description: note || `Paiement reçu de ${customerName}`,
+          amount: -amountValue, // Montant NÉGATIF pour diminuer le solde
+          description: note || `Remboursement de ${customerName}`,
         });
 
-        // Calculer le nouveau solde
+        // Calculer le nouveau solde : ancien - montant
         const newBalance = currentBalance - amountValue;
 
-        // Message selon le résultat - clair sur qui doit quoi
+        // Message selon le résultat
         let message: string;
         if (newBalance > 0) {
-          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le client nous doit encore ${formatMoney(newBalance)})`;
+          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le client nous doit encore ${formatMoney(newBalance)})`;
         } else if (newBalance < 0) {
-          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ REMBOURSEMENT DÛ AU CLIENT\nMontant à rendre: ${formatMoney(Math.abs(newBalance))}\n\nLe client a payé ${formatMoney(Math.abs(newBalance))} de plus que sa dette.`;
+          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons ${formatMoney(Math.abs(newBalance))} au client)`;
         } else {
-          message = `Paiement de ${formatMoney(amountValue)} enregistré.\n\n✅ La dette est totalement soldée!`;
+          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\n✅ Le compte client est soldé!`;
         }
 
         Alert.alert('Succès', message);
 
-        // Créer l'entrée de caisse pour le suivi de trésorerie
+        // Créer l'entrée de caisse (l'argent entre dans notre caisse)
         await cashApi.createEntry({
           type: 'IN',
           category: entryCategory,
           amount: amountValue,
-          note: note || `Paiement reçu de ${customerName}`,
+          note: note || `Remboursement de ${customerName}`,
           customer_id: selectedCustomerId,
         });
       } else {
@@ -446,43 +449,49 @@ export default function CashScreen({ navigation }: any) {
         });
         Alert.alert('Succès', 'Achat à crédit enregistré');
       } else if (exitCategory === 'reglement_fournisseur') {
-        // Règlement fournisseur : on paye le fournisseur (réduit notre dette)
-        // On crée une dette NÉGATIVE pour réduire le solde
+        // Règlement fournisseur : NOUS payons le fournisseur
+        // Impact Caisse : SORTIE (OUT) - l'argent sort de notre caisse
+        // Impact Solde Fournisseur : DIMINUE toujours (dette négative)
+        // Exemples:
+        //   - Solde 3000, règlement 2000 → nouveau solde 1000
+        //   - Solde -3500, règlement 4000 → nouveau solde -7500
         const supplier = suppliers.find(s => s.id === selectedSupplierId);
         const supplierName = supplier
           ? `${supplier.first_name || ''} ${supplier.name}`.trim()
           : 'Fournisseur';
 
-        // Récupérer le solde actuel
+        // Récupérer le solde actuel pour le message
         const fullSupplier = await suppliersApi.getOne(selectedSupplierId);
         const currentBalance = fullSupplier.stats?.total_balance || 0;
 
-        // Créer une dette négative (réduit le solde)
+        // Créer une dette NÉGATIVE pour diminuer le solde fournisseur
         await debtsApi.create({
           supplier_id: selectedSupplierId,
-          amount: -exitAmount, // Montant négatif pour réduire le solde
-          description: note || `Paiement à ${supplierName}`,
+          amount: -exitAmount, // Montant NÉGATIF pour diminuer le solde
+          description: note || `Règlement à ${supplierName}`,
         });
 
-        // Calculer le nouveau solde
+        // Calculer le nouveau solde : ancien - montant
         const newBalance = currentBalance - exitAmount;
 
         // Message selon le résultat
-        const message =
-          newBalance > 0
-            ? `Règlement de ${formatMoney(exitAmount)} enregistré.\nNouveau solde: ${formatMoney(newBalance)}`
-            : newBalance < 0
-              ? `Règlement de ${formatMoney(exitAmount)} enregistré.\nNouveau solde: -${formatMoney(Math.abs(newBalance))}\n⚠️ Le fournisseur ${supplierName} doit vous rembourser ${formatMoney(Math.abs(newBalance))}.`
-              : `Règlement de ${formatMoney(exitAmount)} enregistré.\nLa dette est totalement remboursée!`;
+        let message: string;
+        if (newBalance > 0) {
+          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons encore ${formatMoney(newBalance)} au fournisseur)`;
+        } else if (newBalance < 0) {
+          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le fournisseur nous doit ${formatMoney(Math.abs(newBalance))})`;
+        } else {
+          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\n✅ Le compte fournisseur est soldé!`;
+        }
 
         Alert.alert('Succès', message);
 
-        // Créer la sortie de caisse pour le suivi de trésorerie
+        // Créer la sortie de caisse (l'argent sort de notre caisse)
         await cashApi.createEntry({
           type: 'OUT',
           category: exitCategory,
           amount: exitAmount,
-          note: note || `Paiement à ${supplierName}`,
+          note: note || `Règlement à ${supplierName}`,
           supplier_id: selectedSupplierId,
         });
       } else {
