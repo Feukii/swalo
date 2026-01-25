@@ -409,8 +409,12 @@ export class CashService {
     });
 
     // Stats pour les ventes à crédit (créances clients)
+    // Note: Exclure les montants négatifs qui sont des ajustements/remboursements
     const salesCreditStats = await this.prisma.clientReceivable.aggregate({
-      where: receivableWhere,
+      where: {
+        ...receivableWhere,
+        amount: { gt: 0 }, // Seulement les montants positifs (vraies ventes à crédit)
+      },
       _sum: {
         amount: true,
       },
@@ -418,8 +422,12 @@ export class CashService {
     });
 
     // Stats pour les achats à crédit (dettes fournisseurs)
+    // Note: Exclure les montants négatifs qui sont des ajustements/remboursements
     const purchasesCreditStats = await this.prisma.supplierDebt.aggregate({
-      where: debtWhere,
+      where: {
+        ...debtWhere,
+        amount: { gt: 0 }, // Seulement les montants positifs (vrais achats à crédit)
+      },
       _sum: {
         amount: true,
       },

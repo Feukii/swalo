@@ -536,10 +536,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
           // Les dettes PAID avec balance négatif sont des remboursements dus par le fournisseur
           if (debt.status !== 'CANCELLED') {
             // Pour les dettes PENDING/PARTIAL avec balance > 0 (on leur doit)
-            if (
-              (debt.status === 'PENDING' || debt.status === 'PARTIAL') &&
-              balance > 0
-            ) {
+            if ((debt.status === 'PENDING' || debt.status === 'PARTIAL') && balance > 0) {
               totalBalance += balance;
               totalPositiveBalance += balance;
 
@@ -1060,7 +1057,8 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
               {supplierStats.totalNegativeBalance > 0 && (
                 <View style={[styles.alertBox, { backgroundColor: Colors.success.background }]}>
                   <Text style={[styles.alertText, { color: Colors.success.main }]}>
-                    💰 Vos fournisseurs vous doivent {formatMoney(supplierStats.totalNegativeBalance)}
+                    💰 Vos fournisseurs vous doivent{' '}
+                    {formatMoney(supplierStats.totalNegativeBalance)}
                   </Text>
                 </View>
               )}
@@ -1104,7 +1102,9 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
                   </Text>
                   {supplierStats.top3ToRefund.map((supplier, index) => (
                     <View key={index} style={styles.topItem}>
-                      <View style={[styles.topRank, { backgroundColor: Colors.success.background }]}>
+                      <View
+                        style={[styles.topRank, { backgroundColor: Colors.success.background }]}
+                      >
                         <Text style={[styles.topRankText, { color: Colors.success.main }]}>
                           {index + 1}
                         </Text>
