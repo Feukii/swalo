@@ -36,6 +36,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.web,
     },
     plugins: ['expo-secure-store', 'expo-splash-screen'],
+    updates: {
+      url: 'https://u.expo.dev/935e1f15-6351-493d-a7b4-7c1a9c8a31a5',
+      fallbackToCacheTimeout: 0,
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     extra: {
       ...config.extra,
       apiUrl,
