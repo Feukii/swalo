@@ -44,7 +44,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm run lint || true
+        run: pnpm run lint
 
       - name: Build packages (with Turbo cache)
         run: pnpm turbo build --filter=@swalo/core

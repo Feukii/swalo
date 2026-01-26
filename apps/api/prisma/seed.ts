@@ -4,6 +4,14 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Protection: empêcher l'exécution du seed en production
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ ERREUR: Le seed ne peut pas être exécuté en production!');
+    console.error('   Cette opération créerait des données de test dans la base de production.');
+    console.error('   Si vous avez vraiment besoin de seeder en production, utilisez un script dédié.');
+    process.exit(1);
+  }
+
   console.log('🌱 Début du seed...');
 
   // Nettoyer les données existantes (optionnel, commenté pour sécurité)

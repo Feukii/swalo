@@ -132,6 +132,37 @@ PORT=3000
 - Database: Neon (PostgreSQL serverless)
 - Mobile: Expo EAS Build
 
+## Development Workflow
+
+### Branches
+- `main` - Production (protected, requires PR)
+- `develop` - Staging/Integration
+- `feature/*`, `fix/*` - Development work
+
+### Workflow
+1. Create feature branch from `develop`
+2. Develop and test locally (Docker PostgreSQL)
+3. Push and create PR to `develop`
+4. CI runs tests (blocking)
+5. Merge to `develop` → Preview deployment
+6. Create PR from `develop` to `main`
+7. Merge to `main` → Production deployment
+
+### Local Development
+```bash
+# Start PostgreSQL
+docker compose --profile local up -d postgres
+
+# Start all services
+pnpm dev
+```
+
+### Important Notes
+- `.env.development` files are gitignored (local config)
+- Seed script is protected against production execution
+- CI lint checks are blocking (no `|| true`)
+- See `docs/guides/development-workflow.md` for detailed guide
+
 ## Documentation Structure
 
 Documentation is organized in the `docs/` folder by category:
