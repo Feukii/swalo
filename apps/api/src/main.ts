@@ -9,9 +9,12 @@ async function bootstrap() {
   // Global exception filter pour logger toutes les erreurs
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  // Enable CORS
+  // Enable CORS - restreindre les origines en production
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : true; // En développement, accepter toutes les origines
   app.enableCors({
-    origin: true, // Accept all origins for development (localhost + network IPs)
+    origin: allowedOrigins,
     credentials: true,
   });
 

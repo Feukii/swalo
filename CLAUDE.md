@@ -135,18 +135,51 @@ PORT=3000
 ## Development Workflow
 
 ### Branches
-- `main` - Production (protected, requires PR)
+- `main` - Production (protected, requires PR + status check `test`)
 - `develop` - Staging/Integration
 - `feature/*`, `fix/*` - Development work
 
-### Workflow
-1. Create feature branch from `develop`
-2. Develop and test locally (Docker PostgreSQL)
-3. Push and create PR to `develop`
-4. CI runs tests (blocking)
-5. Merge to `develop` → Preview deployment
-6. Create PR from `develop` to `main`
-7. Merge to `main` → Production deployment
+### Mandatory Workflow for ALL Changes
+
+**Claude MUST follow this process for every feature, fix, or change:**
+
+1. **Create feature branch from `develop`**
+   ```bash
+   git checkout develop && git pull origin develop
+   git checkout -b feature/my-feature
+   ```
+
+2. **Develop and test locally** (Docker PostgreSQL — never production DB)
+   ```bash
+   docker compose --profile local up -d postgres
+   pnpm dev
+   ```
+
+3. **Run validation before committing**
+   ```bash
+   pnpm run validate   # lint + test for all packages
+   ```
+
+4. **Test manually** on Expo Go (mobile) and/or localhost (web) to verify the feature works as expected
+
+5. **Commit on feature branch** (never directly on `develop` or `main`)
+
+6. **Push and create PR to `develop`**
+   ```bash
+   git push -u origin feature/my-feature
+   gh pr create --base develop
+   ```
+
+7. **CI runs automatically**: Lint → Tests → Build (all blocking)
+
+8. **After CI passes and merge to `develop`**: staging deployment triggers automatically
+
+9. **When ready for production**: Create PR from `develop` to `main`
+   ```bash
+   gh pr create --base main --head develop
+   ```
+
+10. **CI runs again on `main`**: Lint → Tests → Build → Deploy → Health check
 
 ### Local Development
 ```bash
@@ -161,7 +194,30 @@ pnpm dev
 - `.env.development` files are gitignored (local config)
 - Seed script is protected against production execution
 - CI lint checks are blocking (no `|| true`)
+- Direct push to `main` is blocked by GitHub branch protection
 - See `docs/guides/development-workflow.md` for detailed guide
+
+## Production Protection
+
+### Rules
+- **NEVER** push directly to `main` — always go through `develop` and PR
+- **NEVER** commit directly on `develop` — always use a `feature/*` or `fix/*` branch
+- **NEVER** use production database credentials in local `.env` files
+- **NEVER** run seed or cleanDatabase against production
+- All tests MUST pass before merge to `main`
+- CI runs lint + tests + build on both `develop` and `main` workflows
+
+### CORS
+Production API restricts origins via `ALLOWED_ORIGINS` environment variable (comma-separated list). In development, all origins are accepted.
+
+### Environment Separation
+| Environment | Database | API |
+|------------|----------|-----|
+| Local | Docker PostgreSQL (localhost) | localhost:3000 |
+| Staging | Neon branch `development` | Preview |
+| Production | Neon branch `main` | swalo-api.onrender.com |
+
+See `docs/deployment/environments.md` for full details.
 
 ## Documentation Structure
 
