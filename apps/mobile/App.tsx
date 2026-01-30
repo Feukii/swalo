@@ -26,6 +26,7 @@ import CatalogHierarchyScreen from './src/screens/CatalogHierarchyScreen';
 import StockManagementScreen from './src/screens/StockManagementScreen';
 import CustomerBalancesSummaryScreen from './src/screens/CustomerBalancesSummaryScreen';
 import SupplierBalancesSummaryScreen from './src/screens/SupplierBalancesSummaryScreen';
+import ProductBatchesScreen from './src/screens/products/ProductBatchesScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
 
 console.log('📱 APP STARTING - Version 1.0.0');
@@ -48,6 +49,7 @@ type RootStackParamList = {
   CustomerDetails: { id: string };
   CustomerBalancesSummary: undefined;
   ProductDetails: { id: string };
+  ProductBatches: { productId: string; productName: string };
   ProductCatalog: undefined;
   CatalogHierarchy: undefined;
   StockManagement: undefined;
@@ -168,6 +170,11 @@ export default function App() {
               component={CustomerBalancesSummaryScreen}
             />
             <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+            <Stack.Screen
+              name="ProductBatches"
+              component={ProductBatchesScreen}
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="ProductCatalog" component={ProductCatalogScreen} />
             <Stack.Screen name="CatalogHierarchy" component={CatalogHierarchyScreen} />
             <Stack.Screen name="StockManagement" component={StockManagementScreen} />

@@ -15,6 +15,7 @@ import UserManagement from './pages/UserManagement';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import AdminPanel from './pages/AdminPanel';
 import BusinessReports from './pages/BusinessReports';
+import ProductBatches from './pages/ProductBatches';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import './App.css';
@@ -91,6 +92,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:productId/batches"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ProductBatches />
               </MainLayout>
             </ProtectedRoute>
           }

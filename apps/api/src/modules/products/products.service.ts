@@ -523,6 +523,65 @@ export class ProductsService {
   }
 
   /**
+   * Récupérer les prix de vente disponibles pour un produit (depuis les lots actifs)
+   */
+  async getAvailablePrices(productId: string, shopId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, shop_id: shopId, deleted: false },
+      select: { id: true, name: true, sell_price: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Produit non trouvé');
+    }
+
+    // Récupérer les lots avec du stock disponible
+    const batches = await this.prisma.stockBatch.findMany({
+      where: {
+        shop_id: shopId,
+        product_id: productId,
+        remaining_quantity: { gt: 0 },
+        deleted: false,
+      },
+      orderBy: { created_at: 'asc' },
+      select: {
+        id: true,
+        sell_price: true,
+        cost_price: true,
+        remaining_quantity: true,
+        created_at: true,
+      },
+    });
+
+    // Grouper par prix de vente
+    const priceMap = new Map<
+      number,
+      { sell_price: number; total_quantity: number; batch_count: number }
+    >();
+    for (const batch of batches) {
+      const existing = priceMap.get(batch.sell_price);
+      if (existing) {
+        existing.total_quantity += batch.remaining_quantity;
+        existing.batch_count += 1;
+      } else {
+        priceMap.set(batch.sell_price, {
+          sell_price: batch.sell_price,
+          total_quantity: batch.remaining_quantity,
+          batch_count: 1,
+        });
+      }
+    }
+
+    return {
+      product_id: product.id,
+      product_name: product.name,
+      default_price: product.sell_price,
+      prices: Array.from(priceMap.values()).sort((a, b) => a.sell_price - b.sell_price),
+      total_stock: batches.reduce((sum, b) => sum + b.remaining_quantity, 0),
+    };
+  }
+
+  /**
    * Mettre à jour un niveau de hiérarchie en masse
    */
   async batchUpdateHierarchy(shopId: string, dto: any) {

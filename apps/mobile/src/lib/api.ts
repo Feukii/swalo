@@ -507,6 +507,13 @@ export const packagingTypesApi = {
   },
 };
 
+// Product Prices API
+export const productPricesApi = {
+  getAvailablePrices: async (productId: string) => {
+    return api.get<any>(`/products/${productId}/prices`);
+  },
+};
+
 // Products API
 export const productsApi = {
   getAll: async (params?: {

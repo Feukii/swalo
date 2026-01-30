@@ -491,6 +491,18 @@ export const debtsApi = {
   },
 };
 
+// Product Batches API (Lots de stock)
+export const productBatchesApi = {
+  getProductBatches: async (productId: string) => {
+    const response = await api.get(`/inventory/products/${productId}/batches`);
+    return response.data || response;
+  },
+  getAvailablePrices: async (productId: string) => {
+    const response = await api.get(`/products/${productId}/prices`);
+    return response.data || response;
+  },
+};
+
 // Admin API
 export const adminApi = {
   // Super Admin endpoints

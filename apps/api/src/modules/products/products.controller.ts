@@ -118,6 +118,15 @@ export class ProductsController {
   }
 
   /**
+   * GET /api/products/:id/prices
+   * Récupérer les prix de vente disponibles depuis les lots actifs
+   */
+  @Get(':id/prices')
+  getAvailablePrices(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.productsService.getAvailablePrices(id, user.shopId);
+  }
+
+  /**
    * GET /api/products/:id
    * Récupérer un produit par ID avec son stock
    */
