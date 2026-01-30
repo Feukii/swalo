@@ -120,6 +120,7 @@ model Product {
   brand                  String?               @db.VarChar(100)
   reference              String?               @db.VarChar(100)
   unit                   String                @default("unit") @db.VarChar(20)
+  packaging_type_id      String?
   tax_rate               Float                 @default(0)
   cost_price             Int
   sell_price             Int
@@ -136,6 +137,7 @@ model Product {
   inventory_counts       InventoryCount[]
   inventory_movements    InventoryMovement[]
   invoice_items          InvoiceItem[]
+  packaging_type         PackagingType?        @relation(fields: [packaging_type_id], references: [id])
   shop                   Shop                  @relation(fields: [shop_id], references: [id])
   sale_items             SaleItem[]
   supplier_invoice_items SupplierInvoiceItem[]
@@ -172,16 +174,17 @@ model StockBatch {
 }
 
 model PackagingType {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   shop_id    String
-  name       String   @db.VarChar(50)
-  symbol     String?  @db.VarChar(10)
-  is_default Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  deleted    Boolean  @default(false)
+  name       String    @db.VarChar(50)
+  symbol     String?   @db.VarChar(10)
+  is_default Boolean   @default(false)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted    Boolean   @default(false)
   deleted_at DateTime?
-  shop       Shop     @relation(fields: [shop_id], references: [id])
+  products   Product[]
+  shop       Shop      @relation(fields: [shop_id], references: [id])
 
   @@unique([shop_id, name])
   @@map("packaging_types")
@@ -512,6 +515,7 @@ model Invoice {
   balance_due Int
   notes       String?
   pdf_url     String?
+  pdf_data    String?
   created_at  DateTime      @default(now())
   updated_at  DateTime      @updatedAt
   deleted     Boolean       @default(false)

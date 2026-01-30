@@ -783,4 +783,28 @@ export const inventoryApi = {
   },
 };
 
+// Invoices API (Factures)
+export const invoicesApi = {
+  getAll: async (params?: { customer_id?: string; start_date?: string; end_date?: string }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.customer_id) queryParams.append('customer_id', params.customer_id);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
+    const query = queryParams.toString();
+    return api.get<any[]>(`/invoices${query ? `?${query}` : ''}`);
+  },
+  getOne: async (id: string) => {
+    return api.get<any>(`/invoices/${id}`);
+  },
+  createFromSale: async (saleId: string) => {
+    return api.post<any>(`/invoices/from-sale/${saleId}`);
+  },
+  getPdfBase64: async (id: string) => {
+    return api.get<{ pdf_data: string; number: string }>(`/invoices/${id}/pdf?format=base64`);
+  },
+  regeneratePdf: async (id: string) => {
+    return api.post<any>(`/invoices/${id}/regenerate-pdf`);
+  },
+};
+
 export default api;

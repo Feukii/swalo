@@ -11,6 +11,7 @@ import {
   LogOut,
   Package,
   Clock,
+  Receipt,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem } from '../components/ui';
 import { Colors } from '../constants/theme-v2';
@@ -75,6 +76,16 @@ export default function MoreScreen({ navigation }: any) {
             icon={<Package size={20} color={Colors.primary[900]} />}
             title="Catalogue Articles"
             onClick={() => navigateToScreen('ProductCatalog')}
+          />
+          <ListItem
+            icon={<Receipt size={20} color={Colors.primary[900]} />}
+            title="Factures"
+            onClick={() => navigateToScreen('InvoiceList')}
+          />
+          <ListItem
+            icon={<Package size={20} color={Colors.primary[900]} />}
+            title="Conditionnements"
+            onClick={() => navigateToScreen('PackagingTypes')}
           />
           <ListItem
             icon={<UserCog size={20} color={Colors.primary[900]} />}

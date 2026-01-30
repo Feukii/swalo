@@ -15,6 +15,8 @@ import UserManagement from './pages/UserManagement';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import AdminPanel from './pages/AdminPanel';
 import BusinessReports from './pages/BusinessReports';
+import PackagingTypes from './pages/PackagingTypes';
+import Invoices from './pages/Invoices';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import './App.css';
@@ -176,6 +178,17 @@ function App() {
           }
         />
 
+        <Route
+          path="/invoices"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Invoices />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
         {/* Routes d'administration */}
         <Route
           path="/admin/dashboard"
@@ -214,6 +227,16 @@ function App() {
           element={
             <ProtectedRoute requireRole="OWNER">
               <ShopSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/packaging-types"
+          element={
+            <ProtectedRoute requireRole="OWNER">
+              <MainLayout>
+                <PackagingTypes />
+              </MainLayout>
             </ProtectedRoute>
           }
         />
