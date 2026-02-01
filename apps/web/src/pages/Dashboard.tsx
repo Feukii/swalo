@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { productsApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
@@ -16,6 +17,9 @@ interface Product {
   alert_threshold: number;
   is_active: boolean;
   is_low_stock?: boolean;
+  is_multi_price?: boolean;
+  price_min?: number;
+  price_max?: number;
 }
 
 interface Stats {
@@ -26,6 +30,7 @@ interface Stats {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user, shop, logout } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -381,7 +386,14 @@ export default function Dashboard() {
                   </tr>
                 ) : (
                   products.map(product => (
-                    <tr key={product.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <tr
+                      key={product.id}
+                      style={{
+                        borderBottom: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => navigate(`/products/${product.id}/batches`)}
+                    >
                       <td style={{ padding: '1rem', fontFamily: 'monospace', color: '#2d3748' }}>
                         {product.sku}
                       </td>
@@ -407,7 +419,26 @@ export default function Dashboard() {
                           color: '#2d3748',
                         }}
                       >
-                        {formatCurrency(product.sell_price, 'XOF', 'fr-FR')}
+                        {product.is_multi_price ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                            <span>{formatCurrency(product.price_min || 0, 'XOF', 'fr-FR')} - {formatCurrency(product.price_max || 0, 'XOF', 'fr-FR')}</span>
+                            <span
+                              style={{
+                                padding: '0.125rem 0.5rem',
+                                borderRadius: '12px',
+                                fontSize: '0.7rem',
+                                fontWeight: '600',
+                                background: '#ebf4ff',
+                                color: '#3182ce',
+                                border: '1px solid #bee3f8',
+                              }}
+                            >
+                              Multi-prix
+                            </span>
+                          </div>
+                        ) : (
+                          formatCurrency(product.sell_price, 'XOF', 'fr-FR')
+                        )}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <span
