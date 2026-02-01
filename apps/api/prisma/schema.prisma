@@ -8,40 +8,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Shop {
-  id                  String              @id @default(uuid())
-  code                String              @unique @db.VarChar(10)
-  name                String              @db.VarChar(255)
-  address             String?
-  phone               String?
-  email               String?
-  currency            String              @default("XOF") @db.VarChar(3)
-  tax_rate            Float               @default(0)
-  owner_id            String
-  created_at          DateTime            @default(now())
-  updated_at          DateTime            @updatedAt
-  deleted             Boolean             @default(false)
-  deleted_at          DateTime?
-  version             Int                 @default(1)
-  cash_entries        CashEntry[]
-  cash_sessions       CashSession[]
-  client_receivables  ClientReceivable[]
-  customers           Customer[]
-  device_sync_states  DeviceSyncState[]
-  inventory_movements InventoryMovement[]
-  inventory_sessions  InventorySession[]
-  invoices            Invoice[]
-  payments            Payment[]
-  products            Product[]
-  sales               Sale[]
-  owner               User                @relation(fields: [owner_id], references: [id])
-  stock_batches       StockBatch[]
-  supplier_debts      SupplierDebt[]
-  supplier_invoices   SupplierInvoice[]
-  suppliers           Supplier[]
-  user_roles          UserRole[]
-  packaging_types     PackagingType[]
+model Enterprise {
+  id            String              @id @default(uuid())
+  code          String              @unique @db.VarChar(20)
+  name          String              @db.VarChar(255)
+  owner_id      String
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+  deleted       Boolean             @default(false)
+  deleted_at    DateTime?
+  version       Int                 @default(1)
+  owner         User                @relation(fields: [owner_id], references: [id])
+  shops         Shop[]
+  transfers     InterShopTransfer[]
 
+  @@map("enterprises")
+}
+
+model Shop {
+  id                    String              @id @default(uuid())
+  code                  String              @unique @db.VarChar(10)
+  name                  String              @db.VarChar(255)
+  address               String?
+  phone                 String?
+  email                 String?
+  currency              String              @default("XOF") @db.VarChar(3)
+  tax_rate              Float               @default(0)
+  owner_id              String
+  enterprise_id         String?
+  shop_type             ShopType            @default(BOUTIQUE)
+  created_at            DateTime            @default(now())
+  updated_at            DateTime            @updatedAt
+  deleted               Boolean             @default(false)
+  deleted_at            DateTime?
+  version               Int                 @default(1)
+  cash_entries          CashEntry[]
+  cash_sessions         CashSession[]
+  client_receivables    ClientReceivable[]
+  customers             Customer[]
+  device_sync_states    DeviceSyncState[]
+  inventory_movements   InventoryMovement[]
+  inventory_sessions    InventorySession[]
+  invoices              Invoice[]
+  payments              Payment[]
+  products              Product[]
+  sales                 Sale[]
+  enterprise            Enterprise?         @relation(fields: [enterprise_id], references: [id])
+  owner                 User                @relation(fields: [owner_id], references: [id])
+  stock_batches         StockBatch[]
+  supplier_debts        SupplierDebt[]
+  supplier_invoices     SupplierInvoice[]
+  suppliers             Supplier[]
+  user_roles            UserRole[]
+  packaging_types       PackagingType[]
+  outgoing_transfers    InterShopTransfer[] @relation("SourceShop")
+  incoming_transfers    InterShopTransfer[] @relation("TargetShop")
+
+  @@index([enterprise_id])
   @@map("shops")
 }
 
@@ -58,12 +81,14 @@ model User {
   deleted_at         DateTime?
   version            Int                @default(1)
   pin_code           String?            @db.VarChar(4)
-  cash_entries       CashEntry[]
-  cash_sessions      CashSession[]
-  inventory_sessions InventorySession[]
-  sales              Sale[]
-  shops_owned        Shop[]
-  user_roles         UserRole[]
+  cash_entries          CashEntry[]
+  cash_sessions         CashSession[]
+  inventory_sessions    InventorySession[]
+  sales                 Sale[]
+  shops_owned           Shop[]
+  user_roles            UserRole[]
+  enterprises_owned     Enterprise[]
+  transfers_created     InterShopTransfer[]
 
   @@map("users")
 }
@@ -262,18 +287,19 @@ model Customer {
   address      String?
   credit_limit Int                @default(0)
   notes        String?
-  is_active    Boolean            @default(true)
-  created_at   DateTime           @default(now())
-  updated_at   DateTime           @updatedAt
-  deleted      Boolean            @default(false)
-  deleted_at   DateTime?
-  version      Int                @default(1)
-  first_name   String?            @db.VarChar(255)
-  cash_entries CashEntry[]
-  receivables  ClientReceivable[]
-  shop         Shop               @relation(fields: [shop_id], references: [id])
-  invoices     Invoice[]
-  sales        Sale[]
+  is_active                  Boolean            @default(true)
+  email_notifications_enabled Boolean           @default(true)
+  created_at                 DateTime           @default(now())
+  updated_at                 DateTime           @updatedAt
+  deleted                    Boolean            @default(false)
+  deleted_at                 DateTime?
+  version                    Int                @default(1)
+  first_name                 String?            @db.VarChar(255)
+  cash_entries               CashEntry[]
+  receivables                ClientReceivable[]
+  shop                       Shop               @relation(fields: [shop_id], references: [id])
+  invoices                   Invoice[]
+  sales                      Sale[]
 
   @@index([shop_id, is_active])
   @@map("customers")
@@ -665,6 +691,62 @@ model DeviceSyncState {
 
   @@index([shop_id, device_id])
   @@map("device_sync_states")
+}
+
+model InterShopTransfer {
+  id             String                  @id @default(uuid())
+  enterprise_id  String
+  source_shop_id String
+  target_shop_id String
+  status         TransferStatus          @default(DRAFT)
+  notes          String?
+  created_by     String
+  created_at     DateTime                @default(now())
+  updated_at     DateTime                @updatedAt
+  deleted        Boolean                 @default(false)
+  deleted_at     DateTime?
+  version        Int                     @default(1)
+  enterprise     Enterprise              @relation(fields: [enterprise_id], references: [id])
+  source_shop    Shop                    @relation("SourceShop", fields: [source_shop_id], references: [id])
+  target_shop    Shop                    @relation("TargetShop", fields: [target_shop_id], references: [id])
+  creator        User                    @relation(fields: [created_by], references: [id])
+  items          InterShopTransferItem[]
+
+  @@index([enterprise_id])
+  @@index([source_shop_id])
+  @@index([target_shop_id])
+  @@index([status])
+  @@map("inter_shop_transfers")
+}
+
+model InterShopTransferItem {
+  id           String            @id @default(uuid())
+  transfer_id  String
+  product_sku  String            @db.VarChar(50)
+  product_name String            @db.VarChar(255)
+  quantity     Int
+  unit_price   Int
+  cost_price   Int
+  total        Int
+  created_at   DateTime          @default(now())
+  updated_at   DateTime          @updatedAt
+  transfer     InterShopTransfer @relation(fields: [transfer_id], references: [id])
+
+  @@index([transfer_id])
+  @@map("inter_shop_transfer_items")
+}
+
+enum ShopType {
+  MAGASIN
+  BOUTIQUE
+}
+
+enum TransferStatus {
+  DRAFT
+  CONFIRMED
+  SHIPPED
+  RECEIVED
+  CANCELLED
 }
 
 enum Role {

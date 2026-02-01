@@ -503,6 +503,126 @@ export const productBatchesApi = {
   },
 };
 
+// Invoices API
+export const invoicesApi = {
+  getAll: async (params?: { customer_id?: string; status?: string; start_date?: string; end_date?: string }) => {
+    const response = await api.get('/invoices', { params });
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/invoices/${id}`);
+    return response.data;
+  },
+
+  createFromSale: async (saleId: string, notes?: string) => {
+    const response = await api.post(`/invoices/from-sale/${saleId}`, { notes });
+    return response.data;
+  },
+
+  cancel: async (id: string) => {
+    const response = await api.put(`/invoices/${id}/cancel`);
+    return response.data;
+  },
+};
+
+// Enterprise API
+export const enterpriseApi = {
+  getAll: async () => {
+    const response = await api.get('/enterprises');
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}`);
+    return response.data;
+  },
+
+  create: async (data: { code: string; name: string }) => {
+    const response = await api.post('/enterprises', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: { code?: string; name?: string }) => {
+    const response = await api.put(`/enterprises/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/enterprises/${id}`);
+    return response.data;
+  },
+
+  getShops: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}/shops`);
+    return response.data;
+  },
+
+  addShop: async (id: string, shopId: string) => {
+    const response = await api.post(`/enterprises/${id}/shops`, { shop_id: shopId });
+    return response.data;
+  },
+
+  removeShop: async (id: string, shopId: string) => {
+    const response = await api.delete(`/enterprises/${id}/shops/${shopId}`);
+    return response.data;
+  },
+
+  getStats: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}/stats`);
+    return response.data;
+  },
+};
+
+// Transfers API (Inter-shop)
+export const transfersApi = {
+  getAll: async () => {
+    const response = await api.get('/transfers');
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/transfers/${id}`);
+    return response.data;
+  },
+
+  create: async (data: {
+    source_shop_id: string;
+    target_shop_id: string;
+    items: Array<{
+      product_sku: string;
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+      cost_price: number;
+    }>;
+    notes?: string;
+  }) => {
+    const response = await api.post('/transfers', data);
+    return response.data;
+  },
+
+  confirm: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/confirm`);
+    return response.data;
+  },
+
+  ship: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/ship`);
+    return response.data;
+  },
+
+  receive: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/receive`);
+    return response.data;
+  },
+
+  cancel: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/cancel`);
+    return response.data;
+  },
+};
+
 // Admin API
 export const adminApi = {
   // Super Admin endpoints

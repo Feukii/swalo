@@ -26,6 +26,10 @@ class SaleItemDto {
   @IsInt()
   @Min(0)
   discount?: number; // En centimes
+
+  @IsOptional()
+  @IsUUID()
+  batch_id?: string; // Lot spécifique pour le destockage (si non fourni, FIFO automatique)
 }
 
 export class CreateSaleDto {

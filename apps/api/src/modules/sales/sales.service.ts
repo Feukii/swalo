@@ -230,45 +230,77 @@ export class SalesService {
 
     // Créer la vente avec transaction (inclut le destockage FIFO)
     const sale = await this.prisma.$transaction(async tx => {
-      // Si COMPLETED, effectuer le destockage FIFO et collecter les batch_id
-      const batchAssignments = new Map<string, string>(); // product_id -> primary batch_id
+      // Si COMPLETED, effectuer le destockage FIFO ou par lot spécifique
+      const batchAssignments = new Map<string, string>(); // saleItem index -> primary batch_id
 
       if (dto.status === 'COMPLETED') {
         for (const item of dto.items) {
-          let remainingToDeduct = item.qty;
-
-          // Récupérer les lots avec stock, triés FIFO
-          const batches = await tx.stockBatch.findMany({
-            where: {
-              shop_id: shopId,
-              product_id: item.product_id,
-              remaining_quantity: { gt: 0 },
-              deleted: false,
-            },
-            orderBy: { created_at: 'asc' },
-          });
-
-          let primaryBatchId: string | null = null;
-
-          for (const batch of batches) {
-            if (remainingToDeduct <= 0) break;
-
-            const toDeduct = Math.min(batch.remaining_quantity, remainingToDeduct);
-
-            await tx.stockBatch.update({
-              where: { id: batch.id },
-              data: { remaining_quantity: batch.remaining_quantity - toDeduct },
+          if (item.batch_id) {
+            // Destockage depuis un lot spécifique (choix utilisateur)
+            const batch = await tx.stockBatch.findFirst({
+              where: {
+                id: item.batch_id,
+                shop_id: shopId,
+                product_id: item.product_id,
+                deleted: false,
+              },
             });
 
-            if (!primaryBatchId) {
-              primaryBatchId = batch.id;
+            if (!batch) {
+              throw new BadRequestException(
+                `Lot ${item.batch_id} non trouvé pour le produit ${item.product_id}`
+              );
             }
 
-            remainingToDeduct -= toDeduct;
-          }
+            if (batch.remaining_quantity < item.qty) {
+              throw new BadRequestException(
+                `Stock insuffisant dans le lot sélectionné. Disponible: ${batch.remaining_quantity}, Demandé: ${item.qty}`
+              );
+            }
 
-          if (primaryBatchId) {
-            batchAssignments.set(item.product_id, primaryBatchId);
+            await tx.stockBatch.update({
+              where: { id: item.batch_id },
+              data: { remaining_quantity: batch.remaining_quantity - item.qty },
+            });
+
+            batchAssignments.set(item.product_id, item.batch_id);
+          } else {
+            // Destockage FIFO automatique
+            let remainingToDeduct = item.qty;
+
+            // Récupérer les lots avec stock, triés FIFO
+            const batches = await tx.stockBatch.findMany({
+              where: {
+                shop_id: shopId,
+                product_id: item.product_id,
+                remaining_quantity: { gt: 0 },
+                deleted: false,
+              },
+              orderBy: { created_at: 'asc' },
+            });
+
+            let primaryBatchId: string | null = null;
+
+            for (const batch of batches) {
+              if (remainingToDeduct <= 0) break;
+
+              const toDeduct = Math.min(batch.remaining_quantity, remainingToDeduct);
+
+              await tx.stockBatch.update({
+                where: { id: batch.id },
+                data: { remaining_quantity: batch.remaining_quantity - toDeduct },
+              });
+
+              if (!primaryBatchId) {
+                primaryBatchId = batch.id;
+              }
+
+              remainingToDeduct -= toDeduct;
+            }
+
+            if (primaryBatchId) {
+              batchAssignments.set(item.product_id, primaryBatchId);
+            }
           }
         }
       }

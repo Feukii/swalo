@@ -758,11 +758,9 @@ export const inventoryApi = {
   }) => {
     const deviceInfo = await getDeviceInfo();
     console.log('📦 Creating stock batch:', { ...data, device_id: deviceInfo.device_id });
-    const result = await api.post<any>(
-      '/inventory/batches',
-      data,
-      { 'x-device-id': deviceInfo.device_id }
-    );
+    const result = await api.post<any>('/inventory/batches', data, {
+      'x-device-id': deviceInfo.device_id,
+    });
     console.log('✅ Stock batch created:', result);
     return result;
   },
@@ -787,6 +785,156 @@ export const inventoryApi = {
       ...data,
       device_id: deviceInfo.device_id,
     });
+  },
+};
+
+// ============================================================
+// Sync API
+// ============================================================
+export const syncApi = {
+  pull: async (data: {
+    device_id: string;
+    last_sync_at?: string;
+    entity_versions?: Record<string, number>;
+  }) => {
+    return api.post<{
+      changes: Record<string, any[]>;
+      newCursor: string;
+      serverTime: string;
+    }>('/sync/pull', data);
+  },
+
+  push: async (data: {
+    device_id: string;
+    changes: Record<string, any[]>;
+    base_cursor?: string;
+  }) => {
+    return api.post<{
+      applied: Record<string, string[]>;
+      conflicts: Array<{
+        entity: string;
+        id: string;
+        reason: string;
+        serverVersion?: Record<string, unknown>;
+        clientVersion?: Record<string, unknown>;
+      }>;
+      newCursor: string;
+      serverTime: string;
+    }>('/sync/push', data);
+  },
+
+  status: async (deviceId: string) => {
+    return api.get<any>(`/sync/status?device_id=${deviceId}`);
+  },
+};
+
+export const enterpriseApi = {
+  getAll: async () => {
+    return api.get<any[]>('/enterprises');
+  },
+
+  getOne: async (id: string) => {
+    return api.get<any>(`/enterprises/${id}`);
+  },
+
+  getShops: async (id: string) => {
+    return api.get<any[]>(`/enterprises/${id}/shops`);
+  },
+
+  getStats: async (id: string) => {
+    return api.get<any>(`/enterprises/${id}/stats`);
+  },
+};
+
+export const transfersApi = {
+  getAll: async (enterpriseId?: string) => {
+    const params = enterpriseId ? `?enterprise_id=${enterpriseId}` : '';
+    return api.get<any[]>(`/transfers${params}`);
+  },
+
+  getOne: async (id: string) => {
+    return api.get<any>(`/transfers/${id}`);
+  },
+
+  create: async (data: {
+    source_shop_id: string;
+    target_shop_id: string;
+    items: Array<{
+      product_sku: string;
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+      cost_price: number;
+    }>;
+    notes?: string;
+  }) => {
+    return api.post<any>('/transfers', data);
+  },
+
+  confirm: async (id: string) => {
+    return api.put<any>(`/transfers/${id}/confirm`, {});
+  },
+
+  ship: async (id: string) => {
+    return api.put<any>(`/transfers/${id}/ship`, {});
+  },
+
+  receive: async (id: string) => {
+    return api.put<any>(`/transfers/${id}/receive`, {});
+  },
+
+  cancel: async (id: string) => {
+    return api.put<any>(`/transfers/${id}/cancel`, {});
+  },
+};
+
+export const invoicesApi = {
+  createFromSale: async (saleId: string, notes?: string) => {
+    return api.post<any>(`/invoices/from-sale/${saleId}`, { notes });
+  },
+
+  getAll: async (params?: { customer_id?: string; status?: string }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.customer_id) queryParams.append('customer_id', params.customer_id);
+    if (params?.status) queryParams.append('status', params.status);
+    const query = queryParams.toString();
+    return api.get<any[]>(`/invoices${query ? `?${query}` : ''}`);
+  },
+
+  getOne: async (id: string) => {
+    return api.get<any>(`/invoices/${id}`);
+  },
+
+  cancel: async (id: string) => {
+    return api.put<any>(`/invoices/${id}/cancel`);
+  },
+};
+
+export const shopSwitchApi = {
+  getAccessibleShops: async () => {
+    return api.get<
+      Array<{
+        shop: {
+          id: string;
+          code: string;
+          name: string;
+          shop_type: string;
+          enterprise_id: string | null;
+          enterprise: { id: string; code: string; name: string } | null;
+        };
+        role: string;
+      }>
+    >('/auth/accessible-shops');
+  },
+
+  switchShop: async (shopId: string) => {
+    return api.post<{
+      user: any;
+      shop: any;
+      role: string;
+      access_token: string;
+      refresh_token: string;
+    }>('/auth/switch-shop', { shop_id: shopId });
   },
 };
 

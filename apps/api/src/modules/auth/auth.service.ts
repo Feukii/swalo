@@ -554,6 +554,95 @@ export class AuthService {
   }
 
   /**
+   * Switch to a different shop within the same enterprise
+   */
+  async switchShop(userId: string, targetShopId: string) {
+    // Verify user has a role in the target shop
+    const userRole = await this.prisma.userRole.findFirst({
+      where: {
+        user_id: userId,
+        shop_id: targetShopId,
+        deleted: false,
+      },
+      include: {
+        shop: true,
+      },
+    });
+
+    if (!userRole) {
+      throw new UnauthorizedException('Acces non autorise a cette boutique');
+    }
+
+    if (userRole.shop.deleted) {
+      throw new UnauthorizedException('Cette boutique a ete supprimee');
+    }
+
+    // Generate new tokens for the target shop
+    const tokens = await this.generateTokens(userId, targetShopId);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        display_name: true,
+      },
+    });
+
+    return {
+      user,
+      shop: {
+        id: userRole.shop.id,
+        code: userRole.shop.code,
+        name: userRole.shop.name,
+        shop_type: userRole.shop.shop_type,
+        enterprise_id: userRole.shop.enterprise_id,
+      },
+      role: userRole.role,
+      ...tokens,
+    };
+  }
+
+  /**
+   * Get all shops accessible to a user (for shop switcher)
+   */
+  async getAccessibleShops(userId: string) {
+    const userRoles = await this.prisma.userRole.findMany({
+      where: {
+        user_id: userId,
+        deleted: false,
+        shop: {
+          deleted: false,
+        },
+      },
+      include: {
+        shop: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            shop_type: true,
+            enterprise_id: true,
+            enterprise: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return userRoles.map(ur => ({
+      shop: ur.shop,
+      role: ur.role,
+    }));
+  }
+
+  /**
    * Vérifie si une boutique existe par son code
    * Endpoint public pour diagnostic - ne retourne pas de données sensibles
    */

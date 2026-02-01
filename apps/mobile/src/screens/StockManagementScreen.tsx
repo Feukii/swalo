@@ -26,6 +26,10 @@ import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { productsApi, inventoryApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { productRepo, stockBatchRepo } from '../db/repositories';
+import { createStockBatchOffline } from '../db/offlineWrite';
+import { syncEngine } from '../db/sync';
 
 interface StockItem {
   id: string;
@@ -40,6 +44,7 @@ interface StockItem {
 }
 
 export default function StockManagementScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<StockItem[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<StockItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,14 +64,57 @@ export default function StockManagementScreen({ navigation }: any) {
     else setIsLoading(true);
 
     try {
-      const loadedProducts = await productsApi.getAll();
-      // Filtrer côté client pour ne garder que les produits actifs
-      const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
-      setProducts(activeProducts);
-      setFilteredProducts(activeProducts);
+      // Step 1: Read from local DB (instant, works offline)
+      if (shopId) {
+        try {
+          const localProducts = await productRepo.getAll(shopId, {
+            where: { is_active: 1 },
+            orderBy: 'name ASC',
+          });
+          if (localProducts.length > 0) {
+            const enriched = await Promise.all(
+              localProducts.map(async p => {
+                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+                return {
+                  ...p,
+                  current_stock: totalStock,
+                  is_active: true,
+                } as StockItem;
+              })
+            );
+            setProducts(enriched);
+            setFilteredProducts(enriched);
+          }
+        } catch (e) {
+          console.log('Local stock read skipped:', e);
+        }
+      }
+
+      // Step 2: Fetch from API if online
+      if (syncEngine.isOnline) {
+        const loadedProducts = await productsApi.getAll();
+        const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
+        setProducts(activeProducts);
+        setFilteredProducts(activeProducts);
+
+        // Sync to local DB
+        if (shopId) {
+          for (const p of loadedProducts) {
+            productRepo
+              .upsertFromServer({
+                ...p,
+                is_active: p.is_active !== false ? 1 : 0,
+                deleted: p.deleted ? 1 : 0,
+              })
+              .catch(() => undefined);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Erreur chargement produits:', error);
-      Alert.alert('Erreur', 'Impossible de charger les produits');
+      if (products.length === 0) {
+        console.error('Erreur chargement produits:', error);
+        Alert.alert('Erreur', 'Impossible de charger les produits');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -141,28 +189,57 @@ export default function StockManagementScreen({ navigation }: any) {
 
     try {
       const newStock = (selectedProduct.current_stock || 0) + quantity;
+      let result: any = null;
 
-      // Créer un lot de stock avec les prix (ajoute aussi le mouvement d'inventaire)
-      const result = await inventoryApi.createBatch({
-        product_id: selectedProduct.id,
-        quantity: quantity,
-        cost_price: buyPrice,
-        sell_price: sellPrice,
-        notes: 'Approvisionnement',
-      });
-
-      console.log('✅ Approvisionnement réussi:', result);
+      if (syncEngine.isOnline) {
+        // ONLINE: Use API (server-authoritative)
+        result = await inventoryApi.createBatch({
+          product_id: selectedProduct.id,
+          quantity: quantity,
+          cost_price: buyPrice,
+          sell_price: sellPrice,
+          notes: 'Approvisionnement',
+        });
+      } else if (shopId) {
+        // OFFLINE: Create batch locally + enqueue mutation
+        await createStockBatchOffline({
+          shopId,
+          productId: selectedProduct.id,
+          quantity,
+          costPrice: buyPrice,
+          sellPrice: sellPrice,
+          notes: 'Approvisionnement',
+        });
+      }
 
       // Fermer le modal et recharger immédiatement
       closeStockModal();
       await loadProducts();
 
-      Alert.alert(
-        'Approvisionnement enregistré',
+      // Construire le message avec info de changement de prix si applicable
+      let message =
         `+${quantity} unités ajoutées\n\n` +
-          `Nouveau stock: ${newStock} unités\n` +
-          `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
-          `Prix de vente: ${formatMoney(sellPrice)}/unité`
+        `Nouveau stock: ${newStock} unités\n` +
+        `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
+        `Prix de vente: ${formatMoney(sellPrice)}/unité`;
+
+      if (!syncEngine.isOnline) {
+        message += '\n\n(Enregistré hors-ligne)';
+      }
+
+      if (result?.price_change) {
+        const pc = result.price_change;
+        const costSign = pc.cost_diff > 0 ? '+' : '';
+        const sellSign = pc.sell_diff > 0 ? '+' : '';
+        message +=
+          `\n\n--- Changement de prix ---\n` +
+          `Achat: ${formatMoney(pc.old_cost)} → ${formatMoney(pc.new_cost)} (${costSign}${pc.cost_diff_pct}%)\n` +
+          `Vente: ${formatMoney(pc.old_sell)} → ${formatMoney(pc.new_sell)} (${sellSign}${pc.sell_diff_pct}%)`;
+      }
+
+      Alert.alert(
+        result?.price_change ? 'Approvisionnement - Prix modifié' : 'Approvisionnement enregistré',
+        message
       );
     } catch (error: any) {
       console.error("Erreur lors de l'approvisionnement:", error);

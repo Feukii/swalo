@@ -63,6 +63,7 @@ export const CreateSaleInput = z.object({
         qty: z.number().positive(),
         unit_price: Currency.optional(), // Si non fourni, utilise le prix du produit
         discount: Currency.default(0),
+        batch_id: UUID.optional(), // Lot spécifique pour le destockage (si non fourni, FIFO auto)
       })
     )
     .min(1),

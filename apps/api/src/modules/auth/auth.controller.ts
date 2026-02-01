@@ -100,4 +100,24 @@ export class AuthController {
   async updateShopCode(@Request() req: any, @Body() dto: UpdateShopCodeDto) {
     return this.authService.updateShopCode(req.user.shopId, req.user.userId, dto);
   }
+
+  /**
+   * POST /api/auth/switch-shop
+   * Switch to a different shop (multi-shop users)
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('switch-shop')
+  async switchShop(@Request() req: any, @Body() body: { shop_id: string }) {
+    return this.authService.switchShop(req.user.userId, body.shop_id);
+  }
+
+  /**
+   * GET /api/auth/accessible-shops
+   * Get all shops accessible to the current user
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('accessible-shops')
+  async getAccessibleShops(@Request() req: any) {
+    return this.authService.getAccessibleShops(req.user.userId);
+  }
 }

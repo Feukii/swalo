@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -27,8 +38,8 @@ export class PackagingTypesController {
    * Récupérer tous les types de conditionnement
    */
   @Get()
-  async getAll(@Req() req: any) {
-    return this.packagingTypesService.getAll(req.user.shopId);
+  async getAll(@Req() req: any, @Query('include_product_count') includeProductCount?: string) {
+    return this.packagingTypesService.getAll(req.user.shopId, includeProductCount === 'true');
   }
 
   /**

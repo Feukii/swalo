@@ -16,6 +16,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import AdminPanel from './pages/AdminPanel';
 import BusinessReports from './pages/BusinessReports';
 import ProductBatches from './pages/ProductBatches';
+import EnterpriseDashboard from './pages/EnterpriseDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import './App.css';
@@ -182,6 +183,18 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <BusinessReports />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Enterprise & Multi-shop */}
+        <Route
+          path="/enterprise"
+          element={
+            <ProtectedRoute requireRole={['OWNER', 'MANAGER', 'SUPERADMIN']}>
+              <MainLayout>
+                <EnterpriseDashboard />
               </MainLayout>
             </ProtectedRoute>
           }

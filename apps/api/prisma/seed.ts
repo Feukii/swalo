@@ -250,6 +250,37 @@ async function main() {
   });
   console.log('? Code PIN Manager cr??: 2222');
 
+  // 5.5 Initialiser les conditionnements par défaut pour les deux boutiques
+  const defaultPackagingTypes = [
+    { name: 'Pièce', symbol: 'pce', is_default: true },
+    { name: 'Carton', symbol: 'ctn', is_default: false },
+    { name: 'Douzaine', symbol: 'dz', is_default: false },
+    { name: 'Paquet', symbol: 'pqt', is_default: false },
+    { name: 'Boîte', symbol: 'bte', is_default: false },
+    { name: 'Unité', symbol: 'u', is_default: false },
+    { name: 'Kilogramme', symbol: 'kg', is_default: false },
+    { name: 'Gramme', symbol: 'g', is_default: false },
+    { name: 'Litre', symbol: 'l', is_default: false },
+  ];
+
+  for (const shopItem of [shop1, shop2]) {
+    for (const pt of defaultPackagingTypes) {
+      const existing = await prisma.packagingType.findFirst({
+        where: {
+          shop_id: shopItem.id,
+          name: { equals: pt.name, mode: 'insensitive' },
+        },
+      });
+      if (!existing) {
+        await prisma.packagingType.create({
+          data: { shop_id: shopItem.id, ...pt },
+        });
+      }
+    }
+  }
+
+  console.log('✅ Conditionnements par défaut initialisés pour les deux boutiques');
+
   // 6. Créer quelques produits de test
   const products = [
     {

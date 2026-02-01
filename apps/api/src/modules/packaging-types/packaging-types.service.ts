@@ -40,14 +40,32 @@ export class PackagingTypesService {
   /**
    * Récupérer tous les types de conditionnement d'une boutique
    */
-  async getAll(shopId: string) {
-    return this.prisma.packagingType.findMany({
+  async getAll(shopId: string, includeProductCount = false) {
+    const types = await this.prisma.packagingType.findMany({
       where: {
         shop_id: shopId,
         deleted: false,
       },
       orderBy: [{ is_default: 'desc' }, { name: 'asc' }],
     });
+
+    if (!includeProductCount) {
+      return types;
+    }
+
+    // Ajouter le nombre de produits utilisant chaque type
+    return Promise.all(
+      types.map(async type => {
+        const product_count = await this.prisma.product.count({
+          where: {
+            shop_id: shopId,
+            unit: type.name,
+            deleted: false,
+          },
+        });
+        return { ...type, product_count };
+      })
+    );
   }
 
   /**
@@ -105,6 +123,20 @@ export class PackagingTypesService {
   }
 
   /**
+   * Compter le nombre de produits utilisant un type de conditionnement
+   */
+  async getProductCount(shopId: string, id: string): Promise<number> {
+    const packagingType = await this.getOne(shopId, id);
+    return this.prisma.product.count({
+      where: {
+        shop_id: shopId,
+        unit: packagingType.name,
+        deleted: false,
+      },
+    });
+  }
+
+  /**
    * Supprimer (soft delete) un type de conditionnement
    */
   async delete(shopId: string, id: string) {
@@ -113,6 +145,21 @@ export class PackagingTypesService {
     // Empêcher la suppression des conditionnements par défaut
     if (packagingType.is_default) {
       throw new BadRequestException('Impossible de supprimer un conditionnement par défaut');
+    }
+
+    // Empêcher la suppression si des produits utilisent ce type
+    const productCount = await this.prisma.product.count({
+      where: {
+        shop_id: shopId,
+        unit: packagingType.name,
+        deleted: false,
+      },
+    });
+
+    if (productCount > 0) {
+      throw new BadRequestException(
+        `Impossible de supprimer ce conditionnement: ${productCount} produit(s) l'utilisent`
+      );
     }
 
     await this.prisma.packagingType.update({
@@ -136,6 +183,10 @@ export class PackagingTypesService {
       { name: 'Douzaine', symbol: 'dz', is_default: false },
       { name: 'Paquet', symbol: 'pqt', is_default: false },
       { name: 'Boîte', symbol: 'bte', is_default: false },
+      { name: 'Unité', symbol: 'u', is_default: false },
+      { name: 'Kilogramme', symbol: 'kg', is_default: false },
+      { name: 'Gramme', symbol: 'g', is_default: false },
+      { name: 'Litre', symbol: 'l', is_default: false },
     ];
 
     for (const item of defaults) {

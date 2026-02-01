@@ -19,6 +19,9 @@ import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { PackagingTypesModule } from './modules/packaging-types/packaging-types.module';
 import { ImportModule } from './modules/import/import.module';
+import { EnterpriseModule } from './modules/enterprise/enterprise.module';
+import { TransfersModule } from './modules/transfers/transfers.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -50,6 +53,9 @@ import { ImportModule } from './modules/import/import.module';
     HealthModule, // Health check endpoint
     PackagingTypesModule, // Packaging types (conditionnement)
     ImportModule, // Import catalog from Excel/CSV
+    EnterpriseModule, // Enterprise & multi-shop management
+    TransfersModule, // Inter-shop transfers
+    NotificationsModule, // Monthly email summaries
   ],
 })
 export class AppModule {}

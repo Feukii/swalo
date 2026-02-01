@@ -26,6 +26,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Dettes', path: '/debts', icon: '💸' },
     { name: 'Inventaire', path: '/inventory', icon: '📋' },
     { name: 'Rapports', path: '/reports', icon: '📈' },
+    { name: 'Entreprises', path: '/enterprise', icon: '🏢' },
   ];
 
   // Admin menu items (only for ADMIN, OWNER, MANAGER, SUPERADMIN)

@@ -154,7 +154,12 @@ export class CashService {
       // - 'remboursement_client': une créance négative a déjà été créée pour ajuster le solde
       // - 'vente': une vente cash ne doit pas affecter le solde des créances du client
       const excludedCategories = ['remboursement_client', 'vente'];
-      if (dto.customer_id && dto.type === 'IN' && !excludedCategories.includes(dto.category)) {
+      if (
+        dto.customer_id &&
+        dto.type === 'IN' &&
+        dto.category &&
+        !excludedCategories.includes(dto.category)
+      ) {
         // Trouver les créances impayées du client
         const unpaidReceivables = await tx.clientReceivable.findMany({
           where: {

@@ -24,12 +24,16 @@ import {
   Check,
   Upload,
   FileSpreadsheet,
+  ChevronDown,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { productsApi, importApi } from '../lib/api';
+import { productsApi, importApi, packagingTypesApi } from '../lib/api';
 import * as DocumentPicker from 'expo-document-picker';
 import { formatMoney } from '../utils/money';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { productRepo, stockBatchRepo } from '../db/repositories';
+import { syncEngine } from '../db/sync';
 
 interface Product {
   id: string;
@@ -48,6 +52,9 @@ interface Product {
   alert_threshold: number;
   current_stock: number;
   is_low_stock: boolean;
+  is_multi_price?: boolean;
+  price_min?: number;
+  price_max?: number;
 }
 
 interface Filters {
@@ -73,7 +80,8 @@ interface ProductFormData {
   is_active: boolean;
 }
 
-const UNITS = ['unit', 'pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack'];
+// Fallback units si l'API n'est pas disponible
+const FALLBACK_UNITS = ['unit', 'pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack'];
 
 const DEFAULT_FORM: ProductFormData = {
   sku: '',
@@ -92,6 +100,7 @@ const DEFAULT_FORM: ProductFormData = {
 };
 
 export default function ProductCatalogScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<'articles' | 'catalogue'>('articles');
   const [products, setProducts] = useState<Product[]>([]);
   const [filters, setFilters] = useState<Filters>({ families: [], brands: [], article_types: [] });
@@ -141,41 +150,102 @@ export default function ProductCatalogScreen({ navigation }: any) {
   const [isImporting, setIsImporting] = useState(false);
   const [importStep, setImportStep] = useState<'select' | 'preview' | 'success'>('select');
 
+  // Types de conditionnement (unités)
+  const [packagingTypes, setPackagingTypes] = useState<
+    Array<{ id: string; name: string; symbol: string }>
+  >([]);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showNewUnitInput, setShowNewUnitInput] = useState(false);
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitSymbol, setNewUnitSymbol] = useState('');
+
+  // Charger les types de conditionnement
+  const loadPackagingTypes = async () => {
+    try {
+      const types = await packagingTypesApi.getAll();
+      setPackagingTypes(types);
+    } catch (error) {
+      console.error('Erreur chargement conditionnements:', error);
+      // Utiliser les valeurs de fallback
+      setPackagingTypes(FALLBACK_UNITS.map((u, i) => ({ id: String(i), name: u, symbol: u })));
+    }
+  };
+
   const loadData = async () => {
     setIsLoading(true);
     try {
-      console.log('📦 Loading products with params:', {
-        search: searchQuery || undefined,
-        family: selectedFamily || undefined,
-        brand: selectedBrand || undefined,
-        article_type: selectedType || undefined,
-      });
+      // Step 1: Try local DB first (instant, works offline)
+      if (shopId) {
+        try {
+          const where: Record<string, unknown> = {};
+          if (selectedFamily) where.family = selectedFamily;
+          if (selectedBrand) where.brand = selectedBrand;
+          if (selectedType) where.article_type = selectedType;
 
-      const [productsData, filtersData] = await Promise.all([
-        productsApi.getAll({
-          search: searchQuery || undefined,
-          family: selectedFamily || undefined,
-          brand: selectedBrand || undefined,
-          article_type: selectedType || undefined,
-        }),
-        // Cascade filtering: pass current filter selections to narrow options
-        productsApi.getFilters({
-          family: selectedFamily || undefined,
-          brand: selectedBrand || undefined,
-          article_type: selectedType || undefined,
-        }),
-      ]);
+          let localProducts;
+          if (searchQuery) {
+            localProducts = await productRepo.search(shopId, searchQuery);
+          } else {
+            localProducts = await productRepo.getAll(shopId, { where, orderBy: 'name ASC' });
+          }
 
-      console.log('✅ Products loaded:', productsData.length);
-      console.log('✅ Filters loaded:', filtersData);
+          if (localProducts.length > 0) {
+            // Enrich with stock data
+            const enriched = await Promise.all(
+              localProducts.map(async p => {
+                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+                return {
+                  ...p,
+                  is_active: p.is_active === 1,
+                  current_stock: totalStock,
+                  is_low_stock: totalStock <= p.alert_threshold,
+                };
+              })
+            );
+            setProducts(enriched as any);
+          }
+        } catch (e) {
+          console.log('Local catalog read skipped:', e);
+        }
+      }
 
-      setProducts(productsData);
-      setFilters(filtersData);
+      // Step 2: Fetch from API if online
+      if (syncEngine.isOnline) {
+        const [productsData, filtersData] = await Promise.all([
+          productsApi.getAll({
+            search: searchQuery || undefined,
+            family: selectedFamily || undefined,
+            brand: selectedBrand || undefined,
+            article_type: selectedType || undefined,
+          }),
+          productsApi.getFilters({
+            family: selectedFamily || undefined,
+            brand: selectedBrand || undefined,
+            article_type: selectedType || undefined,
+          }),
+        ]);
+
+        setProducts(productsData);
+        setFilters(filtersData);
+
+        // Sync products to local DB in background
+        if (shopId) {
+          for (const p of productsData) {
+            productRepo
+              .upsertFromServer({
+                ...p,
+                is_active: p.is_active !== false ? 1 : 0,
+                deleted: p.deleted ? 1 : 0,
+              })
+              .catch(() => undefined);
+          }
+        }
+      }
     } catch (error: any) {
-      console.error('❌ Error loading products:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error response:', error.response?.data);
-      Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
+      // Only show error if we have no local data
+      if (products.length === 0) {
+        Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -185,9 +255,14 @@ export default function ProductCatalogScreen({ navigation }: any) {
     loadData();
   }, [searchQuery, selectedFamily, selectedBrand, selectedType]);
 
+  useEffect(() => {
+    loadPackagingTypes();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
+      loadPackagingTypes();
     }, [])
   );
 
@@ -474,7 +549,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
             console.error('❌ Erreur lors de la prévisualisation:', error);
             Alert.alert(
               'Erreur',
-              error.message || "Impossible de prévisualiser le fichier. Vérifiez le format et les colonnes."
+              error.message ||
+                'Impossible de prévisualiser le fichier. Vérifiez le format et les colonnes.'
             );
           } finally {
             setIsImporting(false);
@@ -568,7 +644,18 @@ export default function ProductCatalogScreen({ navigation }: any) {
               </View>
             </View>
             <View style={styles.productMeta}>
-              <Text style={styles.productPrice}>{formatMoney(item.sell_price)}</Text>
+              {item.is_multi_price ? (
+                <Text style={styles.productPriceRange}>
+                  {formatMoney(item.price_min || 0)} - {formatMoney(item.price_max || 0)}
+                </Text>
+              ) : (
+                <Text style={styles.productPrice}>{formatMoney(item.sell_price)}</Text>
+              )}
+              {item.is_multi_price && (
+                <View style={styles.multiPriceTag}>
+                  <Text style={styles.multiPriceTagText}>Multi-prix</Text>
+                </View>
+              )}
               <View style={[styles.stockBadge, { backgroundColor: stockStatus.color + '20' }]}>
                 <View style={[styles.stockDot, { backgroundColor: stockStatus.color }]} />
                 <Text style={[styles.stockText, { color: stockStatus.color }]}>
@@ -1324,9 +1411,13 @@ export default function ProductCatalogScreen({ navigation }: any) {
                   </View>
                   <View style={[styles.formGroup, { flex: 1 }]}>
                     <Text style={styles.formLabel}>Unité</Text>
-                    <View style={styles.unitPicker}>
-                      <Text style={styles.unitPickerText}>{formData.unit}</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.unitPicker}
+                      onPress={() => setShowUnitPicker(true)}
+                    >
+                      <Text style={styles.unitPickerText}>{formData.unit || 'Sélectionner'}</Text>
+                      <ChevronDown size={16} color={Colors.muted.foreground} />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -1470,7 +1561,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
                   </Text>
                   <Text style={styles.importHint}>
                     Colonnes requises: Code Article, Libellé Article{'\n'}
-                    Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix vente
+                    Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix
+                    vente
                   </Text>
                   <TouchableOpacity
                     style={styles.importPickButton}
@@ -1574,6 +1666,129 @@ export default function ProductCatalogScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unit Picker Modal */}
+      <Modal
+        visible={showUnitPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowUnitPicker(false);
+          setShowNewUnitInput(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+            <Text style={styles.modalTitle}>Choisir l'unité</Text>
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {packagingTypes.map(type => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={[
+                    styles.unitPickerOption,
+                    formData.unit === type.name && styles.unitPickerOptionActive,
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, unit: type.name }));
+                    setShowUnitPicker(false);
+                    setShowNewUnitInput(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.unitPickerOptionText,
+                      formData.unit === type.name && styles.unitPickerOptionTextActive,
+                    ]}
+                  >
+                    {type.name}
+                  </Text>
+                  <Text style={styles.unitPickerOptionSymbol}>({type.symbol})</Text>
+                  {formData.unit === type.name && <Check size={18} color={Colors.primary[900]} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Bouton créer nouveau type */}
+            {!showNewUnitInput ? (
+              <TouchableOpacity
+                style={styles.addUnitButton}
+                onPress={() => setShowNewUnitInput(true)}
+              >
+                <Plus size={16} color={Colors.primary[900]} />
+                <Text style={styles.addUnitButtonText}>Ajouter une unité</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.newUnitForm}>
+                <TextInput
+                  style={[styles.input, { marginBottom: Spacing.sm }]}
+                  placeholder="Nom (ex: Sachet)"
+                  placeholderTextColor={Colors.muted.foreground}
+                  value={newUnitName}
+                  onChangeText={setNewUnitName}
+                  autoFocus
+                />
+                <TextInput
+                  style={[styles.input, { marginBottom: Spacing.sm }]}
+                  placeholder="Symbole (ex: sac)"
+                  placeholderTextColor={Colors.muted.foreground}
+                  value={newUnitSymbol}
+                  onChangeText={setNewUnitSymbol}
+                />
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                  <TouchableOpacity
+                    style={[styles.modalCancelButton, { flex: 1 }]}
+                    onPress={() => {
+                      setShowNewUnitInput(false);
+                      setNewUnitName('');
+                      setNewUnitSymbol('');
+                    }}
+                  >
+                    <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalSaveButton, { flex: 1 }]}
+                    onPress={async () => {
+                      if (!newUnitName.trim()) {
+                        Alert.alert('Erreur', "Le nom de l'unité est requis");
+                        return;
+                      }
+                      try {
+                        await packagingTypesApi.create({
+                          name: newUnitName.trim(),
+                          symbol:
+                            newUnitSymbol.trim() ||
+                            newUnitName.trim().toLowerCase().substring(0, 3),
+                        });
+                        await loadPackagingTypes();
+                        setFormData(prev => ({ ...prev, unit: newUnitName.trim() }));
+                        setShowNewUnitInput(false);
+                        setNewUnitName('');
+                        setNewUnitSymbol('');
+                        setShowUnitPicker(false);
+                      } catch (error: any) {
+                        Alert.alert('Erreur', error.message || "Impossible de créer l'unité");
+                      }
+                    }}
+                  >
+                    <Text style={styles.modalSaveButtonText}>Créer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { marginTop: Spacing.md }]}
+              onPress={() => {
+                setShowUnitPicker(false);
+                setShowNewUnitInput(false);
+              }}
+            >
+              <Text style={styles.modalCancelButtonText}>Fermer</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1781,6 +1996,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
+  },
+  productPriceRange: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.warning.main,
+  },
+  multiPriceTag: {
+    backgroundColor: Colors.warning.main + '20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-end',
+  },
+  multiPriceTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.warning.main,
   },
   stockBadge: {
     flexDirection: 'row',
@@ -2160,6 +2392,9 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   unitPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -2170,6 +2405,54 @@ const styles = StyleSheet.create({
   unitPickerText: {
     fontSize: 15,
     color: Colors.text,
+  },
+  unitPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  unitPickerOptionActive: {
+    backgroundColor: Colors.primary[50],
+  },
+  unitPickerOptionText: {
+    fontSize: 16,
+    color: Colors.text,
+    flex: 1,
+  },
+  unitPickerOptionTextActive: {
+    fontWeight: '600',
+    color: Colors.primary[900],
+  },
+  unitPickerOptionSymbol: {
+    fontSize: 13,
+    color: Colors.muted.foreground,
+  },
+  addUnitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary[900],
+    borderRadius: 12,
+    borderStyle: 'dashed',
+  },
+  addUnitButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.primary[900],
+  },
+  newUnitForm: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
   },
   toggleRow: {
     flexDirection: 'row',
