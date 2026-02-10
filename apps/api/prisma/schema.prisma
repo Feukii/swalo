@@ -9,18 +9,27 @@ datasource db {
 }
 
 model Enterprise {
-  id            String              @id @default(uuid())
-  code          String              @unique @db.VarChar(20)
-  name          String              @db.VarChar(255)
-  owner_id      String
-  created_at    DateTime            @default(now())
-  updated_at    DateTime            @updatedAt
-  deleted       Boolean             @default(false)
-  deleted_at    DateTime?
-  version       Int                 @default(1)
-  owner         User                @relation(fields: [owner_id], references: [id])
-  shops         Shop[]
-  transfers     InterShopTransfer[]
+  id             String              @id @default(uuid())
+  code           String              @unique @db.VarChar(20)
+  name           String              @db.VarChar(255)
+  owner_id       String?
+  is_blocked     Boolean             @default(false)
+  blocked_reason String?
+  blocked_at     DateTime?
+  blocked_by     String?
+  logo_url       String?
+  license_tier   String              @default("STARTER")
+  licensed_until DateTime?
+  max_shops      Int                 @default(1)
+  max_users_per_shop Int             @default(5)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  deleted        Boolean             @default(false)
+  deleted_at     DateTime?
+  version        Int                 @default(1)
+  owner          User?               @relation(fields: [owner_id], references: [id])
+  shops          Shop[]
+  transfers      InterShopTransfer[]
 
   @@map("enterprises")
 }
@@ -35,8 +44,13 @@ model Shop {
   currency              String              @default("XOF") @db.VarChar(3)
   tax_rate              Float               @default(0)
   owner_id              String
-  enterprise_id         String?
+  enterprise_id         String
   shop_type             ShopType            @default(BOUTIQUE)
+  is_blocked            Boolean             @default(false)
+  blocked_reason        String?
+  blocked_at            DateTime?
+  blocked_by            String?
+  enabled_modules       String[]            @default(["auth","products","customers","sales","cash","inventory"])
   created_at            DateTime            @default(now())
   updated_at            DateTime            @updatedAt
   deleted               Boolean             @default(false)
@@ -53,7 +67,7 @@ model Shop {
   payments              Payment[]
   products              Product[]
   sales                 Sale[]
-  enterprise            Enterprise?         @relation(fields: [enterprise_id], references: [id])
+  enterprise            Enterprise          @relation(fields: [enterprise_id], references: [id])
   owner                 User                @relation(fields: [owner_id], references: [id])
   stock_batches         StockBatch[]
   supplier_debts        SupplierDebt[]
@@ -75,6 +89,10 @@ model User {
   password_hash      String?
   display_name       String             @db.VarChar(255)
   is_active          Boolean            @default(true)
+  is_blocked         Boolean            @default(false)
+  blocked_reason     String?
+  blocked_at         DateTime?
+  blocked_by         String?
   created_at         DateTime           @default(now())
   updated_at         DateTime           @updatedAt
   deleted            Boolean            @default(false)
@@ -89,6 +107,7 @@ model User {
   user_roles            UserRole[]
   enterprises_owned     Enterprise[]
   transfers_created     InterShopTransfer[]
+  audit_logs            AuditLog[]
 
   @@map("users")
 }
@@ -349,14 +368,15 @@ model ClientReceivablePayment {
 }
 
 model Supplier {
-  id           String            @id @default(uuid())
-  shop_id      String
-  code         String?
-  name         String            @db.VarChar(255)
-  phone        String?
-  email        String?
-  address      String?
-  notes        String?
+  id              String            @id @default(uuid())
+  shop_id         String
+  code            String?
+  name            String            @db.VarChar(255)
+  phone           String?
+  email           String?
+  address         String?
+  borrowing_limit Int               @default(0)
+  notes           String?
   is_active    Boolean           @default(true)
   created_at   DateTime          @default(now())
   updated_at   DateTime          @updatedAt
@@ -480,6 +500,8 @@ model Sale {
   paid_total     Int           @default(0)
   change         Int           @default(0)
   notes          String?
+  expected_total Int?
+  pricing_notes  String?
   created_at     DateTime      @default(now())
   updated_at     DateTime      @updatedAt
   deleted        Boolean       @default(false)
@@ -750,12 +772,10 @@ enum TransferStatus {
 }
 
 enum Role {
-  OWNER
-  MANAGER
-  CASHIER
-  SUPERADMIN
-  ADMIN
   EMPLOYEE
+  MANAGER
+  BOSS
+  SUPERADMIN
 }
 
 enum MovementType {
@@ -822,4 +842,33 @@ enum CashEntryType {
 enum CashSessionStatus {
   OPEN
   CLOSED
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  admin_id    String
+  action      String
+  entity_type String
+  entity_id   String
+  old_value   Json?
+  new_value   Json?
+  reason      String?
+  ip_address  String?
+  created_at  DateTime @default(now())
+  admin       User     @relation(fields: [admin_id], references: [id])
+
+  @@index([admin_id, created_at])
+  @@index([entity_type, entity_id])
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("system_configs")
 }

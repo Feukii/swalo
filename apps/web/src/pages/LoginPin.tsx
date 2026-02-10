@@ -14,12 +14,7 @@ export default function LoginPin() {
 
   // Auto-submit when PIN reaches 4 digits and shop code is complete
   useEffect(() => {
-    if (
-      pin.length === 4 &&
-      shopCode.length === 6 &&
-      !isLoading &&
-      !hasAutoSubmittedRef.current
-    ) {
+    if (pin.length === 4 && shopCode.length === 6 && !isLoading && !hasAutoSubmittedRef.current) {
       hasAutoSubmittedRef.current = true;
       // Trigger form submission programmatically
       formRef.current?.requestSubmit();

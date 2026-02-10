@@ -13,6 +13,7 @@ Application mobile et web complète pour la gestion de points de vente en Afriqu
 ## ✨ Fonctionnalités
 
 ### 📱 Mobile & Web
+
 - ✅ **Gestion de Caisse** - Entrées/sorties avec catégories personnalisées
 - ✅ **Créances Clients** - Suivi des dettes clients avec historique de paiements
 - ✅ **Dettes Fournisseurs** - Gestion des achats et règlements
@@ -22,6 +23,7 @@ Application mobile et web complète pour la gestion de points de vente en Afriqu
 - ✅ **Authentification** - PIN (4 chiffres) ou Email/Password + JWT
 
 ### 🛡️ Administration (SUPERADMIN)
+
 - ✅ **Panneau d'Administration Complet** - Vue globale de la plateforme
 - ✅ **Statistiques Système** - Boutiques, utilisateurs, ventes, produits
 - ✅ **Gestion des Boutiques** - Visualisation, suppression (soft delete)
@@ -29,6 +31,7 @@ Application mobile et web complète pour la gestion de points de vente en Afriqu
 - ✅ **Sécurité Renforcée** - Confirmations, transactions, logs
 
 ### 🚀 En développement
+
 - 🔄 Gestion des Stocks
 - 🔄 Facturation PDF
 - 🔄 Mode Offline
@@ -42,13 +45,13 @@ La documentation est organisée dans le dossier `docs/` par catégorie. Voir [do
 
 ### Guides essentiels
 
-| Guide | Description |
-|-------|-------------|
-| **[docs/guides/getting-started.md](docs/guides/getting-started.md)** | Demarrage local |
-| **[docs/deployment/guide.md](docs/deployment/guide.md)** | Deploiement (Render/Vercel/Docker) |
-| **[docs/guides/admin-features.md](docs/guides/admin-features.md)** | Admin panel |
-| **[docs/guides/testing.md](docs/guides/testing.md)** | Tests et smoke checks |
-| **[docs/specs/cahier-des-charges-unifie.md](docs/specs/cahier-des-charges-unifie.md)** | Specifications techniques |
+| Guide                                                                                  | Description                        |
+| -------------------------------------------------------------------------------------- | ---------------------------------- |
+| **[docs/guides/getting-started.md](docs/guides/getting-started.md)**                   | Demarrage local                    |
+| **[docs/deployment/guide.md](docs/deployment/guide.md)**                               | Deploiement (Render/Vercel/Docker) |
+| **[docs/guides/admin-features.md](docs/guides/admin-features.md)**                     | Admin panel                        |
+| **[docs/guides/testing.md](docs/guides/testing.md)**                                   | Tests et smoke checks              |
+| **[docs/specs/cahier-des-charges-unifie.md](docs/specs/cahier-des-charges-unifie.md)** | Specifications techniques          |
 
 ### Structure documentation
 
@@ -122,12 +125,12 @@ npx expo start
 
 ### Services Locaux
 
-| Service | URL | Port |
-|---------|-----|------|
-| Web Frontend | http://localhost:5173 | 5173 |
-| API Backend | http://localhost:3000 | 3000 |
-| PostgreSQL | postgresql://localhost:5432 | 5432 |
-| Mobile (Expo) | exp://localhost:8081 | 8081 |
+| Service       | URL                         | Port |
+| ------------- | --------------------------- | ---- |
+| Web Frontend  | http://localhost:5173       | 5173 |
+| API Backend   | http://localhost:3000       | 3000 |
+| PostgreSQL    | postgresql://localhost:5432 | 5432 |
+| Mobile (Expo) | exp://localhost:8081        | 8081 |
 
 ---
 
@@ -148,13 +151,13 @@ swalo/
 
 ### Technologies
 
-| Couche | Stack |
-|--------|-------|
-| **Mobile** | React Native + Expo 54 + AsyncStorage |
-| **Web** | React 19 + Vite + Tailwind CSS |
-| **API** | NestJS 10 + Prisma 5 + JWT |
-| **Database** | PostgreSQL 16 |
-| **Shared** | TypeScript + Monorepo (pnpm workspaces) |
+| Couche       | Stack                                   |
+| ------------ | --------------------------------------- |
+| **Mobile**   | React Native + Expo 54 + AsyncStorage   |
+| **Web**      | React 19 + Vite + Tailwind CSS          |
+| **API**      | NestJS 10 + Prisma 5 + JWT              |
+| **Database** | PostgreSQL 16                           |
+| **Shared**   | TypeScript + Monorepo (pnpm workspaces) |
 
 ---
 
@@ -173,22 +176,26 @@ swalo/
 ## 📈 Roadmap
 
 ### Q1 2026 - Gestion des Stocks
+
 - [ ] Module produits complet
 - [ ] Suivi mouvements de stock
 - [ ] Alertes rupture de stock
 - [ ] Inventaire physique vs théorique
 
 ### Q2 2026 - Facturation
+
 - [ ] Génération factures PDF
 - [ ] Numérotation automatique
 - [ ] Export et envoi email/WhatsApp
 
 ### Q3 2026 - Mode Offline
+
 - [ ] SQLite local (WatermelonDB)
 - [ ] Synchronisation bidirectionnelle
 - [ ] Résolution de conflits
 
 ### Q4 2026 - Fonctionnalités Avancées
+
 - [ ] Multi-boutiques
 - [ ] Analytics avancés
 - [ ] Import/Export CSV

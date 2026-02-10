@@ -1,10 +1,8 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Controller, Get, Post, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { PinInvitesService } from './pin-invites.service';
 import { CreatePinInviteDto } from './dto/create-pin-invite.dto';
 
 @Controller('pin-invites')
-@UseGuards(JwtAuthGuard)
 export class PinInvitesController {
   constructor(private readonly pinInvitesService: PinInvitesService) {}
 

@@ -112,18 +112,16 @@ export const Colors = {
   // User Roles - Role-specific colors
   roles: {
     SUPERADMIN: '#9333ea', // Purple 600
-    OWNER: '#dc2626', // Red 600
-    ADMIN: '#ea580c', // Orange 600
-    MANAGER: '#0284c7', // Sky 600
+    BOSS: '#dc2626', // Red 600
+    MANAGER: '#ea580c', // Orange 600
     EMPLOYEE: '#2563eb', // Blue 600
   },
 
   // Role Badges (light backgrounds)
   roleBadges: {
     SUPERADMIN: { bg: '#f3e8ff', text: '#6b21a8' }, // Purple
-    OWNER: { bg: '#dcfce7', text: '#16a34a' }, // Green
-    ADMIN: { bg: '#fef3c7', text: '#92400e' }, // Amber
-    MANAGER: { bg: '#e0e7ff', text: '#3730a3' }, // Indigo
+    BOSS: { bg: '#dcfce7', text: '#16a34a' }, // Green
+    MANAGER: { bg: '#fef3c7', text: '#92400e' }, // Amber
     EMPLOYEE: { bg: '#dbeafe', text: '#1e40af' }, // Blue
   },
 

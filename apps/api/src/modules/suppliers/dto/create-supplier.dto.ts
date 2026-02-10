@@ -20,6 +20,11 @@ export class CreateSupplierDto {
   @IsOptional()
   address?: string;
 
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  borrowing_limit?: number; // Limite d'emprunt en FCFA (0 = pas de limite)
+
   @IsString()
   @IsOptional()
   notes?: string;

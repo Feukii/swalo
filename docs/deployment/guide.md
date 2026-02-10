@@ -41,23 +41,25 @@ Ce document décrit l'architecture de déploiement complète de SWALO, un mini-E
 
 ## Stack Technique
 
-| Composant | Plateforme | Plan | Limite Gratuite |
-|-----------|-----------|------|-----------------|
-| **API Backend** | Render | Free | 750h/mois |
-| **Base de données** | Neon PostgreSQL | Free | 0.5GB, 100 CU-h/mois |
-| **Web Dashboard** | Vercel | Hobby | 100GB bandwidth/mois |
-| **Mobile App** | Expo EAS | Free | Builds limités |
-| **CI/CD** | GitHub Actions | Free | 2000 min/mois |
+| Composant           | Plateforme      | Plan  | Limite Gratuite      |
+| ------------------- | --------------- | ----- | -------------------- |
+| **API Backend**     | Render          | Free  | 750h/mois            |
+| **Base de données** | Neon PostgreSQL | Free  | 0.5GB, 100 CU-h/mois |
+| **Web Dashboard**   | Vercel          | Hobby | 100GB bandwidth/mois |
+| **Mobile App**      | Expo EAS        | Free  | Builds limités       |
+| **CI/CD**           | GitHub Actions  | Free  | 2000 min/mois        |
 
 ## Environnements
 
 ### Production
+
 - **Branche Git** : `main`
 - **API URL** : `https://swalo-api.onrender.com`
 - **Web URL** : `https://swalo-web.vercel.app` (ou domaine personnalisé)
 - **Database** : Neon branche `main`
 
 ### Staging (Optionnel)
+
 - **Branche Git** : `develop`
 - **API URL** : `https://swalo-api-staging.onrender.com` (si configuré)
 - **Web URL** : Preview deployments Vercel
@@ -130,6 +132,7 @@ Ce document décrit l'architecture de déploiement complète de SWALO, un mini-E
 Configurer les secrets dans le repository :
 
 **Repository Secrets** (Settings > Secrets > Actions) :
+
 ```
 RENDER_DEPLOY_HOOK=https://api.render.com/deploy/...
 VERCEL_TOKEN=xxx
@@ -140,12 +143,14 @@ TURBO_TOKEN=xxx (optionnel, pour remote caching)
 ```
 
 **Repository Variables** :
+
 ```
 TURBO_TEAM=your-team-name
 VITE_API_URL=https://swalo-api.onrender.com/api
 ```
 
 **Environments** (Settings > Environments) :
+
 - Créer `production` avec protection rules
 - Créer `staging` pour les preview deployments
 
@@ -156,6 +161,7 @@ VITE_API_URL=https://swalo-api.onrender.com/api
 ### Déploiement Production (`deploy.yml`)
 
 Déclenché sur push vers `main` :
+
 1. **Test** : Lint + Build de tous les packages
 2. **deploy-web** : Déploiement Vercel en production
 3. **deploy-mobile** : Build EAS
@@ -164,6 +170,7 @@ Déclenché sur push vers `main` :
 ### Déploiement Staging (`deploy-staging.yml`)
 
 Déclenché sur push vers `develop` :
+
 1. **Test** : Lint + Build
 2. **deploy-web-staging** : Preview deployment Vercel
 3. **notify-render-staging** : Déploiement API staging (si configuré)
@@ -171,6 +178,7 @@ Déclenché sur push vers `develop` :
 ### Keep-Alive (`keep-alive.yml`)
 
 Ping automatique de l'API toutes les 14 minutes de 6h à 22h (UTC+1) :
+
 - Warm-up à 5h55 pour être prêt à 6h
 - Retry logic pour gérer les cold starts
 - Couvre les heures d'ouverture des boutiques en Afrique Centrale
@@ -246,6 +254,7 @@ docker-compose up -d
 ```
 
 Services exposés:
+
 - Web: http://localhost
 - API: http://localhost:3000/api
 
@@ -270,6 +279,7 @@ Script local pour vérifier tous les services :
 ```
 
 Endpoints à monitorer :
+
 - API : `GET /api/health` → `{"status": "ok"}`
 - Web : `GET /` → HTTP 200
 
@@ -280,6 +290,7 @@ Endpoints à monitorer :
 ### Déploiement Manuel
 
 **API** :
+
 ```bash
 # Via Render Dashboard
 # Ou via deploy hook
@@ -287,6 +298,7 @@ curl -X POST "$RENDER_DEPLOY_HOOK"
 ```
 
 **Web** :
+
 ```bash
 # Via Vercel CLI
 cd apps/web
@@ -294,6 +306,7 @@ vercel --prod
 ```
 
 **Mobile** :
+
 ```bash
 cd apps/mobile
 eas build --platform all --profile production
@@ -301,6 +314,7 @@ eas build:download --platform android --latest
 ```
 
 Option locale (Android Studio requis):
+
 ```bash
 npx expo run:android --variant release
 ```
@@ -308,16 +322,19 @@ npx expo run:android --variant release
 ### Rollback
 
 **Render** :
+
 1. Dashboard > Deploys
 2. Sélectionner un déploiement précédent
 3. Click "Rollback"
 
 **Vercel** :
+
 1. Dashboard > Deployments
 2. Hover sur un déploiement précédent
 3. Click "..." > "Promote to Production"
 
 **Neon** :
+
 1. Les branches permettent de revenir à un état précédent
 2. Ou utiliser le Point-in-Time Recovery (PITR)
 
@@ -377,6 +394,7 @@ DATABASE_URL="$PROD_URL" pnpm prisma migrate deploy
 ### Quand Upgrader
 
 Signes qu'il faut passer à un plan payant :
+
 - Dépassement des 750h Render (monitoring externe 24/7 nécessaire)
 - Database > 0.5GB
 - Temps de réponse > 2s régulièrement
@@ -384,11 +402,11 @@ Signes qu'il faut passer à un plan payant :
 
 ### Plans Recommandés pour Scale
 
-| Service | Plan | Prix | Gain |
-|---------|------|------|------|
-| Render Starter | $7/mois | Always-on, plus de RAM |
-| Neon Launch | $19/mois | 10GB storage, plus de compute |
-| Vercel Pro | $20/mois | Plus de bandwidth, analytics |
+| Service        | Plan     | Prix                          | Gain |
+| -------------- | -------- | ----------------------------- | ---- |
+| Render Starter | $7/mois  | Always-on, plus de RAM        |
+| Neon Launch    | $19/mois | 10GB storage, plus de compute |
+| Vercel Pro     | $20/mois | Plus de bandwidth, analytics  |
 
 ---
 
@@ -406,6 +424,7 @@ Signes qu'il faut passer à un plan payant :
 ## CI/CD Secrets (Résumé)
 
 Secrets fréquents:
+
 - `EXPO_TOKEN`
 - `VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`
 - `RENDER_DEPLOY_HOOK`

@@ -186,12 +186,14 @@ export class EnterpriseService {
       throw new NotFoundException('Boutique non trouvee');
     }
 
-    if (shop.enterprise_id && shop.enterprise_id !== enterpriseId) {
-      throw new BadRequestException('Cette boutique appartient deja a une autre entreprise');
-    }
-
     if (shop.enterprise_id === enterpriseId) {
       throw new BadRequestException('Cette boutique fait deja partie de cette entreprise');
+    }
+
+    if (shop.enterprise_id !== enterpriseId) {
+      throw new BadRequestException(
+        'Cette boutique appartient deja a une autre entreprise. Utilisez le deplacement.'
+      );
     }
 
     return this.prisma.shop.update({
@@ -205,19 +207,19 @@ export class EnterpriseService {
   }
 
   /**
-   * Remove a shop from an enterprise
+   * Move a shop to another enterprise
    */
-  async removeShop(enterpriseId: string, shopId: string, userId: string, isSuperAdmin: boolean) {
-    const enterprise = await this.prisma.enterprise.findUnique({
-      where: { id: enterpriseId, deleted: false },
-    });
-
-    if (!enterprise) {
-      throw new NotFoundException('Entreprise non trouvee');
-    }
-
-    if (!isSuperAdmin && enterprise.owner_id !== userId) {
-      throw new ForbiddenException('Acces non autorise a cette entreprise');
+  async moveShop(
+    fromEnterpriseId: string,
+    shopId: string,
+    toEnterpriseId: string,
+    userId: string,
+    isSuperAdmin: boolean
+  ) {
+    if (!isSuperAdmin) {
+      throw new ForbiddenException(
+        'Seul un SUPERADMIN peut deplacer une boutique entre entreprises'
+      );
     }
 
     const shop = await this.prisma.shop.findUnique({
@@ -228,15 +230,29 @@ export class EnterpriseService {
       throw new NotFoundException('Boutique non trouvee');
     }
 
-    if (shop.enterprise_id !== enterpriseId) {
+    if (shop.enterprise_id !== fromEnterpriseId) {
       throw new BadRequestException('Cette boutique ne fait pas partie de cette entreprise');
+    }
+
+    const targetEnterprise = await this.prisma.enterprise.findUnique({
+      where: { id: toEnterpriseId, deleted: false },
+      include: { _count: { select: { shops: { where: { deleted: false } } } } },
+    });
+
+    if (!targetEnterprise) {
+      throw new NotFoundException('Entreprise cible non trouvee');
+    }
+
+    if (targetEnterprise._count.shops >= targetEnterprise.max_shops) {
+      throw new BadRequestException(
+        `Limite de boutiques atteinte pour l'entreprise cible (${targetEnterprise.max_shops})`
+      );
     }
 
     return this.prisma.shop.update({
       where: { id: shopId },
       data: {
-        enterprise_id: null,
-        shop_type: 'BOUTIQUE',
+        enterprise_id: toEnterpriseId,
         version: { increment: 1 },
       },
     });
@@ -352,6 +368,7 @@ export class EnterpriseService {
   async delete(enterpriseId: string, userId: string, isSuperAdmin: boolean) {
     const enterprise = await this.prisma.enterprise.findUnique({
       where: { id: enterpriseId, deleted: false },
+      include: { shops: { where: { deleted: false } } },
     });
 
     if (!enterprise) {
@@ -362,11 +379,12 @@ export class EnterpriseService {
       throw new ForbiddenException('Acces non autorise a cette entreprise');
     }
 
-    // Unlink all shops first
-    await this.prisma.shop.updateMany({
-      where: { enterprise_id: enterpriseId },
-      data: { enterprise_id: null, shop_type: 'BOUTIQUE' },
-    });
+    // Refuse deletion if enterprise has active shops
+    if (enterprise.shops.length > 0) {
+      throw new BadRequestException(
+        `Impossible de supprimer : ${enterprise.shops.length} boutique(s) active(s). Supprimez ou reassignez les boutiques d'abord.`
+      );
+    }
 
     return this.prisma.enterprise.update({
       where: { id: enterpriseId },

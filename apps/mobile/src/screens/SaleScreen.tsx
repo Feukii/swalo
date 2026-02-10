@@ -68,6 +68,8 @@ export default function SaleScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [totalPrice, setTotalPrice] = useState('');
+  const [overridePrice, setOverridePrice] = useState(false);
+  const [pricingNotes, setPricingNotes] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -325,6 +327,16 @@ export default function SaleScreen() {
 
   const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Calcul automatique du total du panier
+  const computedTotal = cart.reduce((sum, item) => {
+    const product = products.find(p => p.id === item.productId);
+    const unitPrice = item.unitPrice || product?.sell_price || 0;
+    return sum + unitPrice * item.quantity;
+  }, 0);
+
+  // Total effectif (override ou calculé)
+  const effectiveTotal = overridePrice && totalPrice ? parseInt(totalPrice) : computedTotal;
+
   const handleCheckout = () => {
     if (cart.length === 0) {
       Alert.alert('Panier vide', 'Ajoutez des produits avant de valider');
@@ -339,8 +351,14 @@ export default function SaleScreen() {
       Alert.alert('Client requis', 'Veuillez sélectionner un client');
       return;
     }
-    if (!totalPrice || parseFloat(totalPrice) <= 0) {
-      Alert.alert('Prix invalide', 'Veuillez entrer le prix total de la vente');
+    if (effectiveTotal <= 0) {
+      Alert.alert('Prix invalide', 'Le total de la vente doit être supérieur à 0');
+      return;
+    }
+
+    // Si le prix a été modifié, la raison est obligatoire
+    if (overridePrice && !pricingNotes.trim()) {
+      Alert.alert('Raison requise', 'Veuillez indiquer la raison de la modification du prix');
       return;
     }
 
@@ -362,7 +380,7 @@ export default function SaleScreen() {
           ? `${customer.first_name} ${customer.name}`
           : customer.name
         : 'Inconnu';
-      const amount = parseInt(totalPrice); // FCFA = pas de centimes
+      const amount = effectiveTotal; // FCFA = pas de centimes
       const itemsDescription = cart.map(item => `${item.productName} x${item.quantity}`).join(', ');
 
       if (syncEngine.isOnline) {
@@ -539,6 +557,8 @@ export default function SaleScreen() {
   const resetForm = () => {
     setCart([]);
     setTotalPrice('');
+    setOverridePrice(false);
+    setPricingNotes('');
     setSelectedCustomer('');
     setPaymentMethod('cash');
     setShowPaymentModal(false);
@@ -729,18 +749,62 @@ export default function SaleScreen() {
                 />
               </View>
 
-              {/* Total Price Input */}
+              {/* Auto-calculated Total */}
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Prix total (FCFA)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Entrez le montant total"
-                  placeholderTextColor={Colors.muted.foreground}
-                  value={totalPrice}
-                  onChangeText={setTotalPrice}
-                  keyboardType="numeric"
-                />
+                <Text style={styles.label}>Total calculé</Text>
+                <View style={styles.calculatedTotalContainer}>
+                  <Text style={styles.calculatedTotalAmount}>{formatMoney(computedTotal)}</Text>
+                </View>
               </View>
+
+              {/* Override Toggle */}
+              <TouchableOpacity
+                style={styles.overrideToggle}
+                onPress={() => {
+                  setOverridePrice(!overridePrice);
+                  if (!overridePrice) {
+                    setTotalPrice(String(computedTotal));
+                  } else {
+                    setTotalPrice('');
+                    setPricingNotes('');
+                  }
+                }}
+              >
+                <View
+                  style={[styles.overrideCheckbox, overridePrice && styles.overrideCheckboxActive]}
+                >
+                  {overridePrice && <Text style={styles.overrideCheckmark}>✓</Text>}
+                </View>
+                <Text style={styles.overrideToggleText}>Modifier le prix</Text>
+              </TouchableOpacity>
+
+              {overridePrice && (
+                <View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Nouveau prix (FCFA)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Entrez le nouveau montant"
+                      placeholderTextColor={Colors.muted.foreground}
+                      value={totalPrice}
+                      onChangeText={setTotalPrice}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Raison de la modification *</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Ex: Remise fidélité, prix négocié..."
+                      placeholderTextColor={Colors.muted.foreground}
+                      value={pricingNotes}
+                      onChangeText={setPricingNotes}
+                      multiline
+                      numberOfLines={2}
+                    />
+                  </View>
+                </View>
+              )}
 
               {/* Payment Method */}
               <View style={styles.formGroup}>
@@ -1291,5 +1355,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.primary[900],
+  },
+  // Auto-total and override styles
+  calculatedTotalContainer: {
+    backgroundColor: Colors.primary[50],
+    padding: Spacing.lg,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  calculatedTotalAmount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors.primary[900],
+  },
+  overrideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  overrideCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.muted.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overrideCheckboxActive: {
+    backgroundColor: Colors.primary[900],
+    borderColor: Colors.primary[900],
+  },
+  overrideCheckmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  overrideToggleText: {
+    fontSize: 14,
+    color: Colors.text,
+  },
+  textArea: {
+    height: 60,
+    textAlignVertical: 'top',
   },
 });

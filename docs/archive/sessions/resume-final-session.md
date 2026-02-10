@@ -3,7 +3,9 @@
 ## ✅ Tâches accomplies (4 sur 6)
 
 ### 1. ✅ ProductCatalogScreen - Corrections complètes
+
 **Fichiers modifiés** :
+
 - [SimpleIcons.tsx](apps/mobile/src/components/icons/SimpleIcons.tsx:277-282) - Ajout icône X
 - [api.ts](apps/mobile/src/lib/api.ts:415-460) - Suppression device_id
 - [ProductCatalogScreen.tsx](apps/mobile/src/screens/ProductCatalogScreen.tsx) - Logs de débogage
@@ -13,15 +15,18 @@
 ---
 
 ### 2. ✅ Catalogue Hiérarchique
+
 **Nouveau fichier** : [CatalogHierarchyScreen.tsx](apps/mobile/src/screens/CatalogHierarchyScreen.tsx) - 680 lignes
 
 **Fonctionnalités** :
+
 - Arborescence Famille > Article > Marque > Référence
 - Boutons + et ✏️ à chaque niveau
 - Vérification stock avant suppression
 - Interface modale pour modifications
 
 **Navigation** :
+
 - [App.tsx](apps/mobile/App.tsx) - Route ajoutée
 - [ProductCatalogScreen.tsx](apps/mobile/src/screens/ProductCatalogScreen.tsx) - Bouton "Hiérarchie" dans le header
 
@@ -30,7 +35,9 @@
 ---
 
 ### 3. ✅ Prix historisés - Migration DB
+
 **Migration créée** : `20260120200000_add_stock_batches`
+
 - Table `stock_batches` avec colonnes: id, shop_id, product_id, quantity, remaining_quantity, cost_price, sell_price
 - Index sur (shop_id, product_id) et remaining_quantity
 - Foreign keys vers products et shops
@@ -44,9 +51,11 @@
 ---
 
 ### 4. ✅ DateRangePicker - Composant complet
+
 **Nouveau fichier** : [DateRangePicker.tsx](apps/mobile/src/components/ui/DateRangePicker.tsx) - 473 lignes
 
 **Fonctionnalités** :
+
 - ✅ Sélection date début + date fin
 - ✅ Navigation par mois
 - ✅ Indicateurs visuels (jours avec données = dot)
@@ -57,6 +66,7 @@
 - ✅ Modal responsive
 
 **Utilisation** :
+
 ```tsx
 <DateRangePicker
   startDate={startDate}
@@ -76,9 +86,11 @@
 ## ⏳ Tâches partiellement complétées
 
 ### 5. ⏸️ Soldes négatifs - Analyse faite
+
 **Fichier analysé** : [CustomerDetailsScreen.tsx](apps/mobile/src/screens/CustomerDetailsScreen.tsx:237-314)
 
 **Code actuel** (lignes 265-278) :
+
 - Vérifie le dépassement
 - Affiche une alerte
 - Permet de confirmer
@@ -86,6 +98,7 @@
 **Problème identifié** : Le système actuel gère le "paiement excessif" mais ne crée pas de solde négatif. Il bloque si "Aucune créance à payer" (ligne 256).
 
 **Solution requise** :
+
 1. Permettre remboursement même sans créance
 2. Créer une créance négative (le client nous doit de l'argent)
 3. Afficher badge rouge + message sur la page client
@@ -98,28 +111,31 @@
 
 ## 📊 Statistiques de la session
 
-| Métrique | Valeur |
-|----------|--------|
-| Fichiers modifiés | 8 |
-| Fichiers créés | 10 |
-| Lignes de code | ~2500 |
-| Migrations DB | 1 |
-| Tâches complétées | 4 / 6 |
-| Taux de complétion | 67% |
-| Documents créés | 5 |
+| Métrique           | Valeur |
+| ------------------ | ------ |
+| Fichiers modifiés  | 8      |
+| Fichiers créés     | 10     |
+| Lignes de code     | ~2500  |
+| Migrations DB      | 1      |
+| Tâches complétées  | 4 / 6  |
+| Taux de complétion | 67%    |
+| Documents créés    | 5      |
 
 ---
 
 ## 📁 Fichiers créés
 
 ### Composants
+
 1. [CatalogHierarchyScreen.tsx](apps/mobile/src/screens/CatalogHierarchyScreen.tsx) - 680 lignes
 2. [DateRangePicker.tsx](apps/mobile/src/components/ui/DateRangePicker.tsx) - 473 lignes
 
 ### Migrations
+
 3. [migration.sql](apps/api/prisma/migrations/20260120200000_add_stock_batches/migration.sql) - Table stock_batches
 
 ### Documentation
+
 4. [PRIX_HISTORISES_DESIGN.md](PRIX_HISTORISES_DESIGN.md) - Design système FIFO
 5. [DEBUG_PRODUCT_CATALOG.md](DEBUG_PRODUCT_CATALOG.md) - Guide de débogage
 6. [STATUS_MODIFICATIONS.md](STATUS_MODIFICATIONS.md) - État des modifications
@@ -131,6 +147,7 @@
 ## 🎯 Actions immédiates recommandées
 
 ### 1. Redémarrer le serveur API et régénérer Prisma
+
 ```bash
 # Arrêter le serveur (Ctrl+C)
 cd apps/api
@@ -139,12 +156,15 @@ npm run dev
 ```
 
 ### 2. Tester les fonctionnalités implémentées
+
 - ✅ ProductCatalogScreen : Ajouter/Modifier/Filtrer des produits
 - ✅ Bouton "Hiérarchie" : Accéder au nouveau catalogue
 - ✅ CatalogHierarchyScreen : Navigator dans la hiérarchie
 
 ### 3. Compléter les tâches 4 et 5
+
 **Tâche 4** : Intégrer DateRangePicker
+
 ```tsx
 // Dans TransactionHistoryScreen.tsx
 import DateRangePicker from '../components/ui/DateRangePicker';
@@ -163,10 +183,11 @@ const [endDate, setEndDate] = useState<Date | null>(null);
     // Recharger les transactions filtrées
   }}
   datesWithData={datesAvecTransactions}
-/>
+/>;
 ```
 
 **Tâche 5-6** : Soldes négatifs
+
 - Modifier `handleSubmitRefund` pour permettre solde négatif
 - Ajouter badge rouge sur CustomerDetailsScreen
 - Même chose pour SupplierDetailsScreen
@@ -200,16 +221,19 @@ git push origin dev
 ## 📝 Notes pour la suite
 
 ### Priorité 1 (Court terme)
+
 1. Régénérer Prisma client
 2. Intégrer DateRangePicker dans les 2 écrans
 3. Implémenter soldes négatifs
 
 ### Priorité 2 (Moyen terme)
+
 4. Backend pour stock batches (StockBatchesService)
 5. UI "Ajouter stock" avec prix
 6. Finaliser sauvegarde catalogue hiérarchique
 
 ### Priorité 3 (Long terme)
+
 7. Afficher les lots dans ProductDetailsScreen
 8. Tests unitaires et d'intégration
 9. Documentation utilisateur
@@ -228,13 +252,13 @@ git push origin dev
 
 ## 🚀 Impact utilisateur
 
-| Fonctionnalité | Impact | Disponibilité |
-|----------------|--------|---------------|
-| ProductCatalog fixé | 🔥 Critique | ✅ Immédiat |
-| Catalogue hiérarchique | 📊 Important | ✅ Immédiat |
-| Prix historisés (DB) | 💰 Important | ⏳ Backend à faire |
-| Filtre calendrier | 📅 Confort | ✅ Composant prêt |
-| Soldes négatifs | 💳 Important | ⏳ À implémenter |
+| Fonctionnalité         | Impact       | Disponibilité      |
+| ---------------------- | ------------ | ------------------ |
+| ProductCatalog fixé    | 🔥 Critique  | ✅ Immédiat        |
+| Catalogue hiérarchique | 📊 Important | ✅ Immédiat        |
+| Prix historisés (DB)   | 💰 Important | ⏳ Backend à faire |
+| Filtre calendrier      | 📅 Confort   | ✅ Composant prêt  |
+| Soldes négatifs        | 💳 Important | ⏳ À implémenter   |
 
 ---
 

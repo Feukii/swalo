@@ -68,12 +68,14 @@ So that I experience a cohesive brand identity from app launch
 ### Patterns to Follow
 
 **Currency Formatting Pattern (from money.ts):**
+
 - Use regex for thousand separator: `.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')`
 - No decimals: `.toFixed(0)`
 - Suffix with "F": `${formatted} F`
 - Handle edge cases: undefined, null, NaN
 
 **Theme Color Pattern (from theme-v2.ts):**
+
 - Primary color: `Colors.primary[900]` = `#0F2A44` (Bleu pétrole)
 - Background: `Colors.background` = `#F8FAFC`
 - These are the authoritative color values for the app
@@ -85,6 +87,7 @@ So that I experience a cohesive brand identity from app launch
 ### Phase 1: Verification
 
 Verify the current state of the codebase:
+
 - Confirm `currency.ts` is truly unused (no imports)
 - Confirm `money.ts` is the active formatting utility
 - Review current splash screen appearance
@@ -92,18 +95,21 @@ Verify the current state of the codebase:
 ### Phase 2: Code Cleanup
 
 Remove the legacy currency utility:
+
 - Delete `apps/mobile/src/utils/currency.ts`
 - Verify no broken imports result
 
 ### Phase 3: Configuration Update
 
 Update splash screen configuration:
+
 - Modify `app.config.ts` splash backgroundColor
 - Choose between `#F8FAFC` (light background) or `#0F2A44` (primary color)
 
 ### Phase 4: Testing & Validation
 
 Test the changes:
+
 - Run linting to catch any broken imports
 - Test app launch to verify splash screen appearance
 - Verify money formatting still works correctly
@@ -186,11 +192,13 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Money formatting utility
 **Requirements**:
+
 - Verify `formatMoney()` correctly formats amounts with space separator
 - Verify no decimals are added
 - Test edge cases: 0, negative, large numbers, null/undefined
 
 **Test Categories Required**:
+
 - `formatMoney(1000000)` returns `"1 000 000 F"`
 - `formatMoney(1500)` returns `"1 500 F"`
 - `formatMoney(0)` returns `"0 F"`
@@ -204,6 +212,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: App startup and splash screen
 **Requirements**:
+
 - App should start without import errors
 - Splash screen should display with new background color
 
@@ -212,6 +221,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Large amounts: 1,000,000,000 F (billion)
 - Small amounts: 1 F, 10 F, 100 F
 - Zero: 0 F
@@ -252,6 +262,7 @@ cd apps/mobile && npx expo start
 ```
 
 **Expected Result**:
+
 - App launches without errors
 - Splash screen shows with `#F8FAFC` background
 - Money amounts display as "X XXX F" format
@@ -301,11 +312,13 @@ cd apps/mobile && pnpm run validate
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Official Documentation
+
 - Expo App Configuration: https://docs.expo.dev/versions/latest/config/app/
 - Expo Splash Screen: https://docs.expo.dev/versions/latest/sdk/splash-screen/
 - React Native Safe Area: https://reactnavigation.org/docs/handling-safe-area/
 
 ### Internal Resources
+
 - Theme colors: `apps/mobile/src/constants/theme-v2.ts`
 - Money formatting: `apps/mobile/src/utils/money.ts`
 - App configuration: `apps/mobile/app.config.ts`
@@ -315,22 +328,26 @@ cd apps/mobile && pnpm run validate
 ## NOTES
 
 **ParaThinker Analysis Results:**
+
 - 8/8 strategy analyzers confirmed that `formatMoney()` in `money.ts` is ALREADY CORRECT
 - 8/8 strategy analyzers confirmed that `currency.ts` is unused legacy code and should be removed
 - 8/8 strategy analyzers confirmed that splash screen background color mismatch needs fixing
 - 8/8 strategy analyzers confirmed that React Native does NOT have CSS hover effects (issue may be misunderstood)
 
 **Color Decision Rationale:**
+
 - Chose `#F8FAFC` (app background) over `#0F2A44` (primary dark) for splash because:
   - The splash image `full_icon.png` likely has a light background
   - Using app background color creates smooth transition
   - Alternative: If logo has dark theme variant, use `#0F2A44` instead
 
 **Risk Assessment:**
+
 - Currency change: Very Low (27/100) - deleting unused file
 - Splash change: Low (32/100) - simple configuration update
 
 **Important Reminders**:
+
 - This plan contains ONLY functional specifications - NO code examples
 - ALL tests must be written and passing before feature is considered complete
 - ALL validation commands must execute successfully

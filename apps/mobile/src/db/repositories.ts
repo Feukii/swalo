@@ -207,6 +207,8 @@ export interface LocalSale extends LocalRecord {
   paid_total: number;
   change: number;
   notes: string | null;
+  expected_total: number | null;
+  pricing_notes: string | null;
   version: number;
   device_id: string | null;
   client_op_id: string | null;
@@ -268,7 +270,7 @@ class SaleRepository extends LocalRepository<LocalSale> {
 
       await tx.runAsync(
         `INSERT INTO sales (${saleKeys.join(', ')}) VALUES (${salePlaceholders})`,
-        saleValues
+        saleValues as (string | number | null)[]
       );
 
       // Insert items
@@ -296,7 +298,7 @@ class SaleRepository extends LocalRepository<LocalSale> {
 
         await tx.runAsync(
           `INSERT INTO sale_items (${itemKeys.join(', ')}) VALUES (${itemPlaceholders})`,
-          itemValues
+          itemValues as (string | number | null)[]
         );
 
         saleItems.push(saleItem as LocalSaleItem);

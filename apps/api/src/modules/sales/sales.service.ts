@@ -228,6 +228,44 @@ export class SalesService {
 
     const grandTotal = netTotal + taxTotal;
 
+    // Déterminer la méthode de paiement
+    const paymentMethod = dto.payment_method || 'CASH';
+
+    // Si vente à crédit, vérifier la limite de crédit du client
+    if (paymentMethod === 'CREDIT') {
+      if (!dto.customer_id) {
+        throw new BadRequestException('Un client doit être sélectionné pour une vente à crédit');
+      }
+
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: dto.customer_id, shop_id: shopId, deleted: false },
+      });
+
+      if (!customer) {
+        throw new BadRequestException('Client non trouvé');
+      }
+
+      if (customer.credit_limit > 0) {
+        const activeReceivables = await this.prisma.clientReceivable.findMany({
+          where: {
+            customer_id: dto.customer_id,
+            shop_id: shopId,
+            deleted: false,
+            status: { in: ['PENDING', 'PARTIAL'] },
+          },
+        });
+        const currentBalance = activeReceivables.reduce((sum, r) => sum + r.balance, 0);
+
+        if (currentBalance + grandTotal > customer.credit_limit) {
+          throw new BadRequestException(
+            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
+              `montant vente : ${grandTotal} FCFA, ` +
+              `limite : ${customer.credit_limit} FCFA`
+          );
+        }
+      }
+    }
+
     // Créer la vente avec transaction (inclut le destockage FIFO)
     const sale = await this.prisma.$transaction(async tx => {
       // Si COMPLETED, effectuer le destockage FIFO ou par lot spécifique
@@ -319,15 +357,17 @@ export class SalesService {
           cashier_id: cashierId,
           customer_id: dto.customer_id || null,
           status: dto.status || 'DRAFT',
-          payment_method: 'CASH',
+          payment_method: paymentMethod,
           subtotal,
           discount: globalDiscount,
           tax_total: taxTotal,
           net_total: netTotal,
           grand_total: grandTotal,
-          paid_total: dto.status === 'COMPLETED' ? grandTotal : 0,
+          paid_total: paymentMethod === 'CREDIT' ? 0 : dto.status === 'COMPLETED' ? grandTotal : 0,
           change: 0,
           notes: dto.notes || null,
+          expected_total: dto.expected_total || null,
+          pricing_notes: dto.pricing_notes || null,
           device_id: dto.device_id || '',
           items: {
             create: saleItemsWithBatch,
@@ -344,6 +384,21 @@ export class SalesService {
           },
         },
       });
+
+      // Si vente à crédit COMPLETED, créer automatiquement une créance
+      if (dto.status === 'COMPLETED' && paymentMethod === 'CREDIT' && dto.customer_id) {
+        await tx.clientReceivable.create({
+          data: {
+            shop_id: shopId,
+            customer_id: dto.customer_id,
+            amount: grandTotal,
+            balance: grandTotal,
+            paid_amount: 0,
+            status: 'PENDING',
+            description: `Vente à crédit #${newSale.id.slice(0, 8)}`,
+          },
+        });
+      }
 
       // Si COMPLETED, créer les mouvements de stock avec ref_id = sale ID
       if (dto.status === 'COMPLETED') {

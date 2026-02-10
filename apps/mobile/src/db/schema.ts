@@ -136,6 +136,8 @@ export async function initDatabase(): Promise<void> {
       paid_total INTEGER NOT NULL DEFAULT 0,
       change INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
+      expected_total INTEGER,
+      pricing_notes TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       deleted INTEGER NOT NULL DEFAULT 0,

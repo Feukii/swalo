@@ -1,6 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { Controller, Get, Post, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { CashService } from './cash.service';
@@ -8,7 +6,6 @@ import { CreateCashEntryDto } from './dto/create-cash-entry.dto';
 import { CreateMerchandisePurchaseDto } from './dto/create-merchandise-purchase.dto';
 
 @Controller('cash')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 
@@ -22,7 +19,7 @@ export class CashController {
    * Enregistrer un achat de marchandise auprès d'un fournisseur
    */
   @Post('merchandise-purchase')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   async createMerchandisePurchase(@Req() req: any, @Body() dto: CreateMerchandisePurchaseDto) {
     return this.cashService.createMerchandisePurchase(req.user.userId, req.user.shopId, dto);
   }

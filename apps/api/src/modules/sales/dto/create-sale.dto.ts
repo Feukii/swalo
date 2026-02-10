@@ -61,6 +61,19 @@ export class CreateSaleDto {
   status?: 'DRAFT' | 'COMPLETED' | 'CANCELLED';
 
   @IsOptional()
+  @IsEnum(['CASH', 'CARD', 'MOBILE', 'CREDIT'])
+  payment_method?: 'CASH' | 'CARD' | 'MOBILE' | 'CREDIT';
+
+  @IsOptional()
   @IsString()
   device_id?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  expected_total?: number; // Total calculé côté client avant override
+
+  @IsOptional()
+  @IsString()
+  pricing_notes?: string; // Raison de la modification du prix
 }

@@ -1,6 +1,4 @@
-import { Controller, Post, Body, UseGuards, Logger } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { Controller, Post, Body, Logger } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { NotificationsService } from './notifications.service';
@@ -19,7 +17,6 @@ export class TriggerMonthlyDto {
 }
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
 
@@ -30,7 +27,7 @@ export class NotificationsController {
    * Restricted to SUPERADMIN and OWNER roles
    */
   @Post('monthly-summary/trigger')
-  @Roles(Role.SUPERADMIN, Role.OWNER)
+  @Roles(Role.SUPERADMIN, Role.BOSS)
   async triggerMonthlySummary(@Body() dto: TriggerMonthlyDto) {
     this.logger.log(`Manual trigger: monthly summaries for ${dto.month}/${dto.year}`);
     const result = await this.notificationsService.sendMonthlyForAllShops(dto.year, dto.month);

@@ -135,6 +135,7 @@ export const authApi = {
       refresh_token: string;
       user: any;
       shop: any;
+      enterprise?: { id: string; code: string; name: string; logo_url?: string | null } | null;
       role: string;
     }>('/auth/pin', {
       shop_code,

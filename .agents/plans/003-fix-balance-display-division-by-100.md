@@ -19,6 +19,7 @@ So that I can accurately track who owes money and make informed business decisio
 The `formatCurrency()` function in the mobile app divides all amounts by 100, assuming the API returns amounts in centimes. However, SWALO stores and returns all monetary amounts as integers in FCFA (CFA francs), which has no decimal places. This creates a display error where all balances appear as 1/100th of their actual value.
 
 **Root Cause Analysis (8/8 agents agree):**
+
 - Location: `apps/mobile/src/utils/currency.ts` line 8
 - Issue: `const amountInMainUnit = amount / 100;` - incorrect division
 - Impact: BalanceIndicator component uses this function, affecting both CustomerDetailsScreen and SupplierDetailsScreen
@@ -58,11 +59,13 @@ None required - this is a bug fix in existing files.
 ### Patterns to Follow
 
 **Currency Formatting Pattern:**
+
 - The correct pattern is demonstrated in `formatMoney()` function in `money.ts`
 - Format amounts directly without division, using space separators for thousands
 - Return format: `"5 000 F"` for 5000 FCFA
 
 **Naming Conventions:**
+
 - Utility functions use camelCase
 - Currency-related functions are in `src/utils/` directory
 
@@ -75,6 +78,7 @@ None required - this is a bug fix in existing files.
 Update the `formatCurrency()` function to remove the incorrect `/100` division.
 
 **Tasks:**
+
 - Read and understand the current `formatCurrency()` implementation
 - Remove the `/100` division
 - Update the comment to reflect that amounts are in FCFA, not centimes
@@ -84,6 +88,7 @@ Update the `formatCurrency()` function to remove the incorrect `/100` division.
 Ensure BalanceIndicator displays correctly after the fix.
 
 **Tasks:**
+
 - Verify BalanceIndicator uses the updated function
 - Check that display format is consistent with other money displays in the app
 
@@ -92,6 +97,7 @@ Ensure BalanceIndicator displays correctly after the fix.
 Validate the fix works correctly.
 
 **Tasks:**
+
 - Run linting to ensure no syntax errors
 - Verify the fix visually (amounts should display correctly)
 
@@ -134,6 +140,7 @@ Validate the fix works correctly.
 
 **Scope**: Currency formatting functions
 **Requirements**:
+
 - Verify `formatCurrency(5000)` returns a string containing "5 000" (not "50")
 - Verify `formatCurrency(100)` returns a string containing "100" (not "1")
 - Verify `formatCurrency(0)` handles zero correctly
@@ -142,6 +149,7 @@ Validate the fix works correctly.
 ### Manual Testing
 
 **Test Scenarios**:
+
 1. Open CustomerDetailsScreen for a customer with a known balance
 2. Verify the displayed balance matches the expected FCFA amount
 3. Open SupplierDetailsScreen for a supplier with a known balance

@@ -14,9 +14,17 @@ interface Shop {
   name: string;
 }
 
+interface Enterprise {
+  id: string;
+  code: string;
+  name: string;
+  logo_url?: string | null;
+}
+
 interface AuthState {
   user: User | null;
   shop: Shop | null;
+  enterprise: Enterprise | null;
   role: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -31,6 +39,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>(set => ({
   user: null,
   shop: null,
+  enterprise: null,
   role: null,
   isAuthenticated: false,
   isLoading: true,
@@ -47,6 +56,7 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
         isAuthenticated: true,
         isLoading: false,
@@ -69,6 +79,7 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
         isAuthenticated: true,
         isLoading: false,
@@ -87,6 +98,7 @@ export const useAuthStore = create<AuthState>(set => ({
     set({
       user: null,
       shop: null,
+      enterprise: null,
       role: null,
       isAuthenticated: false,
       error: null,
@@ -105,6 +117,7 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
         isAuthenticated: true,
         isLoading: false,

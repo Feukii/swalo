@@ -1,17 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { CustomersService } from './customers.service';
@@ -20,7 +7,6 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 
 @Controller('customers')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
@@ -63,7 +49,7 @@ export class CustomersController {
    * Détecter les clients avec des noms en doublons
    */
   @Get('duplicates')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async findDuplicates(@Req() req: any) {
     return this.customersService.findDuplicates(req.user.shopId);
   }
@@ -73,7 +59,7 @@ export class CustomersController {
    * Fusionner deux clients
    */
   @Post('merge')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async merge(@Req() req: any, @Body() dto: { keep_id: string; merge_id: string }) {
     return this.customersService.merge(req.user.shopId, dto.keep_id, dto.merge_id);
   }
@@ -92,7 +78,7 @@ export class CustomersController {
    * Créer un remboursement client
    */
   @Post(':id/refund')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   async createRefund(@Req() req: any, @Param('id') id: string, @Body() dto: CreateRefundDto) {
     return this.customersService.createRefund(req.user.shopId, id, req.user.userId, dto);
   }

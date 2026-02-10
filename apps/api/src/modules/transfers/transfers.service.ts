@@ -42,12 +42,6 @@ export class TransfersService {
       throw new BadRequestException('La source et la cible doivent etre des boutiques differentes');
     }
 
-    if (!sourceShop.enterprise_id || !targetShop.enterprise_id) {
-      throw new BadRequestException(
-        'Les deux boutiques doivent appartenir a une entreprise pour effectuer un transfert'
-      );
-    }
-
     if (sourceShop.enterprise_id !== targetShop.enterprise_id) {
       throw new BadRequestException('Les deux boutiques doivent appartenir a la meme entreprise');
     }

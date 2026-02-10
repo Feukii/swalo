@@ -66,7 +66,6 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
 
   const roles = [
     { value: 'EMPLOYEE', label: 'Employé' },
-    { value: 'ADMIN', label: 'Admin' },
     { value: 'MANAGER', label: 'Manager' },
   ];
 
@@ -225,11 +224,9 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
     switch (role) {
       case 'EMPLOYEE':
         return styles.badgeEmployee;
-      case 'ADMIN':
-        return styles.badgeAdmin;
       case 'MANAGER':
         return styles.badgeManager;
-      case 'OWNER':
+      case 'BOSS':
         return styles.badgeOwner;
       default:
         return styles.badgeEmployee;
@@ -240,11 +237,9 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
     switch (role) {
       case 'EMPLOYEE':
         return 'Employé';
-      case 'ADMIN':
-        return 'Admin';
       case 'MANAGER':
         return 'Manager';
-      case 'OWNER':
+      case 'BOSS':
         return 'Propriétaire';
       default:
         return role;

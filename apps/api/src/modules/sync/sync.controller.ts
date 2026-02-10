@@ -1,12 +1,10 @@
-import { Controller, Post, Body, Get, Query, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SyncService } from './sync.service';
 import { SyncPullDto } from './dto/sync-pull.dto';
 import { SyncPushDto } from './dto/sync-push.dto';
 
 @Controller('sync')
-@UseGuards(JwtAuthGuard)
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 

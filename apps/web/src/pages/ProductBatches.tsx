@@ -250,8 +250,7 @@ export default function ProductBatches() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {batches.map(batch => {
-                  const ratio =
-                    batch.quantity > 0 ? batch.remaining_quantity / batch.quantity : 0;
+                  const ratio = batch.quantity > 0 ? batch.remaining_quantity / batch.quantity : 0;
                   const isInStock = batch.remaining_quantity > 0;
 
                   return (
@@ -295,9 +294,7 @@ export default function ProductBatches() {
                         <p className="text-sm text-gray-500">{batch.quantity}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`badge ${isInStock ? 'badge-success' : 'badge-danger'}`}
-                        >
+                        <span className={`badge ${isInStock ? 'badge-success' : 'badge-danger'}`}>
                           {isInStock ? 'En stock' : 'Epuise'}
                         </span>
                       </td>

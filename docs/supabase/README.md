@@ -25,6 +25,7 @@ If you haven't set up the initial database schema in Supabase, you need to:
 3. Run this SQL in Supabase SQL Editor
 
 Or manually copy the migrations from:
+
 - `apps/api/prisma/migrations/20251018185056_init/migration.sql`
 - `apps/api/prisma/migrations/20251019000844_adapt_to_new_cdc/migration.sql`
 
@@ -36,6 +37,7 @@ Or manually copy the migrations from:
 4. Click **RUN** to execute the migration
 
 This will:
+
 - ✅ Create the `user_devices` table
 - ✅ Add work schedule fields to `user_roles` table
 - ✅ Set up Row Level Security (RLS) policies
@@ -55,11 +57,13 @@ The migration script includes verification queries at the end. Check the results
 ### 1. Device Tracking (`user_devices` table)
 
 Tracks which devices employees use to access the system:
+
 - Each employee can only use one device at a time
 - Admins can view and revoke device access
 - Automatic device registration on first login
 
 **Schema:**
+
 ```sql
 user_devices (
   id: TEXT (UUID)
@@ -80,6 +84,7 @@ user_devices (
 ### 2. Work Schedule Management
 
 Added to `user_roles` table:
+
 - `work_start_time` (VARCHAR 5): Format "HH:mm" (e.g., "07:00")
 - `work_end_time` (VARCHAR 5): Format "HH:mm" (e.g., "20:00")
 - `work_days` (TEXT): JSON array of days (e.g., '["MON","TUE","WED","THU","FRI","SAT"]')
@@ -90,13 +95,13 @@ Employees can only access the system during their configured work hours and days
 
 **For `user_devices` table:**
 
-| Policy | Who | Access |
-|--------|-----|--------|
-| Users can view their own devices | All authenticated users | SELECT their own devices |
-| Admins can view all devices in their shop | ADMIN, OWNER, MANAGER | SELECT all devices in shop |
-| Admins can manage devices in their shop | ADMIN, OWNER, MANAGER | INSERT, UPDATE, DELETE devices in shop |
-| Superadmins can view all devices | SUPERADMIN | SELECT all devices |
-| Superadmins can manage all devices | SUPERADMIN | INSERT, UPDATE, DELETE all devices |
+| Policy                                    | Who                     | Access                                 |
+| ----------------------------------------- | ----------------------- | -------------------------------------- |
+| Users can view their own devices          | All authenticated users | SELECT their own devices               |
+| Admins can view all devices in their shop | ADMIN, OWNER, MANAGER   | SELECT all devices in shop             |
+| Admins can manage devices in their shop   | ADMIN, OWNER, MANAGER   | INSERT, UPDATE, DELETE devices in shop |
+| Superadmins can view all devices          | SUPERADMIN              | SELECT all devices                     |
+| Superadmins can manage all devices        | SUPERADMIN              | INSERT, UPDATE, DELETE all devices     |
 
 ## Environment Configuration
 
@@ -116,11 +121,13 @@ The admin API endpoints are already configured to work with both PostgreSQL and 
 ### Available Endpoints:
 
 **Super Admin:**
+
 - `GET /admin/shops` - View all shops
 - `GET /admin/shops/:shopId` - View shop details
 - `GET /admin/stats/system` - System statistics
 
 **Shop Admin/Owner:**
+
 - `GET /admin/users` - View all users in shop
 - `GET /admin/users/:userId/devices` - View user's devices
 - `DELETE /admin/devices/:deviceId` - Revoke device access
@@ -211,6 +218,7 @@ ALTER TABLE user_roles
 ## Support
 
 For issues or questions:
+
 1. Check the Supabase logs in your dashboard
 2. Verify RLS policies are correctly applied
 3. Ensure the API server has the correct DATABASE_URL
@@ -219,6 +227,7 @@ For issues or questions:
 ## Next Steps
 
 After successfully applying this migration:
+
 1. Test device binding with employee accounts
 2. Configure work schedules for employees
 3. Test admin device management features

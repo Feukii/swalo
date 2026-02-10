@@ -17,7 +17,7 @@ export class CashService {
       throw new BadRequestException('Le montant ne peut pas ?tre nul');
     }
 
-    if (dto.amount < 0 && userRole !== Role.OWNER) {
+    if (dto.amount < 0 && userRole !== Role.BOSS) {
       throw new ForbiddenException(
         'Seuls les propri?taires peuvent effectuer des corrections n?gatives'
       );

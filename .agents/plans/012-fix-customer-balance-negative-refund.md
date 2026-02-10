@@ -36,11 +36,12 @@ Actuellement, lorsqu'un client paie plus que sa dette via "Remboursement client"
 **Feature Type**: Bug Fix
 **Estimated Complexity**: Medium
 **Primary Systems Affected**:
+
 - `apps/api/src/modules/receivables/receivables.service.ts`
 - `apps/mobile/src/screens/CashScreen.tsx`
 - `apps/mobile/src/screens/BusinessReportsScreen.tsx`
 - `apps/mobile/src/screens/CustomerBalancesSummaryScreen.tsx`
-**Dependencies**: Aucune
+  **Dependencies**: Aucune
 
 ---
 
@@ -69,16 +70,19 @@ Actuellement, lorsqu'un client paie plus que sa dette via "Remboursement client"
 ### Patterns to Follow
 
 **Statut des creances:**
+
 - `PENDING`: Creance positive en attente de paiement
 - `PARTIAL`: Creance partiellement payee
 - `PAID`: Creance soldee OU creance negative (ajustement)
 - `CANCELLED`: Creance annulee
 
 **Convention de nommage pour les montants:**
+
 - Montant positif (`amount > 0`): Le client nous doit de l'argent
 - Montant negatif (`amount < 0`): Nous devons de l'argent au client (remboursement)
 
 **Messages uniformes:**
+
 - Solde positif: "Client nous doit" / "Nous doit"
 - Solde negatif: "Nous devons au client" / "On lui doit" / "Remboursement du"
 - Solde zero: "Solde equilibre" / "Solde"
@@ -90,6 +94,7 @@ Actuellement, lorsqu'un client paie plus que sa dette via "Remboursement client"
 ### Phase 1: Backend - Correction de la creation des creances negatives
 
 Modifier `ReceivablesService.create()` pour:
+
 - Detecter automatiquement les montants negatifs
 - Definir le statut a `'PAID'` pour les montants negatifs
 - Ajouter une description par defaut pour les remboursements
@@ -97,6 +102,7 @@ Modifier `ReceivablesService.create()` pour:
 ### Phase 2: Mobile - Correction de l'affichage des bilans
 
 Modifier `BusinessReportsScreen.tsx` pour:
+
 - Separer le calcul des soldes positifs et negatifs
 - Afficher un KPI supplementaire pour les "Remboursements dus aux clients"
 - Ajouter une liste "Top 3 clients a rembourser" si pertinent
@@ -104,6 +110,7 @@ Modifier `BusinessReportsScreen.tsx` pour:
 ### Phase 3: Mobile - Uniformisation des messages
 
 Verifier et uniformiser les messages dans:
+
 - `CashScreen.tsx`: Message apres creation d'un remboursement
 - `CustomerBalancesSummaryScreen.tsx`: Badges et labels
 - `BalanceIndicator.tsx`: Messages d'alerte
@@ -190,6 +197,7 @@ Verifier et uniformiser les messages dans:
 
 **Scope**: Service ReceivablesService
 **Requirements**:
+
 - Test creation creance negative avec status PAID automatique
 - Test que creance positive garde status PENDING
 - Test description par defaut pour remboursement
@@ -200,6 +208,7 @@ Verifier et uniformiser les messages dans:
 
 **Scope**: Workflow complet de remboursement
 **Requirements**:
+
 - Creer un client avec dette positive
 - Effectuer un remboursement superieur a la dette
 - Verifier que le solde devient negatif

@@ -1,28 +1,14 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Headers,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { BatchUpdateHierarchyDto } from './dto/batch-update-hierarchy.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
 @Controller('products')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
@@ -140,7 +126,7 @@ export class ProductsController {
    * Créer un nouveau produit (OWNER, MANAGER)
    */
   @Post()
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   create(
     @Body() dto: CreateProductDto,
     @CurrentUser() user: any,
@@ -154,7 +140,7 @@ export class ProductsController {
    * Mettre à jour un niveau de hiérarchie en masse (OWNER, MANAGER)
    */
   @Post('batch-update-hierarchy')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   batchUpdateHierarchy(@Body() dto: BatchUpdateHierarchyDto, @CurrentUser() user: any) {
     return this.productsService.batchUpdateHierarchy(user.shopId, dto);
   }
@@ -164,7 +150,7 @@ export class ProductsController {
    * Mettre à jour un produit (OWNER, MANAGER)
    */
   @Put(':id')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
@@ -179,7 +165,7 @@ export class ProductsController {
    * Supprimer un produit (OWNER uniquement)
    */
   @Delete(':id')
-  @Roles(Role.OWNER)
+  @Roles(Role.BOSS)
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.productsService.remove(id, user.shopId);
   }

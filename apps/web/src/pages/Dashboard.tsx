@@ -420,8 +420,18 @@ export default function Dashboard() {
                         }}
                       >
                         {product.is_multi_price ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                            <span>{formatCurrency(product.price_min || 0, 'XOF', 'fr-FR')} - {formatCurrency(product.price_max || 0, 'XOF', 'fr-FR')}</span>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-end',
+                              gap: '0.25rem',
+                            }}
+                          >
+                            <span>
+                              {formatCurrency(product.price_min || 0, 'XOF', 'fr-FR')} -{' '}
+                              {formatCurrency(product.price_max || 0, 'XOF', 'fr-FR')}
+                            </span>
                             <span
                               style={{
                                 padding: '0.125rem 0.5rem',

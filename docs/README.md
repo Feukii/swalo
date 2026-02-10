@@ -4,33 +4,37 @@ Index de la documentation du projet SWALO - Mini-ERP pour commerces de detail en
 
 ## Structure
 
-| Dossier | Description |
-|---------|-------------|
-| [specs/](specs/) | Cahiers des charges et specifications techniques |
-| [guides/](guides/) | Guides utilisateur et developpeur |
-| [design/](design/) | Chartes graphiques et decisions de design |
-| [deployment/](deployment/) | Documentation de deploiement |
-| [reference/](reference/) | References techniques |
-| [architecture/](architecture/) | Architecture du projet |
-| [operations/](operations/) | Procedures operationnelles |
-| [archive/](archive/) | Documents archives |
+| Dossier                        | Description                                      |
+| ------------------------------ | ------------------------------------------------ |
+| [specs/](specs/)               | Cahiers des charges et specifications techniques |
+| [guides/](guides/)             | Guides utilisateur et developpeur                |
+| [design/](design/)             | Chartes graphiques et decisions de design        |
+| [deployment/](deployment/)     | Documentation de deploiement                     |
+| [reference/](reference/)       | References techniques                            |
+| [architecture/](architecture/) | Architecture du projet                           |
+| [operations/](operations/)     | Procedures operationnelles                       |
+| [archive/](archive/)           | Documents archives                               |
 
 ---
 
 ## Guides essentiels
 
 ### Pour commencer
+
 - [Getting Started](guides/getting-started.md) - Demarrage local du projet
 - [Documentation SWALO](guides/documentation-swalo.md) - Vue d'ensemble des fonctionnalites
 
 ### Deploiement
+
 - [Guide de deploiement](deployment/guide.md) - Deployer sur Render/Vercel/Docker
 - [Environnements](deployment/environments.md) - Configuration des environnements
 
 ### Administration
+
 - [Admin Features](guides/admin-features.md) - Fonctionnalites du panneau admin
 
 ### Tests
+
 - [Testing](guides/testing.md) - Guide des tests
 - [Manual Testing](guides/manual-testing.md) - Tests manuels detailles
 
@@ -66,6 +70,7 @@ Index de la documentation du projet SWALO - Mini-ERP pour commerces de detail en
 ## Archives
 
 Les documents archives sont dans [archive/](archive/):
+
 - [archive/sessions/](archive/sessions/) - Logs des sessions de developpement
 - [archive/progress.md](archive/progress.md) - Historique de progression
 - [archive/status.md](archive/status.md) - Statut historique

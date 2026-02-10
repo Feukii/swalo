@@ -223,8 +223,8 @@ export default function POS() {
       return;
     }
 
-    // Seuls les OWNER peuvent entrer des montants négatifs (corrections)
-    if (amountInCentimes < 0 && userRole !== 'OWNER') {
+    // Seuls les BOSS peuvent entrer des montants négatifs (corrections)
+    if (amountInCentimes < 0 && userRole !== 'BOSS') {
       alert(
         'Permission refusée: Seuls les propriétaires peuvent effectuer des corrections avec des montants négatifs'
       );
@@ -564,7 +564,7 @@ export default function POS() {
                     FCFA
                   </span>
                 </div>
-                {userRole === 'OWNER' && (
+                {userRole === 'BOSS' && (
                   <p className="text-sm text-purple-600 mt-2 italic">
                     💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
                     erreurs

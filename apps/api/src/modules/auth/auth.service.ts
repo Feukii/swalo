@@ -90,22 +90,36 @@ export class AuthService {
         },
       });
 
-      // Créer la boutique
+      // Créer l'entreprise automatiquement
+      const enterpriseCode = `ENT-${dto.shop_code}`;
+      const enterprise = await tx.enterprise.create({
+        data: {
+          code: enterpriseCode,
+          name: dto.shop_name,
+          owner_id: user.id,
+          license_tier: 'STARTER',
+          max_shops: 1,
+          max_users_per_shop: 5,
+        },
+      });
+
+      // Créer la boutique rattachée à l'entreprise
       const shop = await tx.shop.create({
         data: {
           code: dto.shop_code,
           name: dto.shop_name,
           currency: dto.currency || 'XOF',
           owner_id: user.id,
+          enterprise_id: enterprise.id,
         },
       });
 
-      // Créer le rôle OWNER
+      // Créer le rôle BOSS (ancien OWNER)
       await tx.userRole.create({
         data: {
           user_id: user.id,
           shop_id: shop.id,
-          role: 'OWNER',
+          role: 'BOSS',
         },
       });
 
@@ -141,6 +155,13 @@ export class AuthService {
       throw new UnauthorizedException('Email/téléphone ou mot de passe incorrect');
     }
 
+    // Vérifier si l'utilisateur est bloqué
+    if ((user as any).is_blocked) {
+      throw new UnauthorizedException(
+        `Votre compte est bloqué. Raison : ${(user as any).blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
+    }
+
     // Sélectionner la boutique (première par défaut)
     const shopId = dto.shop_id || user.user_roles[0]?.shop_id;
 
@@ -152,6 +173,23 @@ export class AuthService {
     const userRole = user.user_roles.find(role => role.shop_id === shopId);
     if (!userRole) {
       throw new UnauthorizedException('Accès non autorisé à cette boutique');
+    }
+
+    // Vérifier si la boutique est bloquée
+    if (userRole.shop.is_blocked) {
+      throw new UnauthorizedException(
+        `Cette boutique est bloquée. Raison : ${userRole.shop.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
+    }
+
+    // Vérifier si l'entreprise est bloquée
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: userRole.shop.enterprise_id },
+    });
+    if (enterprise?.is_blocked) {
+      throw new UnauthorizedException(
+        `L'entreprise est bloquée. Raison : ${enterprise.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
     }
 
     // Générer les tokens
@@ -169,6 +207,14 @@ export class AuthService {
         code: userRole.shop.code,
         name: userRole.shop.name,
       },
+      enterprise: enterprise
+        ? {
+            id: enterprise.id,
+            code: enterprise.code,
+            name: enterprise.name,
+            logo_url: enterprise.logo_url,
+          }
+        : null,
       role: userRole.role,
       ...tokens,
     };
@@ -223,6 +269,30 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Code PIN invalide pour cette boutique');
+    }
+
+    // Vérifier si l'utilisateur est bloqué
+    if (user.is_blocked) {
+      throw new UnauthorizedException(
+        `Votre compte est bloqué. Raison : ${user.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
+    }
+
+    // Vérifier si la boutique est bloquée
+    if (shop.is_blocked) {
+      throw new UnauthorizedException(
+        `Cette boutique est bloquée. Raison : ${shop.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
+    }
+
+    // Vérifier si l'entreprise est bloquée
+    const shopEnterprise = await this.prisma.enterprise.findUnique({
+      where: { id: shop.enterprise_id },
+    });
+    if (shopEnterprise?.is_blocked) {
+      throw new UnauthorizedException(
+        `L'entreprise est bloquée. Raison : ${shopEnterprise.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+      );
     }
 
     // Vérifier les horaires de travail (si définis)
@@ -315,6 +385,14 @@ export class AuthService {
         code: userRole.shop.code,
         name: userRole.shop.name,
       },
+      enterprise: shopEnterprise
+        ? {
+            id: shopEnterprise.id,
+            code: shopEnterprise.code,
+            name: shopEnterprise.name,
+            logo_url: shopEnterprise.logo_url,
+          }
+        : null,
       role: userRole.role,
       ...tokens,
     };
@@ -408,22 +486,36 @@ export class AuthService {
         },
       });
 
-      // Créer la boutique
+      // Créer l'entreprise automatiquement
+      const enterpriseCode = `ENT-${shopCode}`;
+      const enterprise = await tx.enterprise.create({
+        data: {
+          code: enterpriseCode,
+          name: dto.shop_name,
+          owner_id: owner.id,
+          license_tier: 'STARTER',
+          max_shops: 1,
+          max_users_per_shop: 5,
+        },
+      });
+
+      // Créer la boutique rattachée à l'entreprise
       const shop = await tx.shop.create({
         data: {
           code: shopCode,
           name: dto.shop_name,
           currency: dto.currency || 'XOF',
           owner_id: owner.id,
+          enterprise_id: enterprise.id,
         },
       });
 
-      // Créer le rôle OWNER
+      // Créer le rôle BOSS (ancien OWNER)
       await tx.userRole.create({
         data: {
           user_id: owner.id,
           shop_id: shop.id,
-          role: 'OWNER',
+          role: 'BOSS',
         },
       });
 
@@ -452,24 +544,24 @@ export class AuthService {
   async getUserWithRoles(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-
       include: {
         user_roles: {
           where: { deleted: false },
-
           include: {
-            shop: true,
+            shop: {
+              include: {
+                enterprise: {
+                  select: { id: true, code: true, name: true, logo_url: true },
+                },
+              },
+            },
           },
         },
       },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Utilisateur non trouvAc');
-    }
-
-    if (!user) {
-      throw new UnauthorizedException('Utilisateur non trouvAc');
+      throw new UnauthorizedException('Utilisateur non trouvé');
     }
 
     const primaryRole = user.user_roles[0] ?? null;
@@ -478,6 +570,7 @@ export class AuthService {
     return {
       user: userWithoutPassword,
       shop: primaryRole ? primaryRole.shop : null,
+      enterprise: primaryRole?.shop?.enterprise ?? null,
       role: primaryRole ? primaryRole.role : null,
       roles: user_roles.map(role => ({
         role: role.role,
@@ -514,7 +607,7 @@ export class AuthService {
     }
 
     // 2. Vérifier que l'utilisateur est propriétaire de la boutique
-    if (userRole.role !== 'OWNER') {
+    if (userRole.role !== 'BOSS') {
       throw new UnauthorizedException('Seul le propriétaire peut modifier le code boutique');
     }
 

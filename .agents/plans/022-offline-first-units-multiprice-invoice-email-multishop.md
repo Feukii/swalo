@@ -20,21 +20,27 @@ Ce plan couvre **6 fonctionnalites majeures** demandees pour faire evoluer SWALO
 ## User Stories
 
 ### US1 - Mode Offline
+
 En tant que **caissier/vendeur**, je veux pouvoir creer des ventes, entrees de caisse et mouvements de stock meme sans connexion internet, afin de ne jamais bloquer l'activite de la boutique.
 
 ### US2 - Unites Produits
+
 En tant que **gestionnaire**, je veux choisir l'unite de conditionnement d'un produit (piece, douzaine, carton, paquet...) via une liste parametrable, afin de refleter fidement le mode de vente.
 
 ### US3 - Stock Multi-Prix Avance
+
 En tant que **gestionnaire de stock**, je veux que chaque lot de marchandise conserve son propre prix de revient et de vente, et que le vendeur soit contraint de choisir le prix correct lors de la vente d'un article multi-prix, afin de garantir un destockage et une comptabilite precis.
 
 ### US4 - Facturation PDF
+
 En tant que **vendeur**, je veux generer et partager une facture PDF directement depuis l'ecran de vente sur mobile, afin de fournir un justificatif professionnel au client.
 
 ### US5 - Notifications Email Clients
+
 En tant que **client de la boutique**, je veux etre informe par email de chaque mouvement de mon solde et recevoir un recapitulatif mensuel, afin de suivre ma situation avec la boutique.
 
 ### US6 - Multi-Boutiques Entreprise
+
 En tant que **proprietaire d'entreprise**, je veux lier mes boutiques entre elles pour que les livraisons entre un magasin et une boutique creent automatiquement les ecritures correspondantes (vente/sortie cote magasin, achat/entree cote boutique), tout en gardant l'autonomie de gestion de chaque boutique.
 
 ## Problem Statement
@@ -56,6 +62,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Estimated Complexity**: Very High (6 phases, ~3-4 mois de travail)
 **Primary Systems Affected**: apps/api, apps/mobile, apps/web, packages/core, prisma/schema
 **Dependencies**:
+
 - Phase 1 (Offline): expo-sqlite, @nozbe/watermelondb OU expo-sqlite/next
 - Phase 4 (PDF): react-native-html-to-pdf, expo-sharing, expo-print
 - Phase 5 (Email): @nestjs-modules/mailer, nodemailer, handlebars
@@ -68,6 +75,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 ### Relevant Codebase Files - MUST READ BEFORE IMPLEMENTING
 
 **Database & Schema:**
+
 - `apps/api/prisma/schema.prisma` - Schema complet (744 lignes) avec tous les modeles, enums, relations. Contient deja DeviceSyncState, StockBatch, PackagingType
 - `packages/core/src/schemas/sync.ts` - Schemas Zod pour sync (SyncPullRequest/Response, SyncPushRequest/Response, Mutation, DeviceSyncState)
 - `packages/core/src/schemas/product.ts` - Schema produit avec champ `unit` existant
@@ -76,6 +84,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - `packages/core/src/schemas/common.ts` - Types de base: UUID, Currency, Role, SyncFields, enums
 
 **API Modules:**
+
 - `apps/api/src/modules/sync/` - Module sync VIDE (a implementer)
 - `apps/api/src/modules/products/products.service.ts` - Service produits avec getAvailablePrices(), calculateStock()
 - `apps/api/src/modules/products/products.controller.ts` - Endpoints produits incluant GET /:id/prices
@@ -89,6 +98,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - `apps/api/src/modules/packaging-types/` - Types d'emballage parametrables par boutique
 
 **Mobile:**
+
 - `apps/mobile/src/lib/api.ts` - Client API avec retry, timeout 30s, auto-logout 401, device_id SecureStore
 - `apps/mobile/src/screens/SaleScreen.tsx` - Ecran vente (cash + credit, pas de Sale API centralise)
 - `apps/mobile/src/screens/POSScreen.tsx` - Ecran caisse (1327 lignes)
@@ -99,19 +109,23 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - `apps/mobile/src/navigation/MainTabNavigator.tsx` - Tabs principaux
 
 **Web:**
+
 - `apps/web/src/lib/api.ts` - Client API web Axios
 - `apps/web/src/pages/` - Pages web (dashboard, produits, ventes)
 
 **Tests:**
+
 - `apps/api/test/fifo-destock.spec.ts` - 12 tests FIFO existants (pattern a suivre)
 
 **Documentation:**
+
 - `docs/specs/cahier-des-charges-unifie.md` - Specifications fonctionnelles v2.0
 - `docs/architecture/overview.md` - Architecture technique avec strategie sync documentee
 
 ### New Files to Create
 
 **Phase 1 - Offline:**
+
 - `apps/mobile/src/db/schema.ts` - Schema base locale (WatermelonDB ou SQLite)
 - `apps/mobile/src/db/models/` - Modeles locaux pour chaque entite
 - `apps/mobile/src/db/sync.ts` - Moteur de synchronisation (pull/push)
@@ -124,25 +138,30 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - `packages/core/src/schemas/sync.ts` - Mettre a jour schemas sync existants
 
 **Phase 2 - Unites:**
+
 - `apps/api/src/modules/packaging-types/dto/` - DTOs mise a jour si necessaire
 - Pas de nouveaux fichiers majeurs, principalement des modifications
 
 **Phase 3 - Multi-Prix Avance:**
+
 - Modifications dans les fichiers existants (sales, products, mobile screens)
 
 **Phase 4 - PDF:**
+
 - `apps/mobile/src/utils/invoiceTemplate.ts` - Template HTML facture
 - `apps/mobile/src/utils/pdfGenerator.ts` - Generateur PDF
 - `apps/api/src/modules/invoices/invoices.service.ts` - Service factures API
 - `apps/api/src/modules/invoices/invoices.controller.ts` - Endpoints factures
 
 **Phase 5 - Email:**
+
 - `apps/api/src/modules/notifications/` - Module notifications
 - `apps/api/src/modules/notifications/notifications.service.ts` - Service envoi email
 - `apps/api/src/modules/notifications/templates/` - Templates email Handlebars
 - `apps/api/src/modules/notifications/notifications.module.ts` - Module NestJS
 
 **Phase 6 - Multi-Boutiques:**
+
 - Modifications schema Prisma (Enterprise, ShopGroup, InterShopTransfer models)
 - `apps/api/src/modules/enterprise/` - Module entreprise
 - `apps/api/src/modules/transfers/` - Module transferts inter-boutiques
@@ -151,6 +170,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Modules NestJS: kebab-case pour dossiers, PascalCase pour classes (ex: `sync.service.ts` → `SyncService`)
 - Prisma models: PascalCase singulier (ex: `Enterprise`, `InterShopTransfer`)
 - Schemas Zod: PascalCase + Schema suffix (ex: `EnterpriseSchema`)
@@ -158,24 +178,29 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - Fichiers source packages/core: camelCase (ex: `enterprise.ts`)
 
 **Error Handling:**
+
 - API: Utiliser les exceptions NestJS (`NotFoundException`, `BadRequestException`, `ConflictException`)
 - Transactions Prisma: `$transaction` avec rollback automatique
 - Mobile: try/catch avec Alert.alert pour erreurs utilisateur
 
 **Data Validation:**
+
 - Zod schemas dans packages/core pour validation partagee
 - DTOs NestJS avec class-validator dans apps/api
 - Double validation: client (Zod) + serveur (class-validator + Prisma constraints)
 
 **Monetary Values:**
+
 - Toujours en entiers FCFA (pas de decimales)
 - Type `Currency` = `z.number().int().nonnegative()`
 
 **Idempotency:**
-- Format client_op_id: `{prefix}_{device_id}_{timestamp}_{random}`
+
+- Format client*op_id: `{prefix}*{device*id}*{timestamp}\_{random}`
 - Contrainte unique sur `[device_id, client_op_id]` pour operations critiques
 
 **Multi-Tenancy:**
+
 - Toujours filtrer par `shop_id` depuis le JWT payload
 - Pattern: `const shopId = user.shopId` dans chaque controller
 
@@ -190,22 +215,26 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Sous-phases:**
 
 #### Phase 1.1: Infrastructure Base Locale
+
 - Integrer une base de donnees locale (expo-sqlite ou WatermelonDB)
 - Creer le schema local miroir des entites critiques (Product, StockBatch, Customer, Sale, SaleItem, CashEntry, InventoryMovement)
 - Implementer la couche d'acces aux donnees locale
 
 #### Phase 1.2: File d'Attente Operations (Mutation Queue)
+
 - Creer une queue persistante pour les operations effectuees offline
 - Chaque operation stockee avec: entity, op (insert/update/delete), data, client_op_id, device_id, timestamp
 - Queue ordonnee par timestamp (FIFO pour le replay)
 
 #### Phase 1.3: Moteur de Synchronisation API
+
 - Implementer `POST /sync/pull` : le client envoie son dernier cursor/timestamp, le serveur retourne les changements depuis
 - Implementer `POST /sync/push` : le client envoie ses mutations locales, le serveur les applique avec resolution de conflits
 - Utiliser le modele `DeviceSyncState` deja present dans le schema
 - Strategie de resolution: Last-Write-Wins (LWW) base sur timestamp + version, avec exceptions pour les operations financieres (server-wins)
 
 #### Phase 1.4: Integration Mobile
+
 - Modifier tous les ecrans pour lire/ecrire depuis la base locale
 - Ajouter un hook `useOfflineStatus` (NetInfo) pour detecter l'etat connexion
 - Ajouter un composant `OfflineBanner` visible quand offline
@@ -213,6 +242,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - Sync periodique en arriere-plan quand connecte (toutes les 30s-60s)
 
 #### Phase 1.5: Gestion des Conflits
+
 - Pour les ventes: le serveur valide le stock au moment du push (peut rejeter si stock insuffisant)
 - Pour les mouvements de caisse: server-wins en cas de conflit
 - Pour les produits/clients: LWW avec version field
@@ -225,6 +255,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Description:** Rendre l'unite de conditionnement des produits parametrable par boutique.
 
 **Taches:**
+
 - Exploiter le modele `PackagingType` existant dans le schema Prisma (deja present)
 - Ajouter les valeurs par defaut: piece, douzaine, carton, paquet
 - Creer un ecran de parametrage des unites dans les settings mobile et web
@@ -239,6 +270,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Description:** Ameliorer le systeme FIFO multi-prix existant pour forcer le choix du prix lors de la vente.
 
 **Taches:**
+
 - Lors de la creation d'un batch (`createStockBatch`), si le `cost_price` ou `sell_price` differe du dernier batch actif, afficher clairement la difference a l'utilisateur
 - Modifier l'ecran de vente mobile : quand un produit a plusieurs prix actifs (batches avec `remaining_quantity > 0` et `sell_price` differents), afficher un selecteur de prix obligatoire
 - Chaque choix de prix determine le batch source pour le destockage (utiliser `deductFromBatch` au lieu de `deductStockFIFO` quand le prix est choisi manuellement)
@@ -252,6 +284,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Description:** Generer et partager des factures PDF depuis l'application mobile.
 
 **Taches:**
+
 - Implementer le service `InvoicesService` cote API (le schema Invoice existe deja dans Prisma)
 - Creer un template HTML de facture aux normes CEMAC/Afrique Centrale (nom boutique, NIF, adresse, date, items, totaux, mentions legales)
 - Utiliser `expo-print` et `expo-sharing` sur mobile pour generer le PDF depuis le HTML
@@ -267,6 +300,7 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Description:** Informer les clients par email de chaque mouvement de solde et envoyer un recapitulatif mensuel.
 
 **Taches:**
+
 - Integrer `@nestjs-modules/mailer` avec Nodemailer et un provider SMTP (SendGrid, Brevo/Sendinblue, ou Mailgun - tier gratuit)
 - Creer un module `notifications` dans l'API
 - Templates email Handlebars :
@@ -289,12 +323,14 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 **Taches:**
 
 #### Phase 6.1: Modele Entreprise
+
 - Creer un modele `Enterprise` (id, name, code, owner_id)
 - Creer un modele `ShopGroup` ou ajouter `enterprise_id` nullable sur `Shop`
 - Definir les types de boutique: `MAGASIN` (grossiste/entrepot), `BOUTIQUE` (detail)
 - Un shop peut exister sans entreprise (backward compatible)
 
 #### Phase 6.2: Transferts Inter-Boutiques
+
 - Creer un modele `InterShopTransfer` (id, enterprise_id, source_shop_id, target_shop_id, status, items, created_by)
 - Workflow de livraison:
   1. Le magasin cree un transfert (= vente sortante) → `Sale` cote source + `InventoryMovement` type SALE
@@ -303,11 +339,13 @@ Implementer les 6 fonctionnalites en 6 phases independantes, ordonnees par prior
 - Chaque boutique reste autonome pour ses propres achats externes
 
 #### Phase 6.3: Vue Consolidee Entreprise
+
 - Dashboard entreprise avec KPIs agreges (CA total, stock total, dettes/creances consolidees)
 - Liste des transferts inter-boutiques avec statuts
 - Rapports consolides par periode
 
 #### Phase 6.4: Navigation Mobile Multi-Boutiques
+
 - Permettre le switch de boutique sans re-login complet (si l'utilisateur a des roles dans plusieurs boutiques de la meme entreprise)
 - Menu "Mes boutiques" dans l'ecran "Plus"
 - Badge/indicateur de la boutique active
@@ -555,7 +593,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **IMPLEMENT**: Creer les templates Handlebars dans `apps/api/src/modules/notifications/templates/`:
   - `balance-movement.hbs`: "Cher {customer_name}, votre solde chez {shop_name} a ete modifie. Mouvement: {type} de {amount} FCFA. Nouveau solde: {balance} FCFA. Date: {date}."
   - `monthly-summary.hbs`: Recapitulatif avec tableau des mouvements du mois, solde debut/fin, total debits/credits, contact boutique.
-  Les emails doivent etre en francais, professionnels, responsifs (HTML + texte brut).
+    Les emails doivent etre en francais, professionnels, responsifs (HTML + texte brut).
 - **PATTERN**: Templates Handlebars standard avec variables injectees.
 - **DEPENDENCIES**: Task 5.1
 - **GOTCHA**: Fournir une version texte brut pour les clients email qui ne supportent pas HTML. Tester avec differents clients email.
@@ -602,7 +640,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Ajouter `shop_type: ShopType @default(BOUTIQUE)` sur Shop
   - Enum `ShopType`: MAGASIN, BOUTIQUE
   - Relations: Enterprise has many Shops, Shop optionally belongs to Enterprise
-  Creer la migration. Mettre a jour les schemas Zod dans packages/core.
+    Creer la migration. Mettre a jour les schemas Zod dans packages/core.
 - **PATTERN**: Suivre le pattern des modeles existants (soft delete, version, timestamps).
 - **DEPENDENCIES**: Aucune
 - **GOTCHA**: Migration backward compatible: `enterprise_id` nullable signifie que les shops existants restent autonomes. Pas de breaking change.
@@ -625,7 +663,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Modele `InterShopTransferItem` (id, transfer_id, product_sku, product_name, quantity, unit_price, cost_price, total)
   - Enum `TransferStatus`: DRAFT, CONFIRMED, SHIPPED, RECEIVED, CANCELLED
   - Relations bidirectionnelles avec Shop et Enterprise
-  Creer la migration et les schemas Zod correspondants.
+    Creer la migration et les schemas Zod correspondants.
 - **PATTERN**: Suivre le pattern de Sale/SaleItem pour la structure parent-enfant.
 - **DEPENDENCIES**: Task 6.1
 - **GOTCHA**: Le produit est reference par SKU (pas par ID) car les shops ont des produits independants. Le SKU doit etre identique dans les deux boutiques pour le mapping automatique.
@@ -639,7 +677,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   2. Cote source (MAGASIN): destock FIFO pour chaque item, cree un `InventoryMovement` type SALE, cree une `Sale` si necessaire
   3. Cote cible (BOUTIQUE): cree un `StockBatch` avec les quantites et prix du transfert, cree un `InventoryMovement` type PURCHASE
   4. Cree l'enregistrement `InterShopTransfer` avec status CONFIRMED
-  Gerer aussi: confirmer reception (`RECEIVED`), annuler (`CANCELLED` avec rollback).
+     Gerer aussi: confirmer reception (`RECEIVED`), annuler (`CANCELLED` avec rollback).
 - **PATTERN**: Reutiliser `InventoryService.deductStockFIFO()` pour le destockage source et `InventoryService.createStockBatch()` pour l'entree cible.
 - **DEPENDENCIES**: Tasks 6.2, 6.3
 - **GOTCHA**: Le transfert utilise les connexions Prisma de la meme base (toutes les boutiques sont dans la meme DB). La transaction atomique couvre les deux shops. Attention au mapping produit par SKU (le produit doit exister dans la boutique cible, sinon le creer automatiquement ou rejeter).
@@ -681,6 +719,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Chaque service API, chaque utilitaire, chaque composant critique
 **Requirements**:
+
 - Coverage minimum: 80% pour les nouveaux modules
 - Framework: Jest (deja configure)
 - Mocking: Prisma mock pour les services, MSW ou jest.mock pour les API calls mobiles
@@ -689,6 +728,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - `cd apps/mobile && pnpm jest --coverage`
 
 **Test Categories Required**:
+
 - Happy path pour chaque operation CRUD
 - Erreurs metier (stock insuffisant, client sans email, shop pas dans meme entreprise)
 - Idempotence (double submission)
@@ -699,12 +739,14 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Flux complets cross-modules
 **Requirements**:
+
 - Tests de flux vente offline → sync → verification serveur
 - Tests transfert inter-boutiques complet
 - Tests notification email end-to-end (avec mock SMTP)
 - **VALIDATION COMMAND**: `cd apps/api && pnpm jest --testPathPattern=integration`
 
 **Test Scenarios Required**:
+
 - Vente complete: produit → panier → paiement → stock deducted → facture PDF
 - Sync offline: operations offline → reconnexion → push → pull → coherence
 - Transfert: creation → destock source → stock cible → confirmation
@@ -713,6 +755,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Vente offline d'un produit dont le stock a ete epuise par une autre caisse online
 - Sync avec mutations conflictuelles sur le meme produit depuis deux devices
 - Transfert inter-boutiques d'un produit qui n'existe pas dans la boutique cible
@@ -772,30 +815,36 @@ cd apps/mobile && npx expo start --no-dev
 ### Level 5: Manual Validation
 
 **Phase 1 (Offline):**
+
 - Activer mode avion sur device
 - Creer une vente → verifier qu'elle apparait localement
 - Desactiver mode avion → verifier la sync automatique
 - Verifier les donnees en base serveur
 
 **Phase 2 (Unites):**
+
 - Creer un nouveau type d'emballage
 - Creer un produit avec cette unite
 - Verifier dans le catalogue
 
 **Phase 3 (Multi-Prix):**
+
 - Creer deux batches avec prix differents
 - Vendre le produit → verifier le modal de choix de prix
 - Verifier le destockage correct
 
 **Phase 4 (PDF):**
+
 - Faire une vente → generer la facture → ouvrir le PDF
 - Verifier le contenu (en-tete, items, totaux)
 
 **Phase 5 (Email):**
+
 - Creer une creance pour un client avec email
 - Verifier la reception de l'email
 
 **Phase 6 (Multi-Boutiques):**
+
 - Creer une entreprise avec 2 boutiques
 - Faire un transfert → verifier les deux cotes
 - Switch boutique → verifier les donnees
@@ -807,6 +856,7 @@ cd apps/mobile && npx expo start --no-dev
 **MANDATORY REQUIREMENTS - ALL MUST BE MET**:
 
 ### Phase 1 - Offline
+
 - [ ] L'application mobile fonctionne sans connexion internet (ventes, caisse, stock)
 - [ ] Les operations offline sont synchronisees automatiquement au retour de connexion
 - [ ] Un indicateur visuel montre l'etat online/offline et le nombre d'operations en attente
@@ -814,30 +864,35 @@ cd apps/mobile && npx expo start --no-dev
 - [ ] Les idempotency keys empechent les doublons lors de la sync
 
 ### Phase 2 - Unites
+
 - [ ] Les unites de conditionnement sont parametrables par boutique
 - [ ] La liste deroulante est alimentee par les PackagingType de la boutique
 - [ ] Un type peut etre cree directement depuis le formulaire produit
 - [ ] Les valeurs par defaut sont presentes (piece, douzaine, carton, paquet)
 
 ### Phase 3 - Multi-Prix
+
 - [ ] Lors de la creation d'un batch avec prix different, l'ecart est clairement affiche
 - [ ] Lors de la vente d'un produit multi-prix, le choix du prix est obligatoire
 - [ ] Le destockage est effectue sur le bon batch correspondant au prix choisi
 - [ ] Un indicateur visuel signale les produits multi-prix dans le catalogue
 
 ### Phase 4 - PDF
+
 - [ ] Une facture PDF est generable depuis l'ecran de vente
 - [ ] Le PDF contient toutes les informations requises (en-tete, items, totaux)
 - [ ] Le numero de facture est sequentiel et unique par boutique
 - [ ] Le PDF peut etre partage et imprime
 
 ### Phase 5 - Email
+
 - [ ] Un email est envoye a chaque mouvement de solde client (si email present)
 - [ ] Un recapitulatif mensuel est envoye le 1er du mois
 - [ ] Les notifications sont desactivables par client
 - [ ] L'echec d'envoi email ne bloque jamais l'operation metier
 
 ### Phase 6 - Multi-Boutiques
+
 - [ ] Une entreprise peut regrouper plusieurs boutiques
 - [ ] Les transferts inter-boutiques creent automatiquement les ecritures croisees
 - [ ] Chaque boutique reste autonome pour ses propres operations
@@ -845,6 +900,7 @@ cd apps/mobile && npx expo start --no-dev
 - [ ] Un dashboard consolide est disponible pour l'entreprise
 
 ### Global
+
 - [ ] **ALL validation commands pass with zero errors**
 - [ ] **ALL unit tests pass** with >= 80% coverage on new code
 - [ ] **ALL integration tests pass**
@@ -877,6 +933,7 @@ cd apps/mobile && npx expo start --no-dev
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Official Documentation
+
 - **Expo SQLite**: https://docs.expo.dev/versions/latest/sdk/sqlite/
 - **WatermelonDB**: https://watermelondb.dev/docs
 - **NestJS**: https://docs.nestjs.com/
@@ -890,6 +947,7 @@ cd apps/mobile && npx expo start --no-dev
 - **Handlebars**: https://handlebarsjs.com/
 
 ### Internal Resources
+
 - Architecture: `docs/architecture/overview.md`
 - Specifications: `docs/specs/cahier-des-charges-unifie.md`
 - Development Workflow: `docs/guides/development-workflow.md`
@@ -898,6 +956,7 @@ cd apps/mobile && npx expo start --no-dev
 - FIFO Tests: `apps/api/test/fifo-destock.spec.ts`
 
 ### API References
+
 - API Base URL (Dev): `http://localhost:3000/api`
 - API Base URL (Prod): `https://swalo-api.onrender.com/api`
 - Prisma Schema: `apps/api/prisma/schema.prisma`
@@ -907,6 +966,7 @@ cd apps/mobile && npx expo start --no-dev
 ## NOTES
 
 **Ordre de priorite recommande:**
+
 1. **Phase 1 (Offline)** - Critique pour l'usage en Afrique Centrale (coupures frequentes)
 2. **Phase 3 (Multi-Prix)** - Evolution naturelle du FIFO Phase 2 deja implemente
 3. **Phase 2 (Unites)** - Rapide a implementer, haute valeur utilisateur
@@ -915,18 +975,21 @@ cd apps/mobile && npx expo start --no-dev
 6. **Phase 6 (Multi-Boutiques)** - Fonctionnalite avancee, plus complexe
 
 **Decisions architecturales cles:**
+
 - **expo-sqlite vs WatermelonDB**: expo-sqlite est recommande pour sa simplicite d'integration avec Expo managed workflow. WatermelonDB offre plus de fonctionnalites (observables, lazy loading) mais necessite Expo prebuild. Decision a prendre en Task 1.1.
 - **Sync strategy**: Pull/Push avec LWW (Last-Write-Wins) pour les donnees maitre, Server-Wins pour les operations financieres. Les schemas sync sont deja definis dans packages/core.
 - **Email provider**: Brevo (ex-Sendinblue) recommande pour son tier gratuit generous (300 emails/jour) et son support en Afrique francophone. Alternative: SendGrid.
 - **Transfert inter-boutiques**: Utilise la meme base de donnees (toutes les boutiques dans Neon). Pas de sync cross-DB necessaire. Le transfert est une transaction atomique Prisma couvrant les deux shops.
 
 **Risques identifies:**
+
 - Phase 1 (Offline): Complexite elevee, necessite des tests approfondis sur devices reels
 - Phase 5 (Email): Deliverabilite en Afrique (DNS, SPF/DKIM, FAI locaux)
 - Phase 6 (Multi-Boutiques): Impact sur le modele de donnees existant, migration delicate
 - Performance: La sync de grandes quantites de donnees peut etre lente sur reseaux mobiles africains (3G)
 
 **Important Reminders:**
+
 - Ce plan contient UNIQUEMENT des specifications fonctionnelles - PAS d'exemples de code
 - TOUS les tests doivent etre ecrits et passer avant qu'une feature soit consideree complete
 - TOUTES les commandes de validation doivent s'executer avec succes

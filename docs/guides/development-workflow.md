@@ -78,21 +78,21 @@ pnpm dev
 
 ### URLs de développement local
 
-| Service | URL |
-|---------|-----|
-| API | http://localhost:3000/api |
-| API Health | http://localhost:3000/api/health |
-| Web Dashboard | http://localhost:3001 |
-| Prisma Studio | http://localhost:5555 |
+| Service       | URL                              |
+| ------------- | -------------------------------- |
+| API           | http://localhost:3000/api        |
+| API Health    | http://localhost:3000/api/health |
+| Web Dashboard | http://localhost:3001            |
+| Prisma Studio | http://localhost:5555            |
 
 ## 2. Structure des Branches
 
 ### Branches principales
 
-| Branche | Environnement | Déploiement |
-|---------|--------------|-------------|
-| `main` | Production | Automatique → Render/Vercel/EAS |
-| `develop` | Staging | Automatique → Vercel Preview |
+| Branche   | Environnement | Déploiement                     |
+| --------- | ------------- | ------------------------------- |
+| `main`    | Production    | Automatique → Render/Vercel/EAS |
+| `develop` | Staging       | Automatique → Vercel Preview    |
 
 ### Branches de travail
 
@@ -180,13 +180,13 @@ swalo/
 
 ### Variables importantes
 
-| Variable | Description | Dev Local | Production |
-|----------|-------------|-----------|------------|
-| `DATABASE_URL` | URL PostgreSQL | localhost:5432 | Neon (pooled) |
-| `JWT_SECRET` | Secret JWT | dev_secret | Secret sécurisé |
-| `NODE_ENV` | Environnement | development | production |
-| `VITE_API_URL` | URL API (web) | localhost:3000 | Render URL |
-| `EXPO_PUBLIC_API_URL` | URL API (mobile) | IP locale | Render URL |
+| Variable              | Description      | Dev Local      | Production      |
+| --------------------- | ---------------- | -------------- | --------------- |
+| `DATABASE_URL`        | URL PostgreSQL   | localhost:5432 | Neon (pooled)   |
+| `JWT_SECRET`          | Secret JWT       | dev_secret     | Secret sécurisé |
+| `NODE_ENV`            | Environnement    | development    | production      |
+| `VITE_API_URL`        | URL API (web)    | localhost:3000 | Render URL      |
+| `EXPO_PUBLIC_API_URL` | URL API (mobile) | IP locale      | Render URL      |
 
 ## 5. CI/CD
 
@@ -212,6 +212,7 @@ swalo/
 ### Commits
 
 Utiliser les conventions de commit:
+
 - `feat:` Nouvelle fonctionnalité
 - `fix:` Correction de bug
 - `docs:` Documentation

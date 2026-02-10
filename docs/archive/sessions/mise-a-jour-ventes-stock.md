@@ -7,10 +7,10 @@
 
 ## 📊 Vue d'ensemble
 
-| Onglet | Avant | Après | Status |
-|--------|-------|-------|--------|
-| **Ventes** | AsyncStorage (produits locaux) | API Catalogue (synchronisé) | ✅ Complété |
-| **Stock** | Modification manuelle | Gestion avec approvisionnement & prix FIFO | ✅ Complété |
+| Onglet     | Avant                          | Après                                      | Status      |
+| ---------- | ------------------------------ | ------------------------------------------ | ----------- |
+| **Ventes** | AsyncStorage (produits locaux) | API Catalogue (synchronisé)                | ✅ Complété |
+| **Stock**  | Modification manuelle          | Gestion avec approvisionnement & prix FIFO | ✅ Complété |
 
 ---
 
@@ -23,6 +23,7 @@
 #### 1. Synchronisation avec l'API Catalogue
 
 **Avant**:
+
 ```typescript
 import { getProducts, updateMultipleProductsStock } from '../utils/stockManager';
 
@@ -34,6 +35,7 @@ const loadProducts = async () => {
 ```
 
 **Après**:
+
 ```typescript
 import { productsApi } from '../lib/api';
 
@@ -46,6 +48,7 @@ const loadProducts = async () => {
 #### 2. Adaptation aux propriétés du catalogue
 
 **Changements**:
+
 - `product.stockQuantity` → `product.current_stock`
 - `product.reference` → `product.reference_number`
 - `product.name` → Composition: `${family} - ${article_type} ${brand}`
@@ -53,6 +56,7 @@ const loadProducts = async () => {
 #### 3. Affichage des produits
 
 **Nouveau rendu**:
+
 ```tsx
 <Text style={styles.productName}>{product.family}</Text>
 <Text style={styles.productDetail}>{product.article_type} {product.brand}</Text>
@@ -62,11 +66,13 @@ const loadProducts = async () => {
 #### 4. Mise à jour du stock
 
 **Avant**:
+
 ```typescript
 await updateMultipleProductsStock(stockUpdates); // AsyncStorage
 ```
 
 **Après**:
+
 ```typescript
 for (const item of cart) {
   const product = products.find(p => p.id === item.productId);
@@ -97,6 +103,7 @@ for (const item of cart) {
 #### 1. Vue d'ensemble du stock
 
 **KPIs affichés**:
+
 - 📉 **Stock faible**: Nombre de produits sous le seuil minimum
 - ⚠️ **Rupture**: Nombre de produits à 0
 - 💰 **Valeur totale**: Valeur d'achat du stock actuel
@@ -104,9 +111,10 @@ for (const item of cart) {
 #### 2. Gestion par article
 
 **Recherche multi-critères**:
+
 ```typescript
 const filtered = products.filter(
-  (p) =>
+  p =>
     p.reference_number?.toLowerCase().includes(query) ||
     p.family?.toLowerCase().includes(query) ||
     p.article_type?.toLowerCase().includes(query) ||
@@ -116,15 +124,16 @@ const filtered = products.filter(
 
 #### 3. Statuts de stock
 
-| Statut | Condition | Couleur | Label |
-|--------|-----------|---------|-------|
-| **Rupture** | stock === 0 | Rouge | "Rupture" |
-| **Stock faible** | stock ≤ seuil | Orange | "Stock faible" |
-| **En stock** | stock > seuil | Vert | "En stock" |
+| Statut           | Condition     | Couleur | Label          |
+| ---------------- | ------------- | ------- | -------------- |
+| **Rupture**      | stock === 0   | Rouge   | "Rupture"      |
+| **Stock faible** | stock ≤ seuil | Orange  | "Stock faible" |
+| **En stock**     | stock > seuil | Vert    | "En stock"     |
 
 #### 4. Approvisionnement avec prix historisés
 
 **Modal d'approvisionnement** comprend:
+
 - ✅ Quantité à ajouter
 - ✅ Prix d'achat unitaire (FCFA)
 - ✅ Prix de vente unitaire (FCFA)
@@ -135,6 +144,7 @@ const filtered = products.filter(
   - Marge unitaire (vente - achat)
 
 **Exemple d'interface**:
+
 ```
 ┌─────────────────────────────────────┐
 │ Approvisionnement                   │
@@ -164,6 +174,7 @@ const filtered = products.filter(
 #### 5. Affichage par produit
 
 **Carte produit**:
+
 ```tsx
 ┌─────────────────────────────────────┐
 │ REF001                  [En stock]  │
@@ -206,6 +217,7 @@ import StockManagementScreen from './src/screens/StockManagementScreen';
 ```
 
 **Et dans RootStackParamList**:
+
 ```typescript
 export type RootStackParamList = {
   // ... autres routes
@@ -219,25 +231,25 @@ export type RootStackParamList = {
 
 ### Onglet Ventes
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| Source de données | AsyncStorage local | API Catalogue centralisée |
-| Synchronisation | Manuelle | Automatique |
-| Informations produit | Nom, stock | Famille, article, marque, stock |
-| Mise à jour stock | Locale (asyncstorage) | API (base de données) |
-| Cohérence | ❌ Risque de doublons | ✅ Source unique de vérité |
+| Aspect               | Avant                 | Après                           |
+| -------------------- | --------------------- | ------------------------------- |
+| Source de données    | AsyncStorage local    | API Catalogue centralisée       |
+| Synchronisation      | Manuelle              | Automatique                     |
+| Informations produit | Nom, stock            | Famille, article, marque, stock |
+| Mise à jour stock    | Locale (asyncstorage) | API (base de données)           |
+| Cohérence            | ❌ Risque de doublons | ✅ Source unique de vérité      |
 
 ### Onglet Stock
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| Type de gestion | Modification manuelle | Approvisionnement guidé |
-| Prix | Non géré | Prix d'achat + Prix de vente |
-| Historique prix | ❌ Non disponible | ✅ Prêt pour FIFO |
-| Alertes stock | ❌ Aucune | ✅ Visuelles avec couleurs |
-| Recherche | Basique | Multi-critères avancée |
-| Statistiques | ❌ Aucune | ✅ KPIs en temps réel |
-| Marges | ❌ Non calculées | ✅ Calcul automatique |
+| Aspect          | Avant                 | Après                        |
+| --------------- | --------------------- | ---------------------------- |
+| Type de gestion | Modification manuelle | Approvisionnement guidé      |
+| Prix            | Non géré              | Prix d'achat + Prix de vente |
+| Historique prix | ❌ Non disponible     | ✅ Prêt pour FIFO            |
+| Alertes stock   | ❌ Aucune             | ✅ Visuelles avec couleurs   |
+| Recherche       | Basique               | Multi-critères avancée       |
+| Statistiques    | ❌ Aucune             | ✅ KPIs en temps réel        |
+| Marges          | ❌ Non calculées      | ✅ Calcul automatique        |
 
 ---
 
@@ -333,12 +345,15 @@ Vente de 70 unités :
 ## 📝 Fichiers concernés
 
 ### Modifiés
+
 - [SaleScreen.tsx](apps/mobile/src/screens/SaleScreen.tsx) - Synchronisation avec catalogue
 
 ### Créés
+
 - [StockManagementScreen.tsx](apps/mobile/src/screens/StockManagementScreen.tsx) - Nouvelle gestion du stock
 
 ### À modifier (optionnel)
+
 - [App.tsx](apps/mobile/App.tsx) - Navigation vers StockManagementScreen
 
 ---

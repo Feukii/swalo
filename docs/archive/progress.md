@@ -5,6 +5,7 @@
 ### ✅ Ce qui a été réalisé
 
 #### 1. Architecture du projet (100%)
+
 - ✅ Monorepo Turbo + pnpm configuré
 - ✅ Structure des dossiers créée
 - ✅ Configuration Git (main + dev branches)
@@ -12,6 +13,7 @@
 - ✅ Documentation complète (README, ARCHITECTURE, GETTING_STARTED, STATUS)
 
 #### 2. Package @swalo/core (100%)
+
 - ✅ 10 fichiers de schémas Zod créés
   - common.ts (types de base, enums)
   - shop.ts (boutiques, utilisateurs, rôles)
@@ -31,6 +33,7 @@
   - calculations.ts (totaux, marges, taxes)
 
 #### 3. Backend API NestJS (80%)
+
 - ✅ Configuration NestJS complète
 - ✅ Module Prisma avec service global
 - ✅ Schéma Prisma PostgreSQL complet (20+ modèles)
@@ -62,19 +65,20 @@
 
 ### 📊 Statistiques
 
-| Métrique | Valeur |
-|----------|--------|
-| Commits locaux | 3 |
-| Fichiers créés | 50+ |
-| Lignes de code | ~4000 |
-| Schémas Zod | 10 |
-| Modèles Prisma | 20+ |
-| Modules NestJS | 11 |
-| Tests | 0 (à écrire) |
+| Métrique       | Valeur       |
+| -------------- | ------------ |
+| Commits locaux | 3            |
+| Fichiers créés | 50+          |
+| Lignes de code | ~4000        |
+| Schémas Zod    | 10           |
+| Modèles Prisma | 20+          |
+| Modules NestJS | 11           |
+| Tests          | 0 (à écrire) |
 
 ### 🎯 Prochaines priorités
 
 #### Phase immédiate (1-2 jours)
+
 1. **Résoudre GitHub** : Pousser le code sur le dépôt distant
 2. **Module Products complet**
    - CRUD complet (Create, Read, Update, Delete)
@@ -88,6 +92,7 @@
    - Support tous les modes de paiement
 
 #### Phase 2 (3-5 jours)
+
 4. **Module Sync**
    - POST /sync/pull (delta depuis lastSyncAt)
    - POST /sync/push (mutations client)
@@ -99,6 +104,7 @@
    - Tests Sales (création, calculs)
 
 #### Phase 3 (1 semaine)
+
 6. **Application Mobile React Native**
    - Init Expo + WatermelonDB
    - Schéma SQLite
@@ -110,6 +116,7 @@
 Pour continuer le développement, vous devez :
 
 1. **Installer les dépendances**
+
    ```bash
    pnpm install
    ```
@@ -120,6 +127,7 @@ Pour continuer le développement, vous devez :
    - Renseigner `DATABASE_URL`
 
 3. **Générer Prisma et migrer**
+
    ```bash
    cd apps/api
    pnpm prisma:generate
@@ -134,6 +142,7 @@ Pour continuer le développement, vous devez :
 ### 📝 Notes importantes
 
 #### Fonctionnalités Auth implémentées
+
 - ✅ Inscription avec création automatique de boutique
 - ✅ Login avec sélection de boutique (si multi-boutiques)
 - ✅ JWT avec expiration configurable
@@ -144,6 +153,7 @@ Pour continuer le développement, vous devez :
 - ✅ Hash des mots de passe avec bcrypt (10 rounds)
 
 #### Architecture Auth
+
 ```
 Client
   ↓
@@ -161,6 +171,7 @@ Retourne: { user, shop, role, access_token, refresh_token }
 ```
 
 #### Utilisation dans les autres modules
+
 ```typescript
 @Controller('products')
 @UseGuards(JwtAuthGuard) // Protection par JWT

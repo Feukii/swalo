@@ -101,9 +101,8 @@ export default function ShopSwitcherScreen({ navigation }: any) {
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
-      OWNER: 'Proprietaire',
+      BOSS: 'Proprietaire',
       MANAGER: 'Gerant',
-      CASHIER: 'Caissier',
       EMPLOYEE: 'Employe',
     };
     return labels[role] || role;

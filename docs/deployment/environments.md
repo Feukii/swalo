@@ -4,11 +4,11 @@ Ce guide décrit la séparation des environnements de développement, staging et
 
 ## Vue d'ensemble
 
-| Environnement | Branche Git | Base de données | API URL | Déploiement |
-|--------------|-------------|-----------------|---------|-------------|
-| **Local** | Toutes | Docker PostgreSQL | localhost:3000 | Manuel |
-| **Staging** | `develop` | Neon (branche dev) | Preview Vercel | Automatique |
-| **Production** | `main` | Neon (branche main) | swalo-api.onrender.com | Automatique |
+| Environnement  | Branche Git | Base de données     | API URL                | Déploiement |
+| -------------- | ----------- | ------------------- | ---------------------- | ----------- |
+| **Local**      | Toutes      | Docker PostgreSQL   | localhost:3000         | Manuel      |
+| **Staging**    | `develop`   | Neon (branche dev)  | Preview Vercel         | Automatique |
+| **Production** | `main`      | Neon (branche main) | swalo-api.onrender.com | Automatique |
 
 ## Environnement Local
 
@@ -30,11 +30,11 @@ pnpm dev
 
 ### URLs
 
-| Service | URL |
-|---------|-----|
-| API | http://localhost:3000/api |
-| Web | http://localhost:3001 |
-| Prisma Studio | http://localhost:5555 |
+| Service       | URL                       |
+| ------------- | ------------------------- |
+| API           | http://localhost:3000/api |
+| Web           | http://localhost:3001     |
+| Prisma Studio | http://localhost:5555     |
 
 ## Environnement Staging (develop)
 
@@ -54,10 +54,10 @@ Le déploiement staging est automatique sur push vers `develop`:
 
 ### URLs
 
-| Service | URL |
-|---------|-----|
-| Web (preview) | Générée par Vercel (voir PR) |
-| API | Utilise la production (même API, DB différente) |
+| Service       | URL                                             |
+| ------------- | ----------------------------------------------- |
+| Web (preview) | Générée par Vercel (voir PR)                    |
+| API           | Utilise la production (même API, DB différente) |
 
 ### Secrets GitHub (Environment: staging)
 
@@ -88,11 +88,11 @@ Le déploiement production est automatique sur merge vers `main`:
 
 ### URLs
 
-| Service | URL |
-|---------|-----|
-| API | https://swalo-api.onrender.com/api |
+| Service    | URL                                       |
+| ---------- | ----------------------------------------- |
+| API        | https://swalo-api.onrender.com/api        |
 | API Health | https://swalo-api.onrender.com/api/health |
-| Web | https://swalo-web.vercel.app |
+| Web        | https://swalo-web.vercel.app              |
 
 ### Secrets (Render Dashboard + GitHub)
 

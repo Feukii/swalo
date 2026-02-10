@@ -73,6 +73,8 @@ export interface OfflineSaleInput {
     batchId?: string;
   }>;
   note?: string;
+  expectedTotal?: number;
+  pricingNotes?: string;
 }
 
 export async function createSaleOffline(input: OfflineSaleInput): Promise<{ saleId: string }> {
@@ -121,6 +123,8 @@ export async function createSaleOffline(input: OfflineSaleInput): Promise<{ sale
       paid_total: input.paymentMethod === 'cash' ? input.grandTotal : 0,
       change: 0,
       notes: input.note || null,
+      expected_total: input.expectedTotal || null,
+      pricing_notes: input.pricingNotes || null,
       version: 1,
       device_id: deviceId,
       client_op_id: clientOpId,
@@ -157,6 +161,8 @@ export async function createSaleOffline(input: OfflineSaleInput): Promise<{ sale
       paid_total: input.paymentMethod === 'cash' ? input.grandTotal : 0,
       change: 0,
       notes: input.note || null,
+      expected_total: input.expectedTotal || null,
+      pricing_notes: input.pricingNotes || null,
       device_id: deviceId,
       client_op_id: clientOpId,
       items: saleItems.map(si => ({

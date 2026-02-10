@@ -3,6 +3,7 @@
 ## Feature Description
 
 This plan addresses two main concerns:
+
 1. **Build/Deploy Issue**: Products list not visible and catalog import not working in the mobile app - determining if a full rebuild (Database + API + Mobile) is required
 2. **KPI Review**: Comprehensive review and correction of all KPI calculations on the Home screen and Business Reports screen
 
@@ -56,18 +57,22 @@ So that I can manage my inventory effectively
 ### Relevant Codebase Files - MUST READ BEFORE IMPLEMENTING
 
 **API KPI Calculation:**
+
 - `apps/api/src/modules/cash/cash.service.ts` (lines 309-467) - Main KPI calculation logic in `getStats()`
 - `apps/api/src/modules/cash/cash.controller.ts` - Cash endpoints
 
 **Mobile Home Screen:**
+
 - `apps/mobile/src/screens/HomeScreen.tsx` (lines 64-173) - Data loading and state mapping
 - `apps/mobile/src/screens/BusinessReportsScreen.tsx` (lines 227-659) - Reports KPI calculations
 
 **Mobile API Client:**
+
 - `apps/mobile/src/lib/api.ts` (lines 155-231) - Cash API client
 - `apps/mobile/src/lib/api.ts` (lines 503-628) - Products API client
 
 **Products and Import:**
+
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` - Product catalog screen
 - `apps/api/src/modules/import/import.service.ts` - Import logic
 - `apps/api/src/modules/products/products.controller.ts` - Products endpoints
@@ -79,6 +84,7 @@ So that I can manage my inventory effectively
 ### Patterns to Follow
 
 **KPI Calculation Pattern:**
+
 - All monetary amounts are integers in FCFA (no decimals)
 - Cash transactions use `CashEntry` model with `type: 'IN' | 'OUT'`
 - Credit sales are tracked via `ClientReceivable` model
@@ -87,6 +93,7 @@ So that I can manage my inventory effectively
 - Total purchases = purchasesCash + purchasesCredit
 
 **Date Filtering Pattern:**
+
 - API accepts `start_date` and `end_date` as ISO strings
 - Frontend converts to Date objects for comparison
 - Always filter by `created_at` field
@@ -100,6 +107,7 @@ So that I can manage my inventory effectively
 Verify the current state and rebuild all components.
 
 **Tasks:**
+
 - Run database migrations to ensure schema is up to date
 - Rebuild and redeploy API
 - Rebuild mobile app
@@ -110,6 +118,7 @@ Verify the current state and rebuild all components.
 Audit and fix all KPI calculations.
 
 **Tasks:**
+
 - Review `cash.service.ts` getStats() method
 - Verify sales calculations (cash + credit)
 - Verify purchases calculations (cash + credit)
@@ -120,6 +129,7 @@ Audit and fix all KPI calculations.
 Verify the frontend correctly displays the KPI data.
 
 **Tasks:**
+
 - Review HomeScreen.tsx data mapping
 - Review BusinessReportsScreen.tsx calculations
 - Ensure consistency between API and frontend
@@ -129,6 +139,7 @@ Verify the frontend correctly displays the KPI data.
 Test all functionality end-to-end.
 
 **Tasks:**
+
 - Test products list display
 - Test catalog import
 - Test KPI calculations with known data
@@ -257,22 +268,25 @@ Test all functionality end-to-end.
 
 **Scope**: Cash service KPI calculations
 **Requirements**:
+
 - Test `getStats()` with various date ranges
 - Test with mix of cash and credit transactions
 - Test with negative amounts (adjustments)
-**VALIDATION COMMAND**: `cd apps/api && pnpm jest cash.service`
+  **VALIDATION COMMAND**: `cd apps/api && pnpm jest cash.service`
 
 ### Integration Tests
 
 **Scope**: Full API endpoints
 **Requirements**:
+
 - Test cash/stats endpoint returns correct structure
 - Test products endpoint returns data
-**VALIDATION COMMAND**: `cd apps/api && pnpm test`
+  **VALIDATION COMMAND**: `cd apps/api && pnpm test`
 
 ### Manual Testing
 
 **Test Scenarios**:
+
 1. Products list visible after fresh build
 2. KPIs match expected calculations
 3. Reports show accurate data for selected periods
@@ -362,23 +376,28 @@ cd apps/mobile && npx expo start --clear
 ### Key KPI Definitions
 
 **Solde de Caisse (Cash Balance)**:
+
 - Formula: Sum(CashEntry.amount where type='IN') - Sum(CashEntry.amount where type='OUT')
 - This is ALL-TIME balance, not period-specific
 
 **Entrées (Entries)**:
+
 - Period-specific sum of all CashEntry where type='IN'
 - Includes: ventes, remboursement_client, divers
 
 **Total Ventes (Total Sales)**:
+
 - salesCash + salesCredit
 - salesCash: CashEntry type='IN', category in ['ventes', 'vente']
 - salesCredit: ClientReceivable.amount created in period (POSITIVE only)
 
 **Sorties (Exits)**:
+
 - Period-specific sum of all CashEntry where type='OUT'
 - Includes: achats_marchandises, loyers, reglement_fournisseur, depenses_courantes
 
 **Total Achats (Total Purchases)**:
+
 - purchasesCash + purchasesCredit
 - purchasesCash: CashEntry type='OUT', category='achats_marchandises'
 - purchasesCredit: SupplierDebt.amount created in period (POSITIVE only)
@@ -394,11 +413,13 @@ cd apps/mobile && npx expo start --clear
 ### Debugging Tips
 
 If products don't appear:
+
 1. Check API is running: `curl http://localhost:3000/api/health`
 2. Check auth token: Look at API logs for 401 errors
 3. Check console logs in ProductCatalogScreen for errors
 
 If KPIs seem wrong:
+
 1. Console.log the raw API response in HomeScreen
 2. Compare with direct database queries
 3. Check date filtering is correct

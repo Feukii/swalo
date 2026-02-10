@@ -251,9 +251,7 @@ export default function EnterpriseDashboard() {
       {/* Shops List */}
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Boutiques ({shops.length})
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900">Boutiques ({shops.length})</h2>
         </div>
         <div className="divide-y divide-gray-100">
           {shops.length === 0 ? (
@@ -265,9 +263,7 @@ export default function EnterpriseDashboard() {
               <div key={shop.id} className="px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
-                    <span className="text-lg">
-                      {shop.shop_type === 'MAGASIN' ? '🏭' : '🏪'}
-                    </span>
+                    <span className="text-lg">{shop.shop_type === 'MAGASIN' ? '🏭' : '🏪'}</span>
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">{shop.name}</p>
@@ -291,9 +287,7 @@ export default function EnterpriseDashboard() {
         </div>
         <div className="divide-y divide-gray-100">
           {pendingTransfers.length === 0 ? (
-            <div className="px-6 py-8 text-center text-gray-500">
-              Aucun transfert en cours
-            </div>
+            <div className="px-6 py-8 text-center text-gray-500">Aucun transfert en cours</div>
           ) : (
             pendingTransfers.map(transfer => {
               const statusConfig = STATUS_CONFIG[transfer.status] || STATUS_CONFIG.DRAFT;
@@ -304,13 +298,9 @@ export default function EnterpriseDashboard() {
                 <div key={transfer.id} className="px-6 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">
-                        {transfer.source_shop.name}
-                      </span>
+                      <span className="font-medium text-gray-900">{transfer.source_shop.name}</span>
                       <span className="text-gray-400">&rarr;</span>
-                      <span className="font-medium text-gray-900">
-                        {transfer.target_shop.name}
-                      </span>
+                      <span className="font-medium text-gray-900">{transfer.target_shop.name}</span>
                     </div>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.className}`}
@@ -394,22 +384,16 @@ export default function EnterpriseDashboard() {
         </div>
         <div className="divide-y divide-gray-100">
           {completedTransfers.length === 0 ? (
-            <div className="px-6 py-8 text-center text-gray-500">
-              Aucun transfert termine
-            </div>
+            <div className="px-6 py-8 text-center text-gray-500">Aucun transfert termine</div>
           ) : (
             completedTransfers.slice(0, 10).map(transfer => {
               const total = getTransferTotal(transfer);
               return (
                 <div key={transfer.id} className="px-6 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-900">
-                      {transfer.source_shop.name}
-                    </span>
+                    <span className="font-medium text-gray-900">{transfer.source_shop.name}</span>
                     <span className="text-gray-400">&rarr;</span>
-                    <span className="font-medium text-gray-900">
-                      {transfer.target_shop.name}
-                    </span>
+                    <span className="font-medium text-gray-900">{transfer.target_shop.name}</span>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-gray-500">{formatDate(transfer.created_at)}</span>

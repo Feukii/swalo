@@ -10,6 +10,7 @@ interface SupplierDetails {
   phone?: string;
   email?: string;
   address?: string;
+  borrowing_limit: number;
   notes?: string;
   debts: Array<{
     id: string;
@@ -73,6 +74,7 @@ export default function SupplierDetails() {
     phone: '',
     email: '',
     address: '',
+    borrowing_limit: '',
   });
 
   useEffect(() => {
@@ -209,6 +211,7 @@ export default function SupplierDetails() {
       phone: supplier.phone || '',
       email: supplier.email || '',
       address: supplier.address || '',
+      borrowing_limit: supplier.borrowing_limit ? String(supplier.borrowing_limit) : '',
     });
     setShowEditModal(true);
   };
@@ -232,6 +235,12 @@ export default function SupplierDetails() {
         email: editForm.email || undefined,
         address: editForm.address || undefined,
       };
+
+      if (editForm.borrowing_limit) {
+        updateData.borrowing_limit = parseInt(editForm.borrowing_limit);
+      } else {
+        updateData.borrowing_limit = 0;
+      }
 
       await suppliersApi.update(id, updateData);
       alert('Fournisseur mis à jour avec succès');
@@ -413,6 +422,38 @@ export default function SupplierDetails() {
               <p className="font-medium text-gray-900">{supplier.email}</p>
             </div>
           )}
+          <div>
+            <p className="text-sm text-gray-500">Limite d'emprunt</p>
+            <p className="font-medium text-gray-900">
+              {supplier.borrowing_limit > 0
+                ? formatCurrency(supplier.borrowing_limit)
+                : 'Illimitee'}
+            </p>
+            {supplier.borrowing_limit > 0 && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>{formatCurrency(supplier.stats.total_balance)} utilises</span>
+                  <span>
+                    {Math.round((supplier.stats.total_balance / supplier.borrowing_limit) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      supplier.stats.total_balance / supplier.borrowing_limit > 0.9
+                        ? 'bg-red-500'
+                        : supplier.stats.total_balance / supplier.borrowing_limit > 0.7
+                          ? 'bg-amber-500'
+                          : 'bg-green-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, (supplier.stats.total_balance / supplier.borrowing_limit) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           {supplier.address && (
             <div className="md:col-span-2">
               <p className="text-sm text-gray-500">Adresse</p>
@@ -762,6 +803,20 @@ export default function SupplierDetails() {
                     type="email"
                     value={editForm.email}
                     onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Limite d'emprunt (FCFA)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editForm.borrowing_limit}
+                    onChange={e => setEditForm({ ...editForm, borrowing_limit: e.target.value })}
+                    placeholder="0 = illimite"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 </div>

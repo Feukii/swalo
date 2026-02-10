@@ -18,12 +18,15 @@ Application mobile React Native (Expo) pour SWALO - Système de gestion commerci
 #### Étape 1: Trouver votre adresse IP locale
 
 **Windows:**
+
 ```bash
 ipconfig
 ```
+
 Cherchez "IPv4 Address" dans la section "Wireless LAN adapter Wi-Fi" ou "Ethernet adapter"
 
 **Mac/Linux:**
+
 ```bash
 ifconfig | grep "inet "
 ```
@@ -38,6 +41,7 @@ EXPO_PUBLIC_API_URL=http://192.168.1.10:3000/api
 ```
 
 **Pour la production:**
+
 ```bash
 EXPO_PUBLIC_API_URL=https://votre-domaine.com/api
 ```
@@ -96,6 +100,7 @@ npx expo start
    - L'adresse doit commencer par `http://` (ou `https://` pour la production)
 
 2. **Vérifiez que l'API est accessible**
+
    ```bash
    curl http://VOTRE_IP:3000/api/health
    ```
@@ -104,6 +109,7 @@ npx expo start
    - Votre smartphone/émulateur doit être sur le même réseau que votre ordinateur de développement
 
 4. **Redémarrez Expo après avoir modifié .env**
+
    ```bash
    # Arrêtez l'application (Ctrl+C)
    # Puis relancez
@@ -121,12 +127,15 @@ npx expo start
 **Solution:**
 
 1. **Vérifiez que Docker Compose utilise un volume nommé**
+
    ```bash
    docker volume ls | grep swalo
    ```
+
    Vous devriez voir `swalo_postgres_data`
 
 2. **Ne supprimez JAMAIS les volumes sans sauvegarde**
+
    ```bash
    # NE PAS faire: docker-compose down -v
    # À la place:
@@ -190,6 +199,7 @@ eas build --platform ios --profile production
 ## Support
 
 Pour toute question ou problème:
+
 1. Vérifiez les logs Expo: regardez la console où vous avez lancé `expo start`
 2. Vérifiez les logs de l'API: `docker logs swalo-api`
 3. Consultez la documentation Expo: https://docs.expo.dev

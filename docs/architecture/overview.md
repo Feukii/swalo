@@ -20,11 +20,13 @@ swalo/
 ## Package Core (@swalo/core)
 
 ### Responsabilités
+
 - Définition des schémas de validation avec Zod
 - Types TypeScript partagés
 - Utilitaires métier (calculs, devises, dates, validation)
 
 ### Structure
+
 ```
 packages/core/src/
 ├── schemas/
@@ -50,33 +52,39 @@ packages/core/src/
 ### Entités principales
 
 #### Shop & Users
+
 - **Shop** : Boutique avec config (devise, TVA, etc.)
 - **User** : Utilisateur avec authentification
 - **UserRole** : Rôles par boutique (OWNER, MANAGER, CASHIER)
 
 #### Produits & Inventaire
+
 - **Product** : Produit avec SKU, prix, stock
 - **InventoryMovement** : Mouvements de stock (vente, achat, ajustement)
 - **InventorySession** : Session d'inventaire physique
 - **InventoryCount** : Comptage par produit
 
 #### Clients & Fournisseurs
+
 - **Customer** : Client avec limite de crédit
 - **Supplier** : Fournisseur
 - **SupplierInvoice** : Facture fournisseur
 
 #### Ventes & Facturation
+
 - **Sale** : Vente avec lignes et paiement
 - **SaleItem** : Ligne de vente
 - **Invoice** : Facture client
 - **InvoiceItem** : Ligne de facture
 
 #### Paiements & Caisse
+
 - **Payment** : Paiement (vente, facture, crédit)
 - **CashEntry** : Entrée de caisse
 - **CashSession** : Session de caisse (ouverture/clôture)
 
 #### Synchronisation
+
 - **DeviceSyncState** : État de sync par device
 - **Mutation** : Mutation à synchroniser
 - **SyncPullRequest/Response** : Pull des changements
@@ -85,6 +93,7 @@ packages/core/src/
 ## Backend API (NestJS)
 
 ### Stack technique
+
 - **Framework** : NestJS
 - **Base de données** : PostgreSQL (via Supabase)
 - **ORM** : Prisma
@@ -107,12 +116,14 @@ packages/core/src/
 ### Base de données Prisma
 
 #### Principes
+
 - **IDs** : UUID v4 générés côté client
 - **Soft delete** : Champ `deleted` + `deleted_at`
 - **Versioning** : Champ `version` incrémental
 - **Audit trail** : `created_at`, `updated_at`, `device_id`, `client_op_id`
 
 #### Règles métier
+
 - **Stock** = somme des mouvements (pas de mise à jour directe)
 - **Factures validées** = immuables
 - **Montants** = stockés en centimes (Int)
@@ -121,6 +132,7 @@ packages/core/src/
 ## Application Mobile (React Native)
 
 ### Stack (à implémenter)
+
 - React Native + Expo
 - WatermelonDB (SQLite chiffré avec SQLCipher)
 - Zustand (state management)
@@ -128,6 +140,7 @@ packages/core/src/
 - React Native Paper / Tamagui (UI)
 
 ### Fonctionnalités clés
+
 - **100% offline** : toutes les opérations métier
 - **Sync automatique** : dès que le réseau revient
 - **Écrans** : Dashboard, Ventes, Produits, Clients, Fournisseurs, Caisse, Inventaire, Paramètres
@@ -135,6 +148,7 @@ packages/core/src/
 ## Application Web (React)
 
 ### Stack (à implémenter)
+
 - React + TypeScript
 - RxDB (IndexedDB)
 - TanStack Query
@@ -142,6 +156,7 @@ packages/core/src/
 - Tailwind CSS + shadcn/ui
 
 ### Fonctionnalités clés
+
 - **Multi-boutiques** : gestion centralisée
 - **Rapports avancés** : analytics et dashboards
 - **Gestion** : produits, utilisateurs, paramètres
@@ -150,6 +165,7 @@ packages/core/src/
 ## Synchronisation
 
 ### Stratégie
+
 - **Pull** : Le client demande les changements depuis `lastSyncAt`
 - **Push** : Le client envoie ses mutations locales
 - **Cursors** : Pour la pagination et la reprise sur erreur
@@ -158,18 +174,22 @@ packages/core/src/
 ### Gestion des conflits
 
 #### Produits
+
 - **LWW** (Last Writer Wins) par défaut
 - Champs protégés (SKU) : conflit si divergence
 
 #### Stock
+
 - Source de vérité = **mouvements**
 - Déduplication par `(device_id, client_op_id)`
 
 #### Factures
+
 - **Immuables** après validation
 - Rejet si tentative de modification
 
 #### Paiements
+
 - Déduplication par `receipt_ref` ou `client_op_id`
 
 ## Principes de sécurité
@@ -183,6 +203,7 @@ packages/core/src/
 ## Déploiement (cible)
 
 ### Gratuit pour 10 boutiques
+
 - **DB + Auth + Storage** : Supabase (free tier)
 - **API** : Cloudflare Workers/Pages ou Render (free)
 - **Mobile** : Expo EAS (free tier)
@@ -191,6 +212,7 @@ packages/core/src/
 ## Prochaines étapes
 
 ### Phase 1 : Backend (en cours)
+
 - [x] Structure monorepo
 - [x] Package core avec schémas Zod
 - [x] Configuration NestJS + Prisma
@@ -200,6 +222,7 @@ packages/core/src/
 - [ ] Module Sync (pull/push)
 
 ### Phase 2 : Mobile
+
 - [ ] Init Expo + WatermelonDB
 - [ ] Schéma SQLite + modèles
 - [ ] Moteur de sync client
@@ -207,18 +230,21 @@ packages/core/src/
 - [ ] Auth offline
 
 ### Phase 3 : Web
+
 - [ ] Init React + RxDB
 - [ ] Interface multi-boutiques
 - [ ] Dashboards et rapports
 - [ ] Gestion des utilisateurs
 
 ### Phase 4 : Fonctionnalités avancées
+
 - [ ] Génération PDF factures
 - [ ] Impression (Bluetooth)
 - [ ] Scanner code-barres
 - [ ] Export comptable
 
 ### Phase 5 : Tests & Déploiement
+
 - [ ] Tests unitaires (>80%)
 - [ ] Tests E2E critiques
 - [ ] CI/CD
