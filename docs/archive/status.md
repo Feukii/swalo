@@ -3,8 +3,8 @@
 **Date de création** : 11 octobre 2025
 **Version** : 0.1.0 (MVP en cours)
 **Statut global** : ✅ Architecture initialisée, backend en configuration
-> Note: Les modules de synchronisation/offline d?crits dans la documentation sont encore en d?veloppement actif.
 
+> Note: Les modules de synchronisation/offline d?crits dans la documentation sont encore en d?veloppement actif.
 
 ---
 
@@ -13,17 +13,20 @@
 ### 1. Structure du projet (Monorepo)
 
 ✅ **Monorepo avec Turbo + pnpm**
+
 - Configuration Turbo pour le build et les tâches
 - Workspaces pnpm pour la gestion des dépendances
 - Structure complète des dossiers (packages + apps)
 
 ✅ **Configuration Git**
+
 - Repository initialisé
 - Branches `main` (stable) et `dev` créées
 - `.gitignore` configuré
 - Commits initiaux effectués
 
 ✅ **Configuration générale**
+
 - Prettier pour le formatage
 - TypeScript configuré pour tous les packages
 - Scripts npm globaux (dev, build, test, lint)
@@ -31,6 +34,7 @@
 ### 2. Package Core (@swalo/core)
 
 ✅ **Schémas Zod complets** pour toutes les entités :
+
 - Shop, User, UserRole
 - Product, InventoryMovement, InventorySession, InventoryCount
 - Customer, Supplier, SupplierInvoice
@@ -41,6 +45,7 @@
 ✅ **Types TypeScript** générés automatiquement depuis Zod
 
 ✅ **Utilitaires métier** :
+
 - `currency.ts` : Conversion centimes/devise, formatage, calculs
 - `date.ts` : Manipulation dates ISO8601, comparaisons
 - `validation.ts` : Génération UUID, validation SKU, normalisation email/phone
@@ -49,12 +54,14 @@
 ### 3. Backend API (NestJS)
 
 ✅ **Structure NestJS** :
+
 - Configuration NestJS complète
 - Module principal (AppModule)
 - Module Prisma global
 - Point d'entrée (main.ts) avec CORS et validation
 
 ✅ **Schéma Prisma PostgreSQL** :
+
 - 20+ modèles de données définis
 - Relations complètes entre entités
 - Index optimisés pour les requêtes
@@ -62,6 +69,7 @@
 - Enums pour les statuts et types
 
 ✅ **Modules déclarés** (squelettes à implémenter) :
+
 - AuthModule
 - ProductsModule
 - SalesModule
@@ -75,6 +83,7 @@
 - ReportsModule
 
 ✅ **Configuration** :
+
 - Fichier `.env.example` avec toutes les variables
 - Support PostgreSQL local et Supabase
 - Configuration JWT préparée
@@ -82,6 +91,7 @@
 ### 4. Documentation
 
 ✅ **ARCHITECTURE.md** :
+
 - Vue d'ensemble complète du système
 - Description de tous les packages et apps
 - Stratégie de synchronisation détaillée
@@ -89,12 +99,14 @@
 - Plan de déploiement
 
 ✅ **GETTING_STARTED.md** :
+
 - Guide d'installation pas à pas
 - Configuration PostgreSQL/Supabase
 - Scripts de développement
 - Workflow Git
 
 ✅ **README.md** :
+
 - Présentation du projet
 - Features principales
 - Stack technique
@@ -241,6 +253,7 @@
 ### Fonctionnalités minimales
 
 ✅ Définies dans le cahier des charges :
+
 - Ventes offline avec calculs automatiques
 - Gestion produits (CRUD + stock)
 - Clients avec crédit
@@ -263,18 +276,18 @@
 
 ## 📊 Métriques projet
 
-| Métrique | Valeur |
-|----------|--------|
-| **Commits** | 2 |
-| **Branches** | 2 (main, dev) |
-| **Packages** | 1 (@swalo/core) |
-| **Apps** | 1 (api, squelette) |
-| **Schémas Zod** | 10 fichiers |
-| **Modèles Prisma** | 20+ |
+| Métrique           | Valeur                         |
+| ------------------ | ------------------------------ |
+| **Commits**        | 2                              |
+| **Branches**       | 2 (main, dev)                  |
+| **Packages**       | 1 (@swalo/core)                |
+| **Apps**           | 1 (api, squelette)             |
+| **Schémas Zod**    | 10 fichiers                    |
+| **Modèles Prisma** | 20+                            |
 | **Modules NestJS** | 11 (déclarés, non implémentés) |
-| **Lignes de code** | ~2600 |
-| **Tests** | 0 (à écrire) |
-| **Coverage** | 0% |
+| **Lignes de code** | ~2600                          |
+| **Tests**          | 0 (à écrire)                   |
+| **Coverage**       | 0%                             |
 
 ---
 

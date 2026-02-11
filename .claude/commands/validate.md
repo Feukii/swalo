@@ -78,8 +78,8 @@ pnpm run format:check
 
 After all validations complete, provide a summary report with:
 
-| Workspace | Lint | Types | Tests |
-|-----------|------|-------|-------|
+| Workspace | Lint      | Types     | Tests     |
+| --------- | --------- | --------- | --------- |
 | Backend   | PASS/FAIL | PASS/FAIL | PASS/FAIL |
 | Mobile    | PASS/FAIL | PASS/FAIL | PASS/FAIL |
 

@@ -22,9 +22,11 @@
 ### **Test 1 : Onglet Ventes (SaleScreen)** ⭐ PRIORITÉ
 
 #### Objectif
+
 Vérifier que les ventes utilisent bien le catalogue de produits.
 
 #### Étapes
+
 1. **Ouvrir l'application** → Onglet "Vente"
 2. **Vérifier l'affichage** :
    - Les produits s'affichent avec : Famille / Article Marque / Stock
@@ -50,12 +52,14 @@ Vérifier que les ventes utilisent bien le catalogue de produits.
    - Vérifier que le stock du produit a diminué
 
 #### Résultat attendu
+
 ✅ Les produits du catalogue s'affichent correctement
 ✅ Le panier fonctionne (ajout, modification, suppression)
 ✅ La vente met à jour le stock automatiquement
 ✅ Alerte si stock insuffisant
 
 #### En cas d'erreur
+
 - Vérifier que l'API est démarrée (`npm run dev` dans apps/api)
 - Vérifier qu'il y a des produits dans le catalogue (onglet Catalogue)
 - Regarder les logs de la console
@@ -65,9 +69,11 @@ Vérifier que les ventes utilisent bien le catalogue de produits.
 ### **Test 2 : Onglet Stock (StockManagementScreen)** ⭐ PRIORITÉ
 
 #### Objectif
+
 Tester la nouvelle interface de gestion du stock avec approvisionnement.
 
 #### Étapes
+
 1. **Ouvrir l'application** → Onglet "Stock"
 2. **Vérifier les KPIs en haut** :
    - Stock faible : Nombre de produits sous le seuil
@@ -98,6 +104,7 @@ Tester la nouvelle interface de gestion du stock avec approvisionnement.
    - Pull-to-refresh pour actualiser si besoin
 
 #### Résultat attendu
+
 ✅ Les KPIs s'affichent correctement
 ✅ La recherche fonctionne
 ✅ Les statuts sont corrects (couleurs)
@@ -106,6 +113,7 @@ Tester la nouvelle interface de gestion du stock avec approvisionnement.
 ✅ La marge est calculée automatiquement
 
 #### En cas d'erreur
+
 - Vérifier que `productsApi.update()` fonctionne
 - Vérifier les logs de l'API
 - S'assurer qu'il y a des produits dans le catalogue
@@ -115,9 +123,11 @@ Tester la nouvelle interface de gestion du stock avec approvisionnement.
 ### **Test 3 : Filtres de date dans les rapports**
 
 #### Objectif
+
 Vérifier le fonctionnement du DateRangePicker.
 
 #### Étapes
+
 1. **Aller dans** "Plus" → "Bilans & Rapports"
 2. **Tester le filtre de date** :
    - Cliquer sur le calendrier en haut
@@ -136,6 +146,7 @@ Vérifier le fonctionnement du DateRangePicker.
    - Répéter les mêmes tests
 
 #### Résultat attendu
+
 ✅ Le calendrier s'ouvre correctement
 ✅ Les jours avec données ont un point
 ✅ La sélection de plage fonctionne
@@ -147,9 +158,11 @@ Vérifier le fonctionnement du DateRangePicker.
 ### **Test 4 : Soldes négatifs clients**
 
 #### Objectif
+
 Vérifier qu'on peut rembourser plus que la dette d'un client.
 
 #### Étapes
+
 1. **Trouver un client sans dette** :
    - Aller dans "Plus" → "Clients"
    - Sélectionner un client avec solde = 0 FCFA
@@ -168,6 +181,7 @@ Vérifier qu'on peut rembourser plus que la dette d'un client.
    - Message : "⚠️ Vous devez rendre 5000 FCFA au client"
 
 #### Résultat attendu
+
 ✅ Alerte avant création du solde négatif
 ✅ Création d'une créance négative
 ✅ Badge rouge visible
@@ -178,9 +192,11 @@ Vérifier qu'on peut rembourser plus que la dette d'un client.
 ### **Test 5 : Soldes négatifs fournisseurs**
 
 #### Objectif
+
 Vérifier qu'on peut payer plus que la dette d'un fournisseur.
 
 #### Étapes
+
 1. **Trouver un fournisseur sans dette** :
    - Aller dans "Plus" → "Fournisseurs"
    - Sélectionner un fournisseur avec solde = 0 FCFA
@@ -199,6 +215,7 @@ Vérifier qu'on peut payer plus que la dette d'un fournisseur.
    - Message : "⚠️ Ce fournisseur doit vous rendre 3000 FCFA"
 
 #### Résultat attendu
+
 ✅ Alerte avant création du solde négatif
 ✅ Création d'une dette négative
 ✅ Badge rouge visible
@@ -209,9 +226,11 @@ Vérifier qu'on peut payer plus que la dette d'un fournisseur.
 ### **Test 6 : Catalogue hiérarchique**
 
 #### Objectif
+
 Vérifier la navigation dans la hiérarchie des produits.
 
 #### Étapes
+
 1. **Aller dans le catalogue** :
    - "Plus" → "Catalogue de produits"
    - Cliquer sur "Hiérarchie" en haut à droite
@@ -229,6 +248,7 @@ Vérifier la navigation dans la hiérarchie des produits.
    - Vérifier qu'on ne peut pas supprimer si stock > 0
 
 #### Résultat attendu
+
 ✅ L'arborescence s'affiche correctement
 ✅ Les niveaux se déplient/replient
 ✅ Les boutons + et ✏️ sont visibles
@@ -239,34 +259,42 @@ Vérifier la navigation dans la hiérarchie des produits.
 ## 🐛 Problèmes connus à surveiller
 
 ### Problème potentiel 1 : Produits vides
+
 **Symptôme** : L'onglet Ventes ou Stock est vide
 **Cause** : Pas de produits dans le catalogue
 **Solution** :
+
 1. Aller dans "Plus" → "Catalogue de produits"
 2. Ajouter au moins un produit avec stock > 0
 3. Retourner dans Ventes/Stock
 
 ### Problème potentiel 2 : API non démarrée
+
 **Symptôme** : Erreur "Impossible de charger les produits"
 **Cause** : L'API backend n'est pas lancée
 **Solution** :
+
 ```bash
 cd apps/api
 npm run dev
 ```
 
 ### Problème potentiel 3 : Stock non mis à jour
+
 **Symptôme** : Après une vente, le stock ne change pas
 **Cause** : Erreur lors de l'appel API
 **Solution** :
+
 1. Vérifier les logs de l'API
 2. Vérifier que `productsApi.update()` fonctionne
 3. Tester manuellement avec Postman
 
 ### Problème potentiel 4 : Prix non enregistrés
+
 **Symptôme** : Après approvisionnement, les prix ne s'affichent pas
 **Cause** : Champs `unit_price` et `selling_price` non mis à jour
 **Solution** :
+
 1. Vérifier la structure de la table `products` dans Prisma
 2. S'assurer que ces champs existent
 3. Régénérer le client Prisma si besoin : `npx prisma generate`
@@ -276,6 +304,7 @@ npm run dev
 ## ✅ Checklist complète
 
 ### Onglet Ventes
+
 - [ ] Les produits du catalogue s'affichent
 - [ ] La recherche fonctionne
 - [ ] Ajout au panier OK
@@ -284,6 +313,7 @@ npm run dev
 - [ ] Stock mis à jour après vente
 
 ### Onglet Stock
+
 - [ ] KPIs affichés correctement
 - [ ] Recherche multi-critères OK
 - [ ] Statuts de stock (couleurs) corrects
@@ -293,6 +323,7 @@ npm run dev
 - [ ] Prix enregistrés correctement
 
 ### Filtres de date
+
 - [ ] DateRangePicker s'ouvre (Rapports)
 - [ ] Jours avec données marqués
 - [ ] Filtrage fonctionne
@@ -300,6 +331,7 @@ npm run dev
 - [ ] DateRangePicker fonctionne (Transactions)
 
 ### Soldes négatifs
+
 - [ ] Alerte client sans dette
 - [ ] Création créance négative OK
 - [ ] Badge rouge visible (client)
@@ -310,6 +342,7 @@ npm run dev
 - [ ] Message d'avertissement clair (fournisseur)
 
 ### Catalogue hiérarchique
+
 - [ ] Navigation Famille → Article → Marque → Référence
 - [ ] Expand/collapse fonctionne
 - [ ] Boutons + et ✏️ visibles
@@ -320,6 +353,7 @@ npm run dev
 ## 📊 Rapport de test
 
 ### Format
+
 Après les tests, créer un rapport avec :
 
 ```
@@ -329,6 +363,7 @@ Après les tests, créer un rapport avec :
 ```
 
 ### Exemple
+
 ```
 ✅ Ventes - Affichage produits : OK
 ✅ Ventes - Ajout panier : OK
@@ -348,6 +383,7 @@ Après les tests, créer un rapport avec :
 Si tous les tests passent :
 
 1. **Committer les changements** :
+
 ```bash
 git add .
 git commit -m "feat: Sync sales with catalog, new stock management with pricing

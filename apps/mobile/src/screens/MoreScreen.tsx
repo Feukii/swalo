@@ -11,6 +11,9 @@ import {
   LogOut,
   Package,
   Clock,
+  RefreshCw,
+  ArrowLeftRight,
+  Store,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem } from '../components/ui';
 import { Colors } from '../constants/theme-v2';
@@ -80,6 +83,21 @@ export default function MoreScreen({ navigation }: any) {
             icon={<UserCog size={20} color={Colors.primary[900]} />}
             title="Utilisateurs"
             onClick={() => navigateToScreen('UserManagement')}
+          />
+          <ListItem
+            icon={<ArrowLeftRight size={20} color={Colors.primary[900]} />}
+            title="Transferts inter-boutiques"
+            onClick={() => navigateToScreen('Transfers')}
+          />
+          <ListItem
+            icon={<Store size={20} color={Colors.primary[900]} />}
+            title="Mes boutiques"
+            onClick={() => navigateToScreen('ShopSwitcher')}
+          />
+          <ListItem
+            icon={<RefreshCw size={20} color={Colors.primary[900]} />}
+            title="Synchronisation"
+            onClick={() => navigateToScreen('SyncStatus')}
           />
           <ListItem
             icon={<Settings size={20} color={Colors.primary[900]} />}

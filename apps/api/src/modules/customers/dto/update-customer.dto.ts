@@ -33,4 +33,8 @@ export class UpdateCustomerDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  email_notifications_enabled?: boolean;
 }

@@ -8,12 +8,14 @@
 ## 🐛 Bug corrigé : `customersApi.getById is not a function`
 
 ### Problème
+
 ```
 ERROR Erreur entrée: [TypeError: _libApi.customersApi.getById is not a function (it is undefined)]
 ERROR Erreur sortie: [TypeError: _libApi.suppliersApi.getById is not a function (it is undefined)]
 ```
 
 ### Cause
+
 Les fonctions API s'appellent `getOne` et non `getById`.
 
 ### Solution
@@ -21,6 +23,7 @@ Les fonctions API s'appellent `getOne` et non `getById`.
 #### Fichier : [CashScreen.tsx](apps/mobile/src/screens/CashScreen.tsx)
 
 **Pour les clients (ligne 309)** :
+
 ```typescript
 // Avant
 const fullCustomer = await customersApi.getById(selectedCustomerId);
@@ -30,6 +33,7 @@ const fullCustomer = await customersApi.getOne(selectedCustomerId);
 ```
 
 **Pour les fournisseurs (ligne 437)** :
+
 ```typescript
 // Avant
 const fullSupplier = await suppliersApi.getById(selectedSupplierId);
@@ -41,6 +45,7 @@ const fullSupplier = await suppliersApi.getOne(selectedSupplierId);
 ### Vérification API disponible
 
 #### customersApi
+
 ```typescript
 export const customersApi = {
   getAll: async (params?: { search?: string; is_active?: boolean }) => { ... },
@@ -54,6 +59,7 @@ export const customersApi = {
 ```
 
 #### suppliersApi
+
 ```typescript
 export const suppliersApi = {
   getAll: async (params?: { search?: string; is_active?: boolean }) => { ... },
@@ -72,6 +78,7 @@ export const suppliersApi = {
 ## ✅ Résultat final
 
 ### Remboursement client (CashScreen)
+
 1. Récupère le client avec `customersApi.getOne()`
 2. Calcule le solde actuel
 3. Si dette existante : Ajoute paiement sur créance
@@ -80,6 +87,7 @@ export const suppliersApi = {
 6. Affiche message approprié selon scénario
 
 ### Règlement fournisseur (CashScreen)
+
 1. Récupère le fournisseur avec `suppliersApi.getOne()`
 2. Calcule le solde actuel
 3. Si dette existante : Ajoute paiement sur dette
@@ -91,13 +99,13 @@ export const suppliersApi = {
 
 ## 📊 Récapitulatif complet des correctifs Session 5
 
-| # | Problème | Solution | Status |
-|---|----------|----------|--------|
-| 1 | `current_stock should not exist` | Supprimé mise à jour manuelle stock | ✅ |
-| 2 | Mode "Mobile" à enlever | Supprimé partout dans SaleScreen | ✅ |
-| 3 | Logique remboursement client | Paye dette puis créance négative | ✅ |
-| 4 | Logique règlement fournisseur | Paye dette puis dette négative | ✅ |
-| 5 | `getById is not a function` | Changé en `getOne` | ✅ |
+| #   | Problème                         | Solution                            | Status |
+| --- | -------------------------------- | ----------------------------------- | ------ |
+| 1   | `current_stock should not exist` | Supprimé mise à jour manuelle stock | ✅     |
+| 2   | Mode "Mobile" à enlever          | Supprimé partout dans SaleScreen    | ✅     |
+| 3   | Logique remboursement client     | Paye dette puis créance négative    | ✅     |
+| 4   | Logique règlement fournisseur    | Paye dette puis dette négative      | ✅     |
+| 5   | `getById is not a function`      | Changé en `getOne`                  | ✅     |
 
 **Taux de complétion : 100%** ✅
 
@@ -106,6 +114,7 @@ export const suppliersApi = {
 ## 🧪 Tests à effectuer
 
 ### Test 1 : Remboursement client avec dette
+
 1. Client avec solde = 10000 F
 2. Caisse → Entrée → Remboursement client
 3. Sélectionner le client
@@ -114,6 +123,7 @@ export const suppliersApi = {
 6. ✅ **Attendu** : "Paiement de 5 000 F enregistré. Nouveau solde: 5 000 F"
 
 ### Test 2 : Remboursement client sans dette
+
 1. Client avec solde = 0 F
 2. Caisse → Entrée → Remboursement client
 3. Sélectionner le client
@@ -122,6 +132,7 @@ export const suppliersApi = {
 6. ✅ **Attendu** : "Paiement de 3 000 F enregistré. ⚠️ Vous devez rendre 3 000 F au client."
 
 ### Test 3 : Remboursement client dépassement
+
 1. Client avec solde = 5000 F
 2. Caisse → Entrée → Remboursement client
 3. Sélectionner le client
@@ -130,6 +141,7 @@ export const suppliersApi = {
 6. ✅ **Attendu** : "Paiement de 8 000 F enregistré. ⚠️ Vous devez rendre 3 000 F au client."
 
 ### Test 4 : Règlement fournisseur avec dette
+
 1. Fournisseur avec solde = 12000 F
 2. Caisse → Sortie → Règlement fournisseur
 3. Sélectionner le fournisseur
@@ -138,6 +150,7 @@ export const suppliersApi = {
 6. ✅ **Attendu** : "Paiement de 7 000 F enregistré. Nouveau solde: 5 000 F"
 
 ### Test 5 : Règlement fournisseur sans dette
+
 1. Fournisseur avec solde = 0 F
 2. Caisse → Sortie → Règlement fournisseur
 3. Sélectionner le fournisseur
@@ -146,6 +159,7 @@ export const suppliersApi = {
 6. ✅ **Attendu** : "Paiement de 4 000 F enregistré. ⚠️ Le fournisseur ... doit vous rembourser 4 000 F."
 
 ### Test 6 : Règlement fournisseur dépassement
+
 1. Fournisseur avec solde = 3000 F
 2. Caisse → Sortie → Règlement fournisseur
 3. Sélectionner le fournisseur
@@ -159,10 +173,10 @@ export const suppliersApi = {
 
 ### Session 5 complète
 
-| Fichier | Modifications | Lignes |
-|---------|---------------|--------|
-| **SaleScreen.tsx** | - Suppression mise à jour stock<br>- Suppression mode "Mobile"<br>- Simplification logique | ~30 |
-| **CashScreen.tsx** | - Logique remboursement client<br>- Logique règlement fournisseur<br>- Correction `getOne` | ~100 |
+| Fichier            | Modifications                                                                              | Lignes |
+| ------------------ | ------------------------------------------------------------------------------------------ | ------ |
+| **SaleScreen.tsx** | - Suppression mise à jour stock<br>- Suppression mode "Mobile"<br>- Simplification logique | ~30    |
+| **CashScreen.tsx** | - Logique remboursement client<br>- Logique règlement fournisseur<br>- Correction `getOne` | ~100   |
 
 **Total** : 2 fichiers modifiés, ~130 lignes changées
 
@@ -173,7 +187,9 @@ export const suppliersApi = {
 La seule fonctionnalité restante de la demande initiale :
 
 ### 5. Gestion hiérarchique du catalogue
+
 **Besoin** : Permettre d'ajouter/modifier :
+
 - Familles d'articles
 - Articles (dans familles)
 - Marques (dans articles)

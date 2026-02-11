@@ -1,13 +1,10 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Headers } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MovementType, Role } from '@prisma/client';
 
 @Controller('inventory')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
@@ -98,7 +95,7 @@ export class InventoryController {
    * Créer un nouveau lot de stock avec prix
    */
   @Post('batches')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   async createStockBatch(
     @Body()
     data: {

@@ -44,6 +44,7 @@ interface SupplierDetails {
   phone?: string;
   email?: string;
   address?: string;
+  borrowing_limit?: number;
   is_active: boolean;
   debts: Array<{
     id: string;
@@ -102,6 +103,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     phone: '',
     email: '',
     address: '',
+    borrowing_limit: '',
     notes: '',
   });
 
@@ -370,6 +372,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       phone: supplier.phone || '',
       email: supplier.email || '',
       address: supplier.address || '',
+      borrowing_limit: supplier.borrowing_limit ? supplier.borrowing_limit.toString() : '',
       notes: '',
     });
     setShowEditModal(true);
@@ -402,6 +405,12 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       }
       if (editForm.address.trim()) {
         updateData.address = editForm.address.trim();
+      }
+      if (editForm.borrowing_limit.trim()) {
+        const borrowingLimitValue = Math.round(parseFloat(editForm.borrowing_limit));
+        if (!isNaN(borrowingLimitValue) && borrowingLimitValue >= 0) {
+          updateData.borrowing_limit = borrowingLimitValue;
+        }
       }
 
       await suppliersApi.update(id, updateData);
@@ -564,12 +573,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   };
 
   const canEditOrDelete = () => {
-    return (
-      userRole === 'OWNER' ||
-      userRole === 'ADMIN' ||
-      userRole === 'MANAGER' ||
-      userRole === 'SUPERADMIN'
-    );
+    return userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
   };
 
   const getAllTransactions = () => {
@@ -675,7 +679,12 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Contact Info */}
-        {(supplier.phone || supplier.email || supplier.address) && (
+        {!!(
+          supplier.phone ||
+          supplier.email ||
+          supplier.address ||
+          (supplier.borrowing_limit && supplier.borrowing_limit > 0)
+        ) && (
           <View style={styles.infoCard}>
             {supplier.phone && (
               <Text style={styles.infoText}>
@@ -695,6 +704,47 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                 <Text>{String(supplier.address)}</Text>
               </Text>
             )}
+            {!!(supplier.borrowing_limit && supplier.borrowing_limit > 0) && (
+              <View>
+                <Text style={styles.infoText}>
+                  Limite emprunt: {formatMoney(supplier.borrowing_limit)}
+                </Text>
+                {(() => {
+                  const used = supplier.stats?.total_balance || 0;
+                  const limit = supplier.borrowing_limit!;
+                  const pct = Math.min(100, Math.round((used / limit) * 100));
+                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
+                  return (
+                    <View style={{ marginTop: 4 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, color: Colors.muted.foreground }}>
+                          Utilisé: {formatMoney(used)}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: barColor, fontWeight: '600' }}>
+                          {pct}%
+                        </Text>
+                      </View>
+                      <View style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3 }}>
+                        <View
+                          style={{
+                            height: 6,
+                            backgroundColor: barColor,
+                            borderRadius: 3,
+                            width: `${pct}%`,
+                          }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
           </View>
         )}
 
@@ -706,7 +756,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'OWNER' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+        {(userRole === 'BOSS' || userRole === 'MANAGER') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
@@ -1161,6 +1211,18 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                     value={editForm.address}
                     onChangeText={text => setEditForm({ ...editForm, address: text })}
                     placeholder="Adresse complète"
+                  />
+                </View>
+
+                {/* Borrowing Limit */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Limite d'emprunt (FCFA)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={editForm.borrowing_limit}
+                    onChangeText={text => setEditForm({ ...editForm, borrowing_limit: text })}
+                    placeholder="0"
+                    keyboardType="numeric"
                   />
                 </View>
 

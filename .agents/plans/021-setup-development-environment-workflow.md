@@ -17,6 +17,7 @@ Afin de pouvoir tester mes modifications sans risquer d'affecter les données et
 ## Problem Statement
 
 L'application SWALO est actuellement en production et stable. Cependant, toutes les modifications se font directement sur la branche `main` qui est déployée en production. Il n'existe pas d'environnement de développement/staging séparé, ce qui présente des risques :
+
 - Modifications non testées pouvant impacter la production
 - Pas d'isolation des données entre dev et prod
 - Pas de workflow de revue avant mise en production
@@ -25,6 +26,7 @@ L'application SWALO est actuellement en production et stable. Cependant, toutes 
 ## Solution Statement
 
 Établir un workflow de développement en trois étapes avec isolation complète :
+
 1. **Environnement local** : Docker PostgreSQL + API locale pour le développement quotidien
 2. **Branche develop + Neon dev** : Branche de développement avec sa propre base de données Neon
 3. **Branche main (Production)** : Branche protégée déployée automatiquement en production
@@ -83,28 +85,33 @@ Le flux sera : développement local → push sur `develop` → tests automatique
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Variables d'environnement : MAJUSCULES_AVEC_UNDERSCORES
 - Fichiers de config : `.env.{environment}`
 - Branches Neon : `dev`, `staging`, `main` (correspondant aux branches Git)
 - Reference: `.env.example`, `render.yaml`
 
 **Error Handling:**
+
 - Scripts doivent échouer proprement avec messages explicatifs
 - Vérification des prérequis avant exécution
 - Reference: `scripts/` existants dans le projet
 
 **Environment Variable Pattern:**
-- Chaque app a ses propres variables préfixées (VITE_ pour web, EXPO_PUBLIC_ pour mobile)
+
+- Chaque app a ses propres variables préfixées (VITE* pour web, EXPO_PUBLIC* pour mobile)
 - Variables sensibles jamais commitées (.env dans .gitignore)
 - Reference: `apps/api/.env.example`, `apps/mobile/.env.example`
 
 **Git Workflow Pattern:**
+
 - Feature branches depuis `develop`
 - PRs vers `develop` pour intégration
 - PRs depuis `develop` vers `main` pour production
 - Reference: `docs/deployment/environments.md`
 
 **Other Relevant Patterns:**
+
 - Profiles Docker pour isolation (`local` profile existant)
 - Turborepo pour orchestration des builds
 - GitHub Environments pour secrets par environnement
@@ -251,7 +258,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Task 7: UPDATE `apps/mobile/.env.example` et créer `.env.development`
 
 - **IMPLEMENT**: S'assurer que le template mobile et la configuration de développement pointent vers l'API locale pour le développement.
-- **PATTERN**: Variables préfixées EXPO_PUBLIC_ pour Expo. Référence: `apps/mobile/.env.example`
+- **PATTERN**: Variables préfixées EXPO*PUBLIC* pour Expo. Référence: `apps/mobile/.env.example`
 - **DEPENDENCIES**: Connaissance de l'IP locale ou utilisation de localhost
 - **GOTCHA**: Pour le développement mobile avec appareil physique, utiliser l'IP de la machine de développement (ex: 192.168.x.x). Pour émulateur, localhost fonctionne.
 - **RESOURCES**:
@@ -263,7 +270,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Task 8: CREATE `apps/web/.env.development`
 
 - **IMPLEMENT**: Créer un fichier de configuration pour le web dashboard en mode développement. Doit pointer vers l'API locale.
-- **PATTERN**: Variables préfixées VITE_ pour Vite. Référence: `.env.example:37`
+- **PATTERN**: Variables préfixées VITE\_ pour Vite. Référence: `.env.example:37`
 - **DEPENDENCIES**: Aucune
 - **GOTCHA**: VITE_API_URL doit inclure le chemin `/api` complet.
 - **RESOURCES**:
@@ -408,10 +415,12 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Pas de nouveaux tests unitaires requis pour cette feature (configuration d'infrastructure)
 **Requirements**:
+
 - Les tests existants doivent continuer à passer
 - **VALIDATION COMMAND**: `pnpm run validate`
 
 **Test Categories Required**:
+
 - Tests existants de l'API
 - Tests existants du mobile
 
@@ -419,11 +428,13 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Tests manuels d'intégration du workflow
 **Requirements**:
+
 - Workflow Git complet (local → develop → main)
 - Déploiement automatique fonctionnel
 - **VALIDATION COMMAND**: Push sur `develop` et vérifier GitHub Actions
 
 **Test Scenarios Required**:
+
 - Démarrage de l'environnement Docker local
 - Connexion de l'API à la base locale
 - Workflow CI sur push vers develop
@@ -432,6 +443,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Tentative de push direct sur `main` (doit être refusée si protection configurée)
 - Conflit de merge entre develop et main
 - Échec de build - vérifier que le déploiement est bloqué
@@ -440,6 +452,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Test Resources
 
 **Testing Documentation Links**:
+
 - Guide de workflow créé: `docs/guides/development-workflow.md`
 - Documentation CI/CD: `.github/workflows/`
 - Documentation Prisma: https://www.prisma.io/docs
@@ -453,6 +466,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Level 1: Syntax & Style
 
 **Required Commands**:
+
 ```
 pnpm run lint
 pnpm run format:check
@@ -463,6 +477,7 @@ pnpm run format:check
 ### Level 2: Unit Tests
 
 **Required Commands**:
+
 ```
 pnpm run test
 pnpm --filter @swalo/api run test
@@ -470,12 +485,14 @@ pnpm --filter @swalo/mobile run test
 ```
 
 **Expected Result**:
+
 - All unit tests pass
 - No test failures or skipped tests
 
 ### Level 3: Integration Tests
 
 **Required Commands**:
+
 ```
 # Test environnement local
 docker compose --profile local up -d postgres
@@ -486,6 +503,7 @@ curl http://localhost:3000/api/health
 ```
 
 **Expected Result**:
+
 - PostgreSQL démarre correctement
 - API répond avec `{"status":"ok"}`
 
@@ -494,6 +512,7 @@ curl http://localhost:3000/api/health
 **MANDATORY REQUIREMENT**: Vérifier le workflow Git complet
 
 **Required Validations**:
+
 - Branche `develop` existe : `git branch -a | grep develop`
 - Protection de `main` active (vérifier via GitHub UI)
 - Push sur develop déclenche CI : vérifier GitHub Actions
@@ -501,6 +520,7 @@ curl http://localhost:3000/api/health
 ### Level 5: Environment Validation
 
 **Required Validations**:
+
 ```
 # Vérifier les fichiers de configuration existent
 test -f .env.development && echo "Root .env.development OK"
@@ -514,6 +534,7 @@ test -f docs/guides/development-workflow.md && echo "Workflow guide OK"
 ### Level 6: CI/CD Validation
 
 **Required Validations**:
+
 - Push test sur `develop`
 - Vérifier que `deploy-staging.yml` se déclenche
 - Vérifier que les jobs passent (test, build)
@@ -575,6 +596,7 @@ test -f docs/guides/development-workflow.md && echo "Workflow guide OK"
 **MANDATORY SECTION - Include ALL relevant resources**:
 
 ### Official Documentation
+
 - Neon Branching: https://neon.tech/docs/manage/branches
 - Neon Connection Pooling: https://neon.tech/docs/connect/connection-pooling
 - GitHub Branch Protection: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches
@@ -582,16 +604,19 @@ test -f docs/guides/development-workflow.md && echo "Workflow guide OK"
 - GitHub Environments: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
 
 ### API References
+
 - Render Deployment: https://render.com/docs/deploys
 - Vercel Deployments: https://vercel.com/docs/deployments/overview
 - Expo EAS Build: https://docs.expo.dev/build/introduction/
 
 ### Framework Documentation
+
 - Prisma Migrate: https://www.prisma.io/docs/concepts/components/prisma-migrate
 - Vite Env Variables: https://vitejs.dev/guide/env-and-mode.html
 - Expo Env Variables: https://docs.expo.dev/guides/environment-variables/
 
 ### Internal Resources
+
 - Documentation déploiement: `docs/deployment/guide.md`
 - Documentation environnements: `docs/deployment/environments.md`
 - Configuration CI/CD: `.github/workflows/`
@@ -612,6 +637,7 @@ test -f docs/guides/development-workflow.md && echo "Workflow guide OK"
 4. **Isolation par branches Neon**: L'utilisation des branches Neon permet une isolation complète des données sans coût supplémentaire, ce qui est idéal pour le contexte free tier.
 
 **Important Reminders**:
+
 - Ce plan contient UNIQUEMENT des spécifications fonctionnelles - PAS d'exemples de code
 - Tous les fichiers `.env.development` doivent être dans `.gitignore`
 - Les JWT secrets doivent être différents entre staging et production

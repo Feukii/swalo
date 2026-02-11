@@ -25,55 +25,160 @@ import {
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { Product, SaleItem } from '../types/stock';
+import { Product } from '../types/stock';
 import { formatMoney } from '../utils/money';
-import { customersApi, receivablesApi, cashApi, productsApi, inventoryApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { productRepo, customerRepo, stockBatchRepo } from '../db/repositories';
+import { createSaleOffline, createCashEntryOffline } from '../db/offlineWrite';
+import { syncEngine } from '../db/sync';
+
+interface CartItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice?: number; // Prix unitaire choisi (pour multi-prix)
+  batchId?: string; // Lot choisi (pour multi-prix)
+}
+
+interface PriceOption {
+  sell_price: number;
+  total_quantity: number;
+  batch_count: number;
+  batches: { id: string; remaining_quantity: number }[];
+}
+import {
+  customersApi,
+  receivablesApi,
+  cashApi,
+  productsApi,
+  inventoryApi,
+  productPricesApi,
+  invoicesApi,
+} from '../lib/api';
+import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type PaymentMethod = 'cash' | 'credit';
 
 export default function SaleScreen() {
+  const { shopId, userId, shop } = useCurrentUser();
   const [searchQuery, setSearchQuery] = useState('');
-  const [cart, setCart] = useState<SaleItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [totalPrice, setTotalPrice] = useState('');
+  const [overridePrice, setOverridePrice] = useState(false);
+  const [pricingNotes, setPricingNotes] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Clients disponibles (chargés depuis API)
+  // Clients disponibles (chargés depuis local DB + API)
   const [customers, setCustomers] = useState<any[]>([]);
 
-  // Produits disponibles (chargés depuis l'API catalogue)
+  // Produits disponibles (chargés depuis local DB + API)
   const [products, setProducts] = useState<any[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
-  // Charger les produits depuis l'API catalogue
+  // Multi-prix: modal de sélection
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [priceModalProduct, setPriceModalProduct] = useState<any>(null);
+  const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
+
+  // Offline-first: Load products from local DB first, then API
   const loadProducts = async () => {
     setIsLoadingProducts(true);
     try {
-      const loadedProducts = await productsApi.getAll();
-      // Filtrer côté client pour ne garder que les produits actifs
-      const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
-      setProducts(activeProducts);
+      // Step 1: Read from local SQLite (instant, works offline)
+      if (shopId) {
+        try {
+          const localProducts = await productRepo.getAll(shopId, {
+            where: { is_active: 1 },
+            orderBy: 'name ASC',
+          });
+          if (localProducts.length > 0) {
+            // Enrich with stock info from local stock_batches
+            const enriched = await Promise.all(
+              localProducts.map(async p => {
+                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+                return { ...p, current_stock: totalStock };
+              })
+            );
+            setProducts(enriched);
+          }
+        } catch (e) {
+          console.log('Local product read skipped:', e);
+        }
+      }
+
+      // Step 2: Fetch from API in background (for fresh data)
+      if (syncEngine.isOnline) {
+        try {
+          const loadedProducts = await productsApi.getAll();
+          const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
+          setProducts(activeProducts);
+
+          // Sync API products to local DB
+          if (shopId) {
+            for (const p of loadedProducts) {
+              await productRepo.upsertFromServer({
+                ...p,
+                is_active: p.is_active !== false ? 1 : 0,
+                deleted: p.deleted ? 1 : 0,
+              });
+            }
+          }
+        } catch (error) {
+          console.log('API product fetch failed (using local data):', error);
+        }
+      }
     } catch (error) {
       console.error('Erreur chargement produits:', error);
-      Alert.alert('Erreur', 'Impossible de charger les produits du catalogue');
     } finally {
       setIsLoadingProducts(false);
     }
   };
 
-  // Charger les clients depuis l'API
+  // Offline-first: Load customers from local DB first, then API
   const loadCustomers = async () => {
     try {
-      const loadedCustomers = await customersApi.getAll({ is_active: true });
-      const customersWithDefault = [
-        { id: 'cash', name: 'Client comptant', first_name: '' },
-        ...loadedCustomers,
-      ];
-      setCustomers(customersWithDefault);
+      const defaultCustomer = { id: 'cash', name: 'Client comptant', first_name: '' };
+
+      // Step 1: Read from local SQLite
+      if (shopId) {
+        try {
+          const localCustomers = await customerRepo.getAll(shopId, {
+            where: { is_active: 1 },
+            orderBy: 'name ASC',
+          });
+          if (localCustomers.length > 0) {
+            setCustomers([defaultCustomer, ...localCustomers]);
+          }
+        } catch (e) {
+          console.log('Local customer read skipped:', e);
+        }
+      }
+
+      // Step 2: Fetch from API in background
+      if (syncEngine.isOnline) {
+        try {
+          const loadedCustomers = await customersApi.getAll({ is_active: true });
+          setCustomers([defaultCustomer, ...loadedCustomers]);
+
+          // Sync to local DB
+          if (shopId) {
+            for (const c of loadedCustomers) {
+              await customerRepo.upsertFromServer({
+                ...c,
+                is_active: c.is_active !== false ? 1 : 0,
+                deleted: c.deleted ? 1 : 0,
+              });
+            }
+          }
+        } catch (error) {
+          console.log('API customer fetch failed (using local data):', error);
+        }
+      }
     } catch (error) {
       console.error('Erreur chargement clients:', error);
       setCustomers([{ id: 'cash', name: 'Client comptant', first_name: '' }]);
@@ -83,13 +188,13 @@ export default function SaleScreen() {
   useEffect(() => {
     loadProducts();
     loadCustomers();
-  }, []);
+  }, [shopId]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
       loadCustomers();
-    }, [])
+    }, [shopId])
   );
 
   // Quand on change de client, vérifier si crédit est valide
@@ -109,19 +214,54 @@ export default function SaleScreen() {
     )
     .filter(p => (p.current_stock || 0) > 0);
 
-  const addToCart = (product: any) => {
-    const existingItem = cart.find(item => item.productId === product.id);
+  const addToCart = async (product: any) => {
     const productName = `${product.family} - ${product.article_type} ${product.brand}`;
     const currentStock = product.current_stock || 0;
 
+    // Vérifier si le produit a plusieurs prix actifs
+    try {
+      const pricesData = await productPricesApi.getAvailablePrices(product.id);
+
+      if (pricesData.is_multi_price) {
+        // Produit multi-prix: afficher le modal de sélection
+        setPriceModalProduct(product);
+        setPriceOptions(pricesData.prices);
+        setShowPriceModal(true);
+        return;
+      }
+    } catch {
+      // Si l'API échoue, on continue sans vérification multi-prix
+    }
+
+    // Mono-prix ou pas de lots: ajout normal
+    addToCartDirect(product, productName, currentStock);
+  };
+
+  const addToCartDirect = (
+    product: any,
+    productName: string,
+    currentStock: number,
+    unitPrice?: number,
+    batchId?: string
+  ) => {
+    const existingItem = cart.find(
+      item => item.productId === product.id && item.batchId === batchId
+    );
+
     if (existingItem) {
-      if (existingItem.quantity >= currentStock) {
-        Alert.alert('Stock insuffisant', `Stock disponible: ${currentStock} unités`);
+      const maxStock = batchId
+        ? priceOptions.find(p => p.batches.some(b => b.id === batchId))?.total_quantity ||
+          currentStock
+        : currentStock;
+      if (existingItem.quantity >= maxStock) {
+        Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
         return;
       }
       setCart(
         cart.map(item =>
-          item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.productId === product.id && item.batchId === batchId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         )
       );
     } else {
@@ -129,14 +269,33 @@ export default function SaleScreen() {
         ...cart,
         {
           productId: product.id,
-          productName: productName,
+          productName: unitPrice ? `${productName} (${formatMoney(unitPrice)})` : productName,
           quantity: 1,
+          unitPrice,
+          batchId,
         },
       ]);
     }
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const handlePriceSelection = (priceOption: PriceOption) => {
+    if (!priceModalProduct) return;
+    const productName = `${priceModalProduct.family} - ${priceModalProduct.article_type} ${priceModalProduct.brand}`;
+    // Utiliser le premier lot de ce groupe de prix (FIFO dans le groupe)
+    const firstBatch = priceOption.batches[0];
+    addToCartDirect(
+      priceModalProduct,
+      productName,
+      priceOption.total_quantity,
+      priceOption.sell_price,
+      firstBatch.id
+    );
+    setShowPriceModal(false);
+    setPriceModalProduct(null);
+    setPriceOptions([]);
+  };
+
+  const updateQuantity = (productId: string, delta: number, batchId?: string) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
@@ -145,7 +304,7 @@ export default function SaleScreen() {
     setCart(prevCart => {
       const updated = prevCart
         .map(item => {
-          if (item.productId === productId) {
+          if (item.productId === productId && item.batchId === batchId) {
             const newQuantity = item.quantity + delta;
             if (newQuantity > currentStock) {
               Alert.alert('Stock insuffisant', `Stock disponible: ${currentStock} unités`);
@@ -156,17 +315,27 @@ export default function SaleScreen() {
           }
           return item;
         })
-        .filter(Boolean) as SaleItem[];
+        .filter(Boolean) as CartItem[];
 
       return updated;
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.productId !== productId));
+  const removeFromCart = (productId: string, batchId?: string) => {
+    setCart(cart.filter(item => !(item.productId === productId && item.batchId === batchId)));
   };
 
   const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Calcul automatique du total du panier
+  const computedTotal = cart.reduce((sum, item) => {
+    const product = products.find(p => p.id === item.productId);
+    const unitPrice = item.unitPrice || product?.sell_price || 0;
+    return sum + unitPrice * item.quantity;
+  }, 0);
+
+  // Total effectif (override ou calculé)
+  const effectiveTotal = overridePrice && totalPrice ? parseInt(totalPrice) : computedTotal;
 
   const handleCheckout = () => {
     if (cart.length === 0) {
@@ -182,8 +351,14 @@ export default function SaleScreen() {
       Alert.alert('Client requis', 'Veuillez sélectionner un client');
       return;
     }
-    if (!totalPrice || parseFloat(totalPrice) <= 0) {
-      Alert.alert('Prix invalide', 'Veuillez entrer le prix total de la vente');
+    if (effectiveTotal <= 0) {
+      Alert.alert('Prix invalide', 'Le total de la vente doit être supérieur à 0');
+      return;
+    }
+
+    // Si le prix a été modifié, la raison est obligatoire
+    if (overridePrice && !pricingNotes.trim()) {
+      Alert.alert('Raison requise', 'Veuillez indiquer la raison de la modification du prix');
       return;
     }
 
@@ -205,55 +380,167 @@ export default function SaleScreen() {
           ? `${customer.first_name} ${customer.name}`
           : customer.name
         : 'Inconnu';
-      const amount = parseInt(totalPrice); // FCFA = pas de centimes
+      const amount = effectiveTotal; // FCFA = pas de centimes
       const itemsDescription = cart.map(item => `${item.productName} x${item.quantity}`).join(', ');
 
-      // Logique selon le mode de paiement
-      if (paymentMethod === 'credit') {
-        // VENTE À CRÉDIT : Créer uniquement la créance (pas d'entrée caisse)
-        // Le solde caisse n'est pas impacté
-        await receivablesApi.create({
-          customer_id: selectedCustomer,
-          amount: amount,
-          description: `Vente à crédit - ${getTotalItems()} article(s)`,
-          notes: itemsDescription,
-        });
-      } else {
-        // VENTE CASH : Créer entrée caisse (impacte le solde)
-        await cashApi.createEntry({
-          type: 'IN',
-          category: 'vente',
-          amount: amount,
-          note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
-          customer_id: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
-        });
-      }
-
-      // Déduire le stock pour chaque produit vendu
-      for (const item of cart) {
-        try {
-          await inventoryApi.saleOut({
-            product_id: item.productId,
-            quantity: item.quantity,
+      if (syncEngine.isOnline) {
+        // ONLINE MODE: Use existing API calls (server-authoritative)
+        if (paymentMethod === 'credit') {
+          await receivablesApi.create({
+            customer_id: selectedCustomer,
+            amount: amount,
+            description: `Vente à crédit - ${getTotalItems()} article(s)`,
+            notes: itemsDescription,
           });
-        } catch (error: any) {
-          console.error(`Erreur déduction stock pour ${item.productName}:`, error);
-          // Continue avec les autres produits même en cas d'erreur
+        } else {
+          await cashApi.createEntry({
+            type: 'IN',
+            category: 'vente',
+            amount: amount,
+            note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
+            customer_id: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
+          });
+        }
+
+        // Déduire le stock via API
+        for (const item of cart) {
+          try {
+            if (item.batchId) {
+              await inventoryApi.saleFromBatch({
+                product_id: item.productId,
+                batch_id: item.batchId,
+                quantity: item.quantity,
+              });
+            } else {
+              await inventoryApi.saleOut({
+                product_id: item.productId,
+                quantity: item.quantity,
+              });
+            }
+          } catch (error: any) {
+            console.error(`Erreur déduction stock pour ${item.productName}:`, error);
+          }
+        }
+      } else {
+        // OFFLINE MODE: Write locally + enqueue for sync
+        if (shopId && userId) {
+          if (paymentMethod === 'credit') {
+            // Credit sales need receivables API - enqueue for later
+            await createCashEntryOffline({
+              shopId,
+              cashierId: userId,
+              type: 'IN',
+              category: 'vente_credit',
+              amount: 0, // No cash impact for credit sale
+              note: `Vente à crédit - ${getTotalItems()} article(s): ${itemsDescription}`,
+              customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
+            });
+          } else {
+            await createCashEntryOffline({
+              shopId,
+              cashierId: userId,
+              type: 'IN',
+              category: 'vente',
+              amount: amount,
+              note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
+              customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
+            });
+          }
+
+          // Create sale record with local stock deduction
+          await createSaleOffline({
+            shopId,
+            cashierId: userId,
+            customerId: selectedCustomer !== 'cash' ? selectedCustomer : null,
+            paymentMethod,
+            grandTotal: amount,
+            items: cart.map(item => {
+              const product = products.find(p => p.id === item.productId);
+              return {
+                productId: item.productId,
+                productName: item.productName,
+                sku: product?.sku || '',
+                qty: item.quantity,
+                unitPrice: item.unitPrice || product?.sell_price || 0,
+                batchId: item.batchId,
+              };
+            }),
+            note: itemsDescription,
+          });
         }
       }
 
+      // Build invoice data from cart for local PDF generation
+      const buildInvoiceData = (): InvoiceData => {
+        const now = new Date().toISOString();
+        const invoiceItems = cart.map(item => {
+          const product = products.find(p => p.id === item.productId);
+          const unitPrice = item.unitPrice || product?.sell_price || 0;
+          const itemTotal = unitPrice * item.quantity;
+          return {
+            description: item.productName,
+            qty: item.quantity,
+            unit_price: unitPrice,
+            discount: 0,
+            tax_rate: 0,
+            subtotal: itemTotal,
+            tax_total: 0,
+            total: itemTotal,
+          };
+        });
+        return {
+          number: `${shop?.code || 'SWALO'}-${new Date().getFullYear()}-PROV`,
+          issue_date: now,
+          status: 'ISSUED',
+          shop: {
+            name: shop?.name || 'Boutique',
+            code: shop?.code || '',
+          },
+          customer:
+            selectedCustomer !== 'cash' && customer
+              ? {
+                  name: customer.first_name
+                    ? `${customer.first_name} ${customer.name}`
+                    : customer.name,
+                  phone: customer.phone,
+                }
+              : null,
+          items: invoiceItems,
+          subtotal: amount,
+          discount: 0,
+          tax_total: 0,
+          grand_total: amount,
+          paid_total: paymentMethod === 'cash' ? amount : 0,
+          balance_due: paymentMethod === 'credit' ? amount : 0,
+        };
+      };
+
+      const handleGenerateInvoice = () => {
+        const invoiceData = buildInvoiceData();
+        showInvoiceActions(invoiceData);
+      };
+
       // Message de succès selon le mode de paiement
+      const offlineNote = !syncEngine.isOnline ? '\n\n(Enregistre hors-ligne)' : '';
+      const invoiceButton = {
+        text: 'Facture',
+        onPress: () => {
+          handleGenerateInvoice();
+          resetForm();
+        },
+      };
+
       if (paymentMethod === 'credit') {
         Alert.alert(
-          'Vente à crédit enregistrée',
-          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\n\n✓ Créance créée\n✓ Stock mis à jour\n\nLe solde caisse n'est pas impacté.`,
-          [{ text: 'OK', onPress: resetForm }]
+          'Vente a credit enregistree',
+          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\n\n✓ Creance creee\n✓ Stock mis a jour\n\nLe solde caisse n'est pas impacte.${offlineNote}`,
+          [invoiceButton, { text: 'OK', onPress: resetForm }]
         );
       } else {
         Alert.alert(
-          'Vente enregistrée',
-          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\nMode: Espèces\n\n✓ Entrée caisse créée\n✓ Stock mis à jour\n✓ Solde caisse +${formatMoney(amount)}`,
-          [{ text: 'OK', onPress: resetForm }]
+          'Vente enregistree',
+          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\nMode: Especes\n\n✓ Entree caisse creee\n✓ Stock mis a jour\n✓ Solde caisse +${formatMoney(amount)}${offlineNote}`,
+          [invoiceButton, { text: 'OK', onPress: resetForm }]
         );
       }
 
@@ -270,6 +557,8 @@ export default function SaleScreen() {
   const resetForm = () => {
     setCart([]);
     setTotalPrice('');
+    setOverridePrice(false);
+    setPricingNotes('');
     setSelectedCustomer('');
     setPaymentMethod('cash');
     setShowPaymentModal(false);
@@ -338,6 +627,11 @@ export default function SaleScreen() {
                     {product.article_type} {product.brand}
                   </Text>
                   <Text style={styles.productStock}>{product.current_stock || 0} unités</Text>
+                  {product.is_multi_price && (
+                    <Text style={styles.multiPriceBadge}>
+                      {formatMoney(product.price_min)} - {formatMoney(product.price_max)}
+                    </Text>
+                  )}
                   {inCart && (
                     <View style={styles.cartBadge}>
                       <Text style={styles.cartBadgeText}>{inCart.quantity}</Text>
@@ -382,27 +676,27 @@ export default function SaleScreen() {
                 contentContainerStyle={styles.cartItemsContainer}
               >
                 {cart.map(item => (
-                  <View key={item.productId} style={styles.cartItem}>
+                  <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.cartItem}>
                     <Text style={styles.cartItemName} numberOfLines={1}>
                       {item.productName}
                     </Text>
                     <View style={styles.cartItemActions}>
                       <TouchableOpacity
                         style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, -1)}
+                        onPress={() => updateQuantity(item.productId, -1, item.batchId)}
                       >
                         <Minus size={14} color={Colors.text} />
                       </TouchableOpacity>
                       <Text style={styles.quantity}>{item.quantity}</Text>
                       <TouchableOpacity
                         style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, 1)}
+                        onPress={() => updateQuantity(item.productId, 1, item.batchId)}
                       >
                         <Plus size={14} color={Colors.text} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.removeButton}
-                        onPress={() => removeFromCart(item.productId)}
+                        onPress={() => removeFromCart(item.productId, item.batchId)}
                       >
                         <Trash size={14} color={Colors.danger.main} />
                       </TouchableOpacity>
@@ -455,18 +749,62 @@ export default function SaleScreen() {
                 />
               </View>
 
-              {/* Total Price Input */}
+              {/* Auto-calculated Total */}
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Prix total (FCFA)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Entrez le montant total"
-                  placeholderTextColor={Colors.muted.foreground}
-                  value={totalPrice}
-                  onChangeText={setTotalPrice}
-                  keyboardType="numeric"
-                />
+                <Text style={styles.label}>Total calculé</Text>
+                <View style={styles.calculatedTotalContainer}>
+                  <Text style={styles.calculatedTotalAmount}>{formatMoney(computedTotal)}</Text>
+                </View>
               </View>
+
+              {/* Override Toggle */}
+              <TouchableOpacity
+                style={styles.overrideToggle}
+                onPress={() => {
+                  setOverridePrice(!overridePrice);
+                  if (!overridePrice) {
+                    setTotalPrice(String(computedTotal));
+                  } else {
+                    setTotalPrice('');
+                    setPricingNotes('');
+                  }
+                }}
+              >
+                <View
+                  style={[styles.overrideCheckbox, overridePrice && styles.overrideCheckboxActive]}
+                >
+                  {overridePrice && <Text style={styles.overrideCheckmark}>✓</Text>}
+                </View>
+                <Text style={styles.overrideToggleText}>Modifier le prix</Text>
+              </TouchableOpacity>
+
+              {overridePrice && (
+                <View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Nouveau prix (FCFA)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Entrez le nouveau montant"
+                      placeholderTextColor={Colors.muted.foreground}
+                      value={totalPrice}
+                      onChangeText={setTotalPrice}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.label}>Raison de la modification *</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Ex: Remise fidélité, prix négocié..."
+                      placeholderTextColor={Colors.muted.foreground}
+                      value={pricingNotes}
+                      onChangeText={setPricingNotes}
+                      multiline
+                      numberOfLines={2}
+                    />
+                  </View>
+                </View>
+              )}
 
               {/* Payment Method */}
               <View style={styles.formGroup}>
@@ -551,6 +889,64 @@ export default function SaleScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Price Selection Modal (Multi-prix) */}
+      <Modal
+        visible={showPriceModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowPriceModal(false);
+          setPriceModalProduct(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Choisir le prix de vente</Text>
+            {priceModalProduct && (
+              <Text style={styles.priceModalProductName}>
+                {priceModalProduct.family} - {priceModalProduct.article_type}{' '}
+                {priceModalProduct.brand}
+              </Text>
+            )}
+            <Text style={styles.priceModalHint}>
+              Ce produit a plusieurs prix actifs. Sélectionnez le prix applicable.
+            </Text>
+
+            <ScrollView>
+              {priceOptions.map((option, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.priceOption}
+                  onPress={() => handlePriceSelection(option)}
+                >
+                  <View style={styles.priceOptionMain}>
+                    <Text style={styles.priceOptionPrice}>{formatMoney(option.sell_price)}</Text>
+                    <Text style={styles.priceOptionStock}>
+                      {option.total_quantity} unités disponibles
+                    </Text>
+                  </View>
+                  <View style={styles.priceOptionBadge}>
+                    <Text style={styles.priceOptionBadgeText}>
+                      {option.batch_count} lot{option.batch_count > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => {
+                setShowPriceModal(false);
+                setPriceModalProduct(null);
+              }}
+            >
+              <Text style={styles.modalCancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -630,6 +1026,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: Colors.success.main,
+  },
+  multiPriceBadge: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: Colors.warning.main,
+    marginTop: 2,
+    textAlign: 'center',
   },
   cartBadge: {
     position: 'absolute',
@@ -905,5 +1308,96 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary.foreground,
     textAlign: 'center',
+  },
+  // Price Selection Modal styles
+  priceModalProductName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  priceModalHint: {
+    fontSize: 13,
+    color: Colors.muted.foreground,
+    marginBottom: Spacing.lg,
+  },
+  priceOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.background,
+  },
+  priceOptionMain: {
+    flex: 1,
+  },
+  priceOptionPrice: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.primary[900],
+    marginBottom: 2,
+  },
+  priceOptionStock: {
+    fontSize: 13,
+    color: Colors.muted.foreground,
+  },
+  priceOptionBadge: {
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 8,
+  },
+  priceOptionBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary[900],
+  },
+  // Auto-total and override styles
+  calculatedTotalContainer: {
+    backgroundColor: Colors.primary[50],
+    padding: Spacing.lg,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  calculatedTotalAmount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors.primary[900],
+  },
+  overrideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  overrideCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: Colors.muted.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overrideCheckboxActive: {
+    backgroundColor: Colors.primary[900],
+    borderColor: Colors.primary[900],
+  },
+  overrideCheckmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  overrideToggleText: {
+    fontSize: 14,
+    color: Colors.text,
+  },
+  textArea: {
+    height: 60,
+    textAlignVertical: 'top',
   },
 });

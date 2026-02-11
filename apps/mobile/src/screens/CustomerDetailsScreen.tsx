@@ -636,12 +636,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const canEditOrDelete = () => {
-    return (
-      userRole === 'OWNER' ||
-      userRole === 'ADMIN' ||
-      userRole === 'MANAGER' ||
-      userRole === 'SUPERADMIN'
-    );
+    return userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
   };
 
   if (isLoading) {
@@ -705,9 +700,45 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
               <Text style={styles.infoText}>Adresse: {String(customer.address)}</Text>
             )}
             {!!(customer.credit_limit && customer.credit_limit > 0) && (
-              <Text style={styles.infoText}>
-                Limite crédit: {formatMoney(customer.credit_limit)}
-              </Text>
+              <View>
+                <Text style={styles.infoText}>
+                  Limite crédit: {formatMoney(customer.credit_limit)}
+                </Text>
+                {(() => {
+                  const used = customer.stats?.total_balance || 0;
+                  const limit = customer.credit_limit!;
+                  const pct = Math.min(100, Math.round((used / limit) * 100));
+                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
+                  return (
+                    <View style={{ marginTop: 4 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, color: Colors.muted.foreground }}>
+                          Utilisé: {formatMoney(used)}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: barColor, fontWeight: '600' }}>
+                          {pct}%
+                        </Text>
+                      </View>
+                      <View style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3 }}>
+                        <View
+                          style={{
+                            height: 6,
+                            backgroundColor: barColor,
+                            borderRadius: 3,
+                            width: `${pct}%`,
+                          }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
             )}
           </View>
         )}
@@ -720,10 +751,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'OWNER' ||
-          userRole === 'ADMIN' ||
-          userRole === 'MANAGER' ||
-          userRole === 'CASHIER') && (
+        {(userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}

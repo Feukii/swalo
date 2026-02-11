@@ -13,6 +13,7 @@ Afin de pouvoir tester en production avec des utilisateurs réels tout en contin
 ## Problem Statement
 
 L'application SWALO nécessite:
+
 1. **Disponibilité 6h-22h** : Les boutiques opèrent pendant ces heures
 2. **Deux environnements séparés** : Dev pour les évolutions, Prod pour les utilisateurs
 3. **Gratuité** : Phase de test sans coût d'infrastructure
@@ -25,13 +26,13 @@ Architecture multi-plateforme optimisée utilisant les meilleurs free tiers disp
 
 ### Stack de Production Recommandé
 
-| Composant | Plateforme | Justification |
-|-----------|-----------|---------------|
-| **API Backend** | **Render** (Free) | Déjà configuré, 750h/mois suffisantes, keep-alive existant |
-| **Base de données** | **Neon PostgreSQL** (Free) | Scale-to-zero, branching dev/prod, 0.5GB gratuit |
-| **Web Dashboard** | **Vercel** (Free) | Optimisé React/Vite, CDN global, preview deploys |
-| **Mobile App** | **Expo EAS** (Free) | Build cloud gratuit, OTA updates |
-| **CI/CD** | **GitHub Actions** (Free) | 2000 min/mois gratuit, déjà configuré |
+| Composant           | Plateforme                 | Justification                                              |
+| ------------------- | -------------------------- | ---------------------------------------------------------- |
+| **API Backend**     | **Render** (Free)          | Déjà configuré, 750h/mois suffisantes, keep-alive existant |
+| **Base de données** | **Neon PostgreSQL** (Free) | Scale-to-zero, branching dev/prod, 0.5GB gratuit           |
+| **Web Dashboard**   | **Vercel** (Free)          | Optimisé React/Vite, CDN global, preview deploys           |
+| **Mobile App**      | **Expo EAS** (Free)        | Build cloud gratuit, OTA updates                           |
+| **CI/CD**           | **GitHub Actions** (Free)  | 2000 min/mois gratuit, déjà configuré                      |
 
 ### Stratégie Anti-Cold-Start
 
@@ -100,22 +101,26 @@ Architecture multi-plateforme optimisée utilisant les meilleurs free tiers disp
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Branches Git: `main` (prod), `develop` (staging), `feature/*` (dev)
 - Environnements: `production`, `staging`, `development`
 - Variables d'environnement: `{SERVICE}_{ENV}_{KEY}` format
 
 **Configuration Pattern:**
+
 - Fichiers `.env.{environment}.example` comme templates
 - Variables sensibles dans les dashboards des plateformes (jamais en Git)
 - Configuration par environnement via GitHub Environments
 
 **CI/CD Pattern:**
+
 - Workflow séparé par environnement
 - Déploiement automatique sur `main` → production
 - Déploiement automatique sur `develop` → staging
 - Preview deployments pour les PRs
 
 **Keep-Alive Pattern:**
+
 - Cron GitHub Actions pour ping régulier
 - Retry logic avec backoff exponentiel
 - Alertes en cas d'échec (optionnel)
@@ -129,6 +134,7 @@ Architecture multi-plateforme optimisée utilisant les meilleurs free tiers disp
 Configuration de la base de données PostgreSQL serverless avec branching pour séparer les environnements dev et prod.
 
 **Tasks:**
+
 - Créer le projet Neon avec branche `main` pour production
 - Créer une branche `dev` depuis `main` pour staging
 - Configurer les connection strings pooled pour chaque environnement
@@ -139,6 +145,7 @@ Configuration de la base de données PostgreSQL serverless avec branching pour s
 Optimisation du service Render existant et création d'un service staging.
 
 **Tasks:**
+
 - Vérifier et optimiser la configuration `render.yaml` existante
 - Créer un service séparé pour staging (optionnel si budget limité)
 - Configurer les variables d'environnement par environnement
@@ -149,6 +156,7 @@ Optimisation du service Render existant et création d'un service staging.
 Setup du déploiement frontend avec preview deployments.
 
 **Tasks:**
+
 - Lier le projet Vercel au repository GitHub
 - Configurer les variables d'environnement (VITE_API_URL par environnement)
 - Activer les preview deployments pour les PRs
@@ -159,6 +167,7 @@ Setup du déploiement frontend avec preview deployments.
 Amélioration du système keep-alive pour garantir la disponibilité 6h-22h.
 
 **Tasks:**
+
 - Modifier le cron pour couvrir spécifiquement 6h-22h (timezone Afrique Centrale)
 - Réduire l'intervalle à 14 minutes (sous le seuil de 15min Render)
 - Ajouter un warm-up à 5h55 pour être prêt à 6h
@@ -169,6 +178,7 @@ Amélioration du système keep-alive pour garantir la disponibilité 6h-22h.
 Refactoring des workflows GitHub Actions pour supporter dev/staging/prod.
 
 **Tasks:**
+
 - Créer des workflows séparés par environnement
 - Implémenter le cache Turborepo distant via Vercel
 - Optimiser les jobs pour réduire les minutes consommées
@@ -179,6 +189,7 @@ Refactoring des workflows GitHub Actions pour supporter dev/staging/prod.
 Documentation complète et mise en place d'un monitoring basique.
 
 **Tasks:**
+
 - Documenter l'architecture de déploiement
 - Créer un guide de setup pour nouveaux développeurs
 - Configurer des health checks publics (UptimeRobot gratuit)
@@ -386,6 +397,7 @@ Documentation complète et mise en place d'un monitoring basique.
 
 **Scope**: Scripts de health-check, configuration validation
 **Requirements**:
+
 - Scripts bash retournent les bons codes de sortie
 - Configurations YAML/JSON sont valides syntaxiquement
 - **VALIDATION COMMAND**: `pnpm run validate`
@@ -394,6 +406,7 @@ Documentation complète et mise en place d'un monitoring basique.
 
 **Scope**: Communication API-Database, Frontend-Backend
 **Requirements**:
+
 - L'API répond correctement aux endpoints de santé
 - Le frontend peut communiquer avec l'API
 - **VALIDATION COMMAND**: `curl -f https://swalo-api.onrender.com/api/health`
@@ -523,13 +536,13 @@ gh run view --workflow=deploy.yml
 
 ### Plateformes de Déploiement
 
-| Plateforme | Documentation | Dashboard |
-|------------|---------------|-----------|
-| Render | [docs.render.com](https://docs.render.com) | [dashboard.render.com](https://dashboard.render.com) |
-| Neon | [neon.com/docs](https://neon.com/docs) | [console.neon.tech](https://console.neon.tech) |
-| Vercel | [vercel.com/docs](https://vercel.com/docs) | [vercel.com/dashboard](https://vercel.com/dashboard) |
-| Expo EAS | [docs.expo.dev](https://docs.expo.dev) | [expo.dev](https://expo.dev) |
-| GitHub Actions | [docs.github.com/actions](https://docs.github.com/actions) | GitHub Repository |
+| Plateforme     | Documentation                                              | Dashboard                                            |
+| -------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| Render         | [docs.render.com](https://docs.render.com)                 | [dashboard.render.com](https://dashboard.render.com) |
+| Neon           | [neon.com/docs](https://neon.com/docs)                     | [console.neon.tech](https://console.neon.tech)       |
+| Vercel         | [vercel.com/docs](https://vercel.com/docs)                 | [vercel.com/dashboard](https://vercel.com/dashboard) |
+| Expo EAS       | [docs.expo.dev](https://docs.expo.dev)                     | [expo.dev](https://expo.dev)                         |
+| GitHub Actions | [docs.github.com/actions](https://docs.github.com/actions) | GitHub Repository                                    |
 
 ### Outils de Monitoring
 
@@ -605,14 +618,14 @@ gh run view --workflow=deploy.yml
 
 ## COST ANALYSIS (Free Tier Limits)
 
-| Service | Free Tier Limit | Usage Estimé | Marge |
-|---------|-----------------|--------------|-------|
-| **Render** | 750 instance hours/mois | ~480h (6h-22h × 30j) | ✅ 270h |
-| **Neon** | 100 CU-hours/mois | ~50h (usage modéré) | ✅ 50h |
-| **Neon Storage** | 0.5 GB | ~0.1 GB (phase test) | ✅ 0.4 GB |
-| **Vercel** | 100 GB bandwidth | ~5 GB | ✅ 95 GB |
-| **GitHub Actions** | 2000 min/mois | ~200 min | ✅ 1800 min |
-| **Expo EAS** | Builds gratuits | ~10 builds/mois | ✅ OK |
+| Service            | Free Tier Limit         | Usage Estimé         | Marge       |
+| ------------------ | ----------------------- | -------------------- | ----------- |
+| **Render**         | 750 instance hours/mois | ~480h (6h-22h × 30j) | ✅ 270h     |
+| **Neon**           | 100 CU-hours/mois       | ~50h (usage modéré)  | ✅ 50h      |
+| **Neon Storage**   | 0.5 GB                  | ~0.1 GB (phase test) | ✅ 0.4 GB   |
+| **Vercel**         | 100 GB bandwidth        | ~5 GB                | ✅ 95 GB    |
+| **GitHub Actions** | 2000 min/mois           | ~200 min             | ✅ 1800 min |
+| **Expo EAS**       | Builds gratuits         | ~10 builds/mois      | ✅ OK       |
 
 **Total Coût Mensuel: 0 FCFA / 0 EUR**
 
@@ -639,6 +652,7 @@ gh run view --workflow=deploy.yml
 ### Évolutions Futures
 
 Quand le projet dépassera le free tier:
+
 1. **Render Starter** ($7/mois) - Always-on, plus de RAM
 2. **Neon Launch** ($19/mois) - Plus de storage et compute
 3. **Vercel Pro** ($20/mois) - Plus de bandwidth et functions

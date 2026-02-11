@@ -69,7 +69,7 @@ cd apps/mobile && pnpm add -D jest-expo @testing-library/react-native @testing-l
 - preset: ts-jest
 - testEnvironment: node
 - Coverage threshold: 70% (branches, functions, lines, statements)
-- moduleNameMapper for src/* paths
+- moduleNameMapper for src/\* paths
 - setupFilesAfterEnv: jest-extended/all
 
 ### 6. `apps/api/jest-e2e.config.ts`
@@ -99,9 +99,9 @@ cd apps/mobile && pnpm add -D jest-expo @testing-library/react-native @testing-l
 
 ### 9. `lint-staged.config.js` (root)
 
-- apps/api/**/*.ts: eslint --fix, prettier --write, type-check
-- apps/mobile/**/*.{ts,tsx}: eslint --fix, prettier --write, type-check
-- *.{json,md}: prettier --write
+- apps/api/\*_/_.ts: eslint --fix, prettier --write, type-check
+- apps/mobile/\*_/_.{ts,tsx}: eslint --fix, prettier --write, type-check
+- \*.{json,md}: prettier --write
 
 ### 10. `.husky/pre-commit`
 

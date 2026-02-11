@@ -19,20 +19,20 @@ Famille (ex: GLASSES, CHARGEURS, KIT BLUETOOTH, CARTES MEMOIRES)
 
 ### Champs du modèle Product
 
-| Champ | Type | Description | Exemple |
-|-------|------|-------------|---------|
-| `family` | string | Famille d'article | GLASSES, CHARGEURS |
-| `article_type` | string | Type d'article | Glass 3D, Chargeur 1A TC |
-| `brand` | string | Marque | Tecno, Samsung, Oraimo |
-| `reference` | string | Référence/Série | Spark 4, A10E, 2ème choix |
-| `sku` | string | Code Article (unique) | GLA01TECSpk4 |
-| `name` | string | Libellé/Désignation | Glass 3D Tecno Spark 4 |
-| `barcode` | string | Code-barres (optionnel) | 1234567890123 |
-| `cost_price` | number | Prix d'achat (FCFA) | 1000 |
-| `sell_price` | number | Prix de vente (FCFA) | 1500 |
-| `unit` | string | Unité de mesure | unit, pcs, kg, box |
-| `alert_threshold` | number | Seuil d'alerte stock | 5 |
-| `is_active` | boolean | Article actif | true/false |
+| Champ             | Type    | Description             | Exemple                   |
+| ----------------- | ------- | ----------------------- | ------------------------- |
+| `family`          | string  | Famille d'article       | GLASSES, CHARGEURS        |
+| `article_type`    | string  | Type d'article          | Glass 3D, Chargeur 1A TC  |
+| `brand`           | string  | Marque                  | Tecno, Samsung, Oraimo    |
+| `reference`       | string  | Référence/Série         | Spark 4, A10E, 2ème choix |
+| `sku`             | string  | Code Article (unique)   | GLA01TECSpk4              |
+| `name`            | string  | Libellé/Désignation     | Glass 3D Tecno Spark 4    |
+| `barcode`         | string  | Code-barres (optionnel) | 1234567890123             |
+| `cost_price`      | number  | Prix d'achat (FCFA)     | 1000                      |
+| `sell_price`      | number  | Prix de vente (FCFA)    | 1500                      |
+| `unit`            | string  | Unité de mesure         | unit, pcs, kg, box        |
+| `alert_threshold` | number  | Seuil d'alerte stock    | 5                         |
+| `is_active`       | boolean | Article actif           | true/false                |
 
 ## Démarrage
 
@@ -51,6 +51,7 @@ npx prisma migrate deploy
 ```
 
 La migration `20260120000000_add_product_fields` ajoutera les colonnes :
+
 - `family` (VARCHAR 100)
 - `article_type` (VARCHAR 100)
 - `brand` (VARCHAR 100)
@@ -80,16 +81,19 @@ pnpm start
 ### Accès
 
 Dans l'application mobile :
+
 1. Onglet **Plus** (icône menu)
 2. Cliquer sur **Catalogue Articles**
 
 ### Fonctionnalités principales
 
 #### 🔍 Recherche
+
 - Recherche globale par SKU, nom, marque, référence
 - Mise à jour en temps réel pendant la saisie
 
 #### 🎯 Filtres
+
 - Filtrer par **Famille** (GLASSES, CHARGEURS, etc.)
 - Filtrer par **Marque** (Tecno, Samsung, Oraimo, etc.)
 - Filtrer par **Type d'article** (Glass 3D, Chargeur 1A TC, etc.)
@@ -102,9 +106,9 @@ Dans l'application mobile :
 2. Remplir le formulaire :
 
    **Champs obligatoires** :
-   - Famille *
-   - Code Article (SKU) * - peut être généré automatiquement
-   - Libellé Article *
+   - Famille \*
+   - Code Article (SKU) \* - peut être généré automatiquement
+   - Libellé Article \*
 
    **Champs optionnels** :
    - Type d'article
@@ -144,6 +148,7 @@ Dans l'application mobile :
 ### Affichage de la liste
 
 Chaque carte produit affiche :
+
 - **Code SKU** (en bleu)
 - **Libellé complet**
 - **Tags** : Famille (bleu), Marque (vert)
@@ -283,6 +288,7 @@ Voici quelques exemples d'articles basés sur votre catalogue :
 ## Fichiers modifiés
 
 ### Backend
+
 - `apps/api/prisma/schema.prisma` - Modèle Product étendu
 - `apps/api/src/modules/products/dto/create-product.dto.ts` - DTO création
 - `apps/api/src/modules/products/dto/search-product.dto.ts` - DTO recherche
@@ -291,6 +297,7 @@ Voici quelques exemples d'articles basés sur votre catalogue :
 - `apps/api/prisma/migrations/20260120000000_add_product_fields/` - Migration
 
 ### Mobile
+
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` - Écran principal (NOUVEAU)
 - `apps/mobile/src/lib/api.ts` - API client produits
 - `apps/mobile/App.tsx` - Route ProductCatalog
@@ -299,6 +306,7 @@ Voici quelques exemples d'articles basés sur votre catalogue :
 ## Support et questions
 
 Pour toute question ou problème, consultez :
+
 - Les logs de l'application mobile
 - Les logs de l'API backend
 - La documentation Prisma pour les migrations

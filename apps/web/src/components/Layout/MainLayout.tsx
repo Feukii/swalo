@@ -12,7 +12,7 @@ interface NavItem {
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, shop, role, logout } = useAuthStore();
+  const { user, shop, enterprise, role, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
@@ -26,16 +26,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { name: 'Dettes', path: '/debts', icon: '💸' },
     { name: 'Inventaire', path: '/inventory', icon: '📋' },
     { name: 'Rapports', path: '/reports', icon: '📈' },
+    { name: 'Entreprises', path: '/enterprise', icon: '🏢' },
   ];
 
-  // Admin menu items (only for ADMIN, OWNER, MANAGER, SUPERADMIN)
+  // Admin menu items (shop-level admin only)
   const adminNavItems: NavItem[] = [];
 
-  if (role === 'SUPERADMIN') {
-    adminNavItems.push({ name: 'Admin Dashboard', path: '/admin/dashboard', icon: '👑' });
-  }
-
-  if (role === 'ADMIN' || role === 'OWNER' || role === 'MANAGER' || role === 'SUPERADMIN') {
+  if (role === 'MANAGER' || role === 'BOSS' || role === 'SUPERADMIN') {
     adminNavItems.push({ name: 'Gestion Utilisateurs', path: '/admin/users', icon: '👤' });
   }
 
@@ -125,7 +122,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {user?.display_name || 'Utilisateur'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">{shop?.name || 'Boutique'}</p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {enterprise ? `${enterprise.name} - ${shop?.name || 'Boutique'}` : shop?.name || 'Boutique'}
+                  </p>
                 </div>
               </div>
               <button
@@ -202,10 +201,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       </button>
                     )}
 
-                    {/* Administration - Pour ADMIN, OWNER, MANAGER, SUPERADMIN */}
-                    {(role === 'ADMIN' ||
-                      role === 'OWNER' ||
-                      role === 'MANAGER' ||
+                    {/* Administration - Pour MANAGER, BOSS, SUPERADMIN */}
+                    {(role === 'MANAGER' ||
+                      role === 'BOSS' ||
                       role === 'SUPERADMIN') && (
                       <button
                         onClick={() => {

@@ -21,6 +21,7 @@ This plan addresses 5 interconnected issues in the SWALO system:
 - This creates a mismatch: summary pages show different totals than detail pages
 
 **Files Affected**:
+
 - `apps/api/src/modules/customers/customers.service.ts` (lines 92-116 for getAll, lines 122-188 for getOne)
 - `apps/api/src/modules/suppliers/suppliers.service.ts` (lines 92-116 for getAll, lines 121-187 for getOne)
 
@@ -33,6 +34,7 @@ This plan addresses 5 interconnected issues in the SWALO system:
 - API endpoints exist but aren't being called from the UI
 
 **Files Affected**:
+
 - `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
 - Potentially need new API endpoints for creating families with full hierarchy
 
@@ -41,6 +43,7 @@ This plan addresses 5 interconnected issues in the SWALO system:
 **Root Cause**: MOBILE_MONEY enum value present in multiple DTOs and UI components
 
 **Files Affected**:
+
 - `apps/api/src/modules/customers/dto/create-refund.dto.ts` (line 8)
 - `apps/api/src/modules/suppliers/dto/claim-refund.dto.ts` (line 8)
 - `apps/api/src/modules/cash/dto/create-merchandise-purchase.dto.ts` (lines 15-18)
@@ -55,6 +58,7 @@ This plan addresses 5 interconnected issues in the SWALO system:
 - No case-insensitive name validation exists in create() or update() methods
 
 **Files Affected**:
+
 - `apps/api/src/modules/customers/customers.service.ts` (lines 14-28 for create, update method)
 - `apps/api/src/modules/suppliers/suppliers.service.ts` (lines 14-28 for create, update method)
 
@@ -63,6 +67,7 @@ This plan addresses 5 interconnected issues in the SWALO system:
 ### Task 1: Fix Balance Sync (Issue 1 & 4)
 
 #### 1.1 Harmonize debt filtering in suppliers.service.ts
+
 **File**: `apps/api/src/modules/suppliers/suppliers.service.ts`
 
 ```typescript
@@ -78,18 +83,22 @@ This plan addresses 5 interconnected issues in the SWALO system:
 **Action**: Modify `getAll()` to NOT filter by debt status, or alternatively, ensure both methods use the same filtering logic.
 
 #### 1.2 Harmonize receivable filtering in customers.service.ts
+
 **File**: `apps/api/src/modules/customers/customers.service.ts`
 
 Apply same fix pattern - ensure `getAll()` and `getOne()` use consistent filtering for receivables.
 
 #### 1.3 Verify balance calculation logic
+
 Ensure the balance calculation in both services correctly:
+
 - For customers: positive balance = they owe us, negative = we owe them
 - For suppliers: positive balance = we owe them, negative = they owe us
 
 ### Task 2: Add Catalog Hierarchy Management (Issue 2)
 
 #### 2.1 Add "+ Famille" button to CatalogHierarchyScreen
+
 **File**: `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
 
 Add a FAB (Floating Action Button) or header button that calls `openAddModal('family')`.
@@ -103,9 +112,11 @@ Add a FAB (Floating Action Button) or header button that calls `openAddModal('fa
 ```
 
 #### 2.2 Update handleSave with hierarchy validation
+
 **File**: `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
 
 When saving a new family, validate that:
+
 - At least 1 article_type is provided
 - At least 1 brand is provided
 - The family name is not empty
@@ -122,7 +133,9 @@ if (modalType === 'family') {
 ```
 
 #### 2.3 Create multi-step family creation modal
+
 Design a modal flow that allows user to:
+
 1. Enter family name
 2. Add at least one article_type
 3. Add at least one brand
@@ -131,7 +144,9 @@ Design a modal flow that allows user to:
 ### Task 3: Remove Mobile Money Payment Option (Issue 3)
 
 #### 3.1 Update API DTOs
+
 **Files**:
+
 - `apps/api/src/modules/customers/dto/create-refund.dto.ts`
 - `apps/api/src/modules/suppliers/dto/claim-refund.dto.ts`
 - `apps/api/src/modules/cash/dto/create-merchandise-purchase.dto.ts`
@@ -146,7 +161,9 @@ Design a modal flow that allows user to:
 Note: CREDIT may need to be added depending on business logic requirements.
 
 #### 3.2 Update Mobile UI Components
+
 **Files**:
+
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx`
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx`
 
@@ -163,6 +180,7 @@ const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CREDIT'>('CASH');
 ### Task 4: Prevent Duplicate Names (Issue 5)
 
 #### 4.1 Add name validation in customers.service.ts
+
 **File**: `apps/api/src/modules/customers/customers.service.ts`
 
 ```typescript
@@ -172,20 +190,23 @@ const existingByName = await this.prisma.customer.findFirst({
     shop_id: user.shop_id,
     name: {
       equals: dto.name,
-      mode: 'insensitive'
+      mode: 'insensitive',
     },
-    deleted: false
-  }
+    deleted: false,
+  },
 });
 
 if (existingByName) {
-  throw new BadRequestException('Un client avec ce nom existe déjà. Veuillez choisir un autre nom.');
+  throw new BadRequestException(
+    'Un client avec ce nom existe déjà. Veuillez choisir un autre nom.'
+  );
 }
 
 // Apply same logic in update() method
 ```
 
 #### 4.2 Add name validation in suppliers.service.ts
+
 **File**: `apps/api/src/modules/suppliers/suppliers.service.ts`
 
 Apply same pattern for suppliers.
@@ -197,18 +218,21 @@ const existingByName = await this.prisma.supplier.findFirst({
     shop_id: user.shop_id,
     name: {
       equals: dto.name,
-      mode: 'insensitive'
+      mode: 'insensitive',
     },
-    deleted: false
-  }
+    deleted: false,
+  },
 });
 
 if (existingByName) {
-  throw new BadRequestException('Un fournisseur avec ce nom existe déjà. Veuillez choisir un autre nom.');
+  throw new BadRequestException(
+    'Un fournisseur avec ce nom existe déjà. Veuillez choisir un autre nom.'
+  );
 }
 ```
 
 #### 4.3 Handle combination of first_name + name
+
 Consider if uniqueness should check `first_name + name` combination or just `name`:
 
 ```typescript
@@ -218,10 +242,10 @@ const existingByFullName = await this.prisma.customer.findFirst({
     shop_id: user.shop_id,
     AND: [
       { name: { equals: dto.name, mode: 'insensitive' } },
-      { first_name: { equals: dto.first_name || '', mode: 'insensitive' } }
+      { first_name: { equals: dto.first_name || '', mode: 'insensitive' } },
     ],
-    deleted: false
-  }
+    deleted: false,
+  },
 });
 ```
 
@@ -310,26 +334,27 @@ cd apps/mobile && pnpm tsc --noEmit
 
 ## Risk Assessment
 
-| Issue | Risk Level | Mitigation |
-|-------|------------|------------|
-| Balance Sync | Medium | Test with existing data, ensure no data loss |
-| Catalog Hierarchy | Low | New feature, doesn't affect existing data |
-| Remove Mobile Money | Low | Check no pending Mobile Money transactions |
-| Duplicate Names | Low | Only affects new records, existing duplicates preserved |
+| Issue               | Risk Level | Mitigation                                              |
+| ------------------- | ---------- | ------------------------------------------------------- |
+| Balance Sync        | Medium     | Test with existing data, ensure no data loss            |
+| Catalog Hierarchy   | Low        | New feature, doesn't affect existing data               |
+| Remove Mobile Money | Low        | Check no pending Mobile Money transactions              |
+| Duplicate Names     | Low        | Only affects new records, existing duplicates preserved |
 
 ## Rollback Plan
 
 If issues arise:
+
 1. All changes can be reverted via git
 2. Database schema unchanged - no migrations needed
 3. Mobile app can be rolled back via Expo
 
 ## Confidence Levels (from Agent Analysis)
 
-| Issue | Confidence | Notes |
-|-------|------------|-------|
-| Issue 1 (Refund Sync) | 8/10 | Clear code path identified |
-| Issue 2 (Catalog Hierarchy) | 7/10 | UI work needed, may require design decisions |
-| Issue 3 (Mobile Money) | 9/10 | Straightforward removal |
-| Issue 4 (Supplier Metric) | 8/10 | Same root cause as Issue 1 |
-| Issue 5 (Duplicate Names) | 9/10 | Clear Prisma pattern available |
+| Issue                       | Confidence | Notes                                        |
+| --------------------------- | ---------- | -------------------------------------------- |
+| Issue 1 (Refund Sync)       | 8/10       | Clear code path identified                   |
+| Issue 2 (Catalog Hierarchy) | 7/10       | UI work needed, may require design decisions |
+| Issue 3 (Mobile Money)      | 9/10       | Straightforward removal                      |
+| Issue 4 (Supplier Metric)   | 8/10       | Same root cause as Issue 1                   |
+| Issue 5 (Duplicate Names)   | 9/10       | Clear Prisma pattern available               |

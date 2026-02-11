@@ -11,6 +11,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 1. Gestion des ventes (Point de Vente - POS)
 
 **Fonctionnalités :**
+
 - Interface de caisse intuitive pour les ventes
 - Gestion du panier avec ajout/suppression de produits
 - Calcul automatique des totaux
@@ -24,6 +25,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 2. Gestion de la caisse
 
 **Fonctionnalités :**
+
 - Suivi du solde de caisse en temps réel
 - Enregistrement des entrées de caisse :
   - Vente
@@ -42,6 +44,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 3. Gestion des stocks
 
 **Fonctionnalités :**
+
 - Catalogue de produits
 - Ajout/modification/suppression de produits
 - Gestion des catégories
@@ -52,6 +55,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Prix d'achat et prix de vente
 
 **Rôles autorisés :**
+
 - Consultation : Tous
 - Modification : OWNER, ADMIN, MANAGER
 - Suppression : OWNER, ADMIN
@@ -59,6 +63,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 4. Gestion des clients
 
 **Fonctionnalités :**
+
 - Fiche client complète (nom, prénom, téléphone, email, adresse)
 - Historique des achats
 - Gestion des créances (dettes clients)
@@ -68,6 +73,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Remboursements
 
 **Rôles autorisés :**
+
 - Consultation : Tous
 - Modification : OWNER, ADMIN, MANAGER
 - Suppression : OWNER, ADMIN
@@ -76,6 +82,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 5. Gestion des fournisseurs
 
 **Fonctionnalités :**
+
 - Fiche fournisseur complète
 - Historique des achats
 - Gestion des dettes (dettes envers fournisseurs)
@@ -84,6 +91,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Statistiques par fournisseur
 
 **Rôles autorisés :**
+
 - Consultation : Tous
 - Modification : OWNER, ADMIN, MANAGER
 - Suppression : OWNER, ADMIN
@@ -92,6 +100,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 6. Gestion des créances et dettes
 
 **Créances (argent dû par les clients) :**
+
 - Création de créances
 - Enregistrement de paiements partiels ou complets
 - Statuts : EN ATTENTE, PARTIEL, PAYÉ, ANNULÉ
@@ -99,6 +108,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Statistiques globales
 
 **Dettes (argent dû aux fournisseurs) :**
+
 - Création de dettes
 - Enregistrement de paiements partiels ou complets
 - Statuts : EN ATTENTE, PARTIEL, PAYÉ, ANNULÉ
@@ -106,6 +116,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Statistiques globales
 
 **Rôles autorisés :**
+
 - Création : OWNER, ADMIN, MANAGER
 - Consultation : Tous
 - Annulation : OWNER, ADMIN, MANAGER
@@ -114,6 +125,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 7. Tableau de bord (Dashboard)
 
 **Fonctionnalités :**
+
 - Vue d'ensemble de l'activité
 - Statistiques de ventes (jour, semaine, mois)
 - Graphiques d'évolution
@@ -127,6 +139,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 8. Gestion des utilisateurs
 
 **Fonctionnalités :**
+
 - Création de comptes utilisateurs
 - Attribution de rôles
 - Désactivation/activation de comptes
@@ -135,6 +148,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Authentification par email/mot de passe (web)
 
 **Rôles disponibles :**
+
 - **SUPERADMIN** : Accès complet à toute la plateforme
 - **OWNER** : Propriétaire de la boutique, tous les droits sur sa boutique
 - **ADMIN** : Administrateur, la plupart des droits
@@ -146,6 +160,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 9. Rapports et statistiques
 
 **Fonctionnalités :**
+
 - Rapports de ventes
 - Rapports de trésorerie
 - Rapports de stock
@@ -158,6 +173,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### 10. Panel d'administration (SUPERADMIN)
 
 **Fonctionnalités :**
+
 - Gestion multi-boutiques
 - Création de nouvelles boutiques
 - Vue d'ensemble de toutes les boutiques
@@ -175,12 +191,14 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Palette de couleurs harmonisée
 
 **Couleurs primaires - Identité de marque :**
+
 - **Bleu primaire** : `#0ea5e9` (Sky Blue 500) - Navigation, éléments principaux, boutons d'action
 - **Bleu foncé** : `#0284c7` (Sky Blue 600) - Dégradés, accents
 - **Violet secondaire** : `#8b5cf6` (Violet 500) - Caisse, accents secondaires
 - **Violet foncé** : `#7c3aed` (Violet 600) - Dégradés violets
 
 **Couleurs sémantiques - Signification fonctionnelle :**
+
 - **Succès (Vert)** :
   - Principal : `#10b981` (Emerald 500) - Paiements reçus, soldes positifs
   - Foncé : `#059669` (Emerald 600) - Dégradés
@@ -208,24 +226,28 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 
 **Couleurs contextuelles - Modules spécifiques :**
 
-*Clients / Créances (Receivables)* - Thème Amber/Orange :
+_Clients / Créances (Receivables)_ - Thème Amber/Orange :
+
 - Solde avec dette : Gradient `['#f59e0b', '#d97706']` (Amber)
 - Solde payé : Gradient `['#10b981', '#059669']` (Vert)
 - Créer créance : Amber
 - Recevoir paiement : Vert
 
-*Fournisseurs / Dettes (Debts)* - Thème Rouge :
+_Fournisseurs / Dettes (Debts)_ - Thème Rouge :
+
 - Solde avec dette : Gradient `['#ef4444', '#dc2626']` (Rouge)
 - Solde payé : Gradient `['#10b981', '#059669']` (Vert)
 - Créer dette : Rouge
 - Payer fournisseur : Vert
 
-*Gestion de caisse (Cash)* - Thème Violet/Vert/Rouge :
+_Gestion de caisse (Cash)_ - Thème Violet/Vert/Rouge :
+
 - Header : Gradient `['#8b5cf6', '#7c3aed']` (Violet)
 - Entrées : Gradient `['#10b981', '#059669']` (Vert)
 - Sorties : Gradient `['#ef4444', '#dc2626']` (Rouge)
 
 **Couleurs neutres - Arrière-plans et textes :**
+
 - **Blanc** : `#ffffff` - Fond des cartes
 - **Gris très clair** : `#f9fafb` (Gray 50) - Fond de page principal
 - **Gris clair** : `#f3f4f6` (Gray 100) - Fond plus foncé
@@ -234,6 +256,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - **Désactivé** : `#9ca3af` (Gray 400)
 
 **Hiérarchie de textes :**
+
 - **Primaire** : `#111827` (Gray 900) - Titres principaux
 - **Secondaire** : `#374151` (Gray 700) - Sous-titres, labels
 - **Tertiaire** : `#6b7280` (Gray 500) - Texte d'aide
@@ -241,6 +264,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - **Inverse** : `#ffffff` - Texte sur fonds sombres
 
 **Rôles utilisateurs - Couleurs d'identification :**
+
 - **SUPERADMIN** : `#9333ea` (Purple 600) - Badge violet
 - **OWNER** : `#dc2626` (Red 600) - Badge vert (actif)
 - **ADMIN** : `#ea580c` (Orange 600) - Badge amber
@@ -250,11 +274,13 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Typographie
 
 **Police principale :** System Font (native à chaque plateforme)
+
 - iOS : San Francisco
 - Android : Roboto
 - Web : System UI
 
 **Tailles de police :**
+
 - Titres principaux : 24-32px, Bold
 - Titres secondaires : 18-20px, Bold
 - Titres de cartes : 16-18px, SemiBold (600)
@@ -265,12 +291,14 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Éléments visuels
 
 **Cartes :**
+
 - Fond blanc (`#ffffff`)
 - Bordures arrondies : 12-20px
 - Ombre légère : `shadowOpacity: 0.1, shadowRadius: 4-8`
 - Padding interne : 16-24px
 
 **Boutons :**
+
 - **Boutons primaires** : Dégradés LinearGradient avec couleurs fonctionnelles
 - **Boutons secondaires** : Fond gris clair avec texte gris foncé
 - Bordures arrondies : 12-16px
@@ -278,6 +306,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Texte : 14-16px, SemiBold
 
 **Badges de statut :**
+
 - Bordures arrondies : 8-12px
 - Padding : 6-12px horizontal, 4-6px vertical
 - Texte : 10-12px, SemiBold
@@ -288,11 +317,13 @@ SWALO est une application de gestion commerciale complète destinée aux petites
   - Partiel : Fond jaune clair, texte jaune
 
 **Icônes :**
+
 - Émojis pour une interface conviviale et colorée
 - Taille : 20-48px selon le contexte
 - Utilisés dans les en-têtes, boutons et cartes
 
 **Modals :**
+
 - Fond semi-transparent : `rgba(0, 0, 0, 0.5)`
 - Contenu : Fond blanc, arrondis 24px en haut
 - Header : LinearGradient avec couleur contextuelle
@@ -301,12 +332,14 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Espacements
 
 **Marges et paddings standards :**
+
 - Petit : 8px
 - Moyen : 12-16px
 - Grand : 20-24px
 - Très grand : 32-40px
 
 **Gaps (espacement entre éléments) :**
+
 - Entre éléments : 8-12px
 - Entre sections : 16-20px
 - Entre cartes : 16px
@@ -318,6 +351,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Stack technologique
 
 **Frontend Mobile (React Native + Expo) :**
+
 - **Framework** : React Native avec Expo SDK
 - **Langage** : TypeScript
 - **Navigation** : React Navigation
@@ -330,6 +364,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - **HTTP Client** : Fetch API native
 
 **Frontend Web :**
+
 - **Framework** : React.js
 - **Langage** : TypeScript
 - **Routing** : React Router
@@ -338,6 +373,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - **Build** : Webpack
 
 **Backend (NestJS) :**
+
 - **Framework** : NestJS
 - **Langage** : TypeScript
 - **Base de données** : PostgreSQL
@@ -347,12 +383,14 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - **Documentation API** : Swagger/OpenAPI (potentiel)
 
 **Base de données (PostgreSQL) :**
+
 - **SGBD** : PostgreSQL 14+
 - **Hébergement** : Neon (cloud PostgreSQL)
 - **Migrations** : Prisma Migrate
 - **Schéma** : Géré par Prisma ORM
 
 **Infrastructure :**
+
 - **Backend API** : Render.com (déploiement automatique)
 - **Mobile App** : Expo EAS (build et distribution)
 - **CI/CD** : GitHub Actions
@@ -432,6 +470,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Modèle de données simplifié
 
 **User** (Utilisateur)
+
 - id, email, password_hash, first_name, last_name
 - role (SUPERADMIN, OWNER, ADMIN, MANAGER, EMPLOYEE)
 - pin_code (pour mobile)
@@ -439,11 +478,13 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - is_active, created_at, updated_at
 
 **Shop** (Boutique)
+
 - id, name, address, phone, email
 - created_at, updated_at
 - users → User[]
 
 **Product** (Produit)
+
 - id, name, description, barcode
 - purchase_price, selling_price
 - stock_quantity, min_stock_quantity
@@ -452,18 +493,21 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - is_active, created_at, updated_at
 
 **Customer** (Client)
+
 - id, name, first_name, phone, email, address
 - shop_id → Shop
 - is_active, created_at, updated_at
 - receivables → Receivable[]
 
 **Supplier** (Fournisseur)
+
 - id, name, first_name, phone, email, address
 - shop_id → Shop
 - is_active, created_at, updated_at
 - debts → Debt[]
 
 **Sale** (Vente)
+
 - id, total_amount, paid_amount, change_amount
 - payment_method (CASH, MOBILE_MONEY, CARD, CREDIT)
 - customer_id → Customer
@@ -473,6 +517,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - items → SaleItem[]
 
 **Receivable** (Créance)
+
 - id, amount, balance, paid_amount
 - status (PENDING, PARTIAL, PAID, CANCELLED)
 - description, notes
@@ -482,6 +527,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - payments → ReceivablePayment[]
 
 **Debt** (Dette)
+
 - id, amount, balance, paid_amount
 - status (PENDING, PARTIAL, PAID, CANCELLED)
 - description, notes
@@ -491,6 +537,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - payments → DebtPayment[]
 
 **CashEntry** (Opération de caisse)
+
 - id, amount, type (IN, OUT)
 - category (Vente, Achat, Remboursement, Dépenses, etc.)
 - note, reference
@@ -501,18 +548,21 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### Sécurité
 
 **Authentification :**
+
 - JWT (JSON Web Tokens) avec expiration
 - Refresh tokens pour renouvellement
 - Code PIN à 4 chiffres (mobile) stocké hashé (bcrypt)
 - Mot de passe (web) hashé avec bcrypt
 
 **Autorisation :**
+
 - Guards NestJS pour vérifier les JWT
 - RolesGuard pour contrôle d'accès basé sur les rôles
 - Décorateurs @Roles() sur les endpoints
 - Vérification du shop_id dans les requêtes (isolation des données)
 
 **Protection des données :**
+
 - HTTPS obligatoire
 - Variables d'environnement pour les secrets
 - Pas de données sensibles en frontend
@@ -520,6 +570,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - Sanitization des données
 
 **Isolation multi-tenant :**
+
 - Chaque Shop a ses propres données
 - Filtrage automatique par shop_id
 - SUPERADMIN peut accéder à toutes les boutiques
@@ -528,6 +579,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ### API REST
 
 **Format des réponses :**
+
 ```json
 {
   "id": "uuid",
@@ -538,6 +590,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ```
 
 **Format des erreurs :**
+
 ```json
 {
   "statusCode": 400,
@@ -547,6 +600,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 ```
 
 **Endpoints principaux :**
+
 - `POST /api/auth/login` - Connexion (email/password)
 - `POST /api/auth/pin` - Connexion par PIN (mobile)
 - `GET /api/products` - Liste des produits
@@ -558,6 +612,7 @@ SWALO est une application de gestion commerciale complète destinée aux petites
 - `POST /api/cash/entries` - Créer une opération de caisse
 
 **Authentification des requêtes :**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -565,17 +620,20 @@ Authorization: Bearer <jwt_token>
 ### Workflow de développement
 
 **Branches Git :**
+
 - `main` : Production stable
 - `develop` : Développement en cours
 - `feature/*` : Nouvelles fonctionnalités
 - `fix/*` : Corrections de bugs
 
 **Déploiement :**
+
 1. Commit sur `main` → Deploy automatique sur Render
 2. Backend redémarre automatiquement
 3. Mobile : Build EAS puis publication
 
 **CI/CD (GitHub Actions) :**
+
 - Keep-alive : Ping API toutes les 30 minutes
 - Tests automatiques (à venir)
 - Linting et formatage (à venir)
@@ -618,6 +676,7 @@ Authorization: Bearer <jwt_token>
 ### Changelog
 
 **v1.1 - 27 décembre 2025**
+
 - Ajout du système de thème centralisé
 - Harmonisation complète de la palette de couleurs
 - Documentation des couleurs contextuelles par module
@@ -625,4 +684,5 @@ Authorization: Bearer <jwt_token>
 - Ajout des gradients spécifiques pour chaque contexte
 
 **v1.0 - 27 décembre 2024**
+
 - Documentation initiale de l'application

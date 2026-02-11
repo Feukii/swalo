@@ -140,7 +140,47 @@ export class InventoryService {
 
     const now = new Date();
 
-    return await this.prisma.$transaction(async tx => {
+    // Calculer les changements de prix par rapport au lot précédent
+    let price_change: {
+      old_cost: number;
+      new_cost: number;
+      old_sell: number;
+      new_sell: number;
+      cost_diff: number;
+      sell_diff: number;
+      cost_diff_pct: number;
+      sell_diff_pct: number;
+    } | null = null;
+
+    if (previousBatch) {
+      const costDiff = data.cost_price - previousBatch.cost_price;
+      const sellDiff = data.sell_price - previousBatch.sell_price;
+      const hasPriceChange = costDiff !== 0 || sellDiff !== 0;
+
+      if (hasPriceChange) {
+        price_change = {
+          old_cost: previousBatch.cost_price,
+          new_cost: data.cost_price,
+          old_sell: previousBatch.sell_price,
+          new_sell: data.sell_price,
+          cost_diff: costDiff,
+          sell_diff: sellDiff,
+          cost_diff_pct:
+            previousBatch.cost_price > 0
+              ? Math.round((costDiff / previousBatch.cost_price) * 100)
+              : 0,
+          sell_diff_pct:
+            previousBatch.sell_price > 0
+              ? Math.round((sellDiff / previousBatch.sell_price) * 100)
+              : 0,
+        };
+        this.logger.log(
+          `Price change detected: cost ${previousBatch.cost_price} -> ${data.cost_price}, sell ${previousBatch.sell_price} -> ${data.sell_price}`
+        );
+      }
+    }
+
+    const batch = await this.prisma.$transaction(async tx => {
       // Si un lot précédent existe sans date de fin, le fermer
       if (previousBatch) {
         await tx.stockBatch.update({
@@ -150,7 +190,7 @@ export class InventoryService {
       }
 
       // Créer le nouveau lot
-      const batch = await tx.stockBatch.create({
+      const newBatch = await tx.stockBatch.create({
         data: {
           shop_id: data.shop_id,
           product_id: data.product_id,
@@ -188,10 +228,12 @@ export class InventoryService {
       });
 
       this.logger.log(
-        `Stock batch created: batch_id=${batch.id}, product=${data.product_id}, qty=${data.quantity}`
+        `Stock batch created: batch_id=${newBatch.id}, product=${data.product_id}, qty=${data.quantity}`
       );
-      return batch;
+      return newBatch;
     });
+
+    return { ...batch, price_change };
   }
 
   /**

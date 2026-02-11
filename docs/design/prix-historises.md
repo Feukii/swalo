@@ -3,6 +3,7 @@
 ## Problématique
 
 Actuellement, un produit a un seul prix (`sell_price` et `cost_price`). Mais dans la réalité :
+
 - Le prix d'achat peut évoluer dans le temps
 - Le prix de vente peut évoluer dans le temps
 - Il faut savoir à quel prix a été acheté le stock actuel
@@ -12,6 +13,7 @@ Actuellement, un produit a un seul prix (`sell_price` et `cost_price`). Mais dan
 ### 1. Nouvelle table : `stock_batches`
 
 Chaque fois qu'on ajoute du stock, on crée un nouveau "lot" (batch) avec :
+
 - Le produit concerné
 - La quantité ajoutée
 - Le prix d'achat à ce moment
@@ -36,6 +38,7 @@ CREATE TABLE stock_batches (
 ### 2. Logique FIFO (First In, First Out)
 
 Quand on vend un produit :
+
 1. On prend d'abord dans le lot le plus ancien
 2. Si ce lot est épuisé, on passe au lot suivant
 3. On enregistre le prix de vente du lot dans la transaction
@@ -43,17 +46,20 @@ Quand on vend un produit :
 ### 3. Modifications nécessaires
 
 #### Base de données
+
 - ✅ Créer table `stock_batches`
 - ✅ Ajouter `batch_id` dans `inventory_movements`
 - ✅ Modifier les mouvements de stock pour lier aux lots
 
 #### API Backend
+
 - ✅ Nouveau service `StockBatchesService`
 - ✅ Modifier `InventoryService` pour gérer les lots
 - ✅ Endpoint `POST /api/inventory/add-stock` avec prix
 - ✅ Endpoint `GET /api/products/:id/batches` pour voir les lots
 
 #### Application Mobile
+
 - ✅ Écran "Ajouter Stock" avec champs :
   - Quantité
   - Prix d'achat unitaire
@@ -68,6 +74,7 @@ Quand on vend un produit :
 ### 4. Exemple de flux
 
 #### Ajout de stock
+
 ```
 Produit: Glass 3D Samsung A10E
 Action: Ajouter 20 unités
@@ -83,6 +90,7 @@ Date: 20/01/2026
 ```
 
 #### Vente (FIFO)
+
 ```
 Vente de 5 Glass 3D Samsung A10E
 
@@ -102,6 +110,7 @@ Total vente: (3 × 1500) + (2 × 1800) = 8100 FCFA
 ### 5. Migration de données existantes
 
 Pour le stock actuel sans lot :
+
 ```sql
 -- Créer un lot "initial" pour chaque produit ayant du stock
 INSERT INTO stock_batches (shop_id, product_id, quantity, remaining_quantity, cost_price, sell_price, created_at)
@@ -135,6 +144,7 @@ WHERE EXISTS (
 ### 7. Affichage dans l'app
 
 #### Page Produit (onglet Stock)
+
 ```
 ┌─────────────────────────────────────┐
 │ Glass 3D Samsung A10E               │
@@ -156,6 +166,7 @@ WHERE EXISTS (
 ```
 
 #### Modal "Ajouter du stock"
+
 ```
 ┌─────────────────────────────────────┐
 │ Ajouter du stock                    │

@@ -15,7 +15,7 @@
  *
  * Permissions:
  * - EMPLOYEE : Peut créer des entrées/sorties positives
- * - OWNER : Peut créer des entrées/sorties positives ET négatives (corrections)
+ * - BOSS : Peut créer des entrées/sorties positives ET négatives (corrections)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -142,7 +142,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
 
   /**
    * Charge le rôle de l'utilisateur depuis AsyncStorage
-   * Utilisé pour déterminer les permissions (ex: corrections négatives pour OWNER)
+   * Utilisé pour déterminer les permissions (ex: corrections négatives pour BOSS)
    */
   const loadUserRole = async () => {
     try {
@@ -323,8 +323,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         return;
       }
 
-      // Seuls les OWNER peuvent entrer des montants négatifs (corrections)
-      if (amountInCentimes < 0 && userRole !== 'OWNER') {
+      // Seuls les BOSS peuvent entrer des montants négatifs (corrections)
+      if (amountInCentimes < 0 && userRole !== 'BOSS') {
         Alert.alert(
           'Permission refusée',
           'Seuls les propriétaires peuvent effectuer des corrections avec des montants négatifs'
@@ -694,7 +694,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                   />
                   <Text style={styles.amountCurrency}>FCFA</Text>
                 </View>
-                {userRole === 'OWNER' && (
+                {userRole === 'BOSS' && (
                   <Text style={styles.ownerHint}>
                     💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
                     erreurs
@@ -787,11 +787,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
               </TouchableOpacity>
             )}
 
-            {/* Administration - Pour ADMIN, OWNER, MANAGER, SUPERADMIN */}
-            {(userRole === 'ADMIN' ||
-              userRole === 'OWNER' ||
-              userRole === 'MANAGER' ||
-              userRole === 'SUPERADMIN') && (
+            {/* Administration - Pour MANAGER, BOSS, SUPERADMIN */}
+            {(userRole === 'MANAGER' || userRole === 'BOSS' || userRole === 'SUPERADMIN') && (
               <TouchableOpacity
                 style={styles.settingsMenuItem}
                 onPress={() => {

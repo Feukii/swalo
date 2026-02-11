@@ -17,6 +17,9 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput } from '../utils/phone';
 import { customersApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { customerRepo } from '../db/repositories';
+import { syncEngine } from '../db/sync';
 
 interface CustomersScreenProps {
   navigation: any;
@@ -33,6 +36,7 @@ interface Customer {
 }
 
 export default function CustomersScreen({ navigation }: CustomersScreenProps) {
+  const { shopId } = useCurrentUser();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,17 +51,49 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
 
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [shopId]);
 
   const loadCustomers = async () => {
     setIsLoading(true);
     try {
-      const data = await customersApi.getAll();
-      setCustomers(data);
+      // Step 1: Read from local DB first
+      if (shopId) {
+        try {
+          const localCustomers = await customerRepo.getAll(shopId, { orderBy: 'name ASC' });
+          if (localCustomers.length > 0) {
+            setCustomers(
+              localCustomers.map(c => ({
+                ...c,
+                is_active: c.is_active === 1,
+              })) as any
+            );
+          }
+        } catch (e) {
+          console.log('Local customer read skipped:', e);
+        }
+      }
+
+      // Step 2: Fetch from API if online
+      if (syncEngine.isOnline) {
+        const data = await customersApi.getAll();
+        setCustomers(data);
+
+        // Sync to local DB
+        if (shopId) {
+          for (const c of data) {
+            customerRepo
+              .upsertFromServer({
+                ...c,
+                is_active: c.is_active !== false ? 1 : 0,
+                deleted: c.deleted ? 1 : 0,
+              })
+              .catch(() => undefined);
+          }
+        }
+      }
     } catch (error: any) {
       console.error('Erreur chargement clients:', error);
 
-      // Si l'erreur est "Unauthorized", rediriger vers le login
       if (error.message === 'Unauthorized') {
         Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
           {
@@ -65,7 +101,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             onPress: () => navigation.replace('LoginPin'),
           },
         ]);
-      } else {
+      } else if (customers.length === 0) {
         Alert.alert('Erreur', 'Impossible de charger les clients');
       }
     } finally {

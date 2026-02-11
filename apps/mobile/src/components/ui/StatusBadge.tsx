@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, BorderRadius, Spacing } from '../../constants/theme-v2';
 
-type BadgeVariant = 'success' | 'danger' | 'warning' | 'default';
+type BadgeVariant = 'success' | 'danger' | 'warning' | 'info' | 'default';
 
 interface StatusBadgeProps {
   text: string;
@@ -36,6 +36,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning.main + '1A',
     borderColor: Colors.warning.main,
   },
+  info: {
+    backgroundColor: Colors.info.main + '1A',
+    borderColor: Colors.info.main,
+  },
   default: {
     backgroundColor: Colors.muted.main + '1A',
     borderColor: Colors.muted.main,
@@ -52,6 +56,9 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: Colors.warning.main,
+  },
+  infoText: {
+    color: Colors.info.main,
   },
   defaultText: {
     color: Colors.muted.foreground,

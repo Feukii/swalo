@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import Login from './pages/Login';
 import LoginPin from './pages/LoginPin';
 import CreateShop from './pages/CreateShop';
 import ShopSettings from './pages/ShopSettings';
@@ -12,9 +11,9 @@ import CustomerDetails from './pages/CustomerDetails';
 import Suppliers from './pages/Suppliers';
 import SupplierDetails from './pages/SupplierDetails';
 import UserManagement from './pages/UserManagement';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import AdminPanel from './pages/AdminPanel';
 import BusinessReports from './pages/BusinessReports';
+import ProductBatches from './pages/ProductBatches';
+import EnterpriseDashboard from './pages/EnterpriseDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import './App.css';
@@ -51,7 +50,6 @@ function App() {
       <Routes>
         {/* Routes publiques (sans layout) */}
         <Route path="/login" element={<LoginPin />} />
-        <Route path="/login/admin" element={<Login />} />
         <Route path="/create-shop" element={<CreateShop />} />
 
         {/* Routes protégées (avec layout) */}
@@ -91,6 +89,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:productId/batches"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ProductBatches />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -176,31 +184,23 @@ function App() {
           }
         />
 
-        {/* Routes d'administration */}
+        {/* Enterprise & Multi-shop */}
         <Route
-          path="/admin/dashboard"
+          path="/enterprise"
           element={
-            <ProtectedRoute requireRole="SUPERADMIN">
+            <ProtectedRoute requireRole={['BOSS', 'MANAGER', 'SUPERADMIN']}>
               <MainLayout>
-                <SuperAdminDashboard />
+                <EnterpriseDashboard />
               </MainLayout>
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin/panel"
-          element={
-            <ProtectedRoute requireRole="SUPERADMIN">
-              <MainLayout>
-                <AdminPanel />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+
+        {/* Gestion utilisateurs boutique (MANAGER, BOSS) */}
         <Route
           path="/admin/users"
           element={
-            <ProtectedRoute requireRole={['ADMIN', 'OWNER', 'MANAGER', 'SUPERADMIN']}>
+            <ProtectedRoute requireRole={['MANAGER', 'BOSS', 'SUPERADMIN']}>
               <MainLayout>
                 <UserManagement />
               </MainLayout>
@@ -212,7 +212,7 @@ function App() {
         <Route
           path="/settings/shop"
           element={
-            <ProtectedRoute requireRole="OWNER">
+            <ProtectedRoute requireRole="BOSS">
               <ShopSettings />
             </ProtectedRoute>
           }

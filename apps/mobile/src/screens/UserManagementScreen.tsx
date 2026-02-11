@@ -110,8 +110,7 @@ export default function UserManagementScreen({ navigation }: any) {
     switch (role) {
       case 'SUPERADMIN':
         return Colors.info.main;
-      case 'ADMIN':
-      case 'OWNER':
+      case 'BOSS':
         return Colors.danger.main;
       case 'MANAGER':
         return Colors.warning.main;
@@ -125,11 +124,9 @@ export default function UserManagementScreen({ navigation }: any) {
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       SUPERADMIN: 'Super Admin',
-      ADMIN: 'Admin',
-      OWNER: 'Propriétaire',
+      BOSS: 'Propriétaire',
       MANAGER: 'Manager',
       EMPLOYEE: 'Employé',
-      CASHIER: 'Caissier',
     };
     return labels[role] || role;
   };

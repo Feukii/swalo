@@ -15,6 +15,34 @@ export class ReceivablesService {
     const description =
       dto.description || (isNegativeAmount ? 'Remboursement - Ajustement de solde' : undefined);
 
+    // Vérifier la limite de crédit pour les montants positifs (nouvelles créances)
+    if (!isNegativeAmount && dto.amount > 0) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: dto.customer_id, shop_id: shopId, deleted: false },
+      });
+
+      if (customer && customer.credit_limit > 0) {
+        // Calculer le solde actuel des créances en cours
+        const activeReceivables = await this.prisma.clientReceivable.findMany({
+          where: {
+            customer_id: dto.customer_id,
+            shop_id: shopId,
+            deleted: false,
+            status: { in: ['PENDING', 'PARTIAL'] },
+          },
+        });
+        const currentBalance = activeReceivables.reduce((sum, r) => sum + r.balance, 0);
+
+        if (currentBalance + dto.amount > customer.credit_limit) {
+          throw new BadRequestException(
+            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
+              `nouvelle créance : ${dto.amount} FCFA, ` +
+              `limite : ${customer.credit_limit} FCFA`
+          );
+        }
+      }
+    }
+
     const receivable = await this.prisma.clientReceivable.create({
       data: {
         amount: dto.amount,

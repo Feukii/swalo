@@ -68,6 +68,9 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
       await AsyncStorage.setItem('refresh_token', response.refresh_token);
       await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
       await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
+      if (response.enterprise) {
+        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
+      }
 
       // Naviguer vers l'app principale avec tabs
       navigation.replace('Main');

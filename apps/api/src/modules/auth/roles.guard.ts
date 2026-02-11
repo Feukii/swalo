@@ -19,19 +19,11 @@ export class RolesGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest();
 
-    // Map old roles to new roles for backward compatibility
-    const roleMapping: Record<string, Role> = {
-      [Role.OWNER]: Role.ADMIN,
-      [Role.MANAGER]: Role.ADMIN,
-      [Role.CASHIER]: Role.EMPLOYEE,
-    };
+    // Direct role comparison - SUPERADMIN bypasses all checks
+    if (user.role === Role.SUPERADMIN) {
+      return true;
+    }
 
-    const userRole = roleMapping[user.role] || user.role;
-
-    return requiredRoles.some((role: Role) => {
-      // Map required roles as well
-      const mappedRole = roleMapping[role] || role;
-      return userRole === mappedRole || userRole === Role.SUPERADMIN;
-    });
+    return requiredRoles.some((role: Role) => user.role === role);
   }
 }
