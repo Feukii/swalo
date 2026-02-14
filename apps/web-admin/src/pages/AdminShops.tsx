@@ -206,7 +206,8 @@ export default function AdminShops() {
     const matchesSearch =
       shop.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       shop.code.includes(searchTerm) ||
-      (shop.owner?.display_name && shop.owner.display_name.toLowerCase().includes(searchTerm.toLowerCase()));
+      (shop.owner?.display_name &&
+        shop.owner.display_name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesEnterprise = !filterEnterprise || shop.enterprise_id === filterEnterprise;
 
@@ -320,7 +321,8 @@ export default function AdminShops() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
                     {shop.owner?.display_name && (
                       <div>
-                        <span className="font-semibold">👤 Propriétaire:</span> {shop.owner?.display_name}
+                        <span className="font-semibold">👤 Propriétaire:</span>{' '}
+                        {shop.owner?.display_name}
                       </div>
                     )}
                     {shop.enterprise && (
@@ -618,8 +620,8 @@ export default function AdminShops() {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold mb-4 text-red-600">🗑️ Confirmer la suppression</h2>
             <p className="mb-4 text-gray-700">
-              Êtes-vous sûr de vouloir supprimer la boutique{' '}
-              <strong>{shopToDelete.name}</strong> (code: {shopToDelete.code}) ?
+              Êtes-vous sûr de vouloir supprimer la boutique <strong>{shopToDelete.name}</strong>{' '}
+              (code: {shopToDelete.code}) ?
             </p>
             <p className="mb-6 text-sm text-red-600 font-semibold">
               ⚠️ Cette action est irréversible et supprimera toutes les données associées.

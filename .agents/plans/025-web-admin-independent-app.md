@@ -43,21 +43,28 @@ apps/web-admin/              # NOUVELLE APP - port 3002
 ## Implementation - COMPLETE
 
 ### Phase 1: Scaffold (config files) - DONE
+
 ### Phase 2: Infrastructure (auth, API, layout) - DONE
+
 ### Phase 3: Pages admin (deplace + DashboardHome) - DONE
+
 ### Phase 4: App.tsx routing - DONE
+
 ### Phase 5: Nettoyage apps/web - DONE
+
 - Supprime 8 fichiers pages admin de apps/web
 - Mis a jour App.tsx: retire imports/routes admin + /login/admin
 - Mis a jour MainLayout.tsx: retire items nav SUPERADMIN
 
 ### Phase 6: Verification - DONE
+
 - pnpm install: workspace enregistre
 - Type-check web-admin: clean
 - Type-check web: clean
 - features-catalog.md mis a jour (section 12.17 + changelog)
 
 ## Decisions techniques
+
 - Port 3002 pour admin app
 - Tokens localStorage separes: `admin_access_token` / `admin_refresh_token`
 - Sidebar sombre (bg-gray-900) vs sidebar blanche dans app boutique

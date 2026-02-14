@@ -1103,93 +1103,93 @@ Chaque opération :
 
 ### 12.10 CRUD Entreprises (plateforme admin)
 
-| Propriété         | Valeur                                                                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Description**   | Créer, lister, modifier, supprimer des entreprises. Gestion de licence, rattachement boutiques, historique d'audit.                         |
-| **Plateformes**   | Web, API                                                                                                                                    |
-| **Module**        | Étendu (admin)                                                                                                                              |
-| **Endpoints**     | `POST/GET /api/admin/enterprises`, `GET/PUT/DELETE /api/admin/enterprises/:id`                                                              |
-| **Fichiers clés** | `admin.service.ts`, `admin.controller.ts`, `apps/web-admin/src/pages/AdminEnterprises.tsx`                                                  |
-| **Rôles**         | SUPERADMIN                                                                                                                                  |
-| **Statut**        | **Implémenté** (Plan 024, déplacé Plan 025)                                                                                                 |
+| Propriété         | Valeur                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Créer, lister, modifier, supprimer des entreprises. Gestion de licence, rattachement boutiques, historique d'audit. |
+| **Plateformes**   | Web, API                                                                                                            |
+| **Module**        | Étendu (admin)                                                                                                      |
+| **Endpoints**     | `POST/GET /api/admin/enterprises`, `GET/PUT/DELETE /api/admin/enterprises/:id`                                      |
+| **Fichiers clés** | `admin.service.ts`, `admin.controller.ts`, `apps/web-admin/src/pages/AdminEnterprises.tsx`                          |
+| **Rôles**         | SUPERADMIN                                                                                                          |
+| **Statut**        | **Implémenté** (Plan 024, déplacé Plan 025)                                                                         |
 
 ### 12.11 Création de boutique (admin-side)
 
-| Propriété         | Valeur                                                                                                            |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Description**   | Créer une boutique depuis la plateforme admin avec code auto-généré, création propriétaire avec PIN, modules     |
-| **Plateformes**   | Web Admin, API                                                                                                    |
-| **Module**        | Étendu (admin)                                                                                                    |
-| **Endpoint**      | `POST /api/admin/shops`                                                                                           |
-| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminShops.tsx`                                                     |
-| **Rôles**         | SUPERADMIN                                                                                                        |
-| **Statut**        | **Implémenté** (Plan 024)                                                                                         |
+| Propriété         | Valeur                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Description**   | Créer une boutique depuis la plateforme admin avec code auto-généré, création propriétaire avec PIN, modules |
+| **Plateformes**   | Web Admin, API                                                                                               |
+| **Module**        | Étendu (admin)                                                                                               |
+| **Endpoint**      | `POST /api/admin/shops`                                                                                      |
+| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminShops.tsx`                                                |
+| **Rôles**         | SUPERADMIN                                                                                                   |
+| **Statut**        | **Implémenté** (Plan 024)                                                                                    |
 
 ### 12.12 Gestion des licences
 
-| Propriété         | Valeur                                                                                                            |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Description**   | Modifier licence (STARTER/PROFESSIONAL/ENTERPRISE), date d'expiration, limites boutiques/utilisateurs            |
-| **Plateformes**   | Web, API                                                                                                          |
-| **Endpoint**      | `PUT /api/admin/enterprises/:id/license`                                                                          |
-| **Fichiers clés** | `admin.service.ts`, `AdminEnterprises.tsx`                                                                        |
-| **Rôles**         | SUPERADMIN                                                                                                        |
-| **Statut**        | **Implémenté** (Plan 024)                                                                                         |
+| Propriété         | Valeur                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| **Description**   | Modifier licence (STARTER/PROFESSIONAL/ENTERPRISE), date d'expiration, limites boutiques/utilisateurs |
+| **Plateformes**   | Web, API                                                                                              |
+| **Endpoint**      | `PUT /api/admin/enterprises/:id/license`                                                              |
+| **Fichiers clés** | `admin.service.ts`, `AdminEnterprises.tsx`                                                            |
+| **Rôles**         | SUPERADMIN                                                                                            |
+| **Statut**        | **Implémenté** (Plan 024)                                                                             |
 
 ### 12.13 Rattachement boutique-entreprise
 
-| Propriété       | Valeur                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| **Description** | Rattacher/détacher boutique d'une entreprise avec vérification limite max_shops             |
-| **Plateformes** | Web, API                                                                                   |
-| **Endpoints**   | `POST/DELETE /api/admin/enterprises/:id/shops/:shopId`                                     |
-| **Rôles**       | SUPERADMIN                                                                                 |
-| **Statut**      | **Implémenté** (Plan 024)                                                                  |
+| Propriété       | Valeur                                                                          |
+| --------------- | ------------------------------------------------------------------------------- |
+| **Description** | Rattacher/détacher boutique d'une entreprise avec vérification limite max_shops |
+| **Plateformes** | Web, API                                                                        |
+| **Endpoints**   | `POST/DELETE /api/admin/enterprises/:id/shops/:shopId`                          |
+| **Rôles**       | SUPERADMIN                                                                      |
+| **Statut**      | **Implémenté** (Plan 024)                                                       |
 
 ### 12.14 Utilisateurs globaux
 
-| Propriété         | Valeur                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| **Description**   | Vue paginée de tous les utilisateurs avec recherche, filtre par rôle, assignations shops   |
-| **Plateformes**   | Web, API                                                                                   |
-| **Endpoint**      | `GET /api/admin/users/global?search=&role=&page=&limit=`                                   |
-| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminGlobalUsers.tsx`                        |
-| **Rôles**         | SUPERADMIN                                                                                 |
-| **Statut**        | **Implémenté** (Plan 024)                                                                  |
+| Propriété         | Valeur                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| **Description**   | Vue paginée de tous les utilisateurs avec recherche, filtre par rôle, assignations shops |
+| **Plateformes**   | Web, API                                                                                 |
+| **Endpoint**      | `GET /api/admin/users/global?search=&role=&page=&limit=`                                 |
+| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminGlobalUsers.tsx`                      |
+| **Rôles**         | SUPERADMIN                                                                               |
+| **Statut**        | **Implémenté** (Plan 024)                                                                |
 
 ### 12.15 Configuration système (clé-valeur)
 
-| Propriété         | Valeur                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| **Description**   | Gestion CRUD de paramètres système globaux clé-valeur, toutes modifications auditées       |
-| **Plateformes**   | Web, API                                                                                   |
-| **Endpoints**     | `GET/PUT/DELETE /api/admin/system-config/:key`                                             |
-| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminConfig.tsx`                             |
-| **Rôles**         | SUPERADMIN                                                                                 |
-| **Statut**        | **Implémenté** (Plan 024)                                                                  |
+| Propriété         | Valeur                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| **Description**   | Gestion CRUD de paramètres système globaux clé-valeur, toutes modifications auditées |
+| **Plateformes**   | Web, API                                                                             |
+| **Endpoints**     | `GET/PUT/DELETE /api/admin/system-config/:key`                                       |
+| **Fichiers clés** | `admin.service.ts`, `apps/web-admin/src/pages/AdminConfig.tsx`                       |
+| **Rôles**         | SUPERADMIN                                                                           |
+| **Statut**        | **Implémenté** (Plan 024)                                                            |
 
 ### 12.16 Export logs d'audit (CSV)
 
-| Propriété       | Valeur                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| **Description** | Exporter logs d'audit en CSV avec filtres par action, type d'entité, plage de dates        |
-| **Plateformes** | Web, API                                                                                   |
-| **Endpoint**    | `GET /api/admin/audit-logs/export`                                                         |
-| **Rôles**       | SUPERADMIN                                                                                 |
-| **Statut**      | **Implémenté** (Plan 024)                                                                  |
+| Propriété       | Valeur                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| **Description** | Exporter logs d'audit en CSV avec filtres par action, type d'entité, plage de dates |
+| **Plateformes** | Web, API                                                                            |
+| **Endpoint**    | `GET /api/admin/audit-logs/export`                                                  |
+| **Rôles**       | SUPERADMIN                                                                          |
+| **Statut**      | **Implémenté** (Plan 024)                                                           |
 
 ### 12.17 Application Web Admin indépendante
 
-| Propriété         | Valeur                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Description**   | Application web séparée (`apps/web-admin`) pour l'administration plateforme SWALO, indépendante de l'app boutique          |
-| **Plateformes**   | Web Admin (port 3002)                                                                                                       |
-| **Module**        | Premium (admin)                                                                                                             |
-| **Pages**         | Login, Dashboard KPIs, Entreprises, Boutiques, Utilisateurs, Logs d'audit, Configuration, Statistiques système             |
-| **Fichiers clés** | `apps/web-admin/src/App.tsx`, `AdminLayout.tsx`, `authStore.ts`, `api.ts`                                                  |
-| **Rôles**         | SUPERADMIN exclusivement (rejet au login si non-SUPERADMIN)                                                                |
-| **Particularités**| Sidebar sombre, tokens séparés (`admin_access_token`), branding "SWALO Admin", login email/mot de passe uniquement         |
-| **Statut**        | **Implémenté** (Plan 025)                                                                                                   |
+| Propriété          | Valeur                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| **Description**    | Application web séparée (`apps/web-admin`) pour l'administration plateforme SWALO, indépendante de l'app boutique  |
+| **Plateformes**    | Web Admin (port 3002)                                                                                              |
+| **Module**         | Premium (admin)                                                                                                    |
+| **Pages**          | Login, Dashboard KPIs, Entreprises, Boutiques, Utilisateurs, Logs d'audit, Configuration, Statistiques système     |
+| **Fichiers clés**  | `apps/web-admin/src/App.tsx`, `AdminLayout.tsx`, `authStore.ts`, `api.ts`                                          |
+| **Rôles**          | SUPERADMIN exclusivement (rejet au login si non-SUPERADMIN)                                                        |
+| **Particularités** | Sidebar sombre, tokens séparés (`admin_access_token`), branding "SWALO Admin", login email/mot de passe uniquement |
+| **Statut**         | **Implémenté** (Plan 025)                                                                                          |
 
 ---
 
@@ -1475,12 +1475,12 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                        | Auteur      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Date       | Description                                                                                                                                                                                                                                                             | Auteur      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                               | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                       | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                        | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                      | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                    | Claude Code |
 
 <!-- EOF -->

@@ -152,9 +152,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="badge bg-secondary-100 text-secondary-800">
-              Plateforme Admin
-            </span>
+            <span className="badge bg-secondary-100 text-secondary-800">Plateforme Admin</span>
           </div>
         </header>
 

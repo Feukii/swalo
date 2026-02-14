@@ -11,12 +11,48 @@ interface SystemStats {
 }
 
 const quickActions = [
-  { name: 'Entreprises', path: '/enterprises', icon: '🏛️', description: 'Gerer les entreprises et licences', color: 'from-purple-500 to-purple-700' },
-  { name: 'Boutiques', path: '/shops', icon: '🏪', description: 'Creer et gerer les boutiques', color: 'from-blue-500 to-blue-700' },
-  { name: 'Utilisateurs', path: '/users', icon: '👥', description: 'Voir tous les utilisateurs', color: 'from-green-500 to-green-700' },
-  { name: "Logs d'audit", path: '/audit-logs', icon: '📝', description: 'Historique des actions', color: 'from-amber-500 to-amber-700' },
-  { name: 'Configuration', path: '/config', icon: '⚙️', description: 'Parametres systeme', color: 'from-gray-500 to-gray-700' },
-  { name: 'Statistiques', path: '/system', icon: '📈', description: 'Stats detaillees', color: 'from-cyan-500 to-cyan-700' },
+  {
+    name: 'Entreprises',
+    path: '/enterprises',
+    icon: '🏛️',
+    description: 'Gerer les entreprises et licences',
+    color: 'from-purple-500 to-purple-700',
+  },
+  {
+    name: 'Boutiques',
+    path: '/shops',
+    icon: '🏪',
+    description: 'Creer et gerer les boutiques',
+    color: 'from-blue-500 to-blue-700',
+  },
+  {
+    name: 'Utilisateurs',
+    path: '/users',
+    icon: '👥',
+    description: 'Voir tous les utilisateurs',
+    color: 'from-green-500 to-green-700',
+  },
+  {
+    name: "Logs d'audit",
+    path: '/audit-logs',
+    icon: '📝',
+    description: 'Historique des actions',
+    color: 'from-amber-500 to-amber-700',
+  },
+  {
+    name: 'Configuration',
+    path: '/config',
+    icon: '⚙️',
+    description: 'Parametres systeme',
+    color: 'from-gray-500 to-gray-700',
+  },
+  {
+    name: 'Statistiques',
+    path: '/system',
+    icon: '📈',
+    description: 'Stats detaillees',
+    color: 'from-cyan-500 to-cyan-700',
+  },
 ];
 
 export default function DashboardHome() {
@@ -94,7 +130,9 @@ export default function DashboardHome() {
               className="card-hover text-left group"
             >
               <div className="flex items-start space-x-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform`}>
+                <div
+                  className={`w-12 h-12 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center text-2xl shadow-sm group-hover:scale-110 transition-transform`}
+                >
                   {action.icon}
                 </div>
                 <div className="flex-1">

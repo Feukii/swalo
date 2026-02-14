@@ -123,7 +123,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     {user?.display_name || 'Utilisateur'}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {enterprise ? `${enterprise.name} - ${shop?.name || 'Boutique'}` : shop?.name || 'Boutique'}
+                    {enterprise
+                      ? `${enterprise.name} - ${shop?.name || 'Boutique'}`
+                      : shop?.name || 'Boutique'}
                   </p>
                 </div>
               </div>
@@ -202,9 +204,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     )}
 
                     {/* Administration - Pour MANAGER, BOSS, SUPERADMIN */}
-                    {(role === 'MANAGER' ||
-                      role === 'BOSS' ||
-                      role === 'SUPERADMIN') && (
+                    {(role === 'MANAGER' || role === 'BOSS' || role === 'SUPERADMIN') && (
                       <button
                         onClick={() => {
                           navigate('/shop-admin');

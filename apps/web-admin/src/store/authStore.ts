@@ -43,10 +43,10 @@ export const useAuthStore = create<AuthState>(set => ({
       // Enforce SUPERADMIN role
       if (data.role !== 'SUPERADMIN') {
         set({
-          error: "Acces reserve aux administrateurs de la plateforme",
+          error: 'Acces reserve aux administrateurs de la plateforme',
           isLoading: false,
         });
-        throw new Error("Acces reserve aux administrateurs");
+        throw new Error('Acces reserve aux administrateurs');
       }
 
       localStorage.setItem('admin_access_token', data.access_token);
@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthState>(set => ({
         isLoading: false,
       });
     } catch (error: any) {
-      if (error.message === "Acces reserve aux administrateurs") {
+      if (error.message === 'Acces reserve aux administrateurs') {
         throw error;
       }
       const message = error.response?.data?.message || 'Erreur de connexion';

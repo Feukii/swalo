@@ -499,11 +499,13 @@ Configuration systeme et ameliorations de securite.
 **Scope**: Tous les nouveaux services admin (Enterprise CRUD, License, SystemConfig, Global Users)
 
 **Requirements**:
+
 - Framework: Jest (deja configure)
 - Pattern: Mock PrismaService comme dans les tests existants
 - Minimum: chaque methode de service testee (happy path + erreurs)
 
 **Test Categories**:
+
 - CRUD Enterprise: create, read, update, delete, cascade delete
 - License management: upgrade, downgrade, module adjustment
 - Shop creation admin: with/without enterprise, code generation
@@ -518,6 +520,7 @@ Configuration systeme et ameliorations de securite.
 **Scope**: Les nouveaux endpoints API
 
 **Requirements**:
+
 - Framework: Jest + Supertest (deja configure)
 - Tester l'authentification (SUPERADMIN required)
 - Tester les cascades (delete enterprise -> shops)
@@ -578,6 +581,7 @@ pnpm run format:check
 ### Level 5: Manual Validation
 
 **API Testing** (via curl):
+
 1. Login SUPERADMIN -> obtenir token
 2. POST /admin/enterprises -> creer entreprise
 3. POST /admin/shops -> creer boutique rattachee
@@ -589,6 +593,7 @@ pnpm run format:check
 9. GET /admin/audit-logs -> verifier les logs de toutes ces actions
 
 **Web Testing** (navigateur localhost:3001):
+
 1. Login SUPERADMIN
 2. Naviguer dans chaque page admin
 3. Creer une entreprise
@@ -644,6 +649,7 @@ pnpm run format:check
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Official Documentation
+
 - NestJS Controllers: https://docs.nestjs.com/controllers
 - NestJS Guards: https://docs.nestjs.com/guards
 - NestJS DTOs & Validation: https://docs.nestjs.com/techniques/validation
@@ -654,6 +660,7 @@ pnpm run format:check
 - Tailwind CSS: https://tailwindcss.com/docs
 
 ### Internal Resources
+
 - Module Registry: `packages/core/src/modules/registry.ts`
 - Admin Controls Service (pattern): `apps/api/src/modules/admin-controls/admin-controls.service.ts`
 - Audit Log pattern: search "AuditLog" in admin-controls service

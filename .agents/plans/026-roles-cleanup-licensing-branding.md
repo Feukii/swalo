@@ -7,6 +7,7 @@ Pay special attention to naming of existing utils types and models. Import from 
 ## Feature Description
 
 Plan couvrant 6 axes :
+
 1. Fix de la page Shops dans web-admin (champs mal mappes)
 2. **Entreprise obligatoire** : toute boutique DOIT appartenir a une entreprise (plus de standalone)
 3. Simplification des roles a 3 courants (EMPLOYEE, MANAGER, BOSS) + 1 admin (SUPERADMIN)
@@ -54,38 +55,46 @@ afin de piloter mon business avec des roles simplifies et un branding coherent.
 ### Relevant Codebase Files
 
 **Schema & Models:**
+
 - `apps/api/prisma/schema.prisma` (lines 11-34: Enterprise, 36-82: Shop, 773-780: Role enum, 114-130: UserRole)
 
 **Admin Controllers:**
+
 - `apps/api/src/modules/admin/admin.controller.ts` - 16 endpoints SUPERADMIN
 - `apps/api/src/modules/admin/admin.service.ts` - Enterprise CRUD, Shop creation, License, System Config
 - `apps/api/src/modules/admin-controls/admin-controls.controller.ts` - Block/Unblock, Audit logs, Module management
 - `apps/api/src/modules/admin-controls/admin-controls.service.ts` - Block/Unblock logic
 
 **Enterprise Module (a simplifier):**
+
 - `apps/api/src/modules/enterprise/enterprise.controller.ts` - POST /enterprises accessible OWNER (a supprimer)
 - `apps/api/src/modules/enterprise/enterprise.service.ts` - create(), addShop(), removeShop(), deleteEnterprise()
 
 **Auth (shop creation flows - CRITIQUES):**
+
 - `apps/api/src/modules/auth/auth.service.ts` - register() line ~94 cree shop SANS enterprise_id, createShop() line ~464 cree shop SANS enterprise_id
 - `apps/api/src/modules/auth/auth.controller.ts` - Endpoints auth
 
 **Guards:**
+
 - `apps/api/src/common/guards/roles.guard.ts` - Guard principal
 - `apps/api/src/modules/auth/roles.guard.ts` - Guard avec mapping roles
 - `apps/api/src/common/guards/entitlement.guard.ts` - Verification modules
 - `apps/api/src/common/guards/block-status.guard.ts` - Verifie enterprise_id conditionnel (a simplifier)
 
 **Module Registry:**
+
 - `packages/core/src/modules/registry.ts` - Definitions modules, tiers, getAvailableModulesForLicense()
 
 **Frontend Web-Admin:**
+
 - `apps/web-admin/src/pages/AdminShops.tsx` - Page shops cassee (champs shop_name, shop_code, block_reason)
 - `apps/web-admin/src/pages/AdminEnterprises.tsx` - Gestion entreprises
 - `apps/web-admin/src/lib/api.ts` - Client API admin
 - `apps/web-admin/src/store/authStore.ts` - Store auth admin
 
 **Frontend Web:**
+
 - `apps/web/src/components/Layout/MainLayout.tsx` (line 125: shop?.name dans sidebar)
 - `apps/web/src/store/authStore.ts` - Store auth boutique
 - `apps/web/src/lib/api.ts` - Client API boutique (a nettoyer: enterpriseApi.create)
@@ -93,15 +102,18 @@ afin de piloter mon business avec des roles simplifies et un branding coherent.
 - `apps/web/src/pages/CreateShop.tsx` - Auto-inscription boutique (a revoir ou supprimer)
 
 **Frontend Mobile:**
+
 - `apps/mobile/src/utils/auth.ts` - canAccessAdmin(), canAccessReports()
 - `apps/mobile/src/utils/invoiceTemplate.ts` (line 105: shop.name dans factures)
 - `apps/mobile/src/screens/` - Ecrans avec checks de roles hardcodes
 
 **Seed & Scripts:**
+
 - `apps/api/prisma/seed.ts` - Cree 2 shops SANS enterprise
 - `apps/api/scripts/create-superadmin.ts` - Cree shop admin SANS enterprise
 
 **All Controllers with @Roles (77 occurrences):**
+
 - `apps/api/src/modules/products/products.controller.ts`
 - `apps/api/src/modules/sales/sales.controller.ts`
 - `apps/api/src/modules/customers/customers.controller.ts`
@@ -121,15 +133,18 @@ afin de piloter mon business avec des roles simplifies et un branding coherent.
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Roles: EMPLOYEE, MANAGER, BOSS, SUPERADMIN (anglais, UPPER_SNAKE)
 - Champs Prisma: snake_case
 - Frontend: role === 'BOSS' (string comparison)
 
 **Error Handling:**
+
 - Prisma exceptions transformees par HttpExceptionFilter
 - NotFoundException, BadRequestException, ForbiddenException depuis @nestjs/common
 
 **Guard Pattern:**
+
 - @Roles(Role.BOSS, Role.MANAGER) sur les endpoints
 - SUPERADMIN bypass dans tous les guards
 
@@ -140,6 +155,7 @@ afin de piloter mon business avec des roles simplifies et un branding coherent.
 ### Phase 1: Fix page Shops web-admin (Quick Win)
 
 Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
+
 - `name` (pas `shop_name`), `code` (pas `shop_code`)
 - `blocked_reason` (pas `block_reason`)
 - `owner.display_name` (pas `owner_name`)
@@ -151,6 +167,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 **Principe** : `enterprise_id` sur Shop passe de `String?` a `String` (REQUIRED). Toute boutique DOIT appartenir a une entreprise. Plus de shop standalone.
 
 **Strategie de migration :**
+
 1. Creer une entreprise par defaut pour les shops orphelines existants (migration SQL)
 2. Rendre `enterprise_id` NOT NULL dans le schema
 3. Adapter tous les flux de creation de shop :
@@ -162,6 +179,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 6. Simplifier les null-checks enterprise_id dans : block-status.guard, auth.service, transfers.service
 
 **Decision architecturale - Creation de boutique :**
+
 - **Web-admin (SUPERADMIN)** : Seul endroit ou creer entreprise + boutique
 - **auth.register()** : Supprime - on ne peut plus creer de shop en self-service. Un SUPERADMIN cree l'entreprise et la boutique, puis invite les utilisateurs
 - **auth.createShop()** : Supprime - meme raison
@@ -181,6 +199,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 | SUPERADMIN | SUPERADMIN | Admin plateforme (web-admin uniquement) |
 
 **Etapes :**
+
 1. Modifier l'enum Role dans schema.prisma : EMPLOYEE, MANAGER, BOSS, SUPERADMIN
 2. Creer migration SQL qui convertit les roles existants
 3. Mettre a jour TOUS les @Roles() dans les 16 controllers API
@@ -191,6 +210,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ### Phase 4: Licensing et modules exclusifs admin
 
 **Etapes :**
+
 1. Ajouter validation dans updateShopModules() : verifier que modules sont autorises par licence
 2. Ajouter auto-sync dans updateLicense() : ajuster modules quand licence change
 3. Supprimer creation enterprise du module enterprise.controller.ts (garder lecture seule)
@@ -201,6 +221,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ### Phase 5: Branding "Entreprise - Boutique" + Logo
 
 **Etapes :**
+
 1. Ajouter `logo_url String?` au modele Enterprise dans schema.prisma
 2. Modifier auth.service.ts getUserWithRoles() pour inclure enterprise dans la reponse
 3. Modifier login() et loginWithPin() pour inclure enterprise
@@ -225,6 +246,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ### Phase 1: Fix AdminShops.tsx
 
 #### Task 1.1: UPDATE `apps/web-admin/src/pages/AdminShops.tsx`
+
 - **IMPLEMENT**: Corriger l'interface Shop pour correspondre aux champs API reels
   - `shop_name` -> `name`, `shop_code` -> `code`
   - `block_reason` -> `blocked_reason`
@@ -235,12 +257,14 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/web-admin && npx tsc --noEmit`
 
 #### Task 1.2: UPDATE `apps/api/src/modules/admin/admin.service.ts` - getAllShops()
+
 - **IMPLEMENT**: S'assurer que getAllShops inclut owner (display_name) et enterprise (name, code) dans le select
 - **VALIDATE**: `curl -s GET /api/admin/shops` retourne owner et enterprise
 
 ### Phase 2: Enterprise obligatoire
 
 #### Task 2.1: UPDATE `apps/api/prisma/schema.prisma` - Shop model
+
 - **IMPLEMENT**:
   - Changer `enterprise_id String?` en `enterprise_id String`
   - Changer `enterprise Enterprise?` en `enterprise Enterprise`
@@ -248,6 +272,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **GOTCHA**: Faire la migration APRES avoir cree les entreprises par defaut
 
 #### Task 2.2: CREATE migration SQL
+
 - **IMPLEMENT**: Migration en 3 etapes dans le meme fichier :
   1. **Creer une entreprise par defaut** pour chaque shop orphelin :
      ```sql
@@ -281,6 +306,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx prisma db push` ou `npx prisma migrate dev`
 
 #### Task 2.3: UPDATE `apps/api/src/modules/auth/auth.service.ts` - register()
+
 - **IMPLEMENT**: Modifier register() pour auto-creer une enterprise en meme temps que le shop :
   ```typescript
   // 1. Creer l'enterprise
@@ -309,6 +335,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 2.4: UPDATE `apps/api/src/modules/auth/auth.service.ts` - createShop()
+
 - **IMPLEMENT**: Modifier createShop() pour exiger un enterprise_id :
   - Ajouter `enterprise_id` au DTO CreateShopDto (required)
   - Verifier que l'enterprise existe et n'est pas supprimee
@@ -318,6 +345,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 2.5: UPDATE `apps/api/src/modules/admin/admin.service.ts` - createShopAdmin()
+
 - **IMPLEMENT**:
   - Rendre `enterprise_id` obligatoire dans CreateShopAdminDto (retirer @IsOptional)
   - Supprimer le `if (dto.enterprise_id)` conditionnel - toujours connecter l'enterprise
@@ -325,6 +353,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 2.6: UPDATE `apps/api/src/modules/admin/admin.service.ts` - deleteEnterprise()
+
 - **IMPLEMENT**: Au lieu de mettre `enterprise_id: null` sur les shops (impossible maintenant), soit :
   - Option A : Empecher la suppression si l'enterprise a encore des shops actifs
   - Option B : Supprimer (soft-delete) les shops en cascade
@@ -332,6 +361,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: Test API : supprimer enterprise avec shops -> erreur 400
 
 #### Task 2.7: UPDATE `apps/api/src/modules/enterprise/enterprise.service.ts` - removeShop()
+
 - **IMPLEMENT**: Supprimer la methode `removeShopFromEnterprise()` (ou la transformer en `moveShopToEnterprise()` qui reassigne)
   - Meme chose pour les endpoints DELETE /enterprises/:id/shops/:shopId
   - Un shop ne peut plus etre "detache" d'une enterprise, seulement deplace vers une autre
@@ -339,6 +369,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 2.8: SIMPLIFY null-checks enterprise_id dans tout le code API
+
 - **IMPLEMENT**: Supprimer les verifications conditionnelles devenues inutiles :
   - `apps/api/src/common/guards/block-status.guard.ts` : `if (shop?.enterprise_id)` -> toujours vrai, simplifier
   - `apps/api/src/modules/auth/auth.service.ts` : `if (userRole.shop.enterprise_id)` -> toujours vrai, simplifier
@@ -347,6 +378,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 2.9: UPDATE `apps/api/prisma/seed.ts`
+
 - **IMPLEMENT**: Creer une enterprise AVANT les shops, puis rattacher les shops :
   ```typescript
   const enterprise = await prisma.enterprise.upsert({
@@ -366,6 +398,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && pnpm prisma:seed`
 
 #### Task 2.10: UPDATE `apps/api/scripts/create-superadmin.ts`
+
 - **IMPLEMENT**: Creer une enterprise admin avant le shop admin :
   ```typescript
   const adminEnterprise = await prisma.enterprise.upsert({
@@ -378,22 +411,26 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: Script fonctionne sans erreur
 
 #### Task 2.11: UPDATE ou SUPPRIMER `apps/web/src/pages/CreateShop.tsx`
+
 - **DECISION**: Si l'auto-inscription reste possible via register(), garder cette page mais la modifier pour creer enterprise + shop
 - **SI SUPPRESSION**: Retirer la route et les imports dans App.tsx
 - **SI CONSERVATION**: Ajouter un champ "Nom entreprise" dans le formulaire (ou utiliser le nom de boutique comme nom d'enterprise par defaut)
 - **VALIDATE**: `cd apps/web && npx tsc --noEmit`
 
 #### Task 2.12: UPDATE `apps/web-admin/src/pages/AdminShops.tsx` - creation form
+
 - **IMPLEMENT**: Rendre le select enterprise obligatoire (plus optionnel) dans le formulaire de creation de shop
 - **VALIDATE**: `cd apps/web-admin && npx tsc --noEmit`
 
 ### Phase 3: Roles
 
 #### Task 3.1: UPDATE `apps/api/prisma/schema.prisma`
+
 - **IMPLEMENT**: Modifier enum Role : remplacer OWNER/MANAGER/CASHIER/ADMIN/EMPLOYEE/SUPERADMIN par EMPLOYEE/MANAGER/BOSS/SUPERADMIN
 - **GOTCHA**: Ne pas oublier de gerer la migration des donnees existantes
 
 #### Task 3.2: ADD to migration SQL (meme fichier que Task 2.2)
+
 - **IMPLEMENT**: Migration qui :
   1. Convertit CASHIER -> EMPLOYEE, ADMIN -> MANAGER, OWNER -> BOSS dans user_roles
   2. Convertit dans pin_invites si applicable
@@ -402,6 +439,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx prisma migrate dev`
 
 #### Task 3.3: UPDATE tous les controllers API (16 fichiers, ~77 decorateurs)
+
 - **IMPLEMENT**: Remplacer les roles dans chaque @Roles() :
   - `Role.OWNER` -> `Role.BOSS`
   - `Role.CASHIER` -> `Role.EMPLOYEE`
@@ -411,14 +449,17 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 3.4: UPDATE `apps/api/src/modules/auth/roles.guard.ts`
+
 - **IMPLEMENT**: Supprimer le mapping de compatibilite OWNER->ADMIN, CASHIER->EMPLOYEE. Simplifier : juste verifier si le role de l'utilisateur est dans les roles requis ou si SUPERADMIN
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 3.5: UPDATE `apps/api/src/common/guards/roles.guard.ts`
+
 - **IMPLEMENT**: Meme simplification que Task 3.4 si necessaire
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 #### Task 3.6: UPDATE frontend web - toutes les verifications de roles
+
 - **IMPLEMENT**: Rechercher et remplacer dans apps/web/src/ :
   - `'OWNER'` -> `'BOSS'`
   - `'CASHIER'` -> `'EMPLOYEE'` (si utilise)
@@ -428,10 +469,12 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/web && npx tsc --noEmit`
 
 #### Task 3.7: UPDATE frontend web-admin
+
 - **IMPLEMENT**: Verifier les references de roles dans web-admin (normalement que SUPERADMIN)
 - **VALIDATE**: `cd apps/web-admin && npx tsc --noEmit`
 
 #### Task 3.8: UPDATE frontend mobile
+
 - **IMPLEMENT**: Rechercher et remplacer dans apps/mobile/src/ :
   - `'OWNER'` -> `'BOSS'`
   - `'CASHIER'` -> `'EMPLOYEE'`
@@ -440,6 +483,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `cd apps/mobile && npx tsc --noEmit`
 
 #### Task 3.9: UPDATE `apps/api/prisma/seed.ts` (roles)
+
 - **IMPLEMENT**: Remplacer les roles dans le seed :
   - role: 'OWNER' -> role: 'BOSS'
   - role: 'ADMIN' -> role: 'MANAGER'
@@ -449,6 +493,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ### Phase 4: Licensing et entreprise exclusive admin
 
 #### Task 4.1: UPDATE `apps/api/src/modules/admin-controls/admin-controls.service.ts`
+
 - **IMPLEMENT**: Dans updateShopModules(), ajouter validation :
   - Charger le shop avec son enterprise (enterprise_id est maintenant garanti non-null)
   - Recuperer licence tier de l'enterprise
@@ -459,6 +504,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: Test API avec modules non-autorises -> doit retourner 400
 
 #### Task 4.2: UPDATE `apps/api/src/modules/admin/admin.service.ts` - updateLicense()
+
 - **IMPLEMENT**: Apres modification de la licence, auto-ajuster les modules de toutes les boutiques :
   - Charger toutes les boutiques de l'entreprise
   - Pour chaque boutique, filtrer enabled_modules par les modules autorises par le nouveau tier
@@ -466,24 +512,29 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: Changer licence PROFESSIONAL -> STARTER doit retirer les modules premium des boutiques
 
 #### Task 4.3: UPDATE `apps/api/src/modules/enterprise/enterprise.controller.ts`
+
 - **IMPLEMENT**: Supprimer POST /enterprises (creation) et DELETE /enterprises/:id/shops/:shopId (detachment). Garder uniquement les GET (lecture) pour que les BOSS puissent voir leur entreprise
 - **GOTCHA**: Garder les endpoints de lecture (GET) et les liens shop-enterprise
 
 #### Task 4.4: UPDATE `apps/web/src/lib/api.ts`
+
 - **IMPLEMENT**: Supprimer enterpriseApi.create() du client API web
 - **VALIDATE**: `cd apps/web && npx tsc --noEmit`
 
 #### Task 4.5: UPDATE `apps/web/src/pages/EnterpriseDashboard.tsx`
+
 - **IMPLEMENT**: Retirer tout bouton/formulaire de creation d'entreprise. Ne garder que la vue lecture des informations enterprise + liste boutiques
 - **VALIDATE**: `cd apps/web && npx tsc --noEmit`
 
 ### Phase 5: Branding
 
 #### Task 5.1: UPDATE `apps/api/prisma/schema.prisma` - Enterprise model
+
 - **IMPLEMENT**: Ajouter `logo_url String?` au modele Enterprise (inclus dans la migration de Phase 2)
 - **VALIDATE**: `cd apps/api && npx prisma db push`
 
 #### Task 5.2: UPDATE `apps/api/src/modules/auth/auth.service.ts` - getUserWithRoles()
+
 - **IMPLEMENT**: Modifier la requete Prisma pour inclure enterprise dans le shop :
   - Dans user_roles include, ajouter: shop: { include: { enterprise: { select: { id, code, name, logo_url } } } }
   - Retourner enterprise dans la reponse de getMe()
@@ -492,20 +543,24 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: `curl GET /api/auth/me` retourne enterprise dans shop
 
 #### Task 5.3: UPDATE `apps/web/src/store/authStore.ts`
+
 - **IMPLEMENT**: Ajouter interface Enterprise { id, code, name, logo_url? } et l'inclure dans le state du store. Peupler depuis la reponse login/getMe. Enterprise est TOUJOURS present (non nullable)
 - **VALIDATE**: `cd apps/web && npx tsc --noEmit`
 
 #### Task 5.4: UPDATE `apps/web/src/components/Layout/MainLayout.tsx`
+
 - **IMPLEMENT**: Afficher TOUJOURS le nom combine dans le sidebar et le header :
   - Format : "{enterprise.name} - {shop.name}" (plus de cas conditionnel)
   - Si logo_url : afficher le logo dans le header a cote du nom
 - **VALIDATE**: Visuellement verifier dans le navigateur
 
 #### Task 5.5: UPDATE mobile auth store et navigation
+
 - **IMPLEMENT**: Stocker enterprise dans AsyncStorage avec shop. Afficher le nom combine "{enterprise.name} - {shop.name}" dans le header de navigation mobile. Enterprise est TOUJOURS present
 - **VALIDATE**: `cd apps/mobile && npx tsc --noEmit`
 
 #### Task 5.6: UPDATE `apps/mobile/src/utils/invoiceTemplate.ts`
+
 - **IMPLEMENT**: Modifier le template de facture :
   - Header : afficher "Enterprise Name" en titre, "Shop Name" en sous-titre (TOUJOURS)
   - Si logo_url : afficher le logo en haut de la facture
@@ -513,16 +568,19 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - **VALIDATE**: Generer une facture de test et verifier le rendu
 
 #### Task 5.7: UPDATE `apps/web-admin/src/pages/AdminEnterprises.tsx`
+
 - **IMPLEMENT**: Ajouter champ logo_url dans le formulaire de creation/edition d'entreprise (champ texte URL pour l'instant, upload de fichier en version future)
 - **VALIDATE**: Creer une entreprise avec logo_url, verifier que ca se sauvegarde
 
 #### Task 5.8: UPDATE DTOs admin
+
 - **IMPLEMENT**: Ajouter logo_url? dans CreateEnterpriseDto et UpdateEnterpriseDto
 - **VALIDATE**: `cd apps/api && npx tsc --noEmit`
 
 ### Phase 6: Verification
 
 #### Task 6.1: Type-check toutes les apps
+
 - **VALIDATE**:
   - `cd apps/api && npx tsc --noEmit`
   - `cd apps/web && npx tsc --noEmit`
@@ -530,12 +588,15 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
   - `cd apps/mobile && npx tsc --noEmit`
 
 #### Task 6.2: Tests unitaires API
+
 - **VALIDATE**: `cd apps/api && pnpm test`
 
 #### Task 6.3: Lint
+
 - **VALIDATE**: `pnpm --filter @swalo/api run lint` (0 errors)
 
 #### Task 6.4: UPDATE `docs/specs/features-catalog.md`
+
 - **IMPLEMENT**:
   - Mettre a jour la section roles (3 + SUPERADMIN au lieu de 6)
   - Ajouter section branding entreprise-boutique
@@ -544,6 +605,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
   - Ajouter changelog entry pour Plan 026
 
 #### Task 6.5: Seed et test en grandeur nature
+
 - **VALIDATE**:
   - `cd apps/api && pnpm prisma:seed`
   - Demarrer les 3 apps et tester le flux complet
@@ -553,10 +615,12 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ## TESTING STRATEGY
 
 ### Unit Tests
+
 - Tests existants doivent passer apres modification des roles (adapter les mocks)
 - Verifier que la migration des roles et enterprise ne casse pas les tests FIFO, refund, etc.
 
 ### Integration Tests
+
 - Login avec chaque role (EMPLOYEE, MANAGER, BOSS, SUPERADMIN)
 - Creation entreprise depuis admin uniquement
 - Attribution licence -> verification modules auto
@@ -564,6 +628,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 - register() cree enterprise + shop ensemble
 
 ### Edge Cases
+
 - **Plus de shop sans enterprise** : migration assigne tous les orphelins
 - Changement de licence PROFESSIONAL -> STARTER : modules premium retires
 - Utilisateur avec roles dans plusieurs boutiques : migration correcte
@@ -576,6 +641,7 @@ Corriger le mapping des champs dans AdminShops.tsx pour correspondre a l'API :
 ## VALIDATION COMMANDS
 
 ### Level 1: Syntax & Types
+
 ```
 cd apps/api && npx tsc --noEmit
 cd apps/web && npx tsc --noEmit
@@ -584,18 +650,21 @@ cd apps/mobile && npx tsc --noEmit
 ```
 
 ### Level 2: Lint
+
 ```
 pnpm --filter @swalo/api run lint
 pnpm --filter @swalo/mobile run lint
 ```
 
 ### Level 3: Tests
+
 ```
 pnpm --filter @swalo/api run test
 pnpm --filter @swalo/mobile run test
 ```
 
 ### Level 4: Live Tests
+
 ```
 # API endpoints
 curl POST /api/auth/login (SUPERADMIN)
@@ -653,6 +722,7 @@ Verifier header : "Enterprise - Boutique"
 **Ordre de priorite** : Phase 1 (quick win) -> Phase 2 (enterprise obligatoire - CRITIQUE) -> Phase 3 (roles) -> Phase 4 (licensing) -> Phase 5 (branding) -> Phase 6 (verification)
 
 **Points de vigilance** :
+
 - La migration enterprise obligatoire est la plus delicate : il faut creer les entreprises par defaut AVANT de rendre la colonne NOT NULL
 - La migration des roles PostgreSQL enum est delicate (ALTER TYPE ... RENAME VALUE)
 - Certains controleurs importent RolesGuard depuis des chemins differents (auth/roles.guard vs common/guards/roles.guard)
@@ -661,6 +731,7 @@ Verifier header : "Enterprise - Boutique"
 - Le mobile stocke le role dans l'objet user dans AsyncStorage -> migration implicite au re-login
 
 **Impact sur les utilisateurs existants** :
+
 - Au prochain login, l'ancien role est lu depuis la DB (deja migre)
 - Pas de token invalidation necessaire car le role est lu depuis la DB dans jwt.strategy.ts, pas du token
 - Les PIN existants continueront a fonctionner
@@ -668,6 +739,7 @@ Verifier header : "Enterprise - Boutique"
 - Aucune donnee perdue : la migration est purement additive (creation d'entreprises) puis constrainte (NOT NULL)
 
 **Changement fondamental enterprise obligatoire - Resume :**
+
 - Schema : `enterprise_id String?` -> `enterprise_id String` (required)
 - Migration : creation d'entreprises par defaut pour shops orphelins
 - register() : auto-cree enterprise + shop
