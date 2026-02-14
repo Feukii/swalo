@@ -14,7 +14,13 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, AlertTriangle, CheckCircle, Server, Smartphone } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle,
+  Server,
+  Smartphone,
+} from '../components/icons/SimpleIcons';
 import { syncEngine } from '../db/sync';
 import { retryMutation } from '../db/queue';
 

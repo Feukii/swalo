@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { WifiOff, RefreshCw } from 'lucide-react-native';
+import { WifiOff, RefreshCw } from './icons/SimpleIcons';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 
 export function OfflineBanner(): React.ReactElement | null {

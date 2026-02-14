@@ -735,3 +735,78 @@ export const Printer = ({ size = 24, color = Colors.text }: IconProps) => (
     <Rect x="6" y="14" width="12" height="8" />
   </Svg>
 );
+
+export const Wifi = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M5 12.55a11 11 0 0 1 14.08 0" />
+    <Path d="M1.42 9a16 16 0 0 1 21.16 0" />
+    <Path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <Line x1="12" y1="20" x2="12.01" y2="20" />
+  </Svg>
+);
+
+export const WifiOff = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="1" y1="1" x2="23" y2="23" />
+    <Path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+    <Path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+    <Path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+    <Path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+    <Path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <Line x1="12" y1="20" x2="12.01" y2="20" />
+  </Svg>
+);
+
+export const Server = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+    <Rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+    <Line x1="6" y1="6" x2="6.01" y2="6" />
+    <Line x1="6" y1="18" x2="6.01" y2="18" />
+  </Svg>
+);
+
+export const CloudOff = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M2 2l20 20" />
+    <Path d="M17.5 21H9a7 7 0 0 1-6.16-3.65" />
+    <Path d="M5.26 11.26A7 7 0 0 1 9 7h.35" />
+    <Path d="M17.46 17.46A5 5 0 0 0 22 13c0-2.76-2.24-5-5-5h-1.05A7 7 0 0 0 12 4.28" />
+  </Svg>
+);

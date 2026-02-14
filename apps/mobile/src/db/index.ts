@@ -53,3 +53,6 @@ export {
   getPendingGroupedByEntity,
 } from './queue';
 export type { MutationOp, MutationStatus, MutationRecord } from './queue';
+
+export { cacheAuthCredentials, verifyOfflinePin, getCachedAuth, clearAuthCache } from './authCache';
+export type { AuthCacheEntry } from './authCache';

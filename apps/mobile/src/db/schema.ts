@@ -6,7 +6,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'swalo.db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -271,12 +271,39 @@ export async function initDatabase(): Promise<void> {
     );
   `);
 
-  // Set schema version
+  // Run migrations
+  await runMigrations(db);
+}
+
+/**
+ * Run schema migrations based on current version
+ */
+async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   const versionRow = await db.getFirstAsync<{ version: number }>(
     'SELECT version FROM _schema_version LIMIT 1'
   );
-  if (!versionRow) {
-    await db.runAsync('INSERT INTO _schema_version (version) VALUES (?)', DB_VERSION);
+  const currentVersion = versionRow?.version ?? 0;
+
+  if (currentVersion < 1) {
+    await db.runAsync('INSERT INTO _schema_version (version) VALUES (?)', 1);
+  }
+
+  if (currentVersion < 2) {
+    // Migration v2: Add auth_cache table for offline PIN authentication
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS auth_cache (
+        user_id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        shop_code TEXT NOT NULL,
+        pin_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        enabled_modules TEXT NOT NULL DEFAULT '[]',
+        cached_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+    `);
+    await db.runAsync('UPDATE _schema_version SET version = 2');
   }
 }
 
@@ -296,6 +323,7 @@ export async function resetDatabase(): Promise<void> {
     DELETE FROM stock_batches;
     DELETE FROM customers;
     DELETE FROM products;
+    DELETE FROM auth_cache;
     DELETE FROM _schema_version;
   `);
 }

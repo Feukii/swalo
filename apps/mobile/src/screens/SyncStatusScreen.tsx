@@ -22,7 +22,7 @@ import {
   AlertTriangle,
   Clock,
   CloudOff,
-} from 'lucide-react-native';
+} from '../components/icons/SimpleIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { getFailedCount, getTotalQueueCount } from '../db/queue';
