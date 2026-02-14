@@ -12,7 +12,9 @@
 import { getDeviceId } from '../lib/deviceInfo';
 import { generateId, nowISO } from './repository';
 import {
+  productRepo,
   stockBatchRepo,
+  customerRepo,
   saleRepo,
   cashEntryRepo,
   inventoryMovementRepo,
@@ -27,8 +29,10 @@ import {
   cashSessionRepo,
   inventorySessionRepo,
   inventoryCountRepo,
+  LocalProduct,
   LocalSaleItem,
   LocalCashEntry,
+  LocalCustomer,
   LocalSupplier,
   LocalSupplierDebt,
   LocalClientReceivable,
@@ -992,6 +996,267 @@ export async function completeInventorySessionOffline(input: {
       notes: input.notes || null,
     },
     clientOpId: `isess_done_${input.sessionId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+// ============================================================
+// Product CRUD (Offline-capable)
+// ============================================================
+
+export interface OfflineProductInput {
+  shopId: string;
+  name: string;
+  sku?: string;
+  barcode?: string;
+  description?: string;
+  category?: string;
+  family?: string;
+  articleType?: string;
+  brand?: string;
+  reference?: string;
+  unit?: string;
+  taxRate?: number;
+  costPrice: number;
+  sellPrice: number;
+  alertThreshold?: number;
+  imageUrl?: string;
+}
+
+/**
+ * Generate a local SKU if none provided (device-prefixed to avoid collisions)
+ */
+async function generateLocalSku(shopId: string): Promise<string> {
+  const count = await productRepo.count(shopId);
+  const deviceId = await getDeviceId();
+  const shortDevice = deviceId.slice(-4).toUpperCase();
+  return `LOC-${shortDevice}-${String(count + 1).padStart(4, '0')}`;
+}
+
+export async function createProductOffline(
+  input: OfflineProductInput
+): Promise<{ productId: string }> {
+  const { clientOpId, deviceId } = await generateClientOpId('prod');
+  const productId = generateId();
+  const sku = input.sku || (await generateLocalSku(input.shopId));
+
+  await productRepo.create({
+    id: productId,
+    shop_id: input.shopId,
+    sku,
+    barcode: input.barcode || null,
+    name: input.name,
+    description: input.description || null,
+    category: input.category || null,
+    family: input.family || null,
+    article_type: input.articleType || null,
+    brand: input.brand || null,
+    reference: input.reference || null,
+    unit: input.unit || 'unit',
+    tax_rate: input.taxRate ?? 0,
+    cost_price: input.costPrice,
+    sell_price: input.sellPrice,
+    is_active: 1,
+    alert_threshold: input.alertThreshold ?? 5,
+    image_url: input.imageUrl || null,
+    version: 1,
+    device_id: deviceId,
+    client_op_id: clientOpId,
+  } as Partial<LocalProduct>);
+
+  await enqueueAndSync({
+    entity: 'products',
+    op: 'insert',
+    entityId: productId,
+    data: {
+      id: productId,
+      shop_id: input.shopId,
+      sku,
+      barcode: input.barcode || null,
+      name: input.name,
+      description: input.description || null,
+      category: input.category || null,
+      family: input.family || null,
+      article_type: input.articleType || null,
+      brand: input.brand || null,
+      reference: input.reference || null,
+      unit: input.unit || 'unit',
+      tax_rate: input.taxRate ?? 0,
+      cost_price: input.costPrice,
+      sell_price: input.sellPrice,
+      is_active: true,
+      alert_threshold: input.alertThreshold ?? 5,
+      image_url: input.imageUrl || null,
+      device_id: deviceId,
+      client_op_id: clientOpId,
+    },
+    clientOpId,
+    deviceId,
+  });
+
+  return { productId };
+}
+
+export async function updateProductOffline(
+  productId: string,
+  data: Partial<OfflineProductInput>
+): Promise<void> {
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.sku !== undefined) updateData.sku = data.sku;
+  if (data.barcode !== undefined) updateData.barcode = data.barcode;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.category !== undefined) updateData.category = data.category;
+  if (data.family !== undefined) updateData.family = data.family;
+  if (data.articleType !== undefined) updateData.article_type = data.articleType;
+  if (data.brand !== undefined) updateData.brand = data.brand;
+  if (data.reference !== undefined) updateData.reference = data.reference;
+  if (data.unit !== undefined) updateData.unit = data.unit;
+  if (data.taxRate !== undefined) updateData.tax_rate = data.taxRate;
+  if (data.costPrice !== undefined) updateData.cost_price = data.costPrice;
+  if (data.sellPrice !== undefined) updateData.sell_price = data.sellPrice;
+  if (data.alertThreshold !== undefined) updateData.alert_threshold = data.alertThreshold;
+  if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl;
+
+  await productRepo.update(productId, updateData as Partial<LocalProduct>);
+
+  const { deviceId } = await generateClientOpId('prod_upd');
+  await enqueueAndSync({
+    entity: 'products',
+    op: 'update',
+    entityId: productId,
+    data: { id: productId, ...updateData },
+    clientOpId: `prod_upd_${productId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+export async function deleteProductOffline(productId: string): Promise<void> {
+  await productRepo.softDelete(productId);
+
+  const { deviceId } = await generateClientOpId('prod_del');
+  await enqueueAndSync({
+    entity: 'products',
+    op: 'delete',
+    entityId: productId,
+    data: { id: productId },
+    clientOpId: `prod_del_${productId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+// ============================================================
+// Customer CRUD (Offline-capable)
+// ============================================================
+
+export interface OfflineCustomerInput {
+  shopId: string;
+  name: string;
+  firstName?: string;
+  code?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  creditLimit?: number;
+  notes?: string;
+}
+
+export async function createCustomerOffline(
+  input: OfflineCustomerInput
+): Promise<{ customerId: string }> {
+  const { deviceId } = await generateClientOpId('cust');
+  const customerId = generateId();
+
+  await customerRepo.create({
+    id: customerId,
+    shop_id: input.shopId,
+    name: input.name,
+    first_name: input.firstName || null,
+    code: input.code || null,
+    phone: input.phone || null,
+    email: input.email || null,
+    address: input.address || null,
+    credit_limit: input.creditLimit ?? 0,
+    notes: input.notes || null,
+    is_active: 1,
+    version: 1,
+  } as Partial<LocalCustomer>);
+
+  await enqueueAndSync({
+    entity: 'customers',
+    op: 'insert',
+    entityId: customerId,
+    data: {
+      id: customerId,
+      shop_id: input.shopId,
+      name: input.name,
+      first_name: input.firstName || null,
+      code: input.code || null,
+      phone: input.phone || null,
+      email: input.email || null,
+      address: input.address || null,
+      credit_limit: input.creditLimit ?? 0,
+      notes: input.notes || null,
+      is_active: true,
+    },
+    clientOpId: `cust_${customerId}`,
+    deviceId,
+  });
+
+  return { customerId };
+}
+
+export async function updateCustomerOffline(
+  customerId: string,
+  data: Partial<OfflineCustomerInput>
+): Promise<void> {
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.firstName !== undefined) updateData.first_name = data.firstName;
+  if (data.code !== undefined) updateData.code = data.code;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.creditLimit !== undefined) updateData.credit_limit = data.creditLimit;
+  if (data.notes !== undefined) updateData.notes = data.notes;
+
+  await customerRepo.update(customerId, updateData as Partial<LocalCustomer>);
+
+  const { deviceId } = await generateClientOpId('cust_upd');
+  await enqueueAndSync({
+    entity: 'customers',
+    op: 'update',
+    entityId: customerId,
+    data: { id: customerId, ...updateData },
+    clientOpId: `cust_upd_${customerId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+export async function deleteCustomerOffline(customerId: string): Promise<void> {
+  await customerRepo.softDelete(customerId);
+
+  const { deviceId } = await generateClientOpId('cust_del');
+  await enqueueAndSync({
+    entity: 'customers',
+    op: 'delete',
+    entityId: customerId,
+    data: { id: customerId },
+    clientOpId: `cust_del_${customerId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+export async function deleteSupplierOffline(supplierId: string): Promise<void> {
+  await supplierRepo.softDelete(supplierId);
+
+  const { deviceId } = await generateClientOpId('supplier_del');
+  await enqueueAndSync({
+    entity: 'suppliers',
+    op: 'delete',
+    entityId: supplierId,
+    data: { id: supplierId },
+    clientOpId: `supplier_del_${supplierId}_${Date.now()}`,
     deviceId,
   });
 }

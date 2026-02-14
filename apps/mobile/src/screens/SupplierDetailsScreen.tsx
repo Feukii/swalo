@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Building, DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
@@ -26,7 +25,24 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
-import { suppliersApi, cashApi, debtsApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import {
+  supplierRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  cashEntryRepo,
+  LocalSupplier,
+  LocalSupplierDebt,
+  LocalSupplierDebtPayment,
+  LocalCashEntry,
+} from '../db/repositories';
+import { getDatabase } from '../db/schema';
+import {
+  updateSupplierOffline,
+  deleteSupplierOffline,
+  createSupplierDebtOffline,
+  paySupplierDebtOffline,
+} from '../db/offlineWrite';
 
 interface SupplierDetailsScreenProps {
   navigation: any;
@@ -37,39 +53,29 @@ interface SupplierDetailsScreenProps {
   };
 }
 
+interface DebtWithPayments {
+  id: string;
+  amount: number;
+  balance: number;
+  paid_amount: number;
+  status: string;
+  created_at: string;
+  description: string | null;
+  notes: string | null;
+  payments: LocalSupplierDebtPayment[];
+}
+
 interface SupplierDetails {
   id: string;
   name: string;
-  first_name?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  borrowing_limit?: number;
-  is_active: boolean;
-  debts: Array<{
-    id: string;
-    amount: number;
-    balance: number;
-    paid_amount: number;
-    status: string;
-    created_at: string;
-    description?: string;
-    notes?: string;
-    payments: Array<{
-      id: string;
-      amount: number;
-      payment_date: string;
-      note?: string;
-    }>;
-  }>;
-  cash_entries: Array<{
-    id: string;
-    amount: number;
-    category: string;
-    created_at: string;
-    note?: string;
-    cashier?: { id: string; display_name: string };
-  }>;
+  first_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  borrowing_limit: number;
+  is_active: number | boolean;
+  debts: DebtWithPayments[];
+  cash_entries: LocalCashEntry[];
   stats: {
     total_debts: number;
     total_balance: number;
@@ -81,6 +87,9 @@ interface SupplierDetails {
 
 export default function SupplierDetailsScreen({ navigation, route }: SupplierDetailsScreenProps) {
   const { id } = route.params;
+  const { user, shopId, userId } = useCurrentUser();
+  const userRole = user?.role || 'EMPLOYEE';
+
   const [supplier, setSupplier] = useState<SupplierDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -118,58 +127,100 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   const [supplierRefundAmount, setSupplierRefundAmount] = useState('');
   const [supplierRefundNote, setSupplierRefundNote] = useState('');
 
-  // User role for permissions
-  const [userRole, setUserRole] = useState<string>('EMPLOYEE');
-
-  useEffect(() => {
-    loadSupplier();
-    loadUserRole();
-  }, [id]);
-
-  // Auto-refresh when screen comes into focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('Supplier screen focused, reloading data');
-      loadSupplier();
-    });
-    return unsubscribe;
-  }, [navigation, id]);
-
-  const loadUserRole = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setUserRole(user.role || 'EMPLOYEE');
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement du rôle:', error);
-    }
-  };
-
-  const loadSupplier = async () => {
+  const loadSupplier = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      const data = await suppliersApi.getOne(id);
-      setSupplier(data);
+      const sup = await supplierRepo.getById(id);
+      if (!sup) {
+        Alert.alert('Erreur', 'Fournisseur introuvable');
+        navigation.goBack();
+        return;
+      }
+
+      // Load debts with payments
+      const debts = await supplierDebtRepo.getBySupplier(shopId, id);
+      const debtsWithPayments: DebtWithPayments[] = await Promise.all(
+        debts.map(async (d: LocalSupplierDebt) => {
+          const payments = await supplierDebtPaymentRepo.getByDebt(d.id);
+          return {
+            id: d.id,
+            amount: d.amount,
+            balance: d.balance,
+            paid_amount: d.paid_amount,
+            status: d.status,
+            created_at: d.created_at,
+            description: d.description,
+            notes: d.notes,
+            payments,
+          };
+        })
+      );
+
+      // Load cash entries related to this supplier
+      const db = await getDatabase();
+      const cashEntries = await db.getAllAsync<LocalCashEntry>(
+        `SELECT * FROM cash_entries WHERE supplier_id = ? AND deleted = 0 ORDER BY created_at DESC`,
+        [id]
+      );
+
+      // Compute stats
+      const totalDebts = debtsWithPayments.reduce((s, d) => s + Math.max(0, d.amount), 0);
+      const totalBalance = debtsWithPayments.reduce((s, d) => s + d.balance, 0);
+      const totalPaid = debtsWithPayments.reduce((s, d) => s + d.paid_amount, 0);
+      const cashPaymentsCount = cashEntries.length;
+      const totalCashPayments = cashEntries.reduce((s, e) => s + e.amount, 0);
+
+      const supplierDetails: SupplierDetails = {
+        id: sup.id,
+        name: sup.name,
+        first_name: sup.first_name,
+        phone: sup.phone,
+        email: sup.email,
+        address: sup.address,
+        borrowing_limit: sup.borrowing_limit ?? 0,
+        is_active: sup.is_active,
+        debts: debtsWithPayments,
+        cash_entries: cashEntries,
+        stats: {
+          total_debts: totalDebts,
+          total_balance: totalBalance,
+          total_paid: totalPaid,
+          cash_payments_count: cashPaymentsCount,
+          total_cash_payments: totalCashPayments,
+        },
+      };
+
+      setSupplier(supplierDetails);
 
       // Show alert if supplier has negative balance (supplier owes us money)
-      const balance = data.stats?.total_balance || 0;
-      if (balance < 0) {
+      if (totalBalance < 0) {
         Alert.alert(
-          '⚠️ Remboursement dû par le fournisseur',
-          `Le fournisseur vous doit ${formatMoney(Math.abs(balance))}.\n\nUtilisez le bouton "Réclamer Remboursement" pour enregistrer le remboursement reçu.`,
+          'Remboursement du par le fournisseur',
+          `Le fournisseur vous doit ${formatMoney(Math.abs(totalBalance))}.\n\nUtilisez le bouton "Reclamer Remboursement" pour enregistrer le remboursement recu.`,
           [{ text: 'Compris', style: 'default' }]
         );
       }
     } catch (error) {
       console.error('Erreur lors du chargement du fournisseur:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails du fournisseur');
+      Alert.alert('Erreur', 'Impossible de charger les details du fournisseur');
       navigation.goBack();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id, shopId, navigation]);
+
+  useEffect(() => {
+    loadSupplier();
+  }, [loadSupplier]);
+
+  // Auto-refresh when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadSupplier();
+    });
+    return unsubscribe;
+  }, [navigation, loadSupplier]);
 
   const handleOpenPaymentModal = () => {
     setShowPaymentModal(true);
@@ -200,8 +251,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId) return;
 
-    const amountValue = Math.round(parseFloat(amount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(amount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -210,13 +262,14 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
     setIsSubmitting(true);
     try {
-      await debtsApi.create({
-        supplier_id: id,
+      await createSupplierDebtOffline({
+        shopId,
+        supplierId: id,
         amount: amountValue,
-        description: note || `Dette contractée auprès de ${getPersonName(supplier!)}`,
+        description: note || `Dette contractee aupres de ${getPersonName(supplier!)}`,
       });
 
-      Alert.alert('Succès', 'Dette enregistrée');
+      Alert.alert('Succes', 'Dette enregistree');
       handleCloseDebtModal();
       loadSupplier();
     } catch (error: any) {
@@ -232,8 +285,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId || !userId) return;
 
-    const amountValue = Math.round(parseFloat(amount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(amount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -252,11 +306,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     // If no pending debts but payment > 0, we need to create a negative debt
     if (pendingDebts.length === 0) {
       if (totalDebt >= 0) {
-        // No debt, payment will create negative balance
         Alert.alert(
-          'Attention : Créer un solde négatif',
-          `Le fournisseur n'a pas de dette. En payant ${formatMoney(amountValue)}, il devra vous rembourser cette somme.\n\n` +
-            `Voulez-vous continuer ?`,
+          'Attention : Creer un solde negatif',
+          `Le fournisseur n'a pas de dette. En payant ${formatMoney(amountValue)}, il devra vous rembourser cette somme.\n\nVoulez-vous continuer ?`,
           [
             { text: 'Annuler', style: 'cancel' },
             {
@@ -266,12 +318,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
           ]
         );
       } else {
-        // Already negative, adding more
         Alert.alert(
-          'Attention : Augmenter le solde négatif',
-          `Le fournisseur a déjà un solde de ${formatMoney(totalDebt)} (il vous doit ${formatMoney(Math.abs(totalDebt))}).\n\n` +
-            `En payant ${formatMoney(amountValue)} de plus, il vous devra ${formatMoney(Math.abs(totalDebt) + amountValue)}.\n\n` +
-            `Voulez-vous continuer ?`,
+          'Attention : Augmenter le solde negatif',
+          `Le fournisseur a deja un solde de ${formatMoney(totalDebt)} (il vous doit ${formatMoney(Math.abs(totalDebt))}).\n\nEn payant ${formatMoney(amountValue)} de plus, il vous devra ${formatMoney(Math.abs(totalDebt) + amountValue)}.\n\nVoulez-vous continuer ?`,
           [
             { text: 'Annuler', style: 'cancel' },
             {
@@ -287,13 +336,12 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     // Check for overpayment
     if (overpayment > 0) {
       Alert.alert(
-        'Attention : Dépassement',
-        `Le montant de ${formatMoney(amountValue)} dépasse la dette de ${formatMoney(totalDebt)}.\n\n` +
-          `Ce fournisseur doit vous rendre ${formatMoney(overpayment)}.`,
+        'Attention : Depassement',
+        `Le montant de ${formatMoney(amountValue)} depasse la dette de ${formatMoney(totalDebt)}.\n\nCe fournisseur doit vous rendre ${formatMoney(overpayment)}.`,
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Confirmer quand même',
+            text: 'Confirmer quand meme',
             onPress: () => processSupplierPayment(amountValue, pendingDebts[0].id),
           },
         ]
@@ -305,21 +353,22 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   };
 
   const createNegativeDebt = async (amountValue: number) => {
+    if (!shopId) return;
     setIsSubmitting(true);
     try {
-      // Create a negative debt (we paid when supplier had no debt)
-      await debtsApi.create({
-        supplier_id: supplier!.id,
-        amount: -amountValue, // Negative amount
-        description: note || `Remboursement à recevoir de ${getPersonName(supplier!)}`,
+      await createSupplierDebtOffline({
+        shopId,
+        supplierId: supplier!.id,
+        amount: -amountValue,
+        description: note || `Remboursement a recevoir de ${getPersonName(supplier!)}`,
       });
 
       const totalDebt = supplier!.stats?.total_balance || 0;
       const newBalance = totalDebt - amountValue;
 
       Alert.alert(
-        'Paiement enregistré',
-        `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ Ce fournisseur doit vous rendre ${formatMoney(Math.abs(newBalance))}.`
+        'Paiement enregistre',
+        `Paiement de ${formatMoney(amountValue)} enregistre.\n\nCe fournisseur doit vous rendre ${formatMoney(Math.abs(newBalance))}.`
       );
 
       handleClosePaymentModal();
@@ -333,12 +382,14 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   };
 
   const processSupplierPayment = async (amountValue: number, debtId: string) => {
+    if (!userId) return;
     setIsSubmitting(true);
     try {
-      await debtsApi.addPayment(debtId, {
+      await paySupplierDebtOffline({
+        debtId,
         amount: amountValue,
-        payment_method: 'Espèces',
-        note: note || `Paiement à ${getPersonName(supplier!)}`,
+        cashierId: userId,
+        notes: note || `Paiement a ${getPersonName(supplier!)}`,
       });
 
       // Check if there's overpayment
@@ -347,11 +398,11 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
       if (overpayment > 0) {
         Alert.alert(
-          'Paiement enregistré',
-          `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ Ce fournisseur doit vous rendre ${formatMoney(overpayment)}.`
+          'Paiement enregistre',
+          `Paiement de ${formatMoney(amountValue)} enregistre.\n\nCe fournisseur doit vous rendre ${formatMoney(overpayment)}.`
         );
       } else {
-        Alert.alert('Succès', 'Paiement enregistré');
+        Alert.alert('Succes', 'Paiement enregistre');
       }
 
       handleClosePaymentModal();
@@ -390,31 +441,17 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
     setIsSubmitting(true);
     try {
-      const updateData: any = {
+      await updateSupplierOffline(id, {
         name: editForm.name.trim(),
-      };
-
-      if (editForm.first_name.trim()) {
-        updateData.first_name = editForm.first_name.trim();
-      }
-      if (editForm.phone.trim()) {
-        updateData.phone = editForm.phone.trim();
-      }
-      if (editForm.email.trim()) {
-        updateData.email = editForm.email.trim();
-      }
-      if (editForm.address.trim()) {
-        updateData.address = editForm.address.trim();
-      }
-      if (editForm.borrowing_limit.trim()) {
-        const borrowingLimitValue = Math.round(parseFloat(editForm.borrowing_limit));
-        if (!isNaN(borrowingLimitValue) && borrowingLimitValue >= 0) {
-          updateData.borrowing_limit = borrowingLimitValue;
-        }
-      }
-
-      await suppliersApi.update(id, updateData);
-      Alert.alert('Succès', 'Fournisseur modifié avec succès');
+        firstName: editForm.first_name.trim() || undefined,
+        phone: editForm.phone.trim() || undefined,
+        email: editForm.email.trim() || undefined,
+        address: editForm.address.trim() || undefined,
+        borrowingLimit: editForm.borrowing_limit.trim()
+          ? Math.round(parseFloat(editForm.borrowing_limit))
+          : undefined,
+      });
+      Alert.alert('Succes', 'Fournisseur modifie avec succes');
       handleCloseEditModal();
       loadSupplier();
     } catch (error: any) {
@@ -439,8 +476,8 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
           style: 'destructive',
           onPress: async () => {
             try {
-              await suppliersApi.delete(id);
-              Alert.alert('Succès', 'Fournisseur supprimé avec succès');
+              await deleteSupplierOffline(id);
+              Alert.alert('Succes', 'Fournisseur supprime avec succes');
               navigation.goBack();
             } catch (error: any) {
               console.error('Erreur lors de la suppression:', error);
@@ -478,8 +515,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId) return;
 
-    const amountValue = Math.round(parseFloat(supplierRefundAmount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(supplierRefundAmount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -489,31 +527,30 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     const currentBalance = supplier?.stats?.total_balance || 0;
     const refundOwed = Math.abs(currentBalance);
 
-    // Validate amount doesn't exceed refund owed
     if (amountValue > refundOwed) {
       Alert.alert(
         'Erreur',
-        `Le montant du remboursement (${formatMoney(amountValue)}) dépasse le montant dû (${formatMoney(refundOwed)})`
+        `Le montant du remboursement (${formatMoney(amountValue)}) depasse le montant du (${formatMoney(refundOwed)})`
       );
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await suppliersApi.claimRefund(id, {
+      // Create a positive debt to cancel out the negative balance
+      await createSupplierDebtOffline({
+        shopId,
+        supplierId: id,
         amount: amountValue,
-        payment_method: 'CASH',
-        note: supplierRefundNote || undefined,
+        description: supplierRefundNote || `Remboursement recu de ${getPersonName(supplier!)}`,
       });
 
-      Alert.alert('Succès', 'Remboursement réclamé et enregistré avec succès');
+      Alert.alert('Succes', 'Remboursement reclame et enregistre avec succes');
       handleCloseSupplierRefundModal();
-      await loadSupplier(); // Reload supplier data
+      await loadSupplier();
     } catch (error: any) {
-      console.error('Erreur lors de la réclamation du remboursement:', error);
-      const errorMessage =
-        error.response?.data?.message || 'Impossible de réclamer le remboursement';
-      Alert.alert('Erreur', errorMessage);
+      console.error('Erreur lors de la reclamation du remboursement:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de reclamer le remboursement');
     } finally {
       setIsSubmitting(false);
     }
@@ -538,8 +575,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId) return;
 
-    const amountValue = Math.round(parseFloat(debtAmount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(debtAmount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -548,32 +586,33 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
     setIsSubmitting(true);
     try {
-      await debtsApi.create({
-        supplier_id: supplier.id,
+      await createSupplierDebtOffline({
+        shopId,
+        supplierId: supplier.id,
         amount: amountValue,
         description: debtDescription || `Dette envers ${supplier.name}`,
-        notes: debtNote,
+        notes: debtNote || undefined,
       });
 
-      Alert.alert('Succès', 'Dette créée avec succès');
+      Alert.alert('Succes', 'Dette creee avec succes');
       handleCloseCreateDebtModal();
       loadSupplier();
     } catch (error: any) {
-      console.error('Erreur lors de la création de la dette:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de créer la dette');
+      console.error('Erreur lors de la creation de la dette:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de creer la dette');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getPersonName = (person: { name: string; first_name?: string }): string => {
+  const getPersonName = (person: { name: string; first_name?: string | null }): string => {
     const firstName = person.first_name ? String(person.first_name).trim() : '';
     const lastName = person.name ? String(person.name).trim() : '';
     return firstName ? `${firstName} ${lastName}` : lastName;
   };
 
   const canEditOrDelete = () => {
-    return userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
+    return userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
   };
 
   const getAllTransactions = () => {
@@ -586,13 +625,11 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       note?: string;
       status?: string;
       debtAmount?: number;
-      cashier?: { id: string; display_name: string };
     }> = [];
 
     // Add debts
     supplier.debts.forEach(debt => {
       // Skip debts that are negative amounts with "Remboursement" in description
-      // These are created to track supplier refunds and would duplicate the cash entry
       const isRefundDebt =
         debt.amount < 0 &&
         (debt.description?.includes('Remboursement') || debt.notes?.includes('Remboursement'));
@@ -604,33 +641,31 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         type: 'debt',
         date: debt.created_at,
         amount: debt.amount,
-        note: debt.description || debt.notes,
+        note: debt.description || debt.notes || undefined,
         status: debt.status,
         debtAmount: debt.amount,
       });
 
       // Add payments that are NOT linked to a cash exit (to avoid duplicates)
-      // Payments with cash_exit_id are already shown as cash entries
-      debt.payments.forEach((payment: any) => {
+      debt.payments.forEach(payment => {
         if (!payment.cash_exit_id) {
           transactions.push({
             type: 'payment',
             date: payment.payment_date,
             amount: -payment.amount,
-            note: payment.notes,
+            note: payment.notes || undefined,
           });
         }
       });
     });
 
-    // Add cash entries with cashier info
+    // Add cash entries
     supplier.cash_entries.forEach(entry => {
       transactions.push({
         type: 'cash',
         date: entry.created_at,
         amount: -entry.amount,
-        note: entry.note,
-        cashier: entry.cashier,
+        note: entry.note || undefined,
       });
     });
 
@@ -756,7 +791,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'BOSS' || userRole === 'MANAGER') && (
+        {(userRole === 'OWNER' || userRole === 'MANAGER') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
@@ -850,18 +885,14 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                   return statusMap[transaction.status] || undefined;
                 };
 
-                // Build subtitle with date and cashier if available
                 const dateStr = transaction.date ? formatDate(transaction.date) : 'Date inconnue';
-                const subtitleStr = transaction.cashier
-                  ? `${dateStr} - Par: ${transaction.cashier.display_name}`
-                  : dateStr;
 
                 return (
                   <ListItem
                     key={index}
                     icon={getIcon()}
                     title={getTitle()}
-                    subtitle={subtitleStr}
+                    subtitle={dateStr}
                     amount={`${transaction.amount > 0 ? '+' : ''}${formatMoney(Math.abs(transaction.amount))}`}
                     amountColor={
                       isCredit ? 'warning' : transaction.amount > 0 ? 'success' : 'danger'
@@ -877,7 +908,6 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                         isCredit: isCredit,
                         category: isCredit ? 'achats_marchandises' : undefined,
                         supplierName: supplier ? getPersonName(supplier) : '',
-                        cashier: transaction.cashier,
                       });
                       setShowDetailModal(true);
                     }}

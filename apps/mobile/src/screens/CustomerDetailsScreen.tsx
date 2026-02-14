@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Users, DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
@@ -26,8 +25,23 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
-import { customersApi, cashApi, receivablesApi } from '../lib/api';
-import { getCashTransactions } from '../utils/cashRegister';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import {
+  customerRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  LocalCustomer,
+  LocalClientReceivable,
+  LocalClientReceivablePayment,
+  LocalCashEntry,
+} from '../db/repositories';
+import { getDatabase } from '../db/schema';
+import {
+  updateCustomerOffline,
+  deleteCustomerOffline,
+  createReceivableOffline,
+  payReceivableOffline,
+} from '../db/offlineWrite';
 
 interface CustomerDetailsScreenProps {
   navigation: any;
@@ -38,44 +52,29 @@ interface CustomerDetailsScreenProps {
   };
 }
 
+interface ReceivableWithPayments {
+  id: string;
+  amount: number;
+  balance: number;
+  paid_amount: number;
+  status: string;
+  created_at: string;
+  description: string | null;
+  notes: string | null;
+  payments: LocalClientReceivablePayment[];
+}
+
 interface CustomerDetails {
   id: string;
   name: string;
-  first_name?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  credit_limit?: number;
-  current_balance?: number;
-  is_active: boolean;
-  receivables: Array<{
-    id: string;
-    amount: number;
-    balance: number;
-    paid_amount: number;
-    status: string;
-    created_at: string;
-    description?: string;
-    notes?: string;
-    payments: Array<{
-      id: string;
-      amount: number;
-      payment_date: string;
-      note?: string;
-      notes?: string;
-      cash_entry_id?: string;
-      created_at?: string;
-    }>;
-  }>;
-  cash_entries: Array<{
-    id: string;
-    type?: string;
-    amount: number;
-    category: string;
-    created_at: string;
-    note?: string;
-    cashier?: { id: string; display_name: string };
-  }>;
+  first_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  credit_limit: number;
+  is_active: number | boolean;
+  receivables: ReceivableWithPayments[];
+  cash_entries: LocalCashEntry[];
   stats: {
     total_receivables: number;
     total_balance: number;
@@ -86,9 +85,21 @@ interface CustomerDetails {
 
 export default function CustomerDetailsScreen({ navigation, route }: CustomerDetailsScreenProps) {
   const { id } = route.params;
+  const { user, shopId, userId } = useCurrentUser();
+  const userRole = user?.role || 'EMPLOYEE';
+
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<
+    Array<{
+      type: 'receivable' | 'payment' | 'cash';
+      date: string;
+      amount: number;
+      note?: string;
+      status?: string;
+      isRefund?: boolean;
+    }>
+  >([]);
 
   // Modal state
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -123,158 +134,159 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [customerRefundAmount, setCustomerRefundAmount] = useState('');
   const [customerRefundNote, setCustomerRefundNote] = useState('');
 
-  // User role for permissions
-  const [userRole, setUserRole] = useState<string>('EMPLOYEE');
-
-  useEffect(() => {
-    loadCustomer();
-    loadUserRole();
-  }, [id]);
-
-  // Auto-refresh when screen comes into focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('Customer screen focused, reloading data');
-      loadCustomer();
-    });
-    return unsubscribe;
-  }, [navigation, id]);
-
-  const loadUserRole = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setUserRole(user.role || 'EMPLOYEE');
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement du rôle:', error);
-    }
-  };
-
-  const loadCustomer = async () => {
+  const loadCustomer = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      const data = await customersApi.getOne(id);
-      setCustomer(data);
+      const cust = await customerRepo.getById(id);
+      if (!cust) {
+        Alert.alert('Erreur', 'Client introuvable');
+        navigation.goBack();
+        return;
+      }
 
-      // Load all transactions including sales
-      const allTransactions = await loadAllTransactions(data);
-      setTransactions(allTransactions);
+      // Load receivables with payments
+      const receivables = await clientReceivableRepo.getByCustomer(shopId, id);
+      const receivablesWithPayments: ReceivableWithPayments[] = await Promise.all(
+        receivables.map(async (r: LocalClientReceivable) => {
+          const payments = await clientReceivablePaymentRepo.getByReceivable(r.id);
+          return {
+            id: r.id,
+            amount: r.amount,
+            balance: r.balance,
+            paid_amount: r.paid_amount,
+            status: r.status,
+            created_at: r.created_at,
+            description: r.description,
+            notes: r.notes,
+            payments,
+          };
+        })
+      );
 
-      // Show alert if customer has negative balance (we owe them a refund)
-      const balance = data.stats?.total_balance || 0;
-      if (balance < 0) {
+      // Load cash entries related to this customer
+      const db = await getDatabase();
+      const cashEntries = await db.getAllAsync<LocalCashEntry>(
+        `SELECT * FROM cash_entries WHERE customer_id = ? AND deleted = 0 ORDER BY created_at DESC`,
+        [id]
+      );
+
+      // Compute stats
+      const totalReceivables = receivablesWithPayments.reduce(
+        (s, r) => s + Math.max(0, r.amount),
+        0
+      );
+      const totalBalance = receivablesWithPayments.reduce((s, r) => s + r.balance, 0);
+      const totalPaid = receivablesWithPayments.reduce((s, r) => s + r.paid_amount, 0);
+
+      const customerDetails: CustomerDetails = {
+        id: cust.id,
+        name: cust.name,
+        first_name: cust.first_name,
+        phone: cust.phone,
+        email: cust.email,
+        address: cust.address,
+        credit_limit: cust.credit_limit ?? 0,
+        is_active: cust.is_active,
+        receivables: receivablesWithPayments,
+        cash_entries: cashEntries,
+        stats: {
+          total_receivables: totalReceivables,
+          total_balance: totalBalance,
+          total_paid: totalPaid,
+          total_sales: 0,
+        },
+      };
+
+      setCustomer(customerDetails);
+
+      // Build transactions list
+      const txns = buildTransactions(customerDetails);
+      setTransactions(txns);
+
+      if (totalBalance < 0) {
         Alert.alert(
-          '⚠️ Remboursement dû au client',
-          `Vous devez rembourser ${formatMoney(Math.abs(balance))} à ${getPersonName(data)}.\n\nUtilisez le bouton "Rembourser Client" pour enregistrer le remboursement.`,
+          'Remboursement du au client',
+          `Vous devez rembourser ${formatMoney(Math.abs(totalBalance))} a ${getPersonName(cust)}.\n\nUtilisez le bouton "Rembourser Client" pour enregistrer le remboursement.`,
           [{ text: 'Compris', style: 'default' }]
         );
       }
     } catch (error) {
       console.error('Erreur lors du chargement du client:', error);
-      Alert.alert('Erreur', 'Impossible de charger les détails du client');
+      Alert.alert('Erreur', 'Impossible de charger les details du client');
       navigation.goBack();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id, shopId, navigation]);
 
-  const loadAllTransactions = async (customerData: CustomerDetails) => {
-    const transactions: Array<{
-      type: 'receivable' | 'payment' | 'cash' | 'sale';
+  useEffect(() => {
+    loadCustomer();
+  }, [loadCustomer]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadCustomer();
+    });
+    return unsubscribe;
+  }, [navigation, loadCustomer]);
+
+  const buildTransactions = (customerData: CustomerDetails) => {
+    const txns: Array<{
+      type: 'receivable' | 'payment' | 'cash';
       date: string;
       amount: number;
       note?: string;
       status?: string;
-      items?: Array<{ productName: string; quantity: number }>;
-      cashier?: { id: string; display_name: string };
-      isRefund?: boolean; // true if this is a cash OUT (refund TO customer)
+      isRefund?: boolean;
     }> = [];
 
-    // Build a set of cash_entry_ids that are linked to receivable payments
-    // These cash entries should NOT be shown separately (they're represented by the payment)
     const linkedCashEntryIds = new Set<string>();
     customerData.receivables.forEach(receivable => {
-      receivable.payments.forEach((payment: any) => {
+      receivable.payments.forEach(payment => {
         if (payment.cash_entry_id) {
           linkedCashEntryIds.add(payment.cash_entry_id);
         }
       });
     });
 
-    // Add receivables (credit sales)
     customerData.receivables.forEach(receivable => {
-      // Skip receivables that are PAID status with description "Remboursement effectué"
-      // These are created to offset negative balances during customer refunds
       const isRefundReceivable =
         receivable.status === 'PAID' &&
         (receivable.description?.includes('Remboursement') ||
           receivable.notes?.includes('Remboursement'));
-      if (isRefundReceivable) {
-        return;
-      }
+      if (isRefundReceivable) return;
 
-      transactions.push({
+      txns.push({
         type: 'receivable',
         date: receivable.created_at,
         amount: receivable.amount,
-        note: receivable.description || receivable.notes,
+        note: receivable.description || receivable.notes || undefined,
         status: receivable.status,
       });
 
-      // Add payments - show ALL payments as "Paiement reçu"
-      // Whether they came through cash register or direct payment, user sees one entry
-      receivable.payments.forEach((payment: any) => {
-        transactions.push({
+      receivable.payments.forEach(payment => {
+        txns.push({
           type: 'payment',
           date: payment.payment_date || payment.created_at,
-          amount: -payment.amount, // Negative because customer paid us
-          note: payment.notes,
+          amount: -payment.amount,
+          note: payment.notes || undefined,
         });
       });
     });
 
-    // Add cash entries that are NOT linked to receivable payments
-    // This includes: customer refunds (OUT), and other cash entries
     customerData.cash_entries.forEach(entry => {
-      // Skip if this cash entry is already represented by a receivable payment
-      if (linkedCashEntryIds.has(entry.id)) {
-        return;
-      }
-
-      transactions.push({
+      if (linkedCashEntryIds.has(entry.id)) return;
+      txns.push({
         type: 'cash',
         date: entry.created_at,
-        amount: -entry.amount, // Negative for OUT (refund to customer)
-        note: entry.note,
-        cashier: entry.cashier,
+        amount: -entry.amount,
+        note: entry.note || undefined,
         isRefund: entry.category?.toLowerCase().includes('remboursement'),
       });
     });
 
-    // Add sales from AsyncStorage cash register
-    // Skip credit sales as they're already represented by receivables
-    try {
-      const cashTransactions = await getCashTransactions();
-      const customerSales = cashTransactions.filter(
-        t => t.customerId === customerData.id && t.category === 'vente' && !t.isCredit
-      );
-
-      customerSales.forEach(sale => {
-        transactions.push({
-          type: 'sale',
-          date: sale.timestamp,
-          amount: sale.amount,
-          note: sale.note,
-          items: sale.saleItems,
-        });
-      });
-    } catch (error) {
-      console.error('Error loading sales from cash register:', error);
-    }
-
-    return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   const handleOpenRefundModal = () => {
@@ -294,6 +306,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId || !userId) return;
 
     const amountValue = Math.round(parseFloat(amount));
 
@@ -302,60 +315,44 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
-    // Calculate total debt
     const totalDebt = customer!.stats?.total_balance || 0;
     const overpayment = amountValue - totalDebt;
 
-    // Find oldest pending receivable
     const pendingReceivables = customer!.receivables
       .filter(r => r.status === 'PENDING' || r.status === 'PARTIAL')
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    // If no pending receivables but payment > 0, we need to create a negative receivable
     if (pendingReceivables.length === 0) {
       if (totalDebt >= 0) {
-        // No debt, payment will create negative balance
         Alert.alert(
-          'Attention : Créer un solde négatif',
-          `Le client n'a pas de dette. En recevant ${formatMoney(amountValue)}, vous devrez rendre cette somme au client.\n\n` +
-            `Voulez-vous continuer ?`,
+          'Attention : Creer un solde negatif',
+          `Le client n'a pas de dette. En recevant ${formatMoney(amountValue)}, vous devrez rendre cette somme au client.\n\nVoulez-vous continuer ?`,
           [
             { text: 'Annuler', style: 'cancel' },
-            {
-              text: 'Confirmer',
-              onPress: () => createNegativeReceivable(amountValue),
-            },
+            { text: 'Confirmer', onPress: () => createNegativeReceivable(amountValue) },
           ]
         );
       } else {
-        // Already negative, adding more
         Alert.alert(
-          'Attention : Augmenter le solde négatif',
-          `Le client a déjà un solde de ${formatMoney(totalDebt)} (vous lui devez ${formatMoney(Math.abs(totalDebt))}).\n\n` +
-            `En recevant ${formatMoney(amountValue)} de plus, vous lui devrez ${formatMoney(Math.abs(totalDebt) + amountValue)}.\n\n` +
-            `Voulez-vous continuer ?`,
+          'Attention : Augmenter le solde negatif',
+          `Le client a deja un solde de ${formatMoney(totalDebt)} (vous lui devez ${formatMoney(Math.abs(totalDebt))}).\n\nEn recevant ${formatMoney(amountValue)} de plus, vous lui devrez ${formatMoney(Math.abs(totalDebt) + amountValue)}.\n\nVoulez-vous continuer ?`,
           [
             { text: 'Annuler', style: 'cancel' },
-            {
-              text: 'Confirmer',
-              onPress: () => createNegativeReceivable(amountValue),
-            },
+            { text: 'Confirmer', onPress: () => createNegativeReceivable(amountValue) },
           ]
         );
       }
       return;
     }
 
-    // Check for overpayment
     if (overpayment > 0) {
       Alert.alert(
-        'Attention : Dépassement',
-        `Le montant de ${formatMoney(amountValue)} dépasse la dette de ${formatMoney(totalDebt)}.\n\n` +
-          `Vous devrez rendre ${formatMoney(overpayment)} au client.`,
+        'Attention : Depassement',
+        `Le montant de ${formatMoney(amountValue)} depasse la dette de ${formatMoney(totalDebt)}.\n\nVous devrez rendre ${formatMoney(overpayment)} au client.`,
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Confirmer quand même',
+            text: 'Confirmer quand meme',
             onPress: () => processPayment(amountValue, pendingReceivables[0].id),
           },
         ]
@@ -367,21 +364,22 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const createNegativeReceivable = async (amountValue: number) => {
+    if (!shopId) return;
     setIsSubmitting(true);
     try {
-      // Create a negative receivable (customer paid when they had no debt)
-      await receivablesApi.create({
-        customer_id: customer!.id,
-        amount: -amountValue, // Negative amount
-        description: note || `Remboursement à effectuer à ${getPersonName(customer!)}`,
+      await createReceivableOffline({
+        shopId,
+        customerId: customer!.id,
+        amount: -amountValue,
+        description: note || `Remboursement a effectuer a ${getPersonName(customer!)}`,
       });
 
       const totalDebt = customer!.stats?.total_balance || 0;
       const newBalance = totalDebt - amountValue;
 
       Alert.alert(
-        'Paiement enregistré',
-        `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ Vous devez rendre ${formatMoney(Math.abs(newBalance))} au client.`
+        'Paiement enregistre',
+        `Paiement de ${formatMoney(amountValue)} enregistre.\n\nVous devez rendre ${formatMoney(Math.abs(newBalance))} au client.`
       );
 
       handleCloseRefundModal();
@@ -395,25 +393,26 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const processPayment = async (amountValue: number, receivableId: string) => {
+    if (!userId) return;
     setIsSubmitting(true);
     try {
-      await receivablesApi.addPayment(receivableId, {
+      await payReceivableOffline({
+        receivableId,
         amount: amountValue,
-        payment_method: 'Espèces',
-        note: note || `Paiement de ${getPersonName(customer!)}`,
+        cashierId: userId,
+        notes: note || `Paiement de ${getPersonName(customer!)}`,
       });
 
-      // Check if there's overpayment
       const totalDebt = customer!.stats?.total_balance || 0;
       const overpayment = amountValue - totalDebt;
 
       if (overpayment > 0) {
         Alert.alert(
-          'Paiement enregistré',
-          `Paiement de ${formatMoney(amountValue)} enregistré.\n\n⚠️ Vous devez rendre ${formatMoney(overpayment)} au client.`
+          'Paiement enregistre',
+          `Paiement de ${formatMoney(amountValue)} enregistre.\n\nVous devez rendre ${formatMoney(overpayment)} au client.`
         );
       } else {
-        Alert.alert('Succès', 'Paiement enregistré');
+        Alert.alert('Succes', 'Paiement enregistre');
       }
 
       handleCloseRefundModal();
@@ -452,8 +451,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId) return;
 
-    const amountValue = Math.round(parseFloat(customerRefundAmount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(customerRefundAmount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -463,31 +463,29 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     const currentBalance = customer?.stats?.total_balance || 0;
     const refundOwed = Math.abs(currentBalance);
 
-    // Validate amount doesn't exceed refund owed
     if (amountValue > refundOwed) {
       Alert.alert(
         'Erreur',
-        `Le montant du remboursement (${formatMoney(amountValue)}) dépasse le montant dû (${formatMoney(refundOwed)})`
+        `Le montant du remboursement (${formatMoney(amountValue)}) depasse le montant du (${formatMoney(refundOwed)})`
       );
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await customersApi.createRefund(id, {
+      await createReceivableOffline({
+        shopId,
+        customerId: id,
         amount: amountValue,
-        payment_method: 'CASH',
-        note: customerRefundNote || undefined,
+        description: customerRefundNote || `Remboursement effectue a ${getPersonName(customer!)}`,
       });
 
-      Alert.alert('Succès', 'Remboursement enregistré avec succès');
+      Alert.alert('Succes', 'Remboursement enregistre avec succes');
       handleCloseCustomerRefundModal();
-      await loadCustomer(); // Reload customer data
+      await loadCustomer();
     } catch (error: any) {
       console.error('Erreur lors du remboursement:', error);
-      const errorMessage =
-        error.response?.data?.message || "Impossible d'enregistrer le remboursement";
-      Alert.alert('Erreur', errorMessage);
+      Alert.alert('Erreur', error.message || "Impossible d'enregistrer le remboursement");
     } finally {
       setIsSubmitting(false);
     }
@@ -513,8 +511,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
+    if (!shopId) return;
 
-    const amountValue = Math.round(parseFloat(receivableAmount)); // Already in FCFA
+    const amountValue = Math.round(parseFloat(receivableAmount));
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
@@ -523,19 +522,20 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
     setIsSubmitting(true);
     try {
-      await receivablesApi.create({
-        customer_id: customer.id,
+      await createReceivableOffline({
+        shopId,
+        customerId: customer.id,
         amount: amountValue,
-        description: receivableDescription || `Créance pour ${getPersonName(customer)}`,
-        notes: receivableNote,
+        description: receivableDescription || `Creance pour ${getPersonName(customer)}`,
+        notes: receivableNote || undefined,
       });
 
-      Alert.alert('Succès', 'Créance créée avec succès');
+      Alert.alert('Succes', 'Creance creee avec succes');
       handleCloseCreateReceivableModal();
       loadCustomer();
     } catch (error: any) {
-      console.error('Erreur lors de la création de la créance:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de créer la créance');
+      console.error('Erreur lors de la creation de la creance:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de creer la creance');
     } finally {
       setIsSubmitting(false);
     }
@@ -567,31 +567,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
     setIsSubmitting(true);
     try {
-      const updateData: any = {
+      await updateCustomerOffline(id, {
         name: editForm.name.trim(),
-      };
-
-      if (editForm.first_name.trim()) {
-        updateData.first_name = editForm.first_name.trim();
-      }
-      if (editForm.phone.trim()) {
-        updateData.phone = editForm.phone.trim();
-      }
-      if (editForm.email.trim()) {
-        updateData.email = editForm.email.trim();
-      }
-      if (editForm.address.trim()) {
-        updateData.address = editForm.address.trim();
-      }
-      if (editForm.credit_limit.trim()) {
-        const creditLimitValue = Math.round(parseFloat(editForm.credit_limit));
-        if (!isNaN(creditLimitValue) && creditLimitValue >= 0) {
-          updateData.credit_limit = creditLimitValue;
-        }
-      }
-
-      await customersApi.update(id, updateData);
-      Alert.alert('Succès', 'Client modifié avec succès');
+        firstName: editForm.first_name.trim() || undefined,
+        phone: editForm.phone.trim() || undefined,
+        email: editForm.email.trim() || undefined,
+        address: editForm.address.trim() || undefined,
+        creditLimit: editForm.credit_limit.trim()
+          ? Math.round(parseFloat(editForm.credit_limit))
+          : undefined,
+      });
+      Alert.alert('Succes', 'Client modifie avec succes');
       handleCloseEditModal();
       loadCustomer();
     } catch (error: any) {
@@ -616,8 +602,8 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
           style: 'destructive',
           onPress: async () => {
             try {
-              await customersApi.delete(id);
-              Alert.alert('Succès', 'Client supprimé avec succès');
+              await deleteCustomerOffline(id);
+              Alert.alert('Succes', 'Client supprime avec succes');
               navigation.goBack();
             } catch (error: any) {
               console.error('Erreur lors de la suppression:', error);
@@ -629,14 +615,14 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     );
   };
 
-  const getPersonName = (person: { name: string; first_name?: string }): string => {
+  const getPersonName = (person: { name: string; first_name?: string | null }): string => {
     const firstName = person.first_name ? String(person.first_name).trim() : '';
     const lastName = person.name ? String(person.name).trim() : '';
     return firstName ? `${firstName} ${lastName}` : lastName;
   };
 
   const canEditOrDelete = () => {
-    return userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
+    return userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
   };
 
   if (isLoading) {
@@ -751,7 +737,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'BOSS' || userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
+        {(userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
@@ -844,18 +830,14 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   return statusMap[transaction.status] || undefined;
                 };
 
-                // Build subtitle with date and cashier if available
                 const dateStr = transaction.date ? formatDate(transaction.date) : 'Date inconnue';
-                const subtitleStr = transaction.cashier
-                  ? `${dateStr} - Par: ${transaction.cashier.display_name}`
-                  : dateStr;
 
                 return (
                   <ListItem
                     key={index}
                     icon={getIcon()}
                     title={getTitle()}
-                    subtitle={subtitleStr}
+                    subtitle={dateStr}
                     amount={`${transaction.amount > 0 ? '+' : ''}${formatMoney(Math.abs(transaction.amount))}`}
                     amountColor={
                       isCredit ? 'warning' : transaction.amount > 0 ? 'success' : 'danger'
@@ -871,7 +853,6 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                         isCredit: isCredit,
                         category: isCredit ? 'ventes' : undefined,
                         customerName: customer ? getPersonName(customer) : '',
-                        cashier: transaction.cashier,
                       });
                       setShowDetailModal(true);
                     }}

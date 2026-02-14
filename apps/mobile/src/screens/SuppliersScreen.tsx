@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,31 +12,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Building, Plus, Eye } from '../components/icons/SimpleIcons';
-import { ScreenHeader, ListItem, KPICard, StatusBadge, IconButton } from '../components/ui';
+import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput } from '../utils/phone';
-import { suppliersApi } from '../lib/api';
+import { useLocalSuppliers } from '../hooks/useLocalData';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { createSupplierOffline, createSupplierDebtOffline } from '../db/offlineWrite';
 
 interface SuppliersScreenProps {
   navigation: any;
 }
 
-interface Supplier {
-  id: string;
-  name: string;
-  first_name?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  is_active: boolean;
-}
-
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { shop } = useCurrentUser();
+  const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+
+  // Local data hook - reads from SQLite
+  const { data: suppliers, loading: isLoading, refresh } = useLocalSuppliers(shopId);
 
   // Form state
   const [name, setName] = useState('');
@@ -44,23 +38,6 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const [phone, setPhone] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  const loadSuppliers = async () => {
-    setIsLoading(true);
-    try {
-      const data = await suppliersApi.getAll();
-      setSuppliers(data);
-    } catch (error) {
-      console.error('Erreur lors du chargement des fournisseurs:', error);
-      Alert.alert('Erreur', 'Impossible de charger les fournisseurs');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleOpenModal = () => {
     setName('');
@@ -83,6 +60,10 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       Alert.alert('Erreur', 'Le nom est obligatoire');
       return;
     }
+    if (!shopId) {
+      Alert.alert('Erreur', 'Boutique non identifiée');
+      return;
+    }
 
     // Vérifier les doublons (insensible à la casse)
     const newFullName = `${firstName.trim()} ${name.trim()}`.toLowerCase().trim();
@@ -100,42 +81,41 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     }
 
     // Valider le solde initial si fourni
-    let initialBalanceInCentimes: number | undefined;
+    let initialBalanceFCFA: number | undefined;
     if (initialBalance.trim()) {
       const balance = parseFloat(initialBalance);
       if (isNaN(balance) || balance < 0) {
         Alert.alert('Erreur', 'Le solde initial doit être un nombre positif');
         return;
       }
-      initialBalanceInCentimes = Math.round(balance); // Already in FCFA
+      initialBalanceFCFA = Math.round(balance);
     }
 
     setIsSaving(true);
     try {
-      const supplierData: any = {
+      const { supplierId } = await createSupplierOffline({
+        shopId,
         name: name.trim(),
-      };
+        firstName: firstName.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
 
-      if (firstName.trim()) {
-        supplierData.first_name = firstName.trim();
+      // If initial balance provided, create a supplier debt
+      if (initialBalanceFCFA && initialBalanceFCFA > 0) {
+        await createSupplierDebtOffline({
+          shopId,
+          supplierId,
+          amount: initialBalanceFCFA,
+          description: 'Solde initial',
+        });
       }
 
-      if (phone.trim()) {
-        supplierData.phone = phone.trim();
-      }
-
-      if (initialBalanceInCentimes !== undefined) {
-        supplierData.initial_balance = initialBalanceInCentimes;
-      }
-
-      await suppliersApi.create(supplierData);
-
-      Alert.alert('Succès', 'Fournisseur créé avec succès');
+      Alert.alert('Succes', 'Fournisseur cree avec succes');
       handleCloseModal();
-      loadSuppliers();
+      await refresh();
     } catch (error: any) {
-      console.error('Erreur lors de la création:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la création');
+      console.error('Erreur lors de la creation:', error);
+      Alert.alert('Erreur', error.message || 'Erreur lors de la creation');
     } finally {
       setIsSaving(false);
     }

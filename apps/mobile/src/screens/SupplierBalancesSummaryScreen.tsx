@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Building } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { suppliersApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { supplierRepo, supplierDebtRepo } from '../db/repositories';
 
 interface SupplierBalancesSummaryScreenProps {
   navigation: any;
@@ -23,8 +24,8 @@ interface SupplierBalancesSummaryScreenProps {
 interface SupplierWithBalance {
   id: string;
   name: string;
-  first_name?: string;
-  phone?: string;
+  first_name?: string | null;
+  phone?: string | null;
   is_active: boolean;
   total_balance: number;
 }
@@ -32,36 +33,48 @@ interface SupplierWithBalance {
 export default function SupplierBalancesSummaryScreen({
   navigation,
 }: SupplierBalancesSummaryScreenProps) {
+  const { shopId } = useCurrentUser();
   const [suppliers, setSuppliers] = useState<SupplierWithBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      const data = await suppliersApi.getAll();
-      setSuppliers(data);
-    } catch (error: any) {
+      const localSuppliers = await supplierRepo.getAll(shopId, { orderBy: 'name ASC' });
+      const allDebts = await supplierDebtRepo.getAll(shopId);
+
+      // Compute balance per supplier
+      const balanceMap = new Map<string, number>();
+      allDebts.forEach(d => {
+        const prev = balanceMap.get(d.supplier_id) || 0;
+        balanceMap.set(d.supplier_id, prev + d.balance);
+      });
+
+      const suppliersWithBalance: SupplierWithBalance[] = localSuppliers.map(s => ({
+        id: s.id,
+        name: s.name,
+        first_name: s.first_name,
+        phone: s.phone,
+        is_active: s.is_active === 1,
+        total_balance: balanceMap.get(s.id) || 0,
+      }));
+
+      setSuppliers(suppliersWithBalance);
+    } catch (error) {
       console.error('Erreur chargement fournisseurs:', error);
-      if (error.message === 'Unauthorized') {
-        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('LoginPin'),
-          },
-        ]);
-      } else {
-        Alert.alert('Erreur', 'Impossible de charger les fournisseurs');
-      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSuppliers();
+    }, [loadSuppliers])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
