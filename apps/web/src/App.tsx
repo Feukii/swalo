@@ -4,15 +4,22 @@ import { useAuthStore } from './store/authStore';
 import LoginPin from './pages/LoginPin';
 import CreateShop from './pages/CreateShop';
 import ShopSettings from './pages/ShopSettings';
+import Home from './pages/Home';
+import Sale from './pages/Sale';
 import POS from './pages/POS';
-import Dashboard from './pages/Dashboard';
+import Products from './pages/Products';
+import ProductBatches from './pages/ProductBatches';
+import CatalogHierarchy from './pages/CatalogHierarchy';
+import StockManagement from './pages/StockManagement';
 import Customers from './pages/Customers';
 import CustomerDetails from './pages/CustomerDetails';
 import Suppliers from './pages/Suppliers';
 import SupplierDetails from './pages/SupplierDetails';
-import UserManagement from './pages/UserManagement';
+import Receivables from './pages/Receivables';
+import Debts from './pages/Debts';
+import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
-import ProductBatches from './pages/ProductBatches';
+import UserManagement from './pages/UserManagement';
 import EnterpriseDashboard from './pages/EnterpriseDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
@@ -58,13 +65,23 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <POS />
+                <Home />
               </MainLayout>
             </ProtectedRoute>
           }
         />
         <Route
-          path="/pos"
+          path="/sale"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Sale />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cash"
           element={
             <ProtectedRoute>
               <MainLayout>
@@ -78,7 +95,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Dashboard />
+                <TransactionHistory />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -88,7 +105,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Dashboard />
+                <Products />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -99,6 +116,26 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <ProductBatches />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/catalog"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <CatalogHierarchy />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stock"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <StockManagement />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -148,7 +185,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Dashboard />
+                <Receivables />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -158,17 +195,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Dashboard />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/inventory"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <Dashboard />
+                <Debts />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -218,7 +245,10 @@ function App() {
           }
         />
 
+        {/* Redirects for old routes */}
+        <Route path="/pos" element={<Navigate to="/cash" replace />} />
         <Route path="/dashboard" element={<Navigate to="/" replace />} />
+        <Route path="/inventory" element={<Navigate to="/stock" replace />} />
       </Routes>
     </BrowserRouter>
   );

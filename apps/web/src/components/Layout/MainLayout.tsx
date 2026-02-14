@@ -17,14 +17,17 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const baseNavItems: NavItem[] = [
-    { name: 'Caisse', path: '/pos', icon: '💰' },
-    { name: 'Ventes', path: '/sales', icon: '📊' },
+    { name: 'Accueil', path: '/', icon: '🏠' },
+    { name: 'Vente', path: '/sale', icon: '🛒' },
+    { name: 'Caisse', path: '/cash', icon: '💰' },
+    { name: 'Historique', path: '/sales', icon: '📊' },
     { name: 'Produits', path: '/products', icon: '📦' },
+    { name: 'Catalogue', path: '/catalog', icon: '🗂️' },
+    { name: 'Stock', path: '/stock', icon: '📋' },
     { name: 'Clients', path: '/customers', icon: '👥' },
     { name: 'Créances', path: '/receivables', icon: '💳' },
     { name: 'Fournisseurs', path: '/suppliers', icon: '🏪' },
     { name: 'Dettes', path: '/debts', icon: '💸' },
-    { name: 'Inventaire', path: '/inventory', icon: '📋' },
     { name: 'Rapports', path: '/reports', icon: '📈' },
     { name: 'Entreprises', path: '/enterprise', icon: '🏢' },
   ];
@@ -43,7 +46,10 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     navigate('/login');
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
