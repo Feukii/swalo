@@ -438,6 +438,466 @@ class InventoryMovementRepository extends LocalRepository<LocalInventoryMovement
 }
 
 // ============================================================
+// Supplier
+// ============================================================
+
+export interface LocalSupplier extends LocalRecord {
+  shop_id: string;
+  code: string | null;
+  name: string;
+  first_name: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  borrowing_limit: number;
+  notes: string | null;
+  is_active: number;
+  version: number;
+}
+
+class SupplierRepository extends LocalRepository<LocalSupplier> {
+  constructor() {
+    super('suppliers');
+  }
+
+  async search(shopId: string, query: string): Promise<LocalSupplier[]> {
+    const db = await getDatabase();
+    const pattern = `%${query}%`;
+    return db.getAllAsync<LocalSupplier>(
+      `SELECT * FROM suppliers WHERE shop_id = ? AND deleted = 0 AND (name LIKE ? OR phone LIKE ? OR code LIKE ?) ORDER BY name ASC LIMIT 50`,
+      [shopId, pattern, pattern, pattern]
+    );
+  }
+}
+
+// ============================================================
+// SupplierDebt
+// ============================================================
+
+export interface LocalSupplierDebt extends LocalRecord {
+  shop_id: string;
+  supplier_id: string;
+  amount: number;
+  paid_amount: number;
+  balance: number;
+  description: string | null;
+  notes: string | null;
+  status: string;
+  version: number;
+}
+
+class SupplierDebtRepository extends LocalRepository<LocalSupplierDebt> {
+  constructor() {
+    super('supplier_debts');
+  }
+
+  async getBySupplier(shopId: string, supplierId: string): Promise<LocalSupplierDebt[]> {
+    return this.getAll(shopId, {
+      where: { supplier_id: supplierId },
+      orderBy: 'created_at DESC',
+    });
+  }
+
+  async getActiveDebts(shopId: string): Promise<LocalSupplierDebt[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalSupplierDebt>(
+      `SELECT * FROM supplier_debts WHERE shop_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL') ORDER BY created_at DESC`,
+      [shopId]
+    );
+  }
+
+  async getTotalBalance(shopId: string): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(balance), 0) as total FROM supplier_debts WHERE shop_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL')`,
+      [shopId]
+    );
+    return row?.total ?? 0;
+  }
+}
+
+// ============================================================
+// SupplierDebtPayment
+// ============================================================
+
+export interface LocalSupplierDebtPayment extends LocalRecord {
+  debt_id: string;
+  amount: number;
+  payment_date: string;
+  notes: string | null;
+  cashier_id: string | null;
+  cash_exit_id: string | null;
+  version: number;
+}
+
+class SupplierDebtPaymentRepository extends LocalRepository<LocalSupplierDebtPayment> {
+  constructor() {
+    super('supplier_debt_payments', 'debt_id');
+  }
+
+  async getByDebt(debtId: string): Promise<LocalSupplierDebtPayment[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalSupplierDebtPayment>(
+      `SELECT * FROM supplier_debt_payments WHERE debt_id = ? AND deleted = 0 ORDER BY payment_date DESC`,
+      [debtId]
+    );
+  }
+}
+
+// ============================================================
+// SupplierInvoice
+// ============================================================
+
+export interface LocalSupplierInvoice extends LocalRecord {
+  shop_id: string;
+  supplier_id: string;
+  number: string;
+  invoice_date: string;
+  due_date: string | null;
+  status: string;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  paid_total: number;
+  notes: string | null;
+  version: number;
+}
+
+class SupplierInvoiceRepository extends LocalRepository<LocalSupplierInvoice> {
+  constructor() {
+    super('supplier_invoices');
+  }
+
+  async getBySupplier(shopId: string, supplierId: string): Promise<LocalSupplierInvoice[]> {
+    return this.getAll(shopId, {
+      where: { supplier_id: supplierId },
+      orderBy: 'invoice_date DESC',
+    });
+  }
+}
+
+// ============================================================
+// SupplierInvoiceItem
+// ============================================================
+
+export interface LocalSupplierInvoiceItem extends LocalRecord {
+  invoice_id: string;
+  product_id: string;
+  description: string | null;
+  qty: number;
+  unit_cost: number;
+  tax_rate: number;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  version: number;
+}
+
+class SupplierInvoiceItemRepository extends LocalRepository<LocalSupplierInvoiceItem> {
+  constructor() {
+    super('supplier_invoice_items', 'invoice_id');
+  }
+
+  async getByInvoice(invoiceId: string): Promise<LocalSupplierInvoiceItem[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalSupplierInvoiceItem>(
+      `SELECT * FROM supplier_invoice_items WHERE invoice_id = ? AND deleted = 0 ORDER BY created_at ASC`,
+      [invoiceId]
+    );
+  }
+}
+
+// ============================================================
+// ClientReceivable
+// ============================================================
+
+export interface LocalClientReceivable extends LocalRecord {
+  shop_id: string;
+  customer_id: string;
+  amount: number;
+  paid_amount: number;
+  balance: number;
+  description: string | null;
+  notes: string | null;
+  status: string;
+  version: number;
+}
+
+class ClientReceivableRepository extends LocalRepository<LocalClientReceivable> {
+  constructor() {
+    super('client_receivables');
+  }
+
+  async getByCustomer(shopId: string, customerId: string): Promise<LocalClientReceivable[]> {
+    return this.getAll(shopId, {
+      where: { customer_id: customerId },
+      orderBy: 'created_at DESC',
+    });
+  }
+
+  async getActiveReceivables(shopId: string): Promise<LocalClientReceivable[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalClientReceivable>(
+      `SELECT * FROM client_receivables WHERE shop_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL') ORDER BY created_at DESC`,
+      [shopId]
+    );
+  }
+
+  async getTotalBalance(shopId: string): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(balance), 0) as total FROM client_receivables WHERE shop_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL')`,
+      [shopId]
+    );
+    return row?.total ?? 0;
+  }
+}
+
+// ============================================================
+// ClientReceivablePayment
+// ============================================================
+
+export interface LocalClientReceivablePayment extends LocalRecord {
+  receivable_id: string;
+  amount: number;
+  payment_date: string;
+  notes: string | null;
+  cashier_id: string | null;
+  cash_entry_id: string | null;
+  version: number;
+}
+
+class ClientReceivablePaymentRepository extends LocalRepository<LocalClientReceivablePayment> {
+  constructor() {
+    super('client_receivable_payments', 'receivable_id');
+  }
+
+  async getByReceivable(receivableId: string): Promise<LocalClientReceivablePayment[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalClientReceivablePayment>(
+      `SELECT * FROM client_receivable_payments WHERE receivable_id = ? AND deleted = 0 ORDER BY payment_date DESC`,
+      [receivableId]
+    );
+  }
+}
+
+// ============================================================
+// Payment
+// ============================================================
+
+export interface LocalPayment extends LocalRecord {
+  shop_id: string;
+  ref_type: string;
+  ref_id: string;
+  method: string;
+  amount: number;
+  receipt_ref: string | null;
+  notes: string | null;
+  cashier_id: string | null;
+  device_id: string;
+  client_op_id: string;
+  version: number;
+}
+
+class PaymentRepository extends LocalRepository<LocalPayment> {
+  constructor() {
+    super('payments');
+  }
+
+  async getByRef(shopId: string, refType: string, refId: string): Promise<LocalPayment[]> {
+    return this.getAll(shopId, {
+      where: { ref_type: refType, ref_id: refId },
+      orderBy: 'created_at DESC',
+    });
+  }
+}
+
+// ============================================================
+// Invoice
+// ============================================================
+
+export interface LocalInvoice extends LocalRecord {
+  shop_id: string;
+  sale_id: string | null;
+  customer_id: string | null;
+  number: string;
+  status: string;
+  issue_date: string;
+  due_date: string | null;
+  subtotal: number;
+  discount: number;
+  tax_total: number;
+  grand_total: number;
+  paid_total: number;
+  balance_due: number;
+  notes: string | null;
+  pdf_url: string | null;
+  version: number;
+}
+
+class InvoiceRepository extends LocalRepository<LocalInvoice> {
+  constructor() {
+    super('invoices');
+  }
+
+  async getByCustomer(shopId: string, customerId: string): Promise<LocalInvoice[]> {
+    return this.getAll(shopId, {
+      where: { customer_id: customerId },
+      orderBy: 'issue_date DESC',
+    });
+  }
+
+  async getBySale(saleId: string): Promise<LocalInvoice[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalInvoice>(
+      `SELECT * FROM invoices WHERE sale_id = ? AND deleted = 0`,
+      [saleId]
+    );
+  }
+}
+
+// ============================================================
+// InvoiceItem
+// ============================================================
+
+export interface LocalInvoiceItem extends LocalRecord {
+  invoice_id: string;
+  product_id: string | null;
+  description: string;
+  qty: number;
+  unit_price: number;
+  discount: number;
+  tax_rate: number;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  version: number;
+}
+
+class InvoiceItemRepository extends LocalRepository<LocalInvoiceItem> {
+  constructor() {
+    super('invoice_items', 'invoice_id');
+  }
+
+  async getByInvoice(invoiceId: string): Promise<LocalInvoiceItem[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalInvoiceItem>(
+      `SELECT * FROM invoice_items WHERE invoice_id = ? AND deleted = 0 ORDER BY created_at ASC`,
+      [invoiceId]
+    );
+  }
+}
+
+// ============================================================
+// PackagingType
+// ============================================================
+
+export interface LocalPackagingType extends LocalRecord {
+  shop_id: string;
+  name: string;
+  symbol: string | null;
+  is_default: number;
+}
+
+class PackagingTypeRepository extends LocalRepository<LocalPackagingType> {
+  constructor() {
+    super('packaging_types');
+  }
+}
+
+// ============================================================
+// CashSession
+// ============================================================
+
+export interface LocalCashSession extends LocalRecord {
+  shop_id: string;
+  cashier_id: string;
+  status: string;
+  opening_balance: number;
+  closing_balance: number | null;
+  expected_balance: number | null;
+  difference: number | null;
+  opened_at: string;
+  closed_at: string | null;
+  notes: string | null;
+  version: number;
+}
+
+class CashSessionRepository extends LocalRepository<LocalCashSession> {
+  constructor() {
+    super('cash_sessions');
+  }
+
+  async getOpenSession(shopId: string, cashierId: string): Promise<LocalCashSession | null> {
+    const db = await getDatabase();
+    return (
+      (await db.getFirstAsync<LocalCashSession>(
+        `SELECT * FROM cash_sessions WHERE shop_id = ? AND cashier_id = ? AND status = 'OPEN' AND deleted = 0`,
+        [shopId, cashierId]
+      )) ?? null
+    );
+  }
+}
+
+// ============================================================
+// InventorySession
+// ============================================================
+
+export interface LocalInventorySession extends LocalRecord {
+  shop_id: string;
+  user_id: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  notes: string | null;
+  version: number;
+}
+
+class InventorySessionRepository extends LocalRepository<LocalInventorySession> {
+  constructor() {
+    super('inventory_sessions');
+  }
+
+  async getActiveSession(shopId: string): Promise<LocalInventorySession | null> {
+    const db = await getDatabase();
+    return (
+      (await db.getFirstAsync<LocalInventorySession>(
+        `SELECT * FROM inventory_sessions WHERE shop_id = ? AND status = 'IN_PROGRESS' AND deleted = 0`,
+        [shopId]
+      )) ?? null
+    );
+  }
+}
+
+// ============================================================
+// InventoryCount
+// ============================================================
+
+export interface LocalInventoryCount extends LocalRecord {
+  session_id: string;
+  product_id: string;
+  expected_qty: number;
+  counted_qty: number;
+  difference: number;
+  notes: string | null;
+  version: number;
+}
+
+class InventoryCountRepository extends LocalRepository<LocalInventoryCount> {
+  constructor() {
+    super('inventory_counts', 'session_id');
+  }
+
+  async getBySession(sessionId: string): Promise<LocalInventoryCount[]> {
+    const db = await getDatabase();
+    return db.getAllAsync<LocalInventoryCount>(
+      `SELECT * FROM inventory_counts WHERE session_id = ? AND deleted = 0 ORDER BY created_at ASC`,
+      [sessionId]
+    );
+  }
+}
+
+// ============================================================
 // Singleton instances
 // ============================================================
 
@@ -448,3 +908,17 @@ export const saleRepo = new SaleRepository();
 export const saleItemRepo = new SaleItemRepository();
 export const cashEntryRepo = new CashEntryRepository();
 export const inventoryMovementRepo = new InventoryMovementRepository();
+export const supplierRepo = new SupplierRepository();
+export const supplierDebtRepo = new SupplierDebtRepository();
+export const supplierDebtPaymentRepo = new SupplierDebtPaymentRepository();
+export const supplierInvoiceRepo = new SupplierInvoiceRepository();
+export const supplierInvoiceItemRepo = new SupplierInvoiceItemRepository();
+export const clientReceivableRepo = new ClientReceivableRepository();
+export const clientReceivablePaymentRepo = new ClientReceivablePaymentRepository();
+export const paymentRepo = new PaymentRepository();
+export const invoiceRepo = new InvoiceRepository();
+export const invoiceItemRepo = new InvoiceItemRepository();
+export const packagingTypeRepo = new PackagingTypeRepository();
+export const cashSessionRepo = new CashSessionRepository();
+export const inventorySessionRepo = new InventorySessionRepository();
+export const inventoryCountRepo = new InventoryCountRepository();

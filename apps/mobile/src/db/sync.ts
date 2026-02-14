@@ -24,6 +24,20 @@ import {
   saleItemRepo,
   cashEntryRepo,
   inventoryMovementRepo,
+  supplierRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  supplierInvoiceRepo,
+  supplierInvoiceItemRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  paymentRepo,
+  invoiceRepo,
+  invoiceItemRepo,
+  packagingTypeRepo,
+  cashSessionRepo,
+  inventorySessionRepo,
+  inventoryCountRepo,
 } from './repositories';
 
 const SYNC_META_LAST_SYNC = 'sync_last_sync_at';
@@ -322,11 +336,25 @@ class SyncEngine {
     const repoMap: Record<string, any> = {
       products: productRepo,
       stock_batches: stockBatchRepo,
+      packaging_types: packagingTypeRepo,
       customers: customerRepo,
+      suppliers: supplierRepo,
       sales: saleRepo,
       sale_items: saleItemRepo,
       cash_entries: cashEntryRepo,
+      cash_sessions: cashSessionRepo,
       inventory_movements: inventoryMovementRepo,
+      inventory_sessions: inventorySessionRepo,
+      inventory_counts: inventoryCountRepo,
+      client_receivables: clientReceivableRepo,
+      client_receivable_payments: clientReceivablePaymentRepo,
+      supplier_debts: supplierDebtRepo,
+      supplier_debt_payments: supplierDebtPaymentRepo,
+      supplier_invoices: supplierInvoiceRepo,
+      supplier_invoice_items: supplierInvoiceItemRepo,
+      payments: paymentRepo,
+      invoices: invoiceRepo,
+      invoice_items: invoiceItemRepo,
     };
 
     for (const [entity, records] of Object.entries(result.changes || {})) {
@@ -344,6 +372,7 @@ class SyncEngine {
         // Convert booleans to integers for SQLite
         deleted: r.deleted ? 1 : 0,
         is_active: r.is_active !== undefined ? (r.is_active ? 1 : 0) : undefined,
+        is_default: r.is_default !== undefined ? (r.is_default ? 1 : 0) : undefined,
       }));
 
       await repo.bulkUpsertFromServer(localRecords);

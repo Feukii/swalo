@@ -16,8 +16,26 @@ import {
   saleRepo,
   cashEntryRepo,
   inventoryMovementRepo,
+  supplierRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  paymentRepo,
+  invoiceRepo,
+  invoiceItemRepo,
+  cashSessionRepo,
+  inventorySessionRepo,
+  inventoryCountRepo,
   LocalSaleItem,
   LocalCashEntry,
+  LocalSupplier,
+  LocalSupplierDebt,
+  LocalClientReceivable,
+  LocalPayment,
+  LocalInvoice,
+  LocalCashSession,
+  LocalInventorySession,
 } from './repositories';
 import { enqueueMutation, MutationOp } from './queue';
 import { SyncableEntity } from './schema';
@@ -315,4 +333,665 @@ export async function createStockBatchOffline(
   });
 
   return { batchId };
+}
+
+// ============================================================
+// Supplier CRUD (Offline-capable)
+// ============================================================
+
+export interface OfflineSupplierInput {
+  shopId: string;
+  name: string;
+  firstName?: string;
+  code?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  borrowingLimit?: number;
+  notes?: string;
+}
+
+export async function createSupplierOffline(
+  input: OfflineSupplierInput
+): Promise<{ supplierId: string }> {
+  const { deviceId } = await generateClientOpId('supplier');
+  const supplierId = generateId();
+
+  await supplierRepo.create({
+    id: supplierId,
+    shop_id: input.shopId,
+    name: input.name,
+    first_name: input.firstName || null,
+    code: input.code || null,
+    phone: input.phone || null,
+    email: input.email || null,
+    address: input.address || null,
+    borrowing_limit: input.borrowingLimit ?? 0,
+    notes: input.notes || null,
+    is_active: 1,
+    version: 1,
+  } as Partial<LocalSupplier>);
+
+  await enqueueAndSync({
+    entity: 'suppliers',
+    op: 'insert',
+    entityId: supplierId,
+    data: {
+      id: supplierId,
+      shop_id: input.shopId,
+      name: input.name,
+      first_name: input.firstName || null,
+      code: input.code || null,
+      phone: input.phone || null,
+      email: input.email || null,
+      address: input.address || null,
+      borrowing_limit: input.borrowingLimit ?? 0,
+      notes: input.notes || null,
+      is_active: true,
+    },
+    clientOpId: `supplier_${supplierId}`,
+    deviceId,
+  });
+
+  return { supplierId };
+}
+
+export async function updateSupplierOffline(
+  supplierId: string,
+  data: Partial<OfflineSupplierInput>
+): Promise<void> {
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.firstName !== undefined) updateData.first_name = data.firstName;
+  if (data.code !== undefined) updateData.code = data.code;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.borrowingLimit !== undefined) updateData.borrowing_limit = data.borrowingLimit;
+  if (data.notes !== undefined) updateData.notes = data.notes;
+
+  await supplierRepo.update(supplierId, updateData as Partial<LocalSupplier>);
+
+  const { deviceId } = await generateClientOpId('supplier_upd');
+  await enqueueAndSync({
+    entity: 'suppliers',
+    op: 'update',
+    entityId: supplierId,
+    data: { id: supplierId, ...updateData },
+    clientOpId: `supplier_upd_${supplierId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+// ============================================================
+// Supplier Debt (Offline-capable)
+// ============================================================
+
+export interface OfflineSupplierDebtInput {
+  shopId: string;
+  supplierId: string;
+  amount: number;
+  description?: string;
+  notes?: string;
+}
+
+export async function createSupplierDebtOffline(
+  input: OfflineSupplierDebtInput
+): Promise<{ debtId: string }> {
+  const { deviceId } = await generateClientOpId('debt');
+  const debtId = generateId();
+
+  await supplierDebtRepo.create({
+    id: debtId,
+    shop_id: input.shopId,
+    supplier_id: input.supplierId,
+    amount: input.amount,
+    paid_amount: 0,
+    balance: input.amount,
+    description: input.description || null,
+    notes: input.notes || null,
+    status: 'PENDING',
+    version: 1,
+  } as Partial<LocalSupplierDebt>);
+
+  await enqueueAndSync({
+    entity: 'supplier_debts',
+    op: 'insert',
+    entityId: debtId,
+    data: {
+      id: debtId,
+      shop_id: input.shopId,
+      supplier_id: input.supplierId,
+      amount: input.amount,
+      paid_amount: 0,
+      balance: input.amount,
+      description: input.description || null,
+      notes: input.notes || null,
+      status: 'PENDING',
+    },
+    clientOpId: `debt_${debtId}`,
+    deviceId,
+  });
+
+  return { debtId };
+}
+
+export async function paySupplierDebtOffline(input: {
+  debtId: string;
+  amount: number;
+  cashierId: string;
+  notes?: string;
+}): Promise<{ paymentId: string }> {
+  const { deviceId } = await generateClientOpId('debt_pay');
+  const paymentId = generateId();
+  const now = nowISO();
+
+  // Create payment record
+  await supplierDebtPaymentRepo.create({
+    id: paymentId,
+    debt_id: input.debtId,
+    amount: input.amount,
+    payment_date: now,
+    notes: input.notes || null,
+    cashier_id: input.cashierId,
+    cash_exit_id: null,
+    version: 1,
+  } as any);
+
+  // Update debt balance locally
+  const debt = await supplierDebtRepo.getById(input.debtId);
+  if (debt) {
+    const newPaidAmount = debt.paid_amount + input.amount;
+    const newBalance = debt.amount - newPaidAmount;
+    const newStatus = newBalance <= 0 ? 'PAID' : newPaidAmount > 0 ? 'PARTIAL' : 'PENDING';
+    await supplierDebtRepo.update(input.debtId, {
+      paid_amount: newPaidAmount,
+      balance: Math.max(0, newBalance),
+      status: newStatus,
+    } as Partial<LocalSupplierDebt>);
+  }
+
+  await enqueueAndSync({
+    entity: 'supplier_debt_payments',
+    op: 'insert',
+    entityId: paymentId,
+    data: {
+      id: paymentId,
+      debt_id: input.debtId,
+      amount: input.amount,
+      payment_date: now,
+      notes: input.notes || null,
+      cashier_id: input.cashierId,
+    },
+    clientOpId: `debt_pay_${paymentId}`,
+    deviceId,
+  });
+
+  return { paymentId };
+}
+
+// ============================================================
+// Client Receivable (Offline-capable)
+// ============================================================
+
+export interface OfflineReceivableInput {
+  shopId: string;
+  customerId: string;
+  amount: number;
+  description?: string;
+  notes?: string;
+}
+
+export async function createReceivableOffline(
+  input: OfflineReceivableInput
+): Promise<{ receivableId: string }> {
+  const { deviceId } = await generateClientOpId('recv');
+  const receivableId = generateId();
+
+  await clientReceivableRepo.create({
+    id: receivableId,
+    shop_id: input.shopId,
+    customer_id: input.customerId,
+    amount: input.amount,
+    paid_amount: 0,
+    balance: input.amount,
+    description: input.description || null,
+    notes: input.notes || null,
+    status: 'PENDING',
+    version: 1,
+  } as Partial<LocalClientReceivable>);
+
+  await enqueueAndSync({
+    entity: 'client_receivables',
+    op: 'insert',
+    entityId: receivableId,
+    data: {
+      id: receivableId,
+      shop_id: input.shopId,
+      customer_id: input.customerId,
+      amount: input.amount,
+      paid_amount: 0,
+      balance: input.amount,
+      description: input.description || null,
+      notes: input.notes || null,
+      status: 'PENDING',
+    },
+    clientOpId: `recv_${receivableId}`,
+    deviceId,
+  });
+
+  return { receivableId };
+}
+
+export async function payReceivableOffline(input: {
+  receivableId: string;
+  amount: number;
+  cashierId: string;
+  notes?: string;
+}): Promise<{ paymentId: string }> {
+  const { deviceId } = await generateClientOpId('recv_pay');
+  const paymentId = generateId();
+  const now = nowISO();
+
+  await clientReceivablePaymentRepo.create({
+    id: paymentId,
+    receivable_id: input.receivableId,
+    amount: input.amount,
+    payment_date: now,
+    notes: input.notes || null,
+    cashier_id: input.cashierId,
+    cash_entry_id: null,
+    version: 1,
+  } as any);
+
+  // Update receivable balance locally
+  const receivable = await clientReceivableRepo.getById(input.receivableId);
+  if (receivable) {
+    const newPaidAmount = receivable.paid_amount + input.amount;
+    const newBalance = receivable.amount - newPaidAmount;
+    const newStatus = newBalance <= 0 ? 'PAID' : newPaidAmount > 0 ? 'PARTIAL' : 'PENDING';
+    await clientReceivableRepo.update(input.receivableId, {
+      paid_amount: newPaidAmount,
+      balance: Math.max(0, newBalance),
+      status: newStatus,
+    } as Partial<LocalClientReceivable>);
+  }
+
+  await enqueueAndSync({
+    entity: 'client_receivable_payments',
+    op: 'insert',
+    entityId: paymentId,
+    data: {
+      id: paymentId,
+      receivable_id: input.receivableId,
+      amount: input.amount,
+      payment_date: now,
+      notes: input.notes || null,
+      cashier_id: input.cashierId,
+    },
+    clientOpId: `recv_pay_${paymentId}`,
+    deviceId,
+  });
+
+  return { paymentId };
+}
+
+// ============================================================
+// Payment (Offline-capable)
+// ============================================================
+
+export interface OfflinePaymentInput {
+  shopId: string;
+  refType: string;
+  refId: string;
+  method: string;
+  amount: number;
+  cashierId?: string;
+  receiptRef?: string;
+  notes?: string;
+}
+
+export async function createPaymentOffline(
+  input: OfflinePaymentInput
+): Promise<{ paymentId: string }> {
+  const { clientOpId, deviceId } = await generateClientOpId('pay');
+  const paymentId = generateId();
+
+  await paymentRepo.create({
+    id: paymentId,
+    shop_id: input.shopId,
+    ref_type: input.refType,
+    ref_id: input.refId,
+    method: input.method,
+    amount: input.amount,
+    cashier_id: input.cashierId || null,
+    receipt_ref: input.receiptRef || null,
+    notes: input.notes || null,
+    device_id: deviceId,
+    client_op_id: clientOpId,
+    version: 1,
+  } as Partial<LocalPayment>);
+
+  await enqueueAndSync({
+    entity: 'payments',
+    op: 'insert',
+    entityId: paymentId,
+    data: {
+      id: paymentId,
+      shop_id: input.shopId,
+      ref_type: input.refType,
+      ref_id: input.refId,
+      method: input.method,
+      amount: input.amount,
+      cashier_id: input.cashierId || null,
+      receipt_ref: input.receiptRef || null,
+      notes: input.notes || null,
+      device_id: deviceId,
+      client_op_id: clientOpId,
+    },
+    clientOpId,
+    deviceId,
+  });
+
+  return { paymentId };
+}
+
+// ============================================================
+// Cash Session (Offline-capable)
+// ============================================================
+
+export async function openCashSessionOffline(input: {
+  shopId: string;
+  cashierId: string;
+  openingBalance: number;
+  notes?: string;
+}): Promise<{ sessionId: string }> {
+  const { deviceId } = await generateClientOpId('csess');
+  const sessionId = generateId();
+  const now = nowISO();
+
+  await cashSessionRepo.create({
+    id: sessionId,
+    shop_id: input.shopId,
+    cashier_id: input.cashierId,
+    status: 'OPEN',
+    opening_balance: input.openingBalance,
+    closing_balance: null,
+    expected_balance: null,
+    difference: null,
+    opened_at: now,
+    closed_at: null,
+    notes: input.notes || null,
+    version: 1,
+  } as Partial<LocalCashSession>);
+
+  await enqueueAndSync({
+    entity: 'cash_sessions',
+    op: 'insert',
+    entityId: sessionId,
+    data: {
+      id: sessionId,
+      shop_id: input.shopId,
+      cashier_id: input.cashierId,
+      status: 'OPEN',
+      opening_balance: input.openingBalance,
+      opened_at: now,
+      notes: input.notes || null,
+    },
+    clientOpId: `csess_${sessionId}`,
+    deviceId,
+  });
+
+  return { sessionId };
+}
+
+export async function closeCashSessionOffline(input: {
+  sessionId: string;
+  closingBalance: number;
+  expectedBalance: number;
+  notes?: string;
+}): Promise<void> {
+  const now = nowISO();
+  const difference = input.closingBalance - input.expectedBalance;
+
+  await cashSessionRepo.update(input.sessionId, {
+    status: 'CLOSED',
+    closing_balance: input.closingBalance,
+    expected_balance: input.expectedBalance,
+    difference,
+    closed_at: now,
+    notes: input.notes || null,
+  } as Partial<LocalCashSession>);
+
+  const { deviceId } = await generateClientOpId('csess_close');
+  await enqueueAndSync({
+    entity: 'cash_sessions',
+    op: 'update',
+    entityId: input.sessionId,
+    data: {
+      id: input.sessionId,
+      status: 'CLOSED',
+      closing_balance: input.closingBalance,
+      expected_balance: input.expectedBalance,
+      difference,
+      closed_at: now,
+      notes: input.notes || null,
+    },
+    clientOpId: `csess_close_${input.sessionId}_${Date.now()}`,
+    deviceId,
+  });
+}
+
+// ============================================================
+// Invoice (Offline-capable)
+// ============================================================
+
+export interface OfflineInvoiceInput {
+  shopId: string;
+  saleId?: string;
+  customerId?: string;
+  number: string;
+  issueDate: string;
+  dueDate?: string;
+  subtotal: number;
+  discount: number;
+  taxTotal: number;
+  grandTotal: number;
+  notes?: string;
+  items: Array<{
+    productId?: string;
+    description: string;
+    qty: number;
+    unitPrice: number;
+    discount: number;
+    taxRate: number;
+  }>;
+}
+
+export async function createInvoiceOffline(
+  input: OfflineInvoiceInput
+): Promise<{ invoiceId: string }> {
+  const { deviceId } = await generateClientOpId('inv');
+  const invoiceId = generateId();
+
+  await invoiceRepo.create({
+    id: invoiceId,
+    shop_id: input.shopId,
+    sale_id: input.saleId || null,
+    customer_id: input.customerId || null,
+    number: input.number,
+    status: 'DRAFT',
+    issue_date: input.issueDate,
+    due_date: input.dueDate || null,
+    subtotal: input.subtotal,
+    discount: input.discount,
+    tax_total: input.taxTotal,
+    grand_total: input.grandTotal,
+    paid_total: 0,
+    balance_due: input.grandTotal,
+    notes: input.notes || null,
+    pdf_url: null,
+    version: 1,
+  } as Partial<LocalInvoice>);
+
+  // Create invoice items
+  for (const item of input.items) {
+    const itemSubtotal = item.qty * item.unitPrice - item.discount;
+    const itemTaxTotal = Math.round(itemSubtotal * item.taxRate);
+    const itemTotal = itemSubtotal + itemTaxTotal;
+
+    await invoiceItemRepo.create({
+      id: generateId(),
+      invoice_id: invoiceId,
+      product_id: item.productId || null,
+      description: item.description,
+      qty: item.qty,
+      unit_price: item.unitPrice,
+      discount: item.discount,
+      tax_rate: item.taxRate,
+      subtotal: itemSubtotal,
+      tax_total: itemTaxTotal,
+      total: itemTotal,
+      version: 1,
+    } as any);
+  }
+
+  await enqueueAndSync({
+    entity: 'invoices',
+    op: 'insert',
+    entityId: invoiceId,
+    data: {
+      id: invoiceId,
+      shop_id: input.shopId,
+      sale_id: input.saleId || null,
+      customer_id: input.customerId || null,
+      number: input.number,
+      status: 'DRAFT',
+      issue_date: input.issueDate,
+      due_date: input.dueDate || null,
+      subtotal: input.subtotal,
+      discount: input.discount,
+      tax_total: input.taxTotal,
+      grand_total: input.grandTotal,
+      paid_total: 0,
+      balance_due: input.grandTotal,
+      notes: input.notes || null,
+    },
+    clientOpId: `inv_${invoiceId}`,
+    deviceId,
+  });
+
+  return { invoiceId };
+}
+
+// ============================================================
+// Inventory Session (Offline-capable)
+// ============================================================
+
+export async function startInventorySessionOffline(input: {
+  shopId: string;
+  userId: string;
+  notes?: string;
+}): Promise<{ sessionId: string }> {
+  const { deviceId } = await generateClientOpId('isess');
+  const sessionId = generateId();
+  const now = nowISO();
+
+  await inventorySessionRepo.create({
+    id: sessionId,
+    shop_id: input.shopId,
+    user_id: input.userId,
+    status: 'IN_PROGRESS',
+    started_at: now,
+    completed_at: null,
+    notes: input.notes || null,
+    version: 1,
+  } as Partial<LocalInventorySession>);
+
+  await enqueueAndSync({
+    entity: 'inventory_sessions',
+    op: 'insert',
+    entityId: sessionId,
+    data: {
+      id: sessionId,
+      shop_id: input.shopId,
+      user_id: input.userId,
+      status: 'IN_PROGRESS',
+      started_at: now,
+      notes: input.notes || null,
+    },
+    clientOpId: `isess_${sessionId}`,
+    deviceId,
+  });
+
+  return { sessionId };
+}
+
+export async function addInventoryCountOffline(input: {
+  sessionId: string;
+  productId: string;
+  expectedQty: number;
+  countedQty: number;
+  notes?: string;
+}): Promise<{ countId: string }> {
+  const { deviceId } = await generateClientOpId('icount');
+  const countId = generateId();
+
+  await inventoryCountRepo.create({
+    id: countId,
+    session_id: input.sessionId,
+    product_id: input.productId,
+    expected_qty: input.expectedQty,
+    counted_qty: input.countedQty,
+    difference: input.countedQty - input.expectedQty,
+    notes: input.notes || null,
+    version: 1,
+  } as any);
+
+  await enqueueAndSync({
+    entity: 'inventory_counts',
+    op: 'insert',
+    entityId: countId,
+    data: {
+      id: countId,
+      session_id: input.sessionId,
+      product_id: input.productId,
+      expected_qty: input.expectedQty,
+      counted_qty: input.countedQty,
+      difference: input.countedQty - input.expectedQty,
+      notes: input.notes || null,
+    },
+    clientOpId: `icount_${countId}`,
+    deviceId,
+  });
+
+  return { countId };
+}
+
+export async function completeInventorySessionOffline(input: {
+  sessionId: string;
+  notes?: string;
+}): Promise<void> {
+  const now = nowISO();
+
+  await inventorySessionRepo.update(input.sessionId, {
+    status: 'COMPLETED',
+    completed_at: now,
+    notes: input.notes || null,
+  } as Partial<LocalInventorySession>);
+
+  const { deviceId } = await generateClientOpId('isess_done');
+  await enqueueAndSync({
+    entity: 'inventory_sessions',
+    op: 'update',
+    entityId: input.sessionId,
+    data: {
+      id: input.sessionId,
+      status: 'COMPLETED',
+      completed_at: now,
+      notes: input.notes || null,
+    },
+    clientOpId: `isess_done_${input.sessionId}_${Date.now()}`,
+    deviceId,
+  });
 }

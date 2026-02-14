@@ -12,6 +12,14 @@ import {
   saleRepo,
   cashEntryRepo,
   inventoryMovementRepo,
+  supplierRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  invoiceRepo,
+  cashSessionRepo,
+  paymentRepo,
   LocalProduct,
   LocalStockBatch,
   LocalCustomer,
@@ -19,6 +27,14 @@ import {
   LocalSaleWithItems,
   LocalCashEntry,
   LocalInventoryMovement,
+  LocalSupplier,
+  LocalSupplierDebt,
+  LocalSupplierDebtPayment,
+  LocalClientReceivable,
+  LocalClientReceivablePayment,
+  LocalInvoice,
+  LocalCashSession,
+  LocalPayment,
 } from '../db/repositories';
 
 interface UseLocalDataResult<T> {
@@ -297,6 +313,347 @@ export function useLocalInventoryMovements(
       setLoading(false);
     }
   }, [shopId, productId, limit]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Suppliers
+// ============================================================
+
+export function useLocalSuppliers(
+  shopId: string | null,
+  options?: { search?: string }
+): UseLocalDataResult<LocalSupplier[]> {
+  const [data, setData] = useState<LocalSupplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      let suppliers: LocalSupplier[];
+
+      if (options?.search) {
+        suppliers = await supplierRepo.search(shopId, options.search);
+      } else {
+        suppliers = await supplierRepo.getAll(shopId, { orderBy: 'name ASC' });
+      }
+
+      setData(suppliers);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des fournisseurs');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, options?.search]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Supplier Debts
+// ============================================================
+
+export function useLocalSupplierDebts(
+  shopId: string | null,
+  supplierId?: string
+): UseLocalDataResult<LocalSupplierDebt[]> {
+  const [data, setData] = useState<LocalSupplierDebt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      let debts: LocalSupplierDebt[];
+
+      if (supplierId) {
+        debts = await supplierDebtRepo.getBySupplier(shopId, supplierId);
+      } else {
+        debts = await supplierDebtRepo.getActiveDebts(shopId);
+      }
+
+      setData(debts);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des dettes');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, supplierId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+export function useLocalSupplierDebtPayments(
+  debtId: string | null
+): UseLocalDataResult<LocalSupplierDebtPayment[]> {
+  const [data, setData] = useState<LocalSupplierDebtPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!debtId) return;
+    try {
+      setLoading(true);
+      const payments = await supplierDebtPaymentRepo.getByDebt(debtId);
+      setData(payments);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des paiements');
+    } finally {
+      setLoading(false);
+    }
+  }, [debtId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+export function useLocalSupplierDebtTotal(shopId: string | null): UseLocalDataResult<number> {
+  const [data, setData] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      const total = await supplierDebtRepo.getTotalBalance(shopId);
+      setData(total);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de calcul des dettes');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Client Receivables
+// ============================================================
+
+export function useLocalClientReceivables(
+  shopId: string | null,
+  customerId?: string
+): UseLocalDataResult<LocalClientReceivable[]> {
+  const [data, setData] = useState<LocalClientReceivable[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      let receivables: LocalClientReceivable[];
+
+      if (customerId) {
+        receivables = await clientReceivableRepo.getByCustomer(shopId, customerId);
+      } else {
+        receivables = await clientReceivableRepo.getActiveReceivables(shopId);
+      }
+
+      setData(receivables);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des creances');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, customerId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+export function useLocalReceivablePayments(
+  receivableId: string | null
+): UseLocalDataResult<LocalClientReceivablePayment[]> {
+  const [data, setData] = useState<LocalClientReceivablePayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!receivableId) return;
+    try {
+      setLoading(true);
+      const payments = await clientReceivablePaymentRepo.getByReceivable(receivableId);
+      setData(payments);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des paiements');
+    } finally {
+      setLoading(false);
+    }
+  }, [receivableId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+export function useLocalReceivableTotal(shopId: string | null): UseLocalDataResult<number> {
+  const [data, setData] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      const total = await clientReceivableRepo.getTotalBalance(shopId);
+      setData(total);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de calcul des creances');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Invoices
+// ============================================================
+
+export function useLocalInvoices(
+  shopId: string | null,
+  options?: { customerId?: string }
+): UseLocalDataResult<LocalInvoice[]> {
+  const [data, setData] = useState<LocalInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      let invoices: LocalInvoice[];
+
+      if (options?.customerId) {
+        invoices = await invoiceRepo.getByCustomer(shopId, options.customerId);
+      } else {
+        invoices = await invoiceRepo.getAll(shopId, { orderBy: 'issue_date DESC' });
+      }
+
+      setData(invoices);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des factures');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, options?.customerId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Cash Sessions
+// ============================================================
+
+export function useLocalOpenCashSession(
+  shopId: string | null,
+  cashierId: string | null
+): UseLocalDataResult<LocalCashSession | null> {
+  const [data, setData] = useState<LocalCashSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId || !cashierId) return;
+    try {
+      setLoading(true);
+      const session = await cashSessionRepo.getOpenSession(shopId, cashierId);
+      setData(session);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement de la session');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, cashierId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, loading, error, refresh };
+}
+
+// ============================================================
+// Payments
+// ============================================================
+
+export function useLocalPayments(
+  shopId: string | null,
+  options?: { refType?: string; refId?: string }
+): UseLocalDataResult<LocalPayment[]> {
+  const [data, setData] = useState<LocalPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      setLoading(true);
+      let payments: LocalPayment[];
+
+      if (options?.refType && options?.refId) {
+        payments = await paymentRepo.getByRef(shopId, options.refType, options.refId);
+      } else {
+        payments = await paymentRepo.getAll(shopId, { orderBy: 'created_at DESC' });
+      }
+
+      setData(payments);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement des paiements');
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, options?.refType, options?.refId]);
 
   useEffect(() => {
     refresh();

@@ -11,11 +11,25 @@ const MAX_RECORDS_PER_ENTITY = 500;
 const SYNC_ENTITIES = {
   products: 'product',
   stock_batches: 'stockBatch',
+  packaging_types: 'packagingType',
   customers: 'customer',
+  suppliers: 'supplier',
   sales: 'sale',
   sale_items: 'saleItem',
   cash_entries: 'cashEntry',
+  cash_sessions: 'cashSession',
   inventory_movements: 'inventoryMovement',
+  inventory_sessions: 'inventorySession',
+  inventory_counts: 'inventoryCount',
+  client_receivables: 'clientReceivable',
+  client_receivable_payments: 'clientReceivablePayment',
+  supplier_debts: 'supplierDebt',
+  supplier_debt_payments: 'supplierDebtPayment',
+  supplier_invoices: 'supplierInvoice',
+  supplier_invoice_items: 'supplierInvoiceItem',
+  payments: 'payment',
+  invoices: 'invoice',
+  invoice_items: 'invoiceItem',
 } as const;
 
 type SyncEntityKey = keyof typeof SYNC_ENTITIES;
@@ -47,9 +61,18 @@ export class SyncService {
       // Build where clause: filter by shop_id and optionally by updated_at
       const where: any = {};
 
-      // shop_id filtering (sale_items don't have direct shop_id)
-      if (entityKey === 'sale_items') {
-        where.sale = { shop_id: shopId };
+      // shop_id filtering (some child entities don't have direct shop_id)
+      const parentRelationEntities: Record<string, Record<string, unknown>> = {
+        sale_items: { sale: { shop_id: shopId } },
+        invoice_items: { invoice: { shop_id: shopId } },
+        supplier_invoice_items: { invoice: { shop_id: shopId } },
+        supplier_debt_payments: { debt: { shop_id: shopId } },
+        client_receivable_payments: { receivable: { shop_id: shopId } },
+        inventory_counts: { session: { shop_id: shopId } },
+      };
+
+      if (parentRelationEntities[entityKey]) {
+        Object.assign(where, parentRelationEntities[entityKey]);
       } else {
         where.shop_id = shopId;
       }
@@ -363,7 +386,13 @@ export class SyncService {
     const model = tx[prismaModel];
 
     // Only some entities have client_op_id
-    const entitiesWithClientOpId = ['products', 'sales', 'cash_entries', 'inventory_movements'];
+    const entitiesWithClientOpId = [
+      'products',
+      'sales',
+      'cash_entries',
+      'inventory_movements',
+      'payments',
+    ];
     if (!entitiesWithClientOpId.includes(entityKey)) return null;
 
     try {
@@ -398,17 +427,28 @@ export class SyncService {
     delete sanitized._last_synced_at;
     delete sanitized.id;
 
-    // Ensure shop_id is set for shop-scoped entities
-    if (entityKey !== 'sale_items') {
+    // Ensure shop_id is set for shop-scoped entities (skip child entities)
+    const childEntities = [
+      'sale_items',
+      'invoice_items',
+      'supplier_invoice_items',
+      'supplier_debt_payments',
+      'client_receivable_payments',
+      'inventory_counts',
+    ];
+    if (!childEntities.includes(entityKey)) {
       sanitized.shop_id = shopId;
     }
 
-    // Ensure cashier_id for sales and cash entries
-    if (entityKey === 'sales' && !sanitized.cashier_id) {
+    // Ensure cashier_id for entities that require it
+    const cashierEntities = ['sales', 'cash_entries', 'cash_sessions'];
+    if (cashierEntities.includes(entityKey) && !sanitized.cashier_id) {
       sanitized.cashier_id = userId;
     }
-    if (entityKey === 'cash_entries' && !sanitized.cashier_id) {
-      sanitized.cashier_id = userId;
+
+    // Ensure user_id for inventory sessions
+    if (entityKey === 'inventory_sessions' && !sanitized.user_id) {
+      sanitized.user_id = userId;
     }
 
     // Convert date strings to Date objects
@@ -418,6 +458,14 @@ export class SyncService {
       'deleted_at',
       'price_valid_from',
       'price_valid_until',
+      'payment_date',
+      'invoice_date',
+      'due_date',
+      'issue_date',
+      'opened_at',
+      'closed_at',
+      'started_at',
+      'completed_at',
     ]) {
       if (sanitized[key] && typeof sanitized[key] === 'string') {
         sanitized[key] = new Date(sanitized[key]);
@@ -425,7 +473,7 @@ export class SyncService {
     }
 
     // Convert boolean fields from 0/1 to true/false
-    for (const key of ['deleted', 'is_active']) {
+    for (const key of ['deleted', 'is_active', 'is_default']) {
       if (key in sanitized) {
         sanitized[key] = Boolean(sanitized[key]);
       }
@@ -458,6 +506,14 @@ export class SyncService {
       'deleted_at',
       'price_valid_from',
       'price_valid_until',
+      'payment_date',
+      'invoice_date',
+      'due_date',
+      'issue_date',
+      'opened_at',
+      'closed_at',
+      'started_at',
+      'completed_at',
     ]) {
       if (sanitized[key] && typeof sanitized[key] === 'string') {
         sanitized[key] = new Date(sanitized[key]);
@@ -465,7 +521,7 @@ export class SyncService {
     }
 
     // Convert booleans
-    for (const key of ['deleted', 'is_active']) {
+    for (const key of ['deleted', 'is_active', 'is_default']) {
       if (key in sanitized) {
         sanitized[key] = Boolean(sanitized[key]);
       }
