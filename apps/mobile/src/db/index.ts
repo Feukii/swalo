@@ -79,8 +79,31 @@ export {
   getTotalQueueCount,
   clearQueue,
   getPendingGroupedByEntity,
+  SYNC_PRIORITY,
+  getEntityPriority,
 } from './queue';
 export type { MutationOp, MutationStatus, MutationRecord } from './queue';
 
 export { cacheAuthCredentials, verifyOfflinePin, getCachedAuth, clearAuthCache } from './authCache';
 export type { AuthCacheEntry } from './authCache';
+
+export {
+  getDailySalesReport,
+  getCashFlowReport,
+  getStockReport,
+  getReceivablesReport,
+  getDebtsReport,
+  getTopProductsReport,
+  getTopCustomersReport,
+  getLastSyncAt,
+} from './reports';
+export type {
+  DailySalesReport,
+  CashFlowReport,
+  StockReport,
+  ReceivablesReport,
+  DebtsReport,
+  TopItem,
+} from './reports';
+
+export { pruneOldData, runDailyMaintenance } from './maintenance';

@@ -8,6 +8,7 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { getTodayLabel } from '../utils/date';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
 import {
   cashEntryRepo,
   clientReceivableRepo,
@@ -40,8 +41,16 @@ const formatTransactionTime = (isoString: string): string => {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
+const freshnessColors: Record<FreshnessLevel, string> = {
+  fresh: Colors.success.main,
+  stale: Colors.warning.main,
+  old: Colors.danger.main,
+  unknown: Colors.muted.foreground,
+};
+
 export default function HomeScreen() {
   const { shopId } = useCurrentUser();
+  const freshness = useSyncFreshness();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     cashBalance: 0,
@@ -188,6 +197,14 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* Sync Freshness Badge */}
+        <View style={styles.freshnessBadge}>
+          <View
+            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+          />
+          <Text style={styles.freshnessText}>{freshness.label}</Text>
+        </View>
+
         {/* Date and Summary */}
         <View style={styles.dateRow}>
           <View>
@@ -348,6 +365,21 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: 80,
     gap: Spacing['2xl'],
+  },
+  freshnessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+  },
+  freshnessDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  freshnessText: {
+    fontSize: 11,
+    color: Colors.muted.foreground,
   },
   dateRow: {
     flexDirection: 'row',

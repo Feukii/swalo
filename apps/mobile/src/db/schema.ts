@@ -6,7 +6,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'swalo.db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -640,6 +640,20 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_inventory_counts_session ON inventory_counts(session_id);
     `);
     await db.runAsync('UPDATE _schema_version SET version = 3');
+  }
+
+  if (currentVersion < 4) {
+    // Migration v4: Add priority to mutation queue, auto_resolved to sync conflicts
+    await db.execAsync(`
+      ALTER TABLE _mutation_queue ADD COLUMN priority INTEGER NOT NULL DEFAULT 3;
+      ALTER TABLE _sync_conflicts ADD COLUMN auto_resolved INTEGER NOT NULL DEFAULT 0;
+    `);
+    // Update index to include priority for efficient ordering
+    await db.execAsync(`
+      DROP INDEX IF EXISTS idx_mutation_queue_status;
+      CREATE INDEX IF NOT EXISTS idx_mutation_queue_status ON _mutation_queue(status, priority ASC, timestamp ASC);
+    `);
+    await db.runAsync('UPDATE _schema_version SET version = 4');
   }
 }
 

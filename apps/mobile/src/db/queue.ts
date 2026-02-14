@@ -23,6 +23,38 @@ export interface MutationRecord {
   error_message: string | null;
   retry_count: number;
   created_at: string;
+  priority: number; // 1=critical (sales/cash), 2=important (receivables/debts), 3=normal
+}
+
+/**
+ * Priority levels for sync queue.
+ * Lower number = higher priority (synced first).
+ */
+export const SYNC_PRIORITY = {
+  CRITICAL: 1, // sales, sale_items, cash_entries, cash_sessions
+  IMPORTANT: 2, // client_receivables, client_receivable_payments, supplier_debts, supplier_debt_payments, payments
+  NORMAL: 3, // products, customers, suppliers, stock_batches, packaging_types, invoices, inventory
+} as const;
+
+/**
+ * Get the default priority for an entity type
+ */
+export function getEntityPriority(entity: SyncableEntity): number {
+  switch (entity) {
+    case 'sales':
+    case 'sale_items':
+    case 'cash_entries':
+    case 'cash_sessions':
+      return SYNC_PRIORITY.CRITICAL;
+    case 'client_receivables':
+    case 'client_receivable_payments':
+    case 'supplier_debts':
+    case 'supplier_debt_payments':
+    case 'payments':
+      return SYNC_PRIORITY.IMPORTANT;
+    default:
+      return SYNC_PRIORITY.NORMAL;
+  }
 }
 
 /**
@@ -35,9 +67,11 @@ export async function enqueueMutation(params: {
   data: Record<string, unknown>;
   clientOpId: string;
   deviceId: string;
+  priority?: number;
 }): Promise<MutationRecord> {
   const db = await getDatabase();
   const now = nowISO();
+  const priority = params.priority ?? getEntityPriority(params.entity);
 
   const mutation: MutationRecord = {
     id: generateId(),
@@ -52,11 +86,12 @@ export async function enqueueMutation(params: {
     error_message: null,
     retry_count: 0,
     created_at: now,
+    priority,
   };
 
   await db.runAsync(
-    `INSERT INTO _mutation_queue (id, entity, op, entity_id, data, client_op_id, device_id, timestamp, status, error_message, retry_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO _mutation_queue (id, entity, op, entity_id, data, client_op_id, device_id, timestamp, status, error_message, retry_count, created_at, priority)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       mutation.id,
       mutation.entity,
@@ -70,6 +105,7 @@ export async function enqueueMutation(params: {
       mutation.error_message,
       mutation.retry_count,
       mutation.created_at,
+      mutation.priority,
     ]
   );
 
@@ -82,7 +118,7 @@ export async function enqueueMutation(params: {
 export async function dequeuePending(limit = 100): Promise<MutationRecord[]> {
   const db = await getDatabase();
   return db.getAllAsync<MutationRecord>(
-    `SELECT * FROM _mutation_queue WHERE status = 'pending' ORDER BY timestamp ASC LIMIT ?`,
+    `SELECT * FROM _mutation_queue WHERE status = 'pending' ORDER BY priority ASC, timestamp ASC LIMIT ?`,
     [limit]
   );
 }

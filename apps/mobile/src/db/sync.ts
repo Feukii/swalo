@@ -42,7 +42,11 @@ import {
 
 const SYNC_META_LAST_SYNC = 'sync_last_sync_at';
 const SYNC_META_CURSOR = 'sync_cursor';
-const SYNC_INTERVAL_MS = 60_000; // 60 seconds
+const SYNC_INTERVAL_NORMAL_MS = 60_000; // 60 seconds
+const SYNC_INTERVAL_LOW_BATTERY_MS = 300_000; // 5 minutes
+
+/** Entities considered "reference data" (safe for auto-resolution via LWW) */
+const REFERENCE_ENTITIES = new Set(['products', 'customers', 'suppliers', 'packaging_types']);
 
 type SyncListener = (event: SyncEvent) => void;
 
@@ -88,6 +92,8 @@ class SyncEngine {
   private listeners = new Set<SyncListener>();
   private _isOnline = true;
   private _pendingCount = 0;
+  private _isLowBattery = false;
+  private _maintenanceRan = false;
 
   get isOnline(): boolean {
     return this._isOnline;
@@ -125,20 +131,52 @@ class SyncEngine {
     // Reset any stuck processing mutations
     await resetProcessingToPending();
 
-    // Check initial connectivity
+    // Check initial connectivity and battery
     await this.checkConnectivity();
+    await this.checkBatteryLevel();
 
     // Update pending count
     await this.updatePendingCount();
 
-    // Start periodic sync
-    this.intervalId = setInterval(() => {
-      this.periodicSync();
-    }, SYNC_INTERVAL_MS);
+    // Start periodic sync with adaptive interval
+    this.schedulePeriodicSync();
 
     // If online, do an initial sync
     if (this._isOnline) {
       this.fullSync().catch(() => undefined);
+    }
+  }
+
+  /**
+   * Schedule periodic sync with adaptive interval based on battery level
+   */
+  private schedulePeriodicSync(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+    }
+    const interval = this._isLowBattery ? SYNC_INTERVAL_LOW_BATTERY_MS : SYNC_INTERVAL_NORMAL_MS;
+    this.intervalId = setInterval(() => {
+      this.periodicSync();
+    }, interval);
+  }
+
+  /**
+   * Check battery level and adjust sync interval if needed
+   */
+  private async checkBatteryLevel(): Promise<void> {
+    try {
+      // Try to use expo-battery if available (optional dependency)
+      const Battery = await import('expo-battery').catch(() => null);
+      if (Battery) {
+        const level = await Battery.getBatteryLevelAsync();
+        const wasLowBattery = this._isLowBattery;
+        this._isLowBattery = level >= 0 && level < 0.3; // < 30%
+        if (wasLowBattery !== this._isLowBattery && this.isRunning) {
+          this.schedulePeriodicSync();
+        }
+      }
+    } catch {
+      // expo-battery not available, keep normal interval
     }
   }
 
@@ -186,6 +224,7 @@ class SyncEngine {
    */
   private async periodicSync(): Promise<void> {
     await this.checkConnectivity();
+    await this.checkBatteryLevel();
     if (this._isOnline) {
       await this.fullSync();
     }
@@ -216,6 +255,12 @@ class SyncEngine {
         conflicts: pushResult?.conflicts,
         pendingCount: this._pendingCount,
       });
+
+      // Run daily maintenance after first successful sync
+      if (!this._maintenanceRan) {
+        this._maintenanceRan = true;
+        this.runMaintenance().catch(() => undefined);
+      }
     } catch (error: any) {
       this.emit({
         type: 'sync_error',
@@ -397,9 +442,51 @@ class SyncEngine {
       return v.toString(16);
     });
 
+    // Auto-resolve reference data conflicts (Last-Write-Wins: accept server version)
+    if (REFERENCE_ENTITIES.has(conflict.entity)) {
+      // Accept server version: apply the server data locally
+      const repoMap: Record<string, any> = {
+        products: productRepo,
+        customers: customerRepo,
+        suppliers: supplierRepo,
+        packaging_types: packagingTypeRepo,
+      };
+
+      const repo = repoMap[conflict.entity];
+      if (repo && conflict.serverVersion) {
+        try {
+          await repo.upsertFromServer({
+            ...conflict.serverVersion,
+            id: conflict.id,
+          });
+        } catch {
+          // If auto-resolution fails, store as manual conflict
+        }
+      }
+
+      // Store as auto-resolved conflict for audit trail
+      await db.runAsync(
+        `INSERT OR REPLACE INTO _sync_conflicts (id, entity, entity_id, reason, client_data, server_data, mutation_id, resolved, resolved_at, resolution, auto_resolved, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'accept_server', 1, ?)`,
+        [
+          id,
+          conflict.entity,
+          conflict.id,
+          conflict.reason,
+          JSON.stringify(conflict.clientVersion || null),
+          JSON.stringify(conflict.serverVersion || null),
+          mutation.id,
+          now,
+          now,
+        ]
+      );
+      return;
+    }
+
+    // Financial and other data: store for manual resolution
     await db.runAsync(
-      `INSERT OR REPLACE INTO _sync_conflicts (id, entity, entity_id, reason, client_data, server_data, mutation_id, resolved, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      `INSERT OR REPLACE INTO _sync_conflicts (id, entity, entity_id, reason, client_data, server_data, mutation_id, resolved, auto_resolved, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
       [
         id,
         conflict.entity,
@@ -457,6 +544,34 @@ class SyncEngine {
   private async getDeviceId(): Promise<string> {
     const { getDeviceId } = await import('../lib/deviceInfo');
     return getDeviceId();
+  }
+
+  /**
+   * Run daily maintenance (data retention/pruning).
+   * Gets shopId from the stored auth token.
+   */
+  private async runMaintenance(): Promise<void> {
+    try {
+      // Try shop first, then user for shop_id
+      const shopStr = await AsyncStorage.getItem('shop');
+      const userStr = await AsyncStorage.getItem('user');
+      let shopId: string | null = null;
+
+      if (shopStr) {
+        const shop = JSON.parse(shopStr);
+        shopId = shop?.id;
+      }
+      if (!shopId && userStr) {
+        const user = JSON.parse(userStr);
+        shopId = user?.shop_id;
+      }
+      if (!shopId) return;
+
+      const { runDailyMaintenance } = await import('./maintenance');
+      await runDailyMaintenance(shopId);
+    } catch (error) {
+      console.error('[SyncEngine] Maintenance error:', error);
+    }
   }
 }
 

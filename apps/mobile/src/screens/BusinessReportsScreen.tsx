@@ -13,6 +13,7 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
 import DateRangePicker from '../components/ui/DateRangePicker';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
 import {
   cashEntryRepo,
   clientReceivableRepo,
@@ -82,9 +83,17 @@ interface SupplierStats {
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
+const freshnessColors: Record<FreshnessLevel, string> = {
+  fresh: Colors.success.main,
+  stale: Colors.warning.main,
+  old: Colors.danger.main,
+  unknown: Colors.muted.foreground,
+};
+
 export default function BusinessReportsScreen({ navigation }: BusinessReportsScreenProps) {
   const { shopId, user } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
+  const freshness = useSyncFreshness();
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
@@ -691,6 +700,14 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       <ScreenHeader title="Bilans & Rapports" showBack onBack={() => navigation.goBack()} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Sync Freshness Badge */}
+        <View style={styles.freshnessBadge}>
+          <View
+            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+          />
+          <Text style={styles.freshnessText}>{freshness.label}</Text>
+        </View>
+
         {/* Date Range Picker */}
         <View style={styles.datePickerContainer}>
           <DateRangePicker
@@ -1235,6 +1252,22 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.lg,
+  },
+  freshnessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  freshnessDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  freshnessText: {
+    fontSize: 11,
+    color: Colors.muted.foreground,
   },
   datePickerContainer: {
     marginBottom: Spacing.md,
