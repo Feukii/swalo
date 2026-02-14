@@ -105,7 +105,6 @@ export default function Sale() {
       const data = await productsApi.getAll({
         search: search || undefined,
         category: selectedCategory || undefined,
-        is_active: true,
       });
       setProducts(data);
     } catch (err) {
@@ -126,7 +125,7 @@ export default function Sale() {
 
   const loadCustomers = useCallback(async () => {
     try {
-      const data = await customersApi.getAll({ is_active: true });
+      const data = await customersApi.getAll();
       setCustomers(data);
     } catch (err) {
       console.error('Erreur chargement clients:', err);

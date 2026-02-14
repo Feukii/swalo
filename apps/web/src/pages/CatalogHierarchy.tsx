@@ -24,7 +24,7 @@ export default function CatalogHierarchy() {
     try {
       const [categoriesData, productsData] = await Promise.all([
         productsApi.getCategories(),
-        productsApi.getAll({ is_active: true }),
+        productsApi.getAll(),
       ]);
 
       // Group products by category

@@ -74,14 +74,7 @@ export default function Home() {
         end_date: now.toISOString(),
       };
 
-      const [
-        balanceData,
-        cashStatsData,
-        receivablesData,
-        debtsData,
-        productData,
-        salesData,
-      ] = await Promise.all([
+      const results = await Promise.allSettled([
         cashApi.getBalance(),
         cashApi.getStats(dates),
         receivablesApi.getStats(),
@@ -90,12 +83,18 @@ export default function Home() {
         salesApi.getStats(),
       ]);
 
-      setCashBalance(balanceData.balance || 0);
-      setCashStats(cashStatsData);
-      setReceivablesStats(receivablesData);
-      setDebtsStats(debtsData);
-      setProductStats(productData);
-      setSalesStats(salesData);
+      if (results[0].status === 'fulfilled') setCashBalance(results[0].value.balance || 0);
+      if (results[1].status === 'fulfilled') setCashStats(results[1].value);
+      if (results[2].status === 'fulfilled') setReceivablesStats(results[2].value);
+      if (results[3].status === 'fulfilled') setDebtsStats(results[3].value);
+      if (results[4].status === 'fulfilled') setProductStats(results[4].value);
+      if (results[5].status === 'fulfilled') setSalesStats(results[5].value);
+
+      // Only show error if ALL calls failed
+      const allFailed = results.every(r => r.status === 'rejected');
+      if (allFailed) {
+        setError('Impossible de charger les donnees du tableau de bord. Veuillez reessayer.');
+      }
     } catch (err) {
       console.error('Erreur lors du chargement du tableau de bord:', err);
       setError('Impossible de charger les donnees du tableau de bord. Veuillez reessayer.');

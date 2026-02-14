@@ -42,7 +42,7 @@ export default function StockManagement() {
     setIsLoading(true);
     try {
       const [productsData, statsData] = await Promise.all([
-        productsApi.getAll({ search: searchTerm || undefined, is_active: true }),
+        productsApi.getAll({ search: searchTerm || undefined }),
         productsApi.getStats(),
       ]);
       setProducts(productsData);
