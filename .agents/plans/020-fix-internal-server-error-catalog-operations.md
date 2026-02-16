@@ -3,6 +3,7 @@
 ## Feature Description
 
 Correction des erreurs 500 (Internal Server Error) qui surviennent lors de toutes les opérations liées au catalogue produits:
+
 - Import de fichiers CSV/Excel
 - Création manuelle d'articles
 - Création manuelle de familles/types/marques dans la hiérarchie
@@ -16,6 +17,7 @@ Pour alimenter le catalogue de ma boutique
 ## Problem Statement
 
 L'API renvoie des erreurs 500 (Internal Server Error) lors de:
+
 1. La confirmation d'un import de catalogue (`POST /api/import/catalog/confirm`)
 2. La création d'un produit (`POST /api/products`)
 3. La création d'une famille/type/marque (qui crée un produit placeholder)
@@ -63,15 +65,18 @@ Après analyse approfondie via 8 stratégies d'investigation parallèles, les ca
 ### Patterns to Follow
 
 **Error Handling Pattern:**
+
 - Utiliser des blocs try-catch explicites avec logging
 - Retourner des messages d'erreur clairs au client
 - Ne pas exposer les erreurs Prisma brutes
 
 **Validation Pattern:**
+
 - class-validator avec decorators @IsString, @IsInt, @Min
 - Validation implicite via ValidationPipe global
 
 **Guard Pattern:**
+
 - @UseGuards(JwtAuthGuard, RolesGuard) sur les controllers
 - @Roles(Role.OWNER, Role.MANAGER) sur les endpoints protégés
 
@@ -84,6 +89,7 @@ Après analyse approfondie via 8 stratégies d'investigation parallèles, les ca
 Ajouter du logging détaillé pour identifier précisément la cause des erreurs 500.
 
 **Tasks:**
+
 - Ajouter des logs dans ProductsService.create()
 - Ajouter des logs dans ImportService.confirmCatalogImport()
 - Ajouter un filtre d'exception global pour capturer les erreurs non gérées
@@ -93,6 +99,7 @@ Ajouter du logging détaillé pour identifier précisément la cause des erreurs
 Corriger les points où des erreurs peuvent survenir sans être correctement gérées.
 
 **Tasks:**
+
 - Améliorer la gestion des erreurs Prisma dans products.service.ts
 - Ajouter try-catch autour des opérations critiques
 - Valider que le shopId est présent avant les opérations
@@ -102,6 +109,7 @@ Corriger les points où des erreurs peuvent survenir sans être correctement gé
 S'assurer que les données envoyées par le mobile correspondent aux attentes de l'API.
 
 **Tasks:**
+
 - Vérifier que CatalogHierarchyScreen envoie des données valides
 - Vérifier que ProductCatalogScreen envoie des données valides
 - Ajouter une validation côté mobile avant l'envoi
@@ -111,6 +119,7 @@ S'assurer que les données envoyées par le mobile correspondent aux attentes de
 Valider que les corrections fonctionnent.
 
 **Tasks:**
+
 - Tester la création de produit via l'API
 - Tester la création de famille via l'écran hiérarchie
 - Tester l'import de catalogue
@@ -182,6 +191,7 @@ Valider que les corrections fonctionnent.
 **IMPLEMENT**: S'assurer que les payloads envoyés par le mobile correspondent exactement au DTO attendu
 
 **FILES**:
+
 - `apps/mobile/src/screens/CatalogHierarchyScreen.tsx` - vérifier newProduct
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` - vérifier data
 
@@ -198,6 +208,7 @@ Valider que les corrections fonctionnent.
 **Scope**: ProductsService.create(), ImportService.confirmCatalogImport()
 
 **Requirements**:
+
 - Tester la création avec des données valides
 - Tester la création avec SKU dupliqué (doit retourner ConflictException)
 - Tester la création avec données manquantes (doit retourner BadRequestException)
@@ -209,6 +220,7 @@ Valider que les corrections fonctionnent.
 **Scope**: Endpoints POST /api/products et POST /api/import/catalog/confirm
 
 **Requirements**:
+
 - Tester avec token JWT valide
 - Tester avec rôle OWNER
 - Tester avec rôle non autorisé (doit retourner 403)

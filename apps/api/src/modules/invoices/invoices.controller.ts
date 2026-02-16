@@ -1,42 +1,25 @@
-import { Controller, Get, Post, Param, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { InvoicesService } from './invoices.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { CreateInvoiceFromSaleDto, SearchInvoiceDto } from './dto/create-invoice.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('invoices')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
-  /**
-   * GET /api/invoices
-   * Lister les factures de la boutique
-   */
   @Get()
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
-  findAll(
-    @CurrentUser() user: any,
-    @Query('customer_id') customerId?: string,
-    @Query('start_date') startDate?: string,
-    @Query('end_date') endDate?: string
-  ) {
-    return this.invoicesService.findAll(user.shopId, {
-      customer_id: customerId,
-      start_date: startDate,
-      end_date: endDate,
-    });
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
+  findAll(@CurrentUser() user: any, @Query() query: SearchInvoiceDto) {
+    return this.invoicesService.findAll(user.shopId, query);
   }
 
-  /**
-   * GET /api/invoices/:id
-   * Recuperer une facture par ID
-   */
   @Get(':id')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.invoicesService.findOne(user.shopId, id);
   }
@@ -46,7 +29,7 @@ export class InvoicesController {
    * Telecharger le PDF d'une facture
    */
   @Get(':id/pdf')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   async getPdf(
     @CurrentUser() user: any,
     @Param('id') id: string,
@@ -69,14 +52,14 @@ export class InvoicesController {
     res.end(buffer);
   }
 
-  /**
-   * POST /api/sales/:saleId/invoice
-   * Generer une facture depuis une vente
-   */
   @Post('from-sale/:saleId')
-  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
-  createFromSale(@CurrentUser() user: any, @Param('saleId') saleId: string) {
-    return this.invoicesService.createFromSale(user.shopId, saleId);
+  @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
+  createFromSale(
+    @CurrentUser() user: any,
+    @Param('saleId') saleId: string,
+    @Body() dto: CreateInvoiceFromSaleDto
+  ) {
+    return this.invoicesService.createFromSale(user.shopId, saleId, dto.notes);
   }
 
   /**
@@ -84,8 +67,14 @@ export class InvoicesController {
    * Re-generer le PDF d'une facture existante
    */
   @Post(':id/regenerate-pdf')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   regeneratePdf(@CurrentUser() user: any, @Param('id') id: string) {
     return this.invoicesService.regeneratePdf(user.shopId, id);
+  }
+
+  @Put(':id/cancel')
+  @Roles(Role.BOSS, Role.MANAGER)
+  cancel(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.invoicesService.cancel(user.shopId, id);
   }
 }

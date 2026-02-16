@@ -17,6 +17,7 @@ So that **deployments work correctly and the application runs without schema mis
 ## Problem Statement
 
 The application needs to be verified as correctly connected to the Neon PostgreSQL production database:
+
 - `postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
 
 The local Prisma schema must be synchronized with the production database to prevent deployment failures and runtime errors due to schema mismatches.
@@ -70,16 +71,19 @@ The local Prisma schema must be synchronized with the production database to pre
 ### Patterns to Follow
 
 **Environment Configuration:**
+
 - The `.env` file is gitignored and should never be committed
 - Only `.env.example` serves as documentation template
 - Production environment variables are configured in Render Dashboard
 
 **Migration Safety:**
+
 - NEVER use `prisma migrate dev` on production (creates new migrations and resets data)
 - ALWAYS use `prisma migrate deploy` for production (applies pending migrations only)
 - Verify migration status before deploying
 
 **Deployment Flow:**
+
 - Git push to `main` branch triggers automatic Render deployment
 - Render executes buildCommand from `render.yaml`
 - Build includes `prisma generate` to ensure client matches schema
@@ -93,6 +97,7 @@ The local Prisma schema must be synchronized with the production database to pre
 Configure local development environment to connect to the Neon production database for verification purposes.
 
 **Tasks:**
+
 - Create or update the local `.env` file with production DATABASE_URL
 - Verify the connection string format is compatible with Neon pooler
 
@@ -101,6 +106,7 @@ Configure local development environment to connect to the Neon production databa
 Verify that the local Prisma schema matches the production database schema.
 
 **Tasks:**
+
 - Check Prisma migration status against production database
 - Identify any pending migrations that need to be deployed
 - If schema drift exists, determine the appropriate resolution
@@ -110,6 +116,7 @@ Verify that the local Prisma schema matches the production database schema.
 Apply any pending migrations to the production database.
 
 **Tasks:**
+
 - Run `prisma migrate deploy` to apply pending migrations
 - Verify all migrations are now applied
 - Regenerate Prisma client
@@ -119,6 +126,7 @@ Apply any pending migrations to the production database.
 Commit all pending changes and trigger production deployment.
 
 **Tasks:**
+
 - Stage all relevant changes
 - Create descriptive commit
 - Push to remote repository
@@ -146,6 +154,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **TEST_REQUIREMENT**: Connection test returns successfully without authentication errors
 
 **Environment Variables to Set:**
+
 ```
 DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 ```
@@ -257,12 +266,14 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 
 **Scope**: Verify database connectivity from local environment to Neon production
 **Requirements**:
+
 - Prisma client can connect to database
 - Queries execute successfully
 - SSL/TLS connection is working
 - **VALIDATION COMMAND**: `cd apps/api && npx prisma db execute --stdin <<< "SELECT 1"`
 
 **Test Scenarios Required**:
+
 - Basic SELECT query executes
 - No authentication errors
 - No SSL/TLS errors
@@ -272,12 +283,14 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 
 **Scope**: Verify local Prisma schema matches production database
 **Requirements**:
+
 - All migrations are applied
 - No schema drift
 - Prisma client type-checks correctly
 - **VALIDATION COMMAND**: `cd apps/api && npx prisma migrate status`
 
 **Test Scenarios Required**:
+
 - Migration status shows all applied
 - `prisma db pull --force` would produce identical schema
 - No pending migrations after deployment
@@ -286,6 +299,7 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 
 **Scope**: Verify application can start and serve requests
 **Requirements**:
+
 - Health endpoint responds
 - No startup errors related to database
 - **VALIDATION COMMAND**: `cd apps/api && pnpm run build && timeout 10 pnpm run start:prod || true`
@@ -293,6 +307,7 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Connection string with special characters in password (already URL-encoded in provided string)
 - Neon cold start latency (serverless may take 500ms-2s on first request)
 - Connection pooler endpoint vs direct endpoint behavior
@@ -301,6 +316,7 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 ### Test Resources
 
 **Testing Documentation Links**:
+
 - Prisma testing: [Prisma Testing Guide](https://www.prisma.io/docs/guides/testing)
 - Neon connection testing: [Neon Quickstart](https://neon.tech/docs/get-started-with-neon/quickstart)
 
@@ -313,6 +329,7 @@ DATABASE_URL="postgresql://neondb_owner:npg_bloOD45QdnFR@ep-shiny-smoke-agjh1g6u
 ### Level 1: Database Connection
 
 **Required Commands**:
+
 ```bash
 cd apps/api && npx prisma db execute --stdin <<< "SELECT 1 as connection_test"
 ```
@@ -322,11 +339,13 @@ cd apps/api && npx prisma db execute --stdin <<< "SELECT 1 as connection_test"
 ### Level 2: Migration Status
 
 **Required Commands**:
+
 ```bash
 cd apps/api && npx prisma migrate status
 ```
 
 **Expected Result**:
+
 - Shows database connection successful
 - Lists all migrations as applied
 - No pending migrations message
@@ -334,22 +353,26 @@ cd apps/api && npx prisma migrate status
 ### Level 3: Prisma Client Generation
 
 **Required Commands**:
+
 ```bash
 cd apps/api && npx prisma generate
 ```
 
 **Expected Result**:
+
 - Client generated successfully
 - No type errors
 
 ### Level 4: Application Build
 
 **Required Commands**:
+
 ```bash
 cd apps/api && pnpm run build
 ```
 
 **Expected Result**:
+
 - Build completes successfully
 - No TypeScript errors
 - No Prisma-related errors
@@ -357,18 +380,21 @@ cd apps/api && pnpm run build
 ### Level 5: Git Status Verification
 
 **Required Commands**:
+
 ```bash
 git status --porcelain
 git log origin/main..HEAD --oneline
 ```
 
 **Expected Result**:
+
 - Working directory clean after commit
 - New commits visible compared to origin
 
 ### Level 6: Post-Push Verification
 
 **Feature-specific manual testing steps**:
+
 1. Check Render dashboard for deployment status
 2. Verify build logs show successful `prisma generate`
 3. Verify health endpoint responds at production URL
@@ -415,22 +441,26 @@ git log origin/main..HEAD --oneline
 **MANDATORY SECTION - Include ALL relevant resources**:
 
 ### Official Documentation
+
 - Prisma CLI Reference: https://www.prisma.io/docs/reference/api-reference/command-reference
 - Prisma Migration Guide: https://www.prisma.io/docs/concepts/components/prisma-migrate
 - Neon Documentation: https://neon.tech/docs
 - Render Deployment: https://render.com/docs/deploys
 
 ### API References
+
 - Neon Connection Pooling: https://neon.tech/docs/connect/connection-pooling
 - Prisma PostgreSQL Connector: https://www.prisma.io/docs/concepts/database-connectors/postgresql
 
 ### Internal Resources
+
 - Render configuration: `render.yaml`
 - Prisma schema: `apps/api/prisma/schema.prisma`
 - Environment template: `apps/api/.env.example`
 - Migration history: `apps/api/prisma/migrations/`
 
 ### Connection String Details
+
 ```
 Host: ep-shiny-smoke-agjh1g6u-pooler.c-2.eu-central-1.aws.neon.tech
 Database: neondb
@@ -442,6 +472,7 @@ Channel Binding: require
 ## NOTES
 
 **Important Reminders:**
+
 - This plan contains ONLY functional specifications
 - The `.env` file with production credentials must NEVER be committed to git
 - Always use `prisma migrate deploy` for production, never `prisma migrate dev`
@@ -454,6 +485,7 @@ The database credentials are provided for this specific authorized task. In prod
 
 **Rollback Plan:**
 If schema alignment fails or deployment breaks production:
+
 1. Check Render deployment logs for specific error
 2. If migration issue: use `prisma migrate resolve` to mark migrations as applied/rolled-back
 3. If connection issue: verify DATABASE_URL in Render Dashboard environment variables

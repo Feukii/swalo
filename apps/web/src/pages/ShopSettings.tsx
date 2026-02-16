@@ -13,7 +13,7 @@ export default function ShopSettings() {
   const { shop, role } = useAuthStore();
 
   // Vérifier que l'utilisateur est propriétaire
-  if (role !== 'OWNER') {
+  if (role !== 'BOSS') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
@@ -38,7 +38,7 @@ export default function ShopSettings() {
           </p>
           <button
             onClick={() => navigate('/pos')}
-            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl transition-colors"
+            className="px-6 py-2 bg-primary-900 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors"
           >
             Retour au POS
           </button>
@@ -192,12 +192,12 @@ export default function ShopSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-3xl shadow-2xl p-8">
           {/* En-tête */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-900 to-primary-700 rounded-2xl flex items-center justify-center shadow-lg">
               <svg
                 className="w-10 h-10 text-white"
                 fill="none"
@@ -218,7 +218,7 @@ export default function ShopSettings() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-900 to-primary-700 bg-clip-text text-transparent mb-2">
               Paramètres Boutique
             </h1>
             <p className="text-gray-600 text-sm">Modifier le code d'accès</p>
@@ -233,7 +233,7 @@ export default function ShopSettings() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500">Code actuel</label>
-                <p className="text-2xl font-mono font-bold text-purple-600">{shop?.code}</p>
+                <p className="text-2xl font-mono font-bold text-primary-700">{shop?.code}</p>
               </div>
             </div>
           </div>
@@ -276,7 +276,7 @@ export default function ShopSettings() {
                 maxLength={4}
                 autoFocus
                 disabled={isLoading}
-                className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
               />
             </div>
 
@@ -289,7 +289,7 @@ export default function ShopSettings() {
             <button
               type="submit"
               disabled={isLoading || pin.length !== 4}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -306,7 +306,7 @@ export default function ShopSettings() {
           <div className="mt-6 text-center">
             <button
               onClick={() => navigate('/pos')}
-              className="text-purple-600 text-sm font-medium hover:text-purple-700 hover:underline transition-colors"
+              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
             >
               ← Retour au POS
             </button>

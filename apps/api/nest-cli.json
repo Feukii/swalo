@@ -4,6 +4,13 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true
+    "webpack": true,
+    "assets": [
+      {
+        "include": "modules/notifications/templates/**/*.hbs",
+        "outDir": "dist",
+        "watchAssets": true
+      }
+    ]
   }
 }

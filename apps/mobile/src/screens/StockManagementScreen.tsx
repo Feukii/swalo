@@ -17,7 +17,6 @@ import {
   Package,
   Search,
   Plus,
-  TrendingUp,
   TrendingDown,
   AlertTriangle,
   DollarSign,
@@ -25,7 +24,9 @@ import {
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { productsApi, inventoryApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { productRepo, stockBatchRepo } from '../db/repositories';
+import { createStockBatchOffline } from '../db/offlineWrite';
 
 interface StockItem {
   id: string;
@@ -40,6 +41,7 @@ interface StockItem {
 }
 
 export default function StockManagementScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<StockItem[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<StockItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,33 +56,50 @@ export default function StockManagementScreen({ navigation }: any) {
   const [sellingPrice, setSellingPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadProducts = async (showRefresh = false) => {
-    if (showRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
+  const loadProducts = useCallback(
+    async (showRefresh = false) => {
+      if (!shopId) return;
+      if (showRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
 
-    try {
-      const loadedProducts = await productsApi.getAll();
-      // Filtrer côté client pour ne garder que les produits actifs
-      const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
-      setProducts(activeProducts);
-      setFilteredProducts(activeProducts);
-    } catch (error) {
-      console.error('Erreur chargement produits:', error);
-      Alert.alert('Erreur', 'Impossible de charger les produits');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+      try {
+        const localProducts = await productRepo.getAll(shopId, {
+          where: { is_active: 1 },
+          orderBy: 'name ASC',
+        });
+        const enriched = await Promise.all(
+          localProducts.map(async p => {
+            const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+            return {
+              ...p,
+              current_stock: totalStock,
+              is_active: true,
+            } as StockItem;
+          })
+        );
+        setProducts(enriched);
+        setFilteredProducts(enriched);
+      } catch (error) {
+        console.error('Erreur chargement produits:', error);
+        if (products.length === 0) {
+          Alert.alert('Erreur', 'Impossible de charger les produits');
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [shopId]
+  );
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [loadProducts]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
-    }, [])
+    }, [loadProducts])
   );
 
   useEffect(() => {
@@ -116,7 +135,7 @@ export default function StockManagementScreen({ navigation }: any) {
   };
 
   const handleStockUpdate = async () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !shopId) return;
 
     const quantity = parseInt(stockQuantity);
     const buyPrice = parseInt(unitPrice);
@@ -142,28 +161,25 @@ export default function StockManagementScreen({ navigation }: any) {
     try {
       const newStock = (selectedProduct.current_stock || 0) + quantity;
 
-      // Créer un lot de stock avec les prix (ajoute aussi le mouvement d'inventaire)
-      const result = await inventoryApi.createBatch({
-        product_id: selectedProduct.id,
-        quantity: quantity,
-        cost_price: buyPrice,
-        sell_price: sellPrice,
+      await createStockBatchOffline({
+        shopId,
+        productId: selectedProduct.id,
+        quantity,
+        costPrice: buyPrice,
+        sellPrice: sellPrice,
         notes: 'Approvisionnement',
       });
 
-      console.log('✅ Approvisionnement réussi:', result);
-
-      // Fermer le modal et recharger immédiatement
       closeStockModal();
       await loadProducts();
 
-      Alert.alert(
-        'Approvisionnement enregistré',
+      const message =
         `+${quantity} unités ajoutées\n\n` +
-          `Nouveau stock: ${newStock} unités\n` +
-          `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
-          `Prix de vente: ${formatMoney(sellPrice)}/unité`
-      );
+        `Nouveau stock: ${newStock} unités\n` +
+        `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
+        `Prix de vente: ${formatMoney(sellPrice)}/unité`;
+
+      Alert.alert('Approvisionnement enregistré', message);
     } catch (error: any) {
       console.error("Erreur lors de l'approvisionnement:", error);
       Alert.alert('Erreur', error.message || "Impossible d'enregistrer l'approvisionnement");

@@ -69,11 +69,13 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 **Feature Type**: Enhancement
 **Estimated Complexity**: Medium-High
 **Primary Systems Affected**:
+
 - API Backend (Customers, Suppliers, Receivables, Debts, Products, Cash modules)
 - Mobile Frontend (CustomerDetailsScreen, SupplierDetailsScreen, ProductCatalogScreen, CatalogHierarchyScreen, CashScreen)
 - Shared Core (@swalo/core schemas)
 
 **Dependencies**:
+
 - Prisma ORM (existing)
 - React Native (existing)
 - Zod validation (existing)
@@ -87,6 +89,7 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 ### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
 
 **Backend API**:
+
 - `apps/api/prisma/schema.prisma` (lines 231-367) - Customer, ClientReceivable, Supplier, SupplierDebt models
 - `apps/api/src/modules/customers/customers.service.ts` (lines 1-295) - Customer balance calculation logic
 - `apps/api/src/modules/suppliers/suppliers.service.ts` (lines 1-295) - Supplier balance calculation logic
@@ -96,6 +99,7 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 - `apps/api/src/modules/products/products.service.ts` - Product CRUD and catalog operations
 
 **Frontend Mobile**:
+
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx` (lines 1-800) - Customer balance display and payment UI
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx` (lines 1-800) - Supplier balance display and payment UI
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` (lines 1-1533) - Product management with tabs
@@ -106,6 +110,7 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 - `apps/mobile/src/constants/theme.ts` - Theme constants for consistent styling
 
 **Shared Core**:
+
 - `packages/core/src/schemas/customer.ts` - Customer Zod schema
 - `packages/core/src/schemas/supplier.ts` - Supplier Zod schema
 - `packages/core/src/schemas/product.ts` - Product Zod schema (needs update)
@@ -114,14 +119,17 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 ### New Files to Create
 
 **Backend**:
+
 - `apps/api/src/modules/cash/dto/create-merchandise-purchase.dto.ts` - DTO for merchandise purchases
 - `apps/api/src/modules/products/dto/batch-update-hierarchy.dto.ts` - DTO for bulk hierarchy updates
 
 **Frontend Mobile**:
+
 - `apps/mobile/src/components/ui/BalanceIndicator.tsx` - Reusable balance display component
 - `apps/mobile/src/components/ui/HierarchyManager.tsx` - Reusable hierarchy management component
 
 **Shared**:
+
 - None required - will update existing schemas
 
 ### Relevant Documentation YOU SHOULD READ THESE BEFORE IMPLEMENTING!
@@ -149,6 +157,7 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Service methods: camelCase (e.g., `addPayment`, `calculateBalance`)
 - DTOs: PascalCase with suffix (e.g., `CreateReceivableDto`)
 - Components: PascalCase (e.g., `BalanceIndicator`)
@@ -157,35 +166,41 @@ Ce plan implémente trois améliorations majeures pour le système SWALO:
 - Reference files: `apps/api/src/modules/receivables/dto/create-receivable.dto.ts`
 
 **Error Handling:**
+
 - Backend: Throw NestJS HttpException with appropriate status codes
 - Frontend: Try-catch with Alert.alert for user-friendly error messages
 - Reference: `apps/api/src/modules/receivables/receivables.service.ts` (lines 108-170)
 - Pattern: Validate business rules before database operations
 
 **Logging Pattern:**
+
 - Use NestJS Logger for all service operations
 - Log format: `[ServiceName] Operation: details`
 - Reference: Check existing service files for Logger injection
 - Frontend: console.log for development, structured logging for production
 
 **Data Validation:**
+
 - Backend: Use class-validator decorators in DTOs
 - Shared: Define Zod schemas in @swalo/core
 - Frontend: Validate before API calls using Zod schemas
 - Reference: `apps/api/src/modules/receivables/dto/create-receivable.dto.ts`
 
 **Transaction Patterns:**
+
 - Use Prisma `$transaction()` for multi-step operations
 - Include version increment for optimistic concurrency
 - Reference: `apps/api/src/modules/customers/customers.service.ts` (lines 14-62)
 
 **UI Patterns:**
+
 - Use theme constants from `apps/mobile/src/constants/theme.ts`
 - Follow existing modal patterns from CustomerDetailsScreen
 - Use formatMoney utility for currency display
 - Color coding: Green for positive/good, Red for negative/warning, Yellow for partial
 
 **Multi-tenancy Pattern:**
+
 - Always filter by `shop_id` from JWT context
 - Reference: All service methods in `customers.service.ts`, `suppliers.service.ts`
 
@@ -934,12 +949,14 @@ Use information-dense keywords for clarity:
 **Scope**: Service methods for balance calculations, refund operations, hierarchy updates
 
 **Requirements**:
+
 - Minimum coverage: 80% for new code
 - Testing framework: Jest (already configured in NestJS and React Native)
 - Fixtures and mocking: Mock Prisma client, mock API responses
 - **VALIDATION COMMAND**: `pnpm --filter @swalo/api run test --coverage`
 
 **Test Categories Required**:
+
 - Happy path: Successful refund, successful purchase, successful hierarchy update
 - Error handling: Invalid customer/supplier, negative amounts, insufficient balance
 - Edge cases: Zero balances, overpayments exceeding balance, empty hierarchy
@@ -950,11 +967,13 @@ Use information-dense keywords for clarity:
 **Scope**: End-to-end workflows from API endpoint to database persistence
 
 **Requirements**:
+
 - Test complete workflows: customer refund flow, supplier purchase flow, product hierarchy management
 - Database transaction handling: Verify atomicity, rollback on error
 - **VALIDATION COMMAND**: `pnpm --filter @swalo/api run test:e2e`
 
 **Test Scenarios Required**:
+
 - Customer refund: Create customer → negative balance → refund → verify cash entry + balance update
 - Supplier purchase: Create supplier → merchandise purchase → verify cash exit + debt creation
 - Product hierarchy: Batch update family → verify all products updated
@@ -963,6 +982,7 @@ Use information-dense keywords for clarity:
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Customer balance exactly zero after refund
 - Supplier balance goes from positive to negative after overpayment
 - Refund amount exceeds owed amount (should fail validation)
@@ -975,6 +995,7 @@ Use information-dense keywords for clarity:
 ### Test Resources
 
 **Testing Documentation Links**:
+
 - Jest Documentation: https://jestjs.io/docs/getting-started
 - NestJS Testing: https://docs.nestjs.com/fundamentals/testing
 - React Native Testing Library: https://callstack.github.io/react-native-testing-library/
@@ -990,6 +1011,7 @@ Use information-dense keywords for clarity:
 ### Level 1: Syntax & Style
 
 **Required Commands**:
+
 ```bash
 pnpm --filter @swalo/api run lint
 pnpm --filter @swalo/mobile run lint
@@ -1002,6 +1024,7 @@ pnpm run format:check  # If prettier configured
 ### Level 2: Unit Tests
 
 **Required Commands**:
+
 ```bash
 # API unit tests
 pnpm --filter @swalo/api run test --coverage
@@ -1016,6 +1039,7 @@ pnpm --filter @swalo/mobile run test -- BalanceIndicator.test
 ```
 
 **Expected Result**:
+
 - All unit tests pass
 - Coverage ≥80% for new code
 - No test failures or skipped tests
@@ -1023,6 +1047,7 @@ pnpm --filter @swalo/mobile run test -- BalanceIndicator.test
 ### Level 3: Integration Tests
 
 **Required Commands**:
+
 ```bash
 # API e2e tests
 pnpm --filter @swalo/api run test:e2e
@@ -1032,6 +1057,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 ```
 
 **Expected Result**:
+
 - All integration tests pass
 - End-to-end workflows validated
 - Database state consistent after tests
@@ -1041,6 +1067,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 **MANDATORY REQUIREMENT**: Verify database schema consistency and migration success
 
 **Required Validations**:
+
 - Run Prisma migrations: `cd apps/api && pnpm prisma migrate dev`
 - Verify schema integrity: `cd apps/api && pnpm prisma validate`
 - Check seed data: `cd apps/api && pnpm prisma:seed`
@@ -1051,6 +1078,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 **Feature-specific manual testing steps**:
 
 **Customer Refund Workflow**:
+
 1. Open mobile app, navigate to Customers
 2. Create customer with initial balance of 10000 (100 FCFA)
 3. Record payment of 15000 (150 FCFA) - creates negative balance
@@ -1063,6 +1091,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 10. Verify refund appears in transaction history
 
 **Supplier Purchase Workflow**:
+
 1. Navigate to Cash screen
 2. Click "Achat Marchandise" button
 3. Select supplier from dropdown
@@ -1077,6 +1106,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 12. Verify supplier balance is 50000
 
 **Product Catalog Hierarchy**:
+
 1. Navigate to ProductCatalogScreen
 2. Click "Catalogue" tab
 3. Verify hierarchical display of families
@@ -1093,6 +1123,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 ### Level 6: Performance Validation
 
 **Required Performance Tests**:
+
 - Measure API response time for GET /api/customers (list with balance calculation)
 - Expected: <2 seconds for 1000 customers
 - Measure API response time for GET /api/products/filters
@@ -1101,6 +1132,7 @@ pnpm --filter @swalo/api run test:e2e -- products-hierarchy.e2e-spec
 - Expected: <1 second initial render
 
 **Commands**:
+
 ```bash
 # API performance testing (if tools available)
 # artillery quick --count 10 --num 100 http://localhost:3000/api/customers
@@ -1260,28 +1292,33 @@ time curl -H "Authorization: Bearer <TOKEN>" http://localhost:3000/api/customers
 ### Design Decisions
 
 **Balance Sign Convention**:
+
 - Positive balance = Money owed TO us (receivable/debt exists)
 - Negative balance = Money we owe (refund/overpayment)
 - This convention is consistent across customers and suppliers
 - UI uses color coding: Green (positive, good for us), Red (negative, we owe)
 
 **Transaction Atomicity**:
+
 - All refund operations use Prisma $transaction to ensure cash entry and balance update are atomic
 - Merchandise purchases similarly use transactions to link cash exits with supplier debts
 - Version field incremented on all updates for optimistic concurrency control
 
 **Multi-tenancy**:
+
 - All queries automatically filter by shop_id from JWT context
 - No cross-shop data leakage possible
 - Shop_id extracted in service layer, not controller
 
 **Monetary Values**:
+
 - All amounts stored as integers in centimes (FCFA cents)
 - 1 FCFA = 100 centimes
 - Display formatting uses formatMoney utility
 - Validation ensures amounts are always positive integers
 
 **Hierarchy Management**:
+
 - Product catalog hierarchy: Family → Article Type → Brand → Reference
 - Batch updates use Prisma updateMany for efficiency
 - Cascade filters provide progressive narrowing of options
@@ -1290,16 +1327,19 @@ time curl -H "Authorization: Bearer <TOKEN>" http://localhost:3000/api/customers
 ### Trade-offs
 
 **Performance vs Consistency**:
+
 - Balance calculation is performed on-demand (not cached) to ensure consistency
 - For high-volume scenarios, consider adding denormalized balance fields with triggers
 - Current approach prioritizes data integrity over speed
 
 **UI Complexity vs Usability**:
+
 - Added prominent alerts for negative balances may feel intrusive
 - Alternative: Less prominent visual indicators (considered but rejected for clarity)
 - Target users prefer explicit warnings over subtle indicators
 
 **Flexibility vs Validation**:
+
 - Product hierarchy fields are optional to allow gradual catalog build-up
 - Strict validation would prevent incomplete products but reduce flexibility
 - Chosen approach: Allow incomplete hierarchy, validate only when required for operations

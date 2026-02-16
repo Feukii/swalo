@@ -15,9 +15,9 @@ export async function getUserRole(): Promise<string> {
 }
 
 export function canAccessAdmin(role: string): boolean {
-  return ['ADMIN', 'MANAGER', 'OWNER', 'SUPERADMIN'].includes(role);
+  return ['MANAGER', 'BOSS', 'SUPERADMIN'].includes(role);
 }
 
 export function canAccessReports(role: string): boolean {
-  return ['ADMIN', 'MANAGER', 'OWNER', 'SUPERADMIN'].includes(role);
+  return ['MANAGER', 'BOSS', 'SUPERADMIN'].includes(role);
 }

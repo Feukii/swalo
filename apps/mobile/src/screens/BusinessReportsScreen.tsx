@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { cashApi, customersApi, suppliersApi, receivablesApi, debtsApi } from '../lib/api';
 import { formatMoney } from '../utils/money';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
 import DateRangePicker from '../components/ui/DateRangePicker';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
+import {
+  cashEntryRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  customerRepo,
+  supplierRepo,
+} from '../db/repositories';
 
 interface BusinessReportsScreenProps {
   navigation: any;
@@ -72,20 +81,21 @@ interface SupplierStats {
   top3ToRefund: Array<{ name: string; amount: number }>; // Fournisseurs qui nous doivent
 }
 
-interface CashEntry {
-  id: string;
-  type: 'IN' | 'OUT';
-  category: string;
-  amount: number;
-  note?: string;
-  created_at: string;
-}
-
 type Period = 'today' | 'week' | 'month' | 'year';
 
+const freshnessColors: Record<FreshnessLevel, string> = {
+  fresh: Colors.success.main,
+  stale: Colors.warning.main,
+  old: Colors.danger.main,
+  unknown: Colors.muted.foreground,
+};
+
 export default function BusinessReportsScreen({ navigation }: BusinessReportsScreenProps) {
+  const { shopId, user } = useCurrentUser();
+  const userRole = user?.role || 'EMPLOYEE';
+  const freshness = useSyncFreshness();
+
   const [isLoading, setIsLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>('EMPLOYEE');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
 
   // Date range filter
@@ -104,35 +114,8 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
   const [supplierStats, setSupplierStats] = useState<SupplierStats | null>(null);
 
-  useEffect(() => {
-    checkAccess();
-  }, []);
-
-  useEffect(() => {
-    if (userRole !== 'EMPLOYEE') {
-      loadAllStats();
-    }
-  }, [userRole, selectedPeriod]);
-
-  const checkAccess = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const role = user.role || 'EMPLOYEE';
-        setUserRole(role);
-
-        if (role === 'EMPLOYEE') {
-          navigation.goBack();
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la vérification:', error);
-      navigation.goBack();
-    }
-  };
-
-  const loadAllStats = async () => {
+  const loadAllStats = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
       await Promise.all([loadSalesStats(), loadCustomerStats(), loadSupplierStats()]);
@@ -141,7 +124,13 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId, selectedPeriod, startDate, endDate]);
+
+  useEffect(() => {
+    if (userRole !== 'EMPLOYEE' && shopId) {
+      loadAllStats();
+    }
+  }, [userRole, shopId, loadAllStats]);
 
   const getPeriodDates = (): { start: Date; end: Date; start_date: string; end_date: string } => {
     // Si des dates personnalisées sont sélectionnées, les utiliser
@@ -225,12 +214,17 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   };
 
   const loadSalesStats = async () => {
+    if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
-      const [statsData, entriesData] = await Promise.all([
-        cashApi.getStats({ start_date: periodDates.start_date, end_date: periodDates.end_date }),
-        cashApi.getAll({ start_date: periodDates.start_date, end_date: periodDates.end_date }),
-      ]);
+
+      // Récupérer toutes les entrées de caisse depuis le repo local
+      const allCashEntries = await cashEntryRepo.getAll(shopId);
+
+      // Filtrer par période pour les stats de la période
+      const periodEntries = allCashEntries.filter(entry =>
+        isInPeriod(entry.created_at, periodDates.start, periodDates.end)
+      );
 
       // Calculer les répartitions par catégorie à partir des données brutes
       let totalEntries = 0;
@@ -240,34 +234,27 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       const entriesByCategory: { [key: string]: { amount: number; count: number } } = {};
       const exitsByCategory: { [key: string]: { amount: number; count: number } } = {};
 
-      if (Array.isArray(entriesData)) {
-        entriesData.forEach((entry: CashEntry) => {
-          // Double vérification du filtrage côté client
-          if (!isInPeriod(entry.created_at, periodDates.start, periodDates.end)) {
-            return;
+      periodEntries.forEach(entry => {
+        if (entry.type === 'IN') {
+          totalEntries += entry.amount;
+          entriesCount += 1;
+          const cat = entry.category || 'divers';
+          if (!entriesByCategory[cat]) {
+            entriesByCategory[cat] = { amount: 0, count: 0 };
           }
-
-          if (entry.type === 'IN') {
-            totalEntries += entry.amount;
-            entriesCount += 1;
-            const cat = entry.category || 'divers';
-            if (!entriesByCategory[cat]) {
-              entriesByCategory[cat] = { amount: 0, count: 0 };
-            }
-            entriesByCategory[cat].amount += entry.amount;
-            entriesByCategory[cat].count += 1;
-          } else if (entry.type === 'OUT') {
-            totalExits += entry.amount;
-            exitsCount += 1;
-            const cat = entry.category || 'divers';
-            if (!exitsByCategory[cat]) {
-              exitsByCategory[cat] = { amount: 0, count: 0 };
-            }
-            exitsByCategory[cat].amount += entry.amount;
-            exitsByCategory[cat].count += 1;
+          entriesByCategory[cat].amount += entry.amount;
+          entriesByCategory[cat].count += 1;
+        } else if (entry.type === 'OUT') {
+          totalExits += entry.amount;
+          exitsCount += 1;
+          const cat = entry.category || 'divers';
+          if (!exitsByCategory[cat]) {
+            exitsByCategory[cat] = { amount: 0, count: 0 };
           }
-        });
-      }
+          exitsByCategory[cat].amount += entry.amount;
+          exitsByCategory[cat].count += 1;
+        }
+      });
 
       const entriesByCategoryArray = Object.entries(entriesByCategory)
         .map(([category, data]) => ({ category, amount: data.amount, count: data.count }))
@@ -280,34 +267,74 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       // Net = entrées - sorties
       const net = totalEntries - totalExits;
 
+      // Calculer le solde de caisse global (toutes entrées - toutes sorties, toutes périodes)
+      let globalTotalIn = 0;
+      let globalTotalOut = 0;
+      allCashEntries.forEach(entry => {
+        if (entry.type === 'IN') globalTotalIn += entry.amount;
+        else if (entry.type === 'OUT') globalTotalOut += entry.amount;
+      });
+      const balance = globalTotalIn - globalTotalOut;
+
+      // Ventes cash = somme des entrées avec catégorie 'ventes' ou 'vente'
+      const salesCash = periodEntries
+        .filter(e => e.type === 'IN' && (e.category === 'ventes' || e.category === 'vente'))
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      // Ventes crédit = somme des créances créées pendant la période
+      const allReceivables = await clientReceivableRepo.getAll(shopId);
+      const salesCredit = allReceivables
+        .filter(
+          r =>
+            r.amount > 0 &&
+            r.created_at &&
+            isInPeriod(r.created_at, periodDates.start, periodDates.end)
+        )
+        .reduce((sum, r) => sum + r.amount, 0);
+
+      // Achats cash = somme des sorties avec catégorie 'achats_marchandises'
+      const purchasesCash = periodEntries
+        .filter(e => e.type === 'OUT' && e.category === 'achats_marchandises')
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      // Achats crédit = somme des dettes créées pendant la période
+      const allDebts = await supplierDebtRepo.getAll(shopId);
+      const purchasesCredit = allDebts
+        .filter(
+          d =>
+            d.amount > 0 &&
+            d.created_at &&
+            isInPeriod(d.created_at, periodDates.start, periodDates.end)
+        )
+        .reduce((sum, d) => sum + d.amount, 0);
+
+      const totalSales = salesCash + salesCredit;
+      const totalPurchases = purchasesCash + purchasesCredit;
+
       setSalesStats({
         totalEntries,
         totalExits,
         net,
-        balance: statsData?.balance || 0,
+        balance,
         entriesCount,
         exitsCount,
-        // Ventes par mode (depuis l'API stats)
-        totalSales: statsData?.totalSales || 0,
-        salesCash: statsData?.salesCash || 0,
-        salesCredit: statsData?.salesCredit || 0,
-        // Achats par mode (depuis l'API stats)
-        totalPurchases: statsData?.totalPurchases || 0,
-        purchasesCash: statsData?.purchasesCash || 0,
-        purchasesCredit: statsData?.purchasesCredit || 0,
+        totalSales,
+        salesCash,
+        salesCredit,
+        totalPurchases,
+        purchasesCash,
+        purchasesCredit,
         entriesByCategory: entriesByCategoryArray,
         exitsByCategory: exitsByCategoryArray,
       });
 
       // Extraire les dates uniques avec données pour le calendrier
       const uniqueDates = new Set<string>();
-      if (Array.isArray(entriesData)) {
-        entriesData.forEach((entry: CashEntry) => {
-          const date = new Date(entry.created_at);
-          const dateKey = date.toISOString().split('T')[0];
-          uniqueDates.add(dateKey);
-        });
-      }
+      allCashEntries.forEach(entry => {
+        const date = new Date(entry.created_at);
+        const dateKey = date.toISOString().split('T')[0];
+        uniqueDates.add(dateKey);
+      });
       setDatesWithData(Array.from(uniqueDates));
     } catch (error) {
       console.error('Erreur chargement stats ventes:', error);
@@ -331,15 +358,28 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   };
 
   const loadCustomerStats = async () => {
+    if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
 
-      // Récupérer les créances directement depuis l'API receivables (inclut les ventes à crédit)
-      // et les remboursements clients depuis les entrées de caisse
-      const [receivablesData, cashEntriesData] = await Promise.all([
-        receivablesApi.getAll(),
-        cashApi.getAll({ start_date: periodDates.start_date, end_date: periodDates.end_date }),
+      // Récupérer les créances et les entrées de caisse depuis les repos locaux
+      const [receivablesData, allCashEntries, allCustomers] = await Promise.all([
+        clientReceivableRepo.getAll(shopId),
+        cashEntryRepo.getAll(shopId),
+        customerRepo.getAll(shopId),
       ]);
+
+      // Construire un lookup map pour les noms de clients
+      const customerMap = new Map<string, string>();
+      allCustomers.forEach(c => {
+        const name = c.first_name ? `${c.first_name} ${c.name}` : c.name;
+        customerMap.set(c.id, name);
+      });
+
+      // Filtrer les entrées de caisse par période
+      const cashEntriesData = allCashEntries.filter(entry =>
+        isInPeriod(entry.created_at, periodDates.start, periodDates.end)
+      );
 
       let totalBalance = 0;
       let totalPositiveBalance = 0; // Créances (clients nous doivent)
@@ -355,91 +395,75 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       const customerBalances: { [customerId: string]: { name: string; balance: number } } = {};
 
       // Traiter les créances (ventes à crédit et ajustements)
-      if (Array.isArray(receivablesData)) {
-        receivablesData.forEach((receivable: any) => {
-          if (!receivable) return;
+      for (const receivable of receivablesData) {
+        if (!receivable) continue;
 
-          const balance = receivable.balance || 0;
-          const customerName = receivable.customer
-            ? receivable.customer.first_name
-              ? `${receivable.customer.first_name} ${receivable.customer.name}`
-              : receivable.customer.name
-            : 'Client inconnu';
+        const balance = receivable.balance || 0;
+        const customerName = customerMap.get(receivable.customer_id) || 'Client inconnu';
 
-          // Calculer le solde actuel - inclure toutes les créances non annulées
-          // Les créances PAID avec balance négatif sont des remboursements dus
-          if (receivable.status !== 'CANCELLED') {
-            // Pour les créances PENDING/PARTIAL avec balance > 0 (client nous doit)
-            if (
-              (receivable.status === 'PENDING' || receivable.status === 'PARTIAL') &&
-              balance > 0
-            ) {
-              totalBalance += balance;
-              totalPositiveBalance += balance;
+        // Calculer le solde actuel - inclure toutes les créances non annulées
+        // Les créances PAID avec balance négatif sont des remboursements dus
+        if (receivable.status !== 'CANCELLED') {
+          // Pour les créances PENDING/PARTIAL avec balance > 0 (client nous doit)
+          if ((receivable.status === 'PENDING' || receivable.status === 'PARTIAL') && balance > 0) {
+            totalBalance += balance;
+            totalPositiveBalance += balance;
 
-              if (receivable.customer_id) {
-                customersWithDebtSet.add(receivable.customer_id);
+            if (receivable.customer_id) {
+              customersWithDebtSet.add(receivable.customer_id);
 
-                if (!customerBalances[receivable.customer_id]) {
-                  customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
-                }
-                customerBalances[receivable.customer_id].balance += balance;
+              if (!customerBalances[receivable.customer_id]) {
+                customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
               }
-            }
-
-            // Pour les créances avec balance négatif (nous devons au client - remboursement)
-            // Cela inclut les créances PAID avec montant négatif (ajustements)
-            if (balance < 0) {
-              totalBalance += balance;
-              totalNegativeBalance += Math.abs(balance);
-
-              if (receivable.customer_id) {
-                customersToRefundSet.add(receivable.customer_id);
-
-                if (!customerBalances[receivable.customer_id]) {
-                  customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
-                }
-                customerBalances[receivable.customer_id].balance += balance;
-              }
+              customerBalances[receivable.customer_id].balance += balance;
             }
           }
 
-          // Créances créées pendant la période (seulement montants positifs = ventes à crédit)
-          if (
-            receivable.created_at &&
-            receivable.amount > 0 &&
-            isInPeriod(receivable.created_at, periodDates.start, periodDates.end)
-          ) {
-            receivablesCreated += receivable.amount || 0;
-            receivablesCount++;
-          }
+          // Pour les créances avec balance négatif (nous devons au client - remboursement)
+          // Cela inclut les créances PAID avec montant négatif (ajustements)
+          if (balance < 0) {
+            totalBalance += balance;
+            totalNegativeBalance += Math.abs(balance);
 
-          // Paiements reçus pendant la période (sur les créances)
-          if (receivable.payments && Array.isArray(receivable.payments)) {
-            receivable.payments.forEach((payment: any) => {
-              const paymentDate = payment.payment_date || payment.created_at;
-              if (
-                payment &&
-                paymentDate &&
-                isInPeriod(paymentDate, periodDates.start, periodDates.end)
-              ) {
-                paymentsReceived += payment.amount || 0;
-                paymentsCount++;
+            if (receivable.customer_id) {
+              customersToRefundSet.add(receivable.customer_id);
+
+              if (!customerBalances[receivable.customer_id]) {
+                customerBalances[receivable.customer_id] = { name: customerName, balance: 0 };
               }
-            });
+              customerBalances[receivable.customer_id].balance += balance;
+            }
+          }
+        }
+
+        // Créances créées pendant la période (seulement montants positifs = ventes à crédit)
+        if (
+          receivable.created_at &&
+          receivable.amount > 0 &&
+          isInPeriod(receivable.created_at, periodDates.start, periodDates.end)
+        ) {
+          receivablesCreated += receivable.amount || 0;
+          receivablesCount++;
+        }
+
+        // Paiements reçus pendant la période (sur les créances)
+        const payments = await clientReceivablePaymentRepo.getByReceivable(receivable.id);
+        payments.forEach(payment => {
+          const paymentDate = payment.payment_date || payment.created_at;
+          if (paymentDate && isInPeriod(paymentDate, periodDates.start, periodDates.end)) {
+            paymentsReceived += payment.amount || 0;
+            paymentsCount++;
           }
         });
       }
 
       // Ajouter les remboursements clients des entrées de caisse (catégorie remboursement_client)
-      if (Array.isArray(cashEntriesData)) {
-        cashEntriesData.forEach((entry: any) => {
-          if (entry.type === 'IN' && entry.category === 'remboursement_client') {
-            paymentsReceived += entry.amount || 0;
-            paymentsCount++;
-          }
-        });
-      }
+      cashEntriesData.forEach(entry => {
+        if (entry.type === 'IN' && entry.category === 'remboursement_client') {
+          paymentsReceived += entry.amount || 0;
+          paymentsCount++;
+        }
+      });
 
       // Construire les listes des débiteurs et des clients à rembourser
       Object.entries(customerBalances).forEach(([customerId, data]) => {
@@ -499,15 +523,28 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   };
 
   const loadSupplierStats = async () => {
+    if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
 
-      // Récupérer les dettes directement depuis l'API debts (inclut les achats à crédit)
-      // et les règlements fournisseurs depuis les sorties de caisse
-      const [debtsData, cashEntriesData] = await Promise.all([
-        debtsApi.getAll(),
-        cashApi.getAll({ start_date: periodDates.start_date, end_date: periodDates.end_date }),
+      // Récupérer les dettes et les entrées de caisse depuis les repos locaux
+      const [debtsData, allCashEntries, allSuppliers] = await Promise.all([
+        supplierDebtRepo.getAll(shopId),
+        cashEntryRepo.getAll(shopId),
+        supplierRepo.getAll(shopId),
       ]);
+
+      // Construire un lookup map pour les noms de fournisseurs
+      const supplierMap = new Map<string, string>();
+      allSuppliers.forEach(s => {
+        const name = s.first_name ? `${s.first_name} ${s.name}` : s.name;
+        supplierMap.set(s.id, name);
+      });
+
+      // Filtrer les entrées de caisse par période
+      const cashEntriesData = allCashEntries.filter(entry =>
+        isInPeriod(entry.created_at, periodDates.start, periodDates.end)
+      );
 
       let totalBalance = 0;
       let totalPositiveBalance = 0; // Dettes (on leur doit)
@@ -521,88 +558,75 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       const supplierBalances: { [supplierId: string]: { name: string; balance: number } } = {};
 
       // Traiter les dettes (achats à crédit et ajustements)
-      if (Array.isArray(debtsData)) {
-        debtsData.forEach((debt: any) => {
-          if (!debt) return;
+      for (const debt of debtsData) {
+        if (!debt) continue;
 
-          const balance = debt.balance || 0;
-          const supplierName = debt.supplier
-            ? debt.supplier.first_name
-              ? `${debt.supplier.first_name} ${debt.supplier.name}`
-              : debt.supplier.name
-            : 'Fournisseur inconnu';
+        const balance = debt.balance || 0;
+        const supplierName = supplierMap.get(debt.supplier_id) || 'Fournisseur inconnu';
 
-          // Calculer le solde actuel - inclure toutes les dettes non annulées
-          // Les dettes PAID avec balance négatif sont des remboursements dus par le fournisseur
-          if (debt.status !== 'CANCELLED') {
-            // Pour les dettes PENDING/PARTIAL avec balance > 0 (on leur doit)
-            if ((debt.status === 'PENDING' || debt.status === 'PARTIAL') && balance > 0) {
-              totalBalance += balance;
-              totalPositiveBalance += balance;
+        // Calculer le solde actuel - inclure toutes les dettes non annulées
+        // Les dettes PAID avec balance négatif sont des remboursements dus par le fournisseur
+        if (debt.status !== 'CANCELLED') {
+          // Pour les dettes PENDING/PARTIAL avec balance > 0 (on leur doit)
+          if ((debt.status === 'PENDING' || debt.status === 'PARTIAL') && balance > 0) {
+            totalBalance += balance;
+            totalPositiveBalance += balance;
 
-              if (debt.supplier_id) {
-                suppliersWithDebtSet.add(debt.supplier_id);
+            if (debt.supplier_id) {
+              suppliersWithDebtSet.add(debt.supplier_id);
 
-                if (!supplierBalances[debt.supplier_id]) {
-                  supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
-                }
-                supplierBalances[debt.supplier_id].balance += balance;
+              if (!supplierBalances[debt.supplier_id]) {
+                supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
               }
-            }
-
-            // Pour les dettes avec balance négatif (fournisseur nous doit - remboursement)
-            // Cela inclut les dettes PAID avec montant négatif (ajustements)
-            if (balance < 0) {
-              totalBalance += balance;
-              totalNegativeBalance += Math.abs(balance);
-
-              if (debt.supplier_id) {
-                suppliersToRefundSet.add(debt.supplier_id);
-
-                if (!supplierBalances[debt.supplier_id]) {
-                  supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
-                }
-                supplierBalances[debt.supplier_id].balance += balance;
-              }
+              supplierBalances[debt.supplier_id].balance += balance;
             }
           }
 
-          // Dettes créées pendant la période (seulement montants positifs = achats à crédit)
-          if (
-            debt.created_at &&
-            debt.amount > 0 &&
-            isInPeriod(debt.created_at, periodDates.start, periodDates.end)
-          ) {
-            debtsCreated += debt.amount || 0;
-            debtsCount++;
-          }
+          // Pour les dettes avec balance négatif (fournisseur nous doit - remboursement)
+          // Cela inclut les dettes PAID avec montant négatif (ajustements)
+          if (balance < 0) {
+            totalBalance += balance;
+            totalNegativeBalance += Math.abs(balance);
 
-          // Paiements effectués pendant la période (sur les dettes)
-          if (debt.payments && Array.isArray(debt.payments)) {
-            debt.payments.forEach((payment: any) => {
-              const paymentDate = payment.payment_date || payment.created_at;
-              if (
-                payment &&
-                paymentDate &&
-                isInPeriod(paymentDate, periodDates.start, periodDates.end)
-              ) {
-                paymentsMade += payment.amount || 0;
-                paymentsCount++;
+            if (debt.supplier_id) {
+              suppliersToRefundSet.add(debt.supplier_id);
+
+              if (!supplierBalances[debt.supplier_id]) {
+                supplierBalances[debt.supplier_id] = { name: supplierName, balance: 0 };
               }
-            });
+              supplierBalances[debt.supplier_id].balance += balance;
+            }
+          }
+        }
+
+        // Dettes créées pendant la période (seulement montants positifs = achats à crédit)
+        if (
+          debt.created_at &&
+          debt.amount > 0 &&
+          isInPeriod(debt.created_at, periodDates.start, periodDates.end)
+        ) {
+          debtsCreated += debt.amount || 0;
+          debtsCount++;
+        }
+
+        // Paiements effectués pendant la période (sur les dettes)
+        const payments = await supplierDebtPaymentRepo.getByDebt(debt.id);
+        payments.forEach(payment => {
+          const paymentDate = payment.payment_date || payment.created_at;
+          if (paymentDate && isInPeriod(paymentDate, periodDates.start, periodDates.end)) {
+            paymentsMade += payment.amount || 0;
+            paymentsCount++;
           }
         });
       }
 
       // Ajouter les règlements fournisseurs des sorties de caisse (catégorie reglement_fournisseur)
-      if (Array.isArray(cashEntriesData)) {
-        cashEntriesData.forEach((entry: any) => {
-          if (entry.type === 'OUT' && entry.category === 'reglement_fournisseur') {
-            paymentsMade += entry.amount || 0;
-            paymentsCount++;
-          }
-        });
-      }
+      cashEntriesData.forEach(entry => {
+        if (entry.type === 'OUT' && entry.category === 'reglement_fournisseur') {
+          paymentsMade += entry.amount || 0;
+          paymentsCount++;
+        }
+      });
 
       // Construire les listes des créditeurs et des fournisseurs qui nous doivent
       const creditorsList: Array<{ name: string; amount: number }> = [];
@@ -676,6 +700,14 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       <ScreenHeader title="Bilans & Rapports" showBack onBack={() => navigation.goBack()} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Sync Freshness Badge */}
+        <View style={styles.freshnessBadge}>
+          <View
+            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+          />
+          <Text style={styles.freshnessText}>{freshness.label}</Text>
+        </View>
+
         {/* Date Range Picker */}
         <View style={styles.datePickerContainer}>
           <DateRangePicker
@@ -1220,6 +1252,22 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Spacing.lg,
+  },
+  freshnessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  freshnessDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  freshnessText: {
+    fontSize: 11,
+    color: Colors.muted.foreground,
   },
   datePickerContainer: {
     marginBottom: Spacing.md,

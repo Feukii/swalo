@@ -7,6 +7,7 @@ Pay special attention to naming of existing utils, types, and models. Import fro
 ## Feature Description
 
 This plan addresses 7 related requirements:
+
 1. Fix customer refund logic (balance should increase toward zero, not decrease further)
 2. Add customer balances summary page accessible from CustomersScreen
 3. Add supplier balances summary page accessible from SuppliersScreen
@@ -49,22 +50,26 @@ So that I can accurately track finances, quickly assess business relationships, 
 ### Relevant Codebase Files - MUST READ BEFORE IMPLEMENTING
 
 **Bug Fixes (Requirements 1 & 4):**
+
 - `apps/api/src/modules/customers/customers.service.ts` (lines 301-353) - createRefund method with bug at line 338
 - `apps/api/src/modules/suppliers/suppliers.service.ts` (lines 301-353) - claimRefund method with bug at line 338
 
 **Balance Summary Screens (Requirements 2 & 3):**
+
 - `apps/mobile/src/screens/CustomersScreen.tsx` (lines 164-184) - header where button should be added
 - `apps/mobile/src/screens/SuppliersScreen.tsx` (lines 164-173) - header where button should be added
 - `apps/mobile/App.tsx` (lines 37-56, 140-165) - navigation setup
 - `apps/mobile/src/lib/api.ts` (lines 297-346, 404-440) - API endpoints for customers/suppliers
 
 **Transaction Authors (Requirement 5):**
+
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx` (lines 734-809) - transaction display
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx` (lines 744-819) - transaction display
 - `apps/mobile/src/screens/CashScreen.tsx` (lines 596-639) - cash journal display
 - `apps/api/src/modules/cash/cash.service.ts` (lines 238-265) - already returns cashier data
 
 **Hierarchy Management (Requirements 6 & 7):**
+
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` (lines 553-674, 877-1138, 1140-1205) - Catalogue tab and modals
 - `apps/mobile/src/screens/CatalogHierarchyScreen.tsx` - full hierarchy management reference
 - `apps/mobile/src/lib/api.ts` (lines 544-553) - batchUpdateHierarchy endpoint
@@ -77,16 +82,19 @@ So that I can accurately track finances, quickly assess business relationships, 
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Screen components: `{Entity}{Action}Screen.tsx`
 - Navigation routes: PascalCase matching screen name
 - API methods: camelCase with entity prefix (e.g., `customersApi.getAll()`)
 
 **Error Handling:**
+
 - Use `Alert.alert()` for user feedback
 - Try/catch with console.error for debugging
 - Show loading indicators during API calls
 
 **Data Validation:**
+
 - Validate amounts are positive before API calls
 - Check balance conditions before refund operations
 
@@ -99,6 +107,7 @@ So that I can accurately track finances, quickly assess business relationships, 
 Fix the refund logic in both customer and supplier services to create positive entries that offset negative balances.
 
 **Tasks:**
+
 - Update `createRefund()` in customers.service.ts to use positive amount
 - Update `claimRefund()` in suppliers.service.ts to use positive amount
 - Update comments to clarify the logic
@@ -108,6 +117,7 @@ Fix the refund logic in both customer and supplier services to create positive e
 Create new screens to display all customer/supplier balances and add navigation.
 
 **Tasks:**
+
 - Create CustomerBalancesSummaryScreen component
 - Create SupplierBalancesSummaryScreen component
 - Add navigation routes to App.tsx
@@ -118,6 +128,7 @@ Create new screens to display all customer/supplier balances and add navigation.
 Display the transaction author (cashier name and role) in transaction details.
 
 **Tasks:**
+
 - Update transaction rendering in CustomerDetailsScreen to show author
 - Update transaction rendering in SupplierDetailsScreen to show author
 - Update CashScreen journal entries to show cashier name
@@ -127,6 +138,7 @@ Display the transaction author (cashier name and role) in transaction details.
 Add ability to create new hierarchy values and enable reference editing.
 
 **Tasks:**
+
 - Add "Create New" indicator in family/type/brand suggestions
 - Add reference-level editing to Catalogue tab hierarchy edit modal
 - Add "Add New" buttons for each hierarchy level in Catalogue tab
@@ -134,6 +146,7 @@ Add ability to create new hierarchy values and enable reference editing.
 ### Phase 5: Testing & Validation
 
 **Tasks:**
+
 - Run linting on all modified files
 - Test refund operations with negative balances
 - Verify balance summary screens display correctly
@@ -269,6 +282,7 @@ Add ability to create new hierarchy values and enable reference editing.
 
 **Scope**: API service methods for refund logic
 **Requirements**:
+
 - Test refund with negative balance results in correct new balance
 - Test validation errors for invalid refund amounts
 - **VALIDATION COMMAND**: `cd apps/api && pnpm run test`
@@ -277,6 +291,7 @@ Add ability to create new hierarchy values and enable reference editing.
 
 **Scope**: Full refund flow from mobile to API
 **Requirements**:
+
 - Create customer with negative balance, perform refund, verify balance
 - Create supplier with negative balance, claim refund, verify balance
 - **VALIDATION COMMAND**: `cd apps/api && pnpm run test`
@@ -284,6 +299,7 @@ Add ability to create new hierarchy values and enable reference editing.
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Refund amount equals exact balance (should result in zero)
 - Refund amount exceeds balance (should be rejected)
 - Zero balance refund attempt (should be rejected)
@@ -369,6 +385,7 @@ The bug occurs because when a customer has a negative balance (we owe them), the
 
 **Correct Approach:**
 Create a POSITIVE receivable/debt entry. When summed with the existing negative balance, it offsets correctly:
+
 - Initial: -10000 (we owe 10000)
 - Refund entry: +5000 (we paid 5000)
 - New total: -10000 + 5000 = -5000 (we still owe 5000)

@@ -425,7 +425,33 @@ export default function CustomerDetails() {
           )}
           <div>
             <p className="text-sm text-gray-500">Limite de crédit</p>
-            <p className="font-medium text-gray-900">{formatCurrency(customer.credit_limit)}</p>
+            <p className="font-medium text-gray-900">
+              {customer.credit_limit > 0 ? formatCurrency(customer.credit_limit) : 'Illimitée'}
+            </p>
+            {customer.credit_limit > 0 && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>{formatCurrency(customer.stats.total_balance)} utilisés</span>
+                  <span>
+                    {Math.round((customer.stats.total_balance / customer.credit_limit) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${
+                      customer.stats.total_balance / customer.credit_limit > 0.9
+                        ? 'bg-red-500'
+                        : customer.stats.total_balance / customer.credit_limit > 0.7
+                          ? 'bg-amber-500'
+                          : 'bg-green-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(100, (customer.stats.total_balance / customer.credit_limit) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           {customer.address && (
             <div className="md:col-span-2">

@@ -16,6 +16,7 @@ Ce document décrit toutes les fonctionnalités d'administration implémentées 
 ## Demarrage rapide (admin panel local)
 
 Prerequis:
+
 - Node.js + pnpm
 - PostgreSQL local ou Neon
 - Docker (optionnel)
@@ -40,10 +41,12 @@ pnpm run dev
 ```
 
 Acces:
+
 - API: http://localhost:3000
 - Web: http://localhost:5173
 
 Connexion superadmin:
+
 - URL: http://localhost:5173/login/admin
 - Creer un superadmin via Prisma Studio ou script si besoin.
 
@@ -67,6 +70,7 @@ apps/api/src/modules/
 ### Schéma de Base de Données
 
 #### Table `user_devices`
+
 Nouvelle table pour suivre les appareils utilisés par les employés.
 
 ```prisma
@@ -91,6 +95,7 @@ model UserDevice {
 ```
 
 #### Extensions de `user_roles`
+
 Ajout de champs pour gérer les horaires de travail.
 
 ```prisma
@@ -116,21 +121,22 @@ EMPLOYEE / CASHIER (Employés)
 
 ### Permissions par Rôle
 
-| Fonctionnalité | SUPERADMIN | ADMIN/OWNER/MANAGER | EMPLOYEE/CASHIER |
-|----------------|------------|---------------------|------------------|
-| Voir toutes les boutiques | ✅ | ❌ | ❌ |
-| Voir statistiques système | ✅ | ❌ | ❌ |
-| Voir utilisateurs de sa boutique | ✅ | ✅ | ❌ |
-| Gérer les rôles d'utilisateurs | ✅ | ✅ (sauf SUPERADMIN) | ❌ |
-| Voir/révoquer appareils | ✅ | ✅ (sa boutique) | ❌ |
-| Configurer horaires de travail | ✅ | ✅ | ❌ |
-| Désactiver utilisateurs | ✅ | ✅ | ❌ |
-| Opérations quotidiennes (caisse) | ✅ | ✅ | ✅ |
-| Voir rapports agrégés | ✅ | ✅ | ❌ |
+| Fonctionnalité                   | SUPERADMIN | ADMIN/OWNER/MANAGER  | EMPLOYEE/CASHIER |
+| -------------------------------- | ---------- | -------------------- | ---------------- |
+| Voir toutes les boutiques        | ✅         | ❌                   | ❌               |
+| Voir statistiques système        | ✅         | ❌                   | ❌               |
+| Voir utilisateurs de sa boutique | ✅         | ✅                   | ❌               |
+| Gérer les rôles d'utilisateurs   | ✅         | ✅ (sauf SUPERADMIN) | ❌               |
+| Voir/révoquer appareils          | ✅         | ✅ (sa boutique)     | ❌               |
+| Configurer horaires de travail   | ✅         | ✅                   | ❌               |
+| Désactiver utilisateurs          | ✅         | ✅                   | ❌               |
+| Opérations quotidiennes (caisse) | ✅         | ✅                   | ✅               |
+| Voir rapports agrégés            | ✅         | ✅                   | ❌               |
 
 ### Implémentation du Contrôle d'Accès
 
 **Décorateur `@Roles()`** - `auth/roles.decorator.ts`
+
 ```typescript
 @Roles(Role.ADMIN, Role.SUPERADMIN)
 async getShopUsers(@Request() req: any) {
@@ -139,6 +145,7 @@ async getShopUsers(@Request() req: any) {
 ```
 
 **Garde `RolesGuard`** - `auth/roles.guard.ts`
+
 - Vérifie que l'utilisateur a l'un des rôles requis
 - SUPERADMIN a accès à tout
 - Mapping automatique des rôles (OWNER → ADMIN, CASHIER → EMPLOYEE)
@@ -150,18 +157,21 @@ async getShopUsers(@Request() req: any) {
 #### 1. Liaison Appareil-Utilisateur (Device Binding)
 
 **Pour les employés (EMPLOYEE):**
+
 - Un code PIN ne peut être utilisé que sur **un seul appareil** à la fois
 - Premier login : l'appareil est automatiquement enregistré
 - Tentative de connexion depuis un autre appareil : **REFUSÉE**
 - Message d'erreur: "Ce code PIN est déjà utilisé sur un autre appareil"
 
 **Pour les admins/propriétaires:**
+
 - Peuvent se connecter depuis plusieurs appareils
 - Pas de restriction de liaison d'appareil
 
 #### 2. Identification d'Appareil
 
 **Web (React):**
+
 ```typescript
 // Génération ou récupération de l'ID d'appareil
 let deviceId = localStorage.getItem('device_id');
@@ -172,6 +182,7 @@ if (!deviceId) {
 ```
 
 **Mobile (React Native + Expo):**
+
 ```typescript
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
@@ -187,13 +198,14 @@ if (!deviceId) {
 const deviceInfo = {
   device_id: deviceId,
   device_name: `${Device.modelName} ${Device.osName} ${Device.osVersion}`,
-  device_type: Device.deviceType === Device.DeviceType.TABLET ? 'tablet' : 'mobile'
+  device_type: Device.deviceType === Device.DeviceType.TABLET ? 'tablet' : 'mobile',
 };
 ```
 
 #### 3. Gestion par les Admins
 
 Les admins peuvent:
+
 - **Voir tous les appareils** d'un utilisateur
 - **Voir le statut** (actif/révoqué)
 - **Voir la dernière connexion** de chaque appareil
@@ -225,6 +237,7 @@ Les admins peuvent:
 ### Configuration
 
 **Format des horaires:**
+
 ```typescript
 {
   work_start_time: "08:00",  // HH:mm (24h)
@@ -234,6 +247,7 @@ Les admins peuvent:
 ```
 
 **Jours disponibles:**
+
 - MON (Lundi)
 - TUE (Mardi)
 - WED (Mercredi)
@@ -258,6 +272,7 @@ Lors de l'authentification avec PIN, le système vérifie:
 ### Exemple de Configuration
 
 **Horaire standard (Lun-Sam, 7h-20h):**
+
 ```json
 {
   "work_start_time": "07:00",
@@ -267,6 +282,7 @@ Lors de l'authentification avec PIN, le système vérifie:
 ```
 
 **Horaire à temps partiel (Mar-Jeu, 14h-22h):**
+
 ```json
 {
   "work_start_time": "14:00",
@@ -280,9 +296,11 @@ Lors de l'authentification avec PIN, le système vérifie:
 ### Super Admin (SUPERADMIN uniquement)
 
 #### `GET /admin/shops`
+
 Liste toutes les boutiques du système.
 
 **Réponse:**
+
 ```json
 [
   {
@@ -308,12 +326,15 @@ Liste toutes les boutiques du système.
 ```
 
 #### `GET /admin/shops/:shopId`
+
 Détails d'une boutique avec tous ses utilisateurs.
 
 #### `GET /admin/stats/system`
+
 Statistiques globales du système.
 
 **Réponse:**
+
 ```json
 {
   "totalShops": 15,
@@ -327,9 +348,11 @@ Statistiques globales du système.
 ### Admin/Owner/Manager
 
 #### `GET /admin/users`
+
 Liste tous les utilisateurs de la boutique.
 
 **Réponse:**
+
 ```json
 [
   {
@@ -361,12 +384,15 @@ Liste tous les utilisateurs de la boutique.
 ```
 
 #### `GET /admin/users/:userId/devices`
+
 Liste tous les appareils d'un utilisateur.
 
 #### `DELETE /admin/devices/:deviceId`
+
 Révoque l'accès d'un appareil spécifique.
 
 **Réponse:**
+
 ```json
 {
   "id": "uuid",
@@ -377,9 +403,11 @@ Révoque l'accès d'un appareil spécifique.
 ```
 
 #### `POST /admin/users/:userId/revoke-devices`
+
 Révoque tous les appareils d'un utilisateur sauf celui spécifié.
 
 **Body:**
+
 ```json
 {
   "currentDeviceId": "device-to-keep"
@@ -387,9 +415,11 @@ Révoque tous les appareils d'un utilisateur sauf celui spécifié.
 ```
 
 #### `PUT /admin/users/:userId/role`
+
 Met à jour le rôle et/ou les horaires de travail.
 
 **Body:**
+
 ```json
 {
   "role": "MANAGER",
@@ -400,18 +430,22 @@ Met à jour le rôle et/ou les horaires de travail.
 ```
 
 **Restrictions:**
+
 - Seuls les SUPERADMIN peuvent créer/modifier des SUPERADMIN
 - Les admins ne peuvent pas modifier leur propre rôle
 
 #### `DELETE /admin/users/:userId`
+
 Désactive l'accès d'un utilisateur à la boutique.
 
 **Actions:**
+
 - Révoque tous les appareils de l'utilisateur
 - Marque le user_role comme supprimé (soft delete)
 - L'utilisateur ne peut plus se connecter à cette boutique
 
 **Restrictions:**
+
 - Un utilisateur ne peut pas se désactiver lui-même
 
 ## Interface Web
@@ -419,10 +453,12 @@ Désactive l'accès d'un utilisateur à la boutique.
 ### Pages Créées
 
 #### 1. Super Admin Dashboard
+
 **Route:** `/admin/dashboard`
 **Accès:** SUPERADMIN uniquement
 
 **Fonctionnalités:**
+
 - Statistiques système (boutiques, utilisateurs, ventes, produits)
 - Liste de toutes les boutiques
 - Informations des propriétaires
@@ -431,10 +467,12 @@ Désactive l'accès d'un utilisateur à la boutique.
 **Fichier:** `apps/web/src/pages/SuperAdminDashboard.tsx`
 
 #### 2. Gestion des Utilisateurs
+
 **Route:** `/admin/users`
 **Accès:** ADMIN, OWNER, MANAGER, SUPERADMIN
 
 **Fonctionnalités:**
+
 - Liste des utilisateurs de la boutique
 - Badge de rôle coloré par utilisateur
 - Nombre d'appareils actifs/total
@@ -487,9 +525,11 @@ Routes protégées avec vérification de rôle:
 ### Écrans Créés
 
 #### UserManagementScreen
+
 **Navigation:** Accessible via menu admin (ADMIN, OWNER, MANAGER, SUPERADMIN)
 
 **Fonctionnalités:**
+
 - Liste des utilisateurs avec avatar et badges de rôle
 - Affichage des horaires de travail
 - Nombre d'appareils actifs/total
@@ -504,6 +544,7 @@ Routes protégées avec vérification de rôle:
 **Utilitaire:** `apps/mobile/src/lib/deviceInfo.ts`
 
 **Fonctions:**
+
 - `getDeviceId()`: Génère ou récupère l'ID unique de l'appareil
 - `getDeviceInfo()`: Retourne ID, nom et type d'appareil
 - Stockage sécurisé avec `expo-secure-store`
@@ -514,6 +555,7 @@ Routes protégées avec vérification de rôle:
 **Fichier:** `apps/mobile/src/lib/api.ts`
 
 Ajout de:
+
 - `adminApi.getShopUsers()`
 - `adminApi.getUserDevices(userId)`
 - `adminApi.revokeDevice(deviceId)`
@@ -527,6 +569,7 @@ Ajout de:
 **Dossier:** `docs/supabase/`
 
 #### Fichiers:
+
 1. **`01_user_devices_migration.sql`**
    - Crée la table `user_devices`
    - Ajoute les colonnes d'horaires à `user_roles`
@@ -670,6 +713,7 @@ SUPABASE_ANON_KEY="your-anon-key"
 ## Résumé des Fichiers Modifiés/Créés
 
 ### Backend (API)
+
 - ✅ `apps/api/prisma/schema.prisma` - Ajout UserDevice et colonnes horaires
 - ✅ `apps/api/prisma/migrations/20251029000000_add_user_devices_and_work_schedule/migration.sql`
 - ✅ `apps/api/src/modules/admin/admin.module.ts` - Nouveau
@@ -681,6 +725,7 @@ SUPABASE_ANON_KEY="your-anon-key"
 - ✅ `apps/api/src/modules/auth/dto/auth.dto.ts` - Modifié (device fields)
 
 ### Frontend Web
+
 - ✅ `apps/web/src/App.tsx` - Ajout routes admin
 - ✅ `apps/web/src/components/ProtectedRoute.tsx` - Ajout support rôles
 - ✅ `apps/web/src/components/Layout/MainLayout.tsx` - Menu dynamique
@@ -690,12 +735,14 @@ SUPABASE_ANON_KEY="your-anon-key"
 - ✅ `apps/web/src/store/authStore.ts` - Pas modifié (déjà OK)
 
 ### Application Mobile
+
 - ✅ `apps/mobile/App.tsx` - Ajout UserManagementScreen
 - ✅ `apps/mobile/src/lib/deviceInfo.ts` - Nouveau
 - ✅ `apps/mobile/src/lib/api.ts` - Ajout adminApi + device_id
 - ✅ `apps/mobile/src/screens/UserManagementScreen.tsx` - Nouveau
 
 ### Documentation
+
 - ✅ `docs/supabase/01_user_devices_migration.sql` - Nouveau
 - ✅ `docs/supabase/README.md` - Nouveau
 - ✅ `docs/ADMIN_FEATURES.md` - Ce document
@@ -731,6 +778,7 @@ SUPABASE_ANON_KEY="your-anon-key"
 ## Support
 
 Pour toute question ou problème:
+
 1. Vérifier les logs de l'API
 2. Vérifier que les migrations sont appliquées
 3. Vérifier les permissions RLS sur Supabase

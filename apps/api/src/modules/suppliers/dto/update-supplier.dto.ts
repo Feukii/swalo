@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
 
 export class UpdateSupplierDto {
   @IsString()
@@ -20,6 +20,11 @@ export class UpdateSupplierDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  borrowing_limit?: number; // Limite d'emprunt en FCFA (0 = pas de limite)
 
   @IsString()
   @IsOptional()

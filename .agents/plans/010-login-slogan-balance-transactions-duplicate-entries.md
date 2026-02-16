@@ -45,13 +45,14 @@ So that I can efficiently manage my shop while maintaining accurate financial re
 **Feature Type**: Bug Fix / Enhancement
 **Estimated Complexity**: Medium
 **Primary Systems Affected**:
+
 - Mobile Login Screen
 - Web Login Page
 - Cash Service (API)
 - Customer Service (API)
 - CustomerDetailsScreen (Mobile)
 - CustomerDetails (Web)
-**Dependencies**: None (uses existing libraries)
+  **Dependencies**: None (uses existing libraries)
 
 ---
 
@@ -79,20 +80,24 @@ So that I can efficiently manage my shop while maintaining accurate financial re
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - French for user-facing strings (slogans, labels, error messages)
 - English for code identifiers
 - Reference: All existing service files follow this pattern
 
 **Error Handling:**
+
 - Use BadRequestException for validation errors
 - Use NotFoundException when entity not found
 - Wrap all financial operations in try-catch with proper error logging
 
 **Transaction Pattern:**
+
 - Use Prisma's `$transaction()` for all operations that modify multiple records
 - Reference: `cash.service.ts:74-202` shows the correct pattern
 
 **State Management Pattern:**
+
 - Use `isLoading` flag to prevent duplicate submissions
 - Use refs to track submission state across renders
 - Reference: `LoginPinScreen.tsx:29-65` shows loading state pattern
@@ -104,6 +109,7 @@ So that I can efficiently manage my shop while maintaining accurate financial re
 ### Phase 1: Login UX Improvements
 
 Update login screens on both mobile and web platforms with:
+
 - New commercial slogan in French
 - Auto-submit functionality when PIN reaches 4 digits
 - Guards against multiple submission attempts
@@ -111,6 +117,7 @@ Update login screens on both mobile and web platforms with:
 ### Phase 2: Transaction Balance Integrity
 
 Audit and fix balance update logic:
+
 - Review cash.service.ts createEntry() transaction logic
 - Ensure all balance updates are atomic
 - Add validation that balances are correctly calculated
@@ -119,6 +126,7 @@ Audit and fix balance update logic:
 ### Phase 3: Duplicate Entry Prevention
 
 Fix transaction display in customer details:
+
 - Identify the source of duplicate entries
 - Implement deduplication based on cash_entry_id correlation
 - Ensure each unique transaction appears only once
@@ -260,12 +268,14 @@ Fix transaction display in customer details:
 
 **Scope**: API service methods for balance updates
 **Requirements**:
+
 - Test createEntry() with customer_id creates correct payment records
 - Test balance calculation after payment
 - Test status transitions (PENDING → PARTIAL → PAID)
 - **VALIDATION COMMAND**: `cd apps/api && pnpm test`
 
 **Test Categories Required**:
+
 - Happy path: Full payment clears balance
 - Partial payment: Updates balance and status to PARTIAL
 - Overpayment: Creates negative balance (refund owed)
@@ -275,11 +285,13 @@ Fix transaction display in customer details:
 
 **Scope**: End-to-end transaction flow
 **Requirements**:
+
 - Test complete flow from cash entry to balance update
 - Verify database state after transactions
 - **VALIDATION COMMAND**: `cd apps/api && pnpm test:e2e`
 
 **Test Scenarios Required**:
+
 - Credit sale followed by full payment
 - Credit sale followed by multiple partial payments
 - Supplier debt payment flow (for parity)
@@ -287,6 +299,7 @@ Fix transaction display in customer details:
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 1. Auto-login triggered multiple times (rapid typing)
 2. Payment amount exactly equals balance
 3. Payment amount exceeds balance (overpayment)
@@ -297,6 +310,7 @@ Fix transaction display in customer details:
 ### Test Resources
 
 **Testing Documentation Links**:
+
 - NestJS Testing: https://docs.nestjs.com/fundamentals/testing
 - React Testing Library: https://testing-library.com/docs/react-testing-library/intro/
 
@@ -309,6 +323,7 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 ### Level 1: Syntax & Style
 
 **Required Commands**:
+
 ```bash
 cd apps/api && pnpm lint
 cd apps/mobile && pnpm lint
@@ -320,24 +335,28 @@ cd apps/web && pnpm lint
 ### Level 2: Type Checking
 
 **Required Commands**:
+
 ```bash
 cd apps/api && pnpm build
 cd apps/web && pnpm build
 ```
 
 **Expected Result**:
+
 - All builds succeed
 - No TypeScript errors
 
 ### Level 3: Unit Tests
 
 **Required Commands**:
+
 ```bash
 cd apps/api && pnpm test
 cd apps/mobile && pnpm test
 ```
 
 **Expected Result**:
+
 - All tests pass
 - No test failures or skipped tests
 
@@ -346,6 +365,7 @@ cd apps/mobile && pnpm test
 **Feature-specific manual testing steps**:
 
 **Login Auto-Submit Test (Mobile)**:
+
 1. Open mobile app
 2. Enter valid 6-digit shop code
 3. Enter 4-digit PIN
@@ -353,12 +373,14 @@ cd apps/mobile && pnpm test
 5. Verify only ONE login attempt is made (check API logs)
 
 **Login Auto-Submit Test (Web)**:
+
 1. Open web app at /login-pin
 2. Enter valid 6-digit shop code
 3. Enter 4-digit PIN
 4. Verify login triggers automatically on 4th digit
 
 **Balance Transaction Test**:
+
 1. Create a new customer
 2. Create a receivable of 10,000 FCFA
 3. Record a cash entry (IN) of 5,000 FCFA with customer_id
@@ -369,6 +391,7 @@ cd apps/mobile && pnpm test
 8. Verify receivable status is PAID
 
 **Duplicate Entry Test**:
+
 1. Follow Balance Transaction Test steps
 2. Navigate to Customer Details screen
 3. Count entries in transaction history
@@ -421,12 +444,14 @@ cd apps/mobile && pnpm test
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Official Documentation
+
 - Prisma Transactions: https://www.prisma.io/docs/concepts/components/prisma-client/transactions
 - React useEffect: https://react.dev/reference/react/useEffect
 - React useRef: https://react.dev/reference/react/useRef
 - NestJS Documentation: https://docs.nestjs.com/
 
 ### Internal Resources
+
 - Project CLAUDE.md: Contains architecture overview and patterns
 - Existing cash.service.ts: Reference for transaction patterns
 - Existing CustomerDetailsScreen: Reference for transaction display patterns
@@ -454,6 +479,7 @@ cd apps/mobile && pnpm test
    The fix may require ensuring cash_entry_id is properly set in cash.service.ts when creating ClientReceivablePayment records.
 
 **Important Considerations**:
+
 - This handles money - every calculation must be precise
 - Use integer math (FCFA has no decimals)
 - Test edge cases: exact payments, overpayments, multiple receivables

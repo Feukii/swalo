@@ -16,6 +16,34 @@ export class DebtsService {
       dto.description ||
       (isNegativeAmount ? 'Remboursement - Ajustement de solde fournisseur' : undefined);
 
+    // Vérifier la limite d'emprunt pour les montants positifs (nouvelles dettes)
+    if (!isNegativeAmount && dto.amount > 0) {
+      const supplier = await this.prisma.supplier.findFirst({
+        where: { id: dto.supplier_id, shop_id: shopId, deleted: false },
+      });
+
+      if (supplier && supplier.borrowing_limit > 0) {
+        // Calculer le solde actuel des dettes en cours
+        const activeDebts = await this.prisma.supplierDebt.findMany({
+          where: {
+            supplier_id: dto.supplier_id,
+            shop_id: shopId,
+            deleted: false,
+            status: { in: ['PENDING', 'PARTIAL'] },
+          },
+        });
+        const currentBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
+
+        if (currentBalance + dto.amount > supplier.borrowing_limit) {
+          throw new BadRequestException(
+            `Limite d'emprunt dépassée. Solde actuel : ${currentBalance} FCFA, ` +
+              `nouvelle dette : ${dto.amount} FCFA, ` +
+              `limite : ${supplier.borrowing_limit} FCFA`
+          );
+        }
+      }
+    }
+
     const debt = await this.prisma.supplierDebt.create({
       data: {
         amount: dto.amount,

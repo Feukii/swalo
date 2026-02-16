@@ -5,6 +5,7 @@
 Ajouter des produits au catalogue des boutiques identifiees par les codes 042026 et 122026, en utilisant une fonctionnalite d'import de tableau CSV/Excel avec les colonnes suivantes: Famille, Article, Marque, Reference (Serie), Code Article, Libelle Article (Designation).
 
 Le systeme dispose deja d'un module d'import complet. Cette feature necessite:
+
 1. Amelioration du mapping des colonnes francaises vers les champs anglais
 2. Ajout des colonnes de prix manquantes (obligatoires)
 3. Script de seed pour ajouter les produits aux boutiques cibles
@@ -19,6 +20,7 @@ Afin de rapidement alimenter mon inventaire avec les references standards
 ## Problem Statement
 
 L'utilisateur souhaite ajouter 27+ produits aux boutiques 042026 et 122026 en utilisant un fichier CSV avec des colonnes en francais. Le module d'import existant fonctionne mais:
+
 1. Attend des noms de colonnes en anglais (sku, name, family, etc.)
 2. Requiert les colonnes cost_price et sell_price non mentionnees dans les donnees fournies
 3. Pas de support natif pour le mapping "Code Article" → "sku", "Libelle Article" → "name", etc.
@@ -35,9 +37,10 @@ L'utilisateur souhaite ajouter 27+ produits aux boutiques 042026 et 122026 en ut
 **Feature Type**: Enhancement
 **Estimated Complexity**: Low-Medium
 **Primary Systems Affected**:
+
 - `apps/api/src/modules/import/import.service.ts`
 - `apps/api/prisma/` (nouveau script de seed)
-**Dependencies**: Aucune nouvelle dependance
+  **Dependencies**: Aucune nouvelle dependance
 
 ---
 
@@ -71,19 +74,23 @@ L'utilisateur souhaite ajouter 27+ produits aux boutiques 042026 et 122026 en ut
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Fichiers de seed: `seed-{description}.ts` dans `prisma/`
 - Services NestJS: Methodes async avec retour type
 
 **Error Handling:**
+
 - Utiliser `BadRequestException` pour erreurs de validation
 - Logger les erreurs avec contexte (row number, field name)
 - Limiter les erreurs retournees a 100 max
 
 **Transaction Pattern:**
+
 - Wrapper les operations de masse dans `prisma.$transaction()`
 - Pattern existant dans `suppliers.service.ts`, `sales.service.ts`
 
 **Column Validation:**
+
 - Normaliser les headers: lowercase, trim, suppression accents
 - Valider les champs requis: sku, name, cost_price, sell_price
 
@@ -98,6 +105,7 @@ Ajouter un dictionnaire de mapping dans le module import pour traduire les noms 
 ### Phase 2: Script de seed pour les boutiques cibles
 
 Creer un script qui:
+
 1. Verifie l'existence des boutiques 042026 et 122026
 2. Cree les boutiques si necessaire
 3. Insere les produits fournis avec valeurs par defaut pour les prix
@@ -187,6 +195,7 @@ Executer les tests existants et ajouter des tests pour le nouveau mapping.
 
 **Scope**: Mapping de colonnes et validation
 **Requirements**:
+
 - Tester chaque alias de colonne francaise
 - Tester la normalisation des accents
 - Tester les valeurs par defaut pour les prix
@@ -197,6 +206,7 @@ Executer les tests existants et ajouter des tests pour le nouveau mapping.
 
 **Scope**: Import CSV complet
 **Requirements**:
+
 - Importer un CSV avec colonnes francaises
 - Verifier la creation des produits
 - Tester les doublons et erreurs
@@ -278,6 +288,7 @@ cd apps/api && npx ts-node prisma/seed-shops-042026-122026.ts
 ### Donnees produits fournies
 
 Les produits a importer sont repartis en 4 familles:
+
 - **GLASSES** (6 produits): Glass 3D, Glass Fume, Glass Incuve pour differentes marques
 - **CHARGEURS** (6 produits): Chargeur 1A, 2A, 67W pour Oraimo, Itel, Infinix
 - **KIT BLUETOOTH** (8 produits): Casques, Ecouteurs, Kit Bluetooth
@@ -287,6 +298,7 @@ Les produits a importer sont repartis en 4 familles:
 
 Les colonnes cost_price et sell_price sont **obligatoires** dans le schema actuel.
 Options:
+
 1. Demander a l'utilisateur de fournir les prix dans le CSV
 2. Utiliser des valeurs par defaut (0) pour permettre l'import sans prix
 3. Rendre les prix optionnels avec valeur par defaut
@@ -302,15 +314,15 @@ GLASSES,Glass 3D,Tecno,Spark 4,GLA01TECSpk4,Glass 3D Tecno Spark 4
 
 ### Mapping des colonnes
 
-| Colonne CSV (FR) | Champ Prisma | Obligatoire |
-|------------------|--------------|-------------|
-| Famille | family | Non |
-| Article | article_type | Non |
-| Marque | brand | Non |
-| Reference (Serie) | reference | Non |
-| Code Article | sku | **Oui** |
-| Libelle Article | name | **Oui** |
-| Prix Achat | cost_price | **Oui** (defaut: 0) |
-| Prix Vente | sell_price | **Oui** (defaut: 0) |
+| Colonne CSV (FR)  | Champ Prisma | Obligatoire         |
+| ----------------- | ------------ | ------------------- |
+| Famille           | family       | Non                 |
+| Article           | article_type | Non                 |
+| Marque            | brand        | Non                 |
+| Reference (Serie) | reference    | Non                 |
+| Code Article      | sku          | **Oui**             |
+| Libelle Article   | name         | **Oui**             |
+| Prix Achat        | cost_price   | **Oui** (defaut: 0) |
+| Prix Vente        | sell_price   | **Oui** (defaut: 0) |
 
 <!-- EOF -->

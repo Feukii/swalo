@@ -35,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       favicon: './assets/favicon.png',
       ...config.web,
     },
-    plugins: ['expo-secure-store', 'expo-splash-screen'],
+    plugins: ['expo-secure-store', 'expo-splash-screen', 'expo-sqlite'],
     updates: {
       url: 'https://u.expo.dev/935e1f15-6351-493d-a7b4-7c1a9c8a31a5',
       fallbackToCacheTimeout: 0,

@@ -5,11 +5,13 @@
 ### Modifications apportées
 
 **1. Imports ajoutés** (ligne 13)
+
 ```typescript
 import DateRangePicker from '../components/ui/DateRangePicker';
 ```
 
 **2. États ajoutés** (lignes 61-63)
+
 ```typescript
 // Date range filter
 const [startDate, setStartDate] = useState<Date | null>(null);
@@ -18,6 +20,7 @@ const [datesWithData, setDatesWithData] = useState<string[]>([]);
 ```
 
 **3. Fonction `getPeriodDates` modifiée** (lignes 76-83)
+
 ```typescript
 const getPeriodDates = (): { start: Date; end: Date } => {
   // Si des dates personnalisées sont sélectionnées, les utiliser
@@ -33,6 +36,7 @@ const getPeriodDates = (): { start: Date; end: Date } => {
 ```
 
 **4. Extraction des dates avec données** (lignes 192-198)
+
 ```typescript
 // Extraire les dates uniques avec données pour le calendrier
 const uniqueDates = new Set<string>();
@@ -45,8 +49,11 @@ setDatesWithData(Array.from(uniqueDates));
 ```
 
 **5. Composant DateRangePicker ajouté dans la vue** (lignes 316-328)
+
 ```tsx
-{/* Date Range Picker */}
+{
+  /* Date Range Picker */
+}
 <View style={styles.datePickerContainer}>
   <DateRangePicker
     startDate={startDate}
@@ -61,14 +68,16 @@ setDatesWithData(Array.from(uniqueDates));
     }}
     datesWithData={datesWithData}
   />
-</View>
+</View>;
 ```
 
 **6. Period Selector modifié** (lignes 334-351)
+
 - Reset des dates au clic sur période prédéfinie
 - Style actif uniquement si pas de dates personnalisées
 
 **7. Style ajouté**
+
 ```typescript
 datePickerContainer: {
   marginBottom: Spacing.md,
@@ -82,12 +91,14 @@ datePickerContainer: {
 ### Modifications à appliquer
 
 **1. Ajouter imports**
+
 ```typescript
 // Ligne ~14, après les autres imports
 import DateRangePicker from '../components/ui/DateRangePicker';
 ```
 
 **2. Ajouter états**
+
 ```typescript
 // Ligne ~79, après selectedPeriod
 // Date range filter
@@ -97,6 +108,7 @@ const [datesWithData, setDatesWithData] = useState<string[]>([]);
 ```
 
 **3. Modifier `getPeriodDates`**
+
 ```typescript
 const getPeriodDates = (): { start: Date; end: Date } => {
   // Si des dates personnalisées sont sélectionnées, les utiliser
@@ -135,6 +147,7 @@ const getPeriodDates = (): { start: Date; end: Date } => {
 ```
 
 **4. Extraire dates avec données dans `loadSalesStats`**
+
 ```typescript
 // À la fin de la fonction, après setEntriesByCategory/setExitsByCategory
 const allEntries: any[] = [...cashData, ...receivablesData, ...debtsData];
@@ -148,8 +161,11 @@ setDatesWithData(Array.from(uniqueDates));
 ```
 
 **5. Ajouter composant dans la vue**
+
 ```tsx
-{/* Avant le Period Selector */}
+{
+  /* Avant le Period Selector */
+}
 <View style={styles.datePickerContainer}>
   <DateRangePicker
     startDate={startDate}
@@ -163,37 +179,41 @@ setDatesWithData(Array.from(uniqueDates));
     }}
     datesWithData={datesWithData}
   />
-</View>
+</View>;
 ```
 
 **6. Modifier Period Selector**
+
 ```tsx
-{(['today', 'week', 'month', 'year'] as Period[]).map((period) => (
-  <TouchableOpacity
-    key={period}
-    style={[
-      styles.periodButton,
-      selectedPeriod === period && !startDate && !endDate && styles.periodButtonActive,
-    ]}
-    onPress={() => {
-      setSelectedPeriod(period);
-      setStartDate(null);
-      setEndDate(null);
-    }}
-  >
-    <Text
+{
+  (['today', 'week', 'month', 'year'] as Period[]).map(period => (
+    <TouchableOpacity
+      key={period}
       style={[
-        styles.periodButtonText,
-        selectedPeriod === period && !startDate && !endDate && styles.periodButtonTextActive,
+        styles.periodButton,
+        selectedPeriod === period && !startDate && !endDate && styles.periodButtonActive,
       ]}
+      onPress={() => {
+        setSelectedPeriod(period);
+        setStartDate(null);
+        setEndDate(null);
+      }}
     >
-      {getPeriodLabel(period)}
-    </Text>
-  </TouchableOpacity>
-))}
+      <Text
+        style={[
+          styles.periodButtonText,
+          selectedPeriod === period && !startDate && !endDate && styles.periodButtonTextActive,
+        ]}
+      >
+        {getPeriodLabel(period)}
+      </Text>
+    </TouchableOpacity>
+  ));
+}
 ```
 
 **7. Ajouter style**
+
 ```typescript
 datePickerContainer: {
   marginBottom: Spacing.md,
@@ -205,6 +225,7 @@ datePickerContainer: {
 ## 🎯 Résultat attendu
 
 ### Comportement
+
 1. **Par défaut** : Filtres prédéfinis (Aujourd'hui, Semaine, Mois, Année)
 2. **Avec DateRangePicker** : L'utilisateur sélectionne date début + date fin
 3. **Indicateurs visuels** :
@@ -213,6 +234,7 @@ datePickerContainer: {
 4. **Reset automatique** : Cliquer sur un filtre prédéfini réinitialise les dates personnalisées
 
 ### Avantages
+
 - ✅ Plus de flexibilité pour l'utilisateur
 - ✅ Visualisation intuitive des jours avec données
 - ✅ Interface cohérente sur les 2 écrans
@@ -223,6 +245,7 @@ datePickerContainer: {
 ## 📝 Checklist d'implémentation
 
 ### TransactionHistoryScreen
+
 - [x] Importer DateRangePicker
 - [x] Ajouter états (startDate, endDate, datesWithData)
 - [x] Modifier getPeriodDates
@@ -232,6 +255,7 @@ datePickerContainer: {
 - [x] Ajouter style
 
 ### BusinessReportsScreen
+
 - [ ] Importer DateRangePicker
 - [ ] Ajouter états (startDate, endDate, datesWithData)
 - [ ] Modifier getPeriodDates
@@ -245,6 +269,7 @@ datePickerContainer: {
 ## 🧪 Tests à effectuer
 
 ### Tests fonctionnels
+
 1. ✅ Sélectionner "Aujourd'hui" → Voir les transactions du jour
 2. ✅ Sélectionner une plage personnalisée → Voir les transactions de la plage
 3. ✅ Cliquer sur un jour avec point → Voir qu'il a des données
@@ -252,6 +277,7 @@ datePickerContainer: {
 5. ⏳ Tester avec de vraies données sur plusieurs jours
 
 ### Tests d'intégration
+
 1. ✅ TransactionHistoryScreen charge correctement
 2. ⏳ BusinessReportsScreen charge correctement
 3. ⏳ Les dates avec données sont correctement affichées
@@ -267,11 +293,13 @@ code apps/mobile/src/screens/BusinessReportsScreen.tsx
 ```
 
 ### Étape 1 : Imports (ligne ~14)
+
 ```typescript
 import DateRangePicker from '../components/ui/DateRangePicker';
 ```
 
 ### Étape 2 : États (après ligne 79)
+
 ```typescript
 // Date range filter
 const [startDate, setStartDate] = useState<Date | null>(null);
@@ -280,14 +308,19 @@ const [datesWithData, setDatesWithData] = useState<string[]>([]);
 ```
 
 ### Étape 3 : Dans la vue (chercher "Period Selector")
+
 **AVANT** :
+
 ```tsx
 <View style={styles.periodSelector}>
 ```
 
 **INSÉRER** :
+
 ```tsx
-{/* Date Range Picker */}
+{
+  /* Date Range Picker */
+}
 <View style={styles.datePickerContainer}>
   <DateRangePicker
     startDate={startDate}
@@ -301,12 +334,13 @@ const [datesWithData, setDatesWithData] = useState<string[]>([]);
     }}
     datesWithData={datesWithData}
   />
-</View>
-
+</View>;
 ```
 
 ### Étape 4 : Styles (chercher "StyleSheet.create")
+
 **AJOUTER** après `content:` :
+
 ```typescript
 datePickerContainer: {
   marginBottom: Spacing.md,

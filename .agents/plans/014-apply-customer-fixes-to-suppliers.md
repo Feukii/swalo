@@ -39,10 +39,11 @@ Appliquer les memes corrections que pour les clients:
 **Feature Type**: Bug Fix / Enhancement
 **Estimated Complexity**: Medium
 **Primary Systems Affected**:
+
 - `apps/api/src/modules/debts/debts.service.ts`
 - `apps/api/src/modules/cash/cash.service.ts`
 - `apps/mobile/src/screens/BusinessReportsScreen.tsx`
-**Dependencies**: Aucune
+  **Dependencies**: Aucune
 
 ---
 
@@ -68,15 +69,18 @@ Appliquer les memes corrections que pour les clients:
 ### Patterns to Follow
 
 **Pattern 1 - Gestion montants negatifs (receivables.service.ts):**
+
 - Detecter si `dto.amount < 0`
 - Definir automatiquement `status: 'PAID'` pour les negatifs
 - Ajouter description par defaut "Remboursement - Ajustement de solde"
 
 **Pattern 2 - Prevention doublons (cash.service.ts ligne 153):**
+
 - Condition existante: `dto.category !== 'remboursement_client'`
 - Appliquer le meme pattern: `dto.category !== 'reglement_fournisseur'`
 
 **Pattern 3 - Stats avec separation (BusinessReportsScreen customerStats):**
+
 - Interface avec `totalPositiveBalance`, `totalNegativeBalance`
 - Compteur `suppliersToRefund` (au lieu de `customersToRefund`)
 - Liste `top3ToRefund` pour les fournisseurs qui nous doivent
@@ -88,6 +92,7 @@ Appliquer les memes corrections que pour les clients:
 ### Phase 1: Backend - debts.service.ts
 
 Modifier la methode `create()` pour:
+
 - Detecter les montants negatifs
 - Auto-set status='PAID' pour les negatifs
 - Ajouter description par defaut
@@ -99,6 +104,7 @@ Ajouter la condition d'exclusion pour eviter le traitement automatique lors des 
 ### Phase 3: Mobile - BusinessReportsScreen.tsx
 
 Modifier les stats fournisseurs pour:
+
 - Separer les soldes positifs et negatifs
 - Ajouter les compteurs et listes de fournisseurs a rembourser
 - Afficher les KPIs separement dans l'UI
@@ -178,6 +184,7 @@ Verifier que toutes les modifications fonctionnent correctement.
 
 **Scope**: debts.service.ts et cash.service.ts
 **Requirements**:
+
 - Test que `create()` dans debts.service.ts definit status='PAID' pour montants negatifs
 - Test que `createEntry()` dans cash.service.ts ne declenche pas le paiement auto pour 'reglement_fournisseur'
 
@@ -187,6 +194,7 @@ Verifier que toutes les modifications fonctionnent correctement.
 
 **Scope**: Flux complet de reglement fournisseur
 **Requirements**:
+
 - Creer un fournisseur avec dette positive
 - Effectuer un reglement qui cree un solde negatif
 - Verifier qu'une seule transaction est creee (pas de doublon)
@@ -261,16 +269,19 @@ cd apps/mobile && pnpm type-check
 ### Differences semantiques Client vs Fournisseur
 
 **Pour les clients:**
+
 - `balance > 0`: Le client nous doit de l'argent (creance)
 - `balance < 0`: Nous devons de l'argent au client (remboursement)
 
 **Pour les fournisseurs:**
+
 - `balance > 0`: Nous devons de l'argent au fournisseur (dette)
 - `balance < 0`: Le fournisseur nous doit de l'argent (remboursement du)
 
 ### Elements deja corrects
 
 D'apres l'analyse, les elements suivants sont deja corrects:
+
 - `suppliers.service.ts`: Calcul de solde et logique `claimRefund()` OK
 - `SupplierBalancesSummaryScreen.tsx`: Badges avec bons labels OK
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,6 +8,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { OfflineBanner } from './src/components/OfflineBanner';
+import { initDatabase } from './src/db/schema';
+import { syncEngine } from './src/db/sync';
 import TestScreen from './src/screens/TestScreen';
 import LoginPinScreen from './src/screens/LoginPinScreen';
 import POSScreen from './src/screens/POSScreen';
@@ -28,6 +32,11 @@ import CustomerBalancesSummaryScreen from './src/screens/CustomerBalancesSummary
 import SupplierBalancesSummaryScreen from './src/screens/SupplierBalancesSummaryScreen';
 import PackagingTypesScreen from './src/screens/settings/PackagingTypesScreen';
 import InvoiceListScreen from './src/screens/invoices/InvoiceListScreen';
+import ProductBatchesScreen from './src/screens/products/ProductBatchesScreen';
+import SyncStatusScreen from './src/screens/SyncStatusScreen';
+import SyncConflictsScreen from './src/screens/SyncConflictsScreen';
+import TransfersScreen from './src/screens/TransfersScreen';
+import ShopSwitcherScreen from './src/screens/ShopSwitcherScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
 
 console.log('📱 APP STARTING - Version 1.0.0');
@@ -50,6 +59,7 @@ type RootStackParamList = {
   CustomerDetails: { id: string };
   CustomerBalancesSummary: undefined;
   ProductDetails: { id: string };
+  ProductBatches: { productId: string; productName: string };
   ProductCatalog: undefined;
   CatalogHierarchy: undefined;
   StockManagement: undefined;
@@ -61,6 +71,10 @@ type RootStackParamList = {
   PackagingTypes: undefined;
   InvoiceList: undefined;
   DesignTest: undefined;
+  SyncStatus: undefined;
+  SyncConflicts: undefined;
+  Transfers: undefined;
+  ShopSwitcher: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -75,6 +89,10 @@ export default function App() {
     // Hide the splash screen once the app is ready
     const prepare = async () => {
       try {
+        console.log('📋 Step 0: Initializing local database');
+        await initDatabase();
+        console.log('✅ Local database initialized');
+
         console.log('📋 Step 1: Getting API URL from config');
         // Récupérer l'URL de l'API depuis la configuration Expo (fonctionne dans APK)
         const API_URL = Constants.expoConfig?.extra?.apiUrl;
@@ -95,6 +113,11 @@ export default function App() {
         console.log('📋 Step 3: Checking for existing auth token');
         const token = await AsyncStorage.getItem('access_token');
         console.log('🔑 Token exists:', !!token);
+
+        // Start sync engine if authenticated
+        if (token) {
+          syncEngine.start().catch(e => console.log('⚠️ Sync engine start error:', e.message));
+        }
 
         // Navigation vers l'app principale avec tabs ou login
         const route = token ? 'Main' : 'LoginPin';
@@ -139,6 +162,7 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <StatusBar style="light" />
+        <OfflineBanner />
         <NavigationContainer
           onReady={() => console.log('✅ Navigation ready')}
           onStateChange={state =>
@@ -172,6 +196,11 @@ export default function App() {
               component={CustomerBalancesSummaryScreen}
             />
             <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+            <Stack.Screen
+              name="ProductBatches"
+              component={ProductBatchesScreen}
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="ProductCatalog" component={ProductCatalogScreen} />
             <Stack.Screen name="CatalogHierarchy" component={CatalogHierarchyScreen} />
             <Stack.Screen name="StockManagement" component={StockManagementScreen} />
@@ -182,6 +211,14 @@ export default function App() {
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="PackagingTypes" component={PackagingTypesScreen} />
             <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
+
+            {/* Sync screens */}
+            <Stack.Screen name="SyncStatus" component={SyncStatusScreen} />
+            <Stack.Screen name="SyncConflicts" component={SyncConflictsScreen} />
+
+            {/* Enterprise & Multi-shop screens */}
+            <Stack.Screen name="Transfers" component={TransfersScreen} />
+            <Stack.Screen name="ShopSwitcher" component={ShopSwitcherScreen} />
 
             {/* Anciens écrans (pour compatibilité temporaire) */}
             <Stack.Screen name="POS" component={POSScreen} />

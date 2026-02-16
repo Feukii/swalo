@@ -625,6 +625,24 @@ export const Upload = ({ size = 24, color = Colors.text }: IconProps) => (
   </Svg>
 );
 
+export const RefreshCw = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M21 2v6h-6" />
+    <Path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+    <Path d="M3 22v-6h6" />
+    <Path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+  </Svg>
+);
+
 export const FileSpreadsheet = ({ size = 24, color = Colors.text }: IconProps) => (
   <Svg
     width={size}
@@ -642,5 +660,169 @@ export const FileSpreadsheet = ({ size = 24, color = Colors.text }: IconProps) =
     <Path d="M14 13h2" />
     <Path d="M8 17h2" />
     <Path d="M14 17h2" />
+  </Svg>
+);
+
+export const ArrowLeftRight = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M8 3 4 7l4 4" />
+    <Path d="M4 7h16" />
+    <Path d="m16 21 4-4-4-4" />
+    <Path d="M20 17H4" />
+  </Svg>
+);
+
+export const Store = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
+    <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+    <Path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
+    <Path d="M2 7h20" />
+    <Path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7" />
+  </Svg>
+);
+
+export const FileText = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <Path d="M14 2v6h6" />
+    <Line x1="16" y1="13" x2="8" y2="13" />
+    <Line x1="16" y1="17" x2="8" y2="17" />
+    <Line x1="10" y1="9" x2="8" y2="9" />
+  </Svg>
+);
+
+export const Printer = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M6 9V2h12v7" />
+    <Path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+    <Rect x="6" y="14" width="12" height="8" />
+  </Svg>
+);
+
+export const Lock = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Svg>
+);
+
+export const Wifi = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M5 12.55a11 11 0 0 1 14.08 0" />
+    <Path d="M1.42 9a16 16 0 0 1 21.16 0" />
+    <Path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <Line x1="12" y1="20" x2="12.01" y2="20" />
+  </Svg>
+);
+
+export const WifiOff = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="1" y1="1" x2="23" y2="23" />
+    <Path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+    <Path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+    <Path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+    <Path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+    <Path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <Line x1="12" y1="20" x2="12.01" y2="20" />
+  </Svg>
+);
+
+export const Server = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+    <Rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+    <Line x1="6" y1="6" x2="6.01" y2="6" />
+    <Line x1="6" y1="18" x2="6.01" y2="18" />
+  </Svg>
+);
+
+export const CloudOff = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M2 2l20 20" />
+    <Path d="M17.5 21H9a7 7 0 0 1-6.16-3.65" />
+    <Path d="M5.26 11.26A7 7 0 0 1 9 7h.35" />
+    <Path d="M17.46 17.46A5 5 0 0 0 22 13c0-2.76-2.24-5-5-5h-1.05A7 7 0 0 0 12 4.28" />
   </Svg>
 );

@@ -39,9 +39,10 @@ Alternative: Si un enregistrement cash est necessaire pour la tracabilite, modif
 **Feature Type**: Bug Fix (Critical)
 **Estimated Complexity**: Medium
 **Primary Systems Affected**:
+
 - `apps/mobile/src/screens/CashScreen.tsx`
 - `apps/api/src/modules/cash/cash.service.ts`
-**Dependencies**: Aucune
+  **Dependencies**: Aucune
 
 ---
 
@@ -67,11 +68,13 @@ Alternative: Si un enregistrement cash est necessaire pour la tracabilite, modif
 ### Patterns to Follow
 
 **Flux de remboursement correct (depuis CustomerDetailsScreen):**
+
 - Appel unique a `customersApi.createRefund()`
 - Cree atomiquement: CashEntry (OUT) + ClientReceivable (positif pour offset)
 - Transaction Prisma garantit la coherence
 
 **Convention de types cash:**
+
 - `type: 'IN'` = argent qui ENTRE dans la caisse (paiement client)
 - `type: 'OUT'` = argent qui SORT de la caisse (remboursement)
 - Le code actuel utilise incorrectement `type: 'IN'` pour un remboursement
@@ -83,6 +86,7 @@ Alternative: Si un enregistrement cash est necessaire pour la tracabilite, modif
 ### Phase 1: Analyse et decision architecturale
 
 Determiner l'approche optimale:
+
 - Option A: Supprimer l'appel `cashApi.createEntry()` dans CashScreen pour les remboursements
 - Option B: Modifier `cash.service.ts` pour ignorer le traitement automatique sur 'remboursement_client'
 - Option C: Utiliser l'endpoint existant `customersApi.createRefund()` depuis CashScreen
@@ -164,6 +168,7 @@ Verifier que les remboursements ne creent plus de doublons.
 
 **Scope**: cash.service.ts et CashScreen logic
 **Requirements**:
+
 - Test que `createEntry()` avec `category='remboursement_client'` ne declenche pas le paiement auto
 - Test que le solde client n'est modifie qu'une fois
 
@@ -173,6 +178,7 @@ Verifier que les remboursements ne creent plus de doublons.
 
 **Scope**: Flux complet de remboursement
 **Requirements**:
+
 - Test end-to-end du remboursement depuis la creation jusqu'au calcul du solde
 - Verification qu'une seule transaction est visible dans l'historique
 
@@ -270,6 +276,7 @@ cd apps/mobile && pnpm type-check
 ### Analyse des 8 agents
 
 Tous les agents ont converge sur le meme diagnostic:
+
 - Le probleme est dans CashScreen.tsx lignes 326-368
 - Deux appels API creent deux modifications de solde
 - Le deuxieme appel (cashApi.createEntry) declenche la logique de paiement automatique

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -23,8 +23,14 @@ import {
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { productsApi } from '../lib/api';
 import { formatCurrency } from '../utils/currency';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { productRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
+import {
+  createProductOffline,
+  updateProductOffline,
+  deleteProductOffline,
+} from '../db/offlineWrite';
 
 interface Product {
   id: string;
@@ -63,6 +69,7 @@ interface FormData {
 }
 
 export default function CatalogHierarchyScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
@@ -76,25 +83,45 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      console.log('📦 Loading catalog hierarchy...');
-      const data = await productsApi.getAll({});
-      setProducts(data);
-      console.log('✅ Catalog loaded:', data.length, 'products');
+      console.log('Loading catalog hierarchy from local DB...');
+      const localProducts = await productRepo.getAll(shopId, { orderBy: 'name ASC' });
+
+      // Enrich with stock data computed from stock batches
+      const enriched: Product[] = await Promise.all(
+        localProducts.map(async (p: LocalProduct) => {
+          const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+          return {
+            id: p.id,
+            sku: p.sku,
+            name: p.name,
+            family: p.family ?? undefined,
+            article_type: p.article_type ?? undefined,
+            brand: p.brand ?? undefined,
+            reference: p.reference ?? undefined,
+            current_stock: totalStock,
+            sell_price: p.sell_price,
+          };
+        })
+      );
+
+      setProducts(enriched);
+      console.log('Catalog loaded from local DB:', enriched.length, 'products');
     } catch (error: any) {
-      console.error('❌ Error loading catalog:', error);
+      console.error('Error loading catalog:', error);
       Alert.alert('Erreur', 'Impossible de charger le catalogue');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, [loadData])
   );
 
   // Construire la hiérarchie
@@ -171,7 +198,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
   // Sauvegarder famille/article/marque/référence
   const handleSave = async () => {
-    if (isSaving) return;
+    if (isSaving || !shopId) return;
 
     // Validation
     const value =
@@ -192,7 +219,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
     try {
       if (isEditing) {
-        // MODE ÉDITION : Renommer dans tous les produits concernés
+        // MODE EDITION : Renommer dans tous les produits concernes
         const oldValue =
           modalType === 'family'
             ? formData.family
@@ -202,7 +229,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                 ? formData.brand
                 : formData.reference;
 
-        // Impossible de renommer si le nouveau nom existe déjà
+        // Impossible de renommer si le nouveau nom existe deja
         const existingProducts = products.filter(p => {
           if (modalType === 'family') return p.family === value && p.family !== oldValue;
           if (modalType === 'article')
@@ -222,75 +249,54 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
         });
 
         if (existingProducts.length > 0) {
-          Alert.alert('Erreur', 'Ce nom existe déjà');
+          Alert.alert('Erreur', 'Ce nom existe deja');
           setIsSaving(false);
           return;
         }
 
-        // Use batch update API for hierarchy levels (more efficient)
         if (modalType === 'reference') {
           // For reference, update single product
-          const updateData: any = { reference: value };
-          await productsApi.update(formData.id!, updateData);
-          Alert.alert('Succès', 'Référence mise à jour');
+          await updateProductOffline(formData.id!, { reference: value });
+          Alert.alert('Succes', 'Reference mise a jour');
         } else {
-          // For family, article, brand: use batch update API
+          // For family, article, brand: batch update locally
           const level =
             modalType === 'family' ? 'family' : modalType === 'article' ? 'article_type' : 'brand';
 
-          // Build request with optional filter fields at root level
-          const request: any = {
-            level,
-            old_value: oldValue as string,
-            new_value: value,
-          };
+          // Find all matching products to update
+          const allProducts = await productRepo.getAll(shopId, { orderBy: 'name ASC' });
+          const matchingProducts = allProducts.filter((p: LocalProduct) => {
+            const fieldValue =
+              level === 'family' ? p.family : level === 'article_type' ? p.article_type : p.brand;
+            if (fieldValue !== oldValue) return false;
+            // Apply hierarchy filters
+            if (modalType === 'article' && formData.family && p.family !== formData.family)
+              return false;
+            if (modalType === 'brand') {
+              if (formData.family && p.family !== formData.family) return false;
+              if (formData.article_type && p.article_type !== formData.article_type) return false;
+            }
+            return true;
+          });
 
-          // Add filter properties at root level (not nested in filters)
-          if (modalType === 'article' && formData.family) {
-            request.family = formData.family;
+          // Update each matching product offline
+          for (const p of matchingProducts) {
+            const updateData: Partial<{ family: string; articleType: string; brand: string }> = {};
+            if (level === 'family') updateData.family = value;
+            else if (level === 'article_type') updateData.articleType = value;
+            else updateData.brand = value;
+            await updateProductOffline(p.id, updateData);
           }
-          if (modalType === 'brand') {
-            if (formData.family) request.family = formData.family;
-            if (formData.article_type) request.article_type = formData.article_type;
-          }
 
-          const result = await productsApi.batchUpdateHierarchy(request);
-
-          Alert.alert('Succès', result.message || `${result.count} produit(s) mis à jour`);
+          Alert.alert('Succes', `${matchingProducts.length} produit(s) mis a jour`);
         }
       } else {
-        // MODE AJOUT : Créer un produit placeholder
-        const newProduct: any = {
-          sku: `AUTO-${Date.now()}`,
-          name: `[Placeholder] ${value}`,
-          unit: 'unit',
-          cost_price: 0,
-          sell_price: 0,
-          alert_threshold: 0,
-          is_active: false, // Inactif car c'est un placeholder
-        };
-
-        // Ajouter les champs de contexte
-        if (modalType === 'family') {
-          newProduct.family = value;
-          newProduct.article_type = 'À définir';
-          newProduct.brand = 'À définir';
-          newProduct.reference = 'À définir';
-        } else if (modalType === 'article') {
-          newProduct.family = formData.family;
-          newProduct.article_type = value;
-          newProduct.brand = 'À définir';
-          newProduct.reference = 'À définir';
-        } else if (modalType === 'brand') {
-          newProduct.family = formData.family;
-          newProduct.article_type = formData.article_type;
-          newProduct.brand = value;
-          newProduct.reference = 'À définir';
-        } else if (modalType === 'reference') {
-          // Pour une référence, on doit créer un vrai produit, pas un placeholder
+        // MODE AJOUT : Creer un produit placeholder
+        if (modalType === 'reference') {
+          // Pour une reference, on doit creer un vrai produit, pas un placeholder
           Alert.alert(
-            'Créer un produit',
-            'Pour ajouter une référence, veuillez utiliser l\'écran "Articles" pour créer un produit complet.',
+            'Creer un produit',
+            'Pour ajouter une reference, veuillez utiliser l\'ecran "Articles" pour creer un produit complet.',
             [{ text: 'OK' }]
           );
           setIsSaving(false);
@@ -298,35 +304,58 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
           return;
         }
 
-        await productsApi.create(newProduct);
+        const placeholderData: Parameters<typeof createProductOffline>[0] = {
+          shopId,
+          sku: `AUTO-${Date.now()}`,
+          name: `[Placeholder] ${value}`,
+          unit: 'unit',
+          costPrice: 0,
+          sellPrice: 0,
+          alertThreshold: 0,
+        };
+
+        // Ajouter les champs de contexte
+        if (modalType === 'family') {
+          placeholderData.family = value;
+          placeholderData.articleType = 'A definir';
+          placeholderData.brand = 'A definir';
+          placeholderData.reference = 'A definir';
+        } else if (modalType === 'article') {
+          placeholderData.family = formData.family;
+          placeholderData.articleType = value;
+          placeholderData.brand = 'A definir';
+          placeholderData.reference = 'A definir';
+        } else if (modalType === 'brand') {
+          placeholderData.family = formData.family;
+          placeholderData.articleType = formData.article_type;
+          placeholderData.brand = value;
+          placeholderData.reference = 'A definir';
+        }
+
+        await createProductOffline(placeholderData);
         Alert.alert(
-          'Succès',
-          `${modalType === 'family' ? 'Famille' : modalType === 'article' ? 'Article' : 'Marque'} ajouté(e)`
+          'Succes',
+          `${modalType === 'family' ? 'Famille' : modalType === 'article' ? 'Article' : 'Marque'} ajoute(e)`
         );
       }
 
       setShowModal(false);
-      loadData(); // Recharger les données
+      loadData(); // Recharger les donnees
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      // Extraire le message d'erreur de l'API
-      const errorMessage =
-        error.response?.data?.message?.[0] ||
-        error.response?.data?.message ||
-        error.message ||
-        'Impossible de sauvegarder';
+      const errorMessage = error.message || 'Impossible de sauvegarder';
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Supprimer avec vérification de stock
+  // Supprimer avec verification de stock
   const handleDelete = async (product: Product) => {
     if (product.current_stock > 0) {
       Alert.alert(
         'Suppression impossible',
-        `Ce produit a un stock de ${product.current_stock} unités. Vous ne pouvez pas le supprimer tant qu'il a du stock.`,
+        `Ce produit a un stock de ${product.current_stock} unites. Vous ne pouvez pas le supprimer tant qu'il a du stock.`,
         [{ text: 'OK' }]
       );
       return;
@@ -339,8 +368,8 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await productsApi.delete(product.id);
-            Alert.alert('Succès', 'Produit supprimé');
+            await deleteProductOffline(product.id);
+            Alert.alert('Succes', 'Produit supprime');
             loadData();
           } catch (error: any) {
             Alert.alert('Erreur', error.message || 'Impossible de supprimer');

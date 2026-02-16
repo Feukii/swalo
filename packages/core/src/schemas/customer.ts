@@ -16,6 +16,7 @@ export const Customer = z
     credit_limit: Currency.default(0), // Limite de crédit (en centimes)
     notes: z.string().optional(),
     is_active: z.boolean().default(true),
+    email_notifications_enabled: z.boolean().default(true),
   })
   .merge(SyncFields);
 

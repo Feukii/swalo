@@ -166,28 +166,27 @@ export class SalesService {
     // Créer un map pour accès rapide
     const productMap = new Map(products.map(p => [p.id, p]));
 
-    // Vérifier le stock disponible pour chaque produit
+    // Vérifier le stock disponible via les lots FIFO pour chaque produit
+    // (la deduction reelle se fait dans la transaction ci-dessous)
     if (dto.status === 'COMPLETED') {
       for (const item of dto.items) {
         const product = productMap.get(item.product_id);
         if (!product) continue;
 
-        // Calculer le stock actuel
-        const movements = await this.prisma.inventoryMovement.aggregate({
+        const batches = await this.prisma.stockBatch.findMany({
           where: {
+            shop_id: shopId,
             product_id: item.product_id,
+            remaining_quantity: { gt: 0 },
             deleted: false,
-          },
-          _sum: {
-            qty: true,
           },
         });
 
-        const currentStock = movements._sum.qty || 0;
+        const totalAvailable = batches.reduce((sum, b) => sum + b.remaining_quantity, 0);
 
-        if (currentStock < item.qty) {
+        if (totalAvailable < item.qty) {
           throw new BadRequestException(
-            `Stock insuffisant pour ${product.name}. Disponible: ${currentStock}, Demandé: ${item.qty}`
+            `Stock insuffisant pour ${product.name}. Disponible: ${totalAvailable}, Demandé: ${item.qty}`
           );
         }
       }
@@ -229,8 +228,127 @@ export class SalesService {
 
     const grandTotal = netTotal + taxTotal;
 
-    // Créer la vente avec transaction
+    // Déterminer la méthode de paiement
+    const paymentMethod = dto.payment_method || 'CASH';
+
+    // Si vente à crédit, vérifier la limite de crédit du client
+    if (paymentMethod === 'CREDIT') {
+      if (!dto.customer_id) {
+        throw new BadRequestException('Un client doit être sélectionné pour une vente à crédit');
+      }
+
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: dto.customer_id, shop_id: shopId, deleted: false },
+      });
+
+      if (!customer) {
+        throw new BadRequestException('Client non trouvé');
+      }
+
+      if (customer.credit_limit > 0) {
+        const activeReceivables = await this.prisma.clientReceivable.findMany({
+          where: {
+            customer_id: dto.customer_id,
+            shop_id: shopId,
+            deleted: false,
+            status: { in: ['PENDING', 'PARTIAL'] },
+          },
+        });
+        const currentBalance = activeReceivables.reduce((sum, r) => sum + r.balance, 0);
+
+        if (currentBalance + grandTotal > customer.credit_limit) {
+          throw new BadRequestException(
+            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
+              `montant vente : ${grandTotal} FCFA, ` +
+              `limite : ${customer.credit_limit} FCFA`
+          );
+        }
+      }
+    }
+
+    // Créer la vente avec transaction (inclut le destockage FIFO)
     const sale = await this.prisma.$transaction(async tx => {
+      // Si COMPLETED, effectuer le destockage FIFO ou par lot spécifique
+      const batchAssignments = new Map<string, string>(); // saleItem index -> primary batch_id
+
+      if (dto.status === 'COMPLETED') {
+        for (const item of dto.items) {
+          if (item.batch_id) {
+            // Destockage depuis un lot spécifique (choix utilisateur)
+            const batch = await tx.stockBatch.findFirst({
+              where: {
+                id: item.batch_id,
+                shop_id: shopId,
+                product_id: item.product_id,
+                deleted: false,
+              },
+            });
+
+            if (!batch) {
+              throw new BadRequestException(
+                `Lot ${item.batch_id} non trouvé pour le produit ${item.product_id}`
+              );
+            }
+
+            if (batch.remaining_quantity < item.qty) {
+              throw new BadRequestException(
+                `Stock insuffisant dans le lot sélectionné. Disponible: ${batch.remaining_quantity}, Demandé: ${item.qty}`
+              );
+            }
+
+            await tx.stockBatch.update({
+              where: { id: item.batch_id },
+              data: { remaining_quantity: batch.remaining_quantity - item.qty },
+            });
+
+            batchAssignments.set(item.product_id, item.batch_id);
+          } else {
+            // Destockage FIFO automatique
+            let remainingToDeduct = item.qty;
+
+            // Récupérer les lots avec stock, triés FIFO
+            const batches = await tx.stockBatch.findMany({
+              where: {
+                shop_id: shopId,
+                product_id: item.product_id,
+                remaining_quantity: { gt: 0 },
+                deleted: false,
+              },
+              orderBy: { created_at: 'asc' },
+            });
+
+            let primaryBatchId: string | null = null;
+
+            for (const batch of batches) {
+              if (remainingToDeduct <= 0) break;
+
+              const toDeduct = Math.min(batch.remaining_quantity, remainingToDeduct);
+
+              await tx.stockBatch.update({
+                where: { id: batch.id },
+                data: { remaining_quantity: batch.remaining_quantity - toDeduct },
+              });
+
+              if (!primaryBatchId) {
+                primaryBatchId = batch.id;
+              }
+
+              remainingToDeduct -= toDeduct;
+            }
+
+            if (primaryBatchId) {
+              batchAssignments.set(item.product_id, primaryBatchId);
+            }
+          }
+        }
+      }
+
+      // Ajouter batch_id aux items si disponible
+      const saleItemsWithBatch = saleItems.map(item => ({
+        ...item,
+        batch_id: batchAssignments.get(item.product_id) || null,
+      }));
+
       // Créer la vente
       const newSale = await tx.sale.create({
         data: {
@@ -239,18 +357,20 @@ export class SalesService {
           cashier_id: cashierId,
           customer_id: dto.customer_id || null,
           status: dto.status || 'DRAFT',
-          payment_method: 'CASH', // Par défaut
+          payment_method: paymentMethod,
           subtotal,
           discount: globalDiscount,
           tax_total: taxTotal,
           net_total: netTotal,
           grand_total: grandTotal,
-          paid_total: dto.status === 'COMPLETED' ? grandTotal : 0,
+          paid_total: paymentMethod === 'CREDIT' ? 0 : dto.status === 'COMPLETED' ? grandTotal : 0,
           change: 0,
           notes: dto.notes || null,
-          device_id: '',
+          expected_total: dto.expected_total || null,
+          pricing_notes: dto.pricing_notes || null,
+          device_id: dto.device_id || '',
           items: {
-            create: saleItems,
+            create: saleItemsWithBatch,
           },
         },
         include: {
@@ -265,23 +385,39 @@ export class SalesService {
         },
       });
 
-      // Si la vente est COMPLETED, créer les mouvements de stock
-      if (dto.status === 'COMPLETED') {
-        const movements = dto.items.map(item => ({
-          id: uuidv4(),
-          shop_id: shopId,
-          product_id: item.product_id,
-          type: 'SALE' as const,
-          qty: -Math.abs(item.qty), // Négatif pour sortie
-          reference: `SALE-${newSale.id}`,
-          notes: `Vente ${newSale.id}`,
-          device_id: '',
-          client_op_id: uuidv4(),
-        }));
-
-        await tx.inventoryMovement.createMany({
-          data: movements,
+      // Si vente à crédit COMPLETED, créer automatiquement une créance
+      if (dto.status === 'COMPLETED' && paymentMethod === 'CREDIT' && dto.customer_id) {
+        await tx.clientReceivable.create({
+          data: {
+            shop_id: shopId,
+            customer_id: dto.customer_id,
+            amount: grandTotal,
+            balance: grandTotal,
+            paid_amount: 0,
+            status: 'PENDING',
+            description: `Vente à crédit #${newSale.id.slice(0, 8)}`,
+          },
         });
+      }
+
+      // Si COMPLETED, créer les mouvements de stock avec ref_id = sale ID
+      if (dto.status === 'COMPLETED') {
+        for (const item of dto.items) {
+          await tx.inventoryMovement.create({
+            data: {
+              id: uuidv4(),
+              shop_id: shopId,
+              product_id: item.product_id,
+              type: 'SALE',
+              qty: -Math.abs(item.qty),
+              reason: 'Vente (FIFO)',
+              ref_type: 'SALE',
+              ref_id: newSale.id,
+              device_id: dto.device_id || '',
+              client_op_id: `sale_${dto.device_id || 'web'}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            },
+          });
+        }
       }
 
       return newSale;
@@ -333,23 +469,35 @@ export class SalesService {
         },
       });
 
-      // Si la vente était COMPLETED, créer des mouvements inverses
+      // Si la vente était COMPLETED, restaurer le stock et les lots
       if (sale.status === 'COMPLETED') {
-        const movements = sale.items.map(item => ({
-          id: uuidv4(),
-          shop_id: shopId,
-          product_id: item.product_id,
-          type: 'ADJUSTMENT' as const,
-          qty: Math.abs(item.qty), // Positif pour retour
-          reference: `CANCEL-${id}`,
-          notes: `Annulation vente ${id}`,
-          device_id: '',
-          client_op_id: uuidv4(),
-        }));
+        for (const item of sale.items) {
+          // Créer le mouvement de stock inverse
+          await tx.inventoryMovement.create({
+            data: {
+              id: uuidv4(),
+              shop_id: shopId,
+              product_id: item.product_id,
+              type: 'ADJUSTMENT',
+              qty: Math.abs(item.qty), // Positif pour retour
+              reason: `Annulation vente ${id}`,
+              ref_type: 'CANCEL',
+              ref_id: id,
+              device_id: '',
+              client_op_id: `cancel_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            },
+          });
 
-        await tx.inventoryMovement.createMany({
-          data: movements,
-        });
+          // Restaurer le remaining_quantity du lot si batch_id est connu
+          if (item.batch_id) {
+            await tx.stockBatch.update({
+              where: { id: item.batch_id },
+              data: {
+                remaining_quantity: { increment: Math.abs(item.qty) },
+              },
+            });
+          }
+        }
       }
 
       return updated;

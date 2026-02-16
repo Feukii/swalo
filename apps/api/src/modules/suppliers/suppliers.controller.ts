@@ -1,26 +1,14 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { ClaimRefundDto } from './dto/claim-refund.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('suppliers')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
@@ -63,7 +51,7 @@ export class SuppliersController {
    * Détecter les fournisseurs avec des noms en doublons
    */
   @Get('duplicates')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async findDuplicates(@Req() req: any) {
     return this.suppliersService.findDuplicates(req.user.shopId);
   }
@@ -73,7 +61,7 @@ export class SuppliersController {
    * Fusionner deux fournisseurs
    */
   @Post('merge')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async merge(@Req() req: any, @Body() dto: { keep_id: string; merge_id: string }) {
     return this.suppliersService.merge(req.user.shopId, dto.keep_id, dto.merge_id);
   }
@@ -92,7 +80,7 @@ export class SuppliersController {
    * Réclamer un remboursement au fournisseur (quand solde négatif)
    */
   @Post(':id/claim-refund')
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async claimRefund(@Req() req: any, @Param('id') id: string, @Body() dto: ClaimRefundDto) {
     return this.suppliersService.claimRefund(req.user.shopId, id, req.user.userId, dto);
   }

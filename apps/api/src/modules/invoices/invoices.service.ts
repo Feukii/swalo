@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PdfGeneratorService, InvoicePdfData } from './pdf-generator.service';
+import { SearchInvoiceDto } from './dto/create-invoice.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InvoicesService {
@@ -10,24 +12,24 @@ export class InvoicesService {
   ) {}
 
   /**
-   * Generer un numero de facture unique pour une boutique
-   * Format: {SHOP_CODE}-{ANNEE}-{NUMERO_SEQUENTIEL}
+   * Generate the next sequential invoice number for a shop
+   * Format: {SHOP_CODE}-{YYYY}-{SEQ:4} (e.g., BTQ01-2026-0001)
    */
-  private async generateInvoiceNumber(shopId: string): Promise<string> {
-    const shop = await this.prisma.shop.findUnique({
+  private async generateInvoiceNumber(tx: any, shopId: string): Promise<string> {
+    const shop = await tx.shop.findUnique({
       where: { id: shopId },
       select: { code: true },
     });
 
     if (!shop) {
-      throw new NotFoundException('Boutique non trouvée');
+      throw new NotFoundException('Boutique non trouvee');
     }
 
     const year = new Date().getFullYear();
-    const prefix = `${shop.code}-${year}`;
+    const prefix = `${shop.code}-${year}-`;
 
-    // Trouver le dernier numero de facture de cette annee
-    const lastInvoice = await this.prisma.invoice.findFirst({
+    // Find the highest existing invoice number for this shop and year
+    const lastInvoice = await tx.invoice.findFirst({
       where: {
         shop_id: shopId,
         number: { startsWith: prefix },
@@ -36,40 +38,20 @@ export class InvoicesService {
       select: { number: true },
     });
 
-    let nextNum = 1;
+    let seq = 1;
     if (lastInvoice) {
-      const parts = lastInvoice.number.split('-');
-      const lastNum = parseInt(parts[parts.length - 1], 10);
-      if (!isNaN(lastNum)) {
-        nextNum = lastNum + 1;
-      }
+      const lastSeq = parseInt(lastInvoice.number.split('-').pop() || '0', 10);
+      seq = lastSeq + 1;
     }
 
-    return `${prefix}-${String(nextNum).padStart(4, '0')}`;
+    return `${prefix}${String(seq).padStart(4, '0')}`;
   }
 
   /**
-   * Creer une facture a partir d'une vente et generer le PDF
+   * Create an invoice from an existing sale
    */
-  async createFromSale(shopId: string, saleId: string): Promise<any> {
-    // Verifier si une facture existe deja pour cette vente
-    const existingInvoice = await this.prisma.invoice.findFirst({
-      where: {
-        shop_id: shopId,
-        sale_id: saleId,
-        deleted: false,
-      },
-    });
-
-    if (existingInvoice) {
-      // Si le PDF n'existe pas encore, le generer
-      if (!existingInvoice.pdf_data) {
-        return this.regeneratePdf(shopId, existingInvoice.id);
-      }
-      return existingInvoice;
-    }
-
-    // Recuperer la vente avec ses items et relations
+  async createFromSale(shopId: string, saleId: string, notes?: string) {
+    // Fetch the sale with items
     const sale = await this.prisma.sale.findFirst({
       where: {
         id: saleId,
@@ -77,99 +59,164 @@ export class InvoicesService {
         deleted: false,
       },
       include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            first_name: true,
+            phone: true,
+            email: true,
+            address: true,
+          },
+        },
         items: {
           where: { deleted: false },
           include: {
-            product: { select: { name: true, sku: true } },
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                tax_rate: true,
+              },
+            },
           },
         },
-        customer: true,
         cashier: { select: { display_name: true } },
         shop: true,
       },
     });
 
     if (!sale) {
-      throw new NotFoundException('Vente non trouvée');
+      throw new NotFoundException(`Vente ${saleId} non trouvee`);
     }
 
     if (sale.status !== 'COMPLETED') {
-      throw new BadRequestException('La facture ne peut être générée que pour une vente terminée');
+      throw new BadRequestException('Impossible de facturer une vente non completee');
     }
 
-    const invoiceNumber = await this.generateInvoiceNumber(shopId);
+    // Create invoice in a transaction for atomic number generation
+    return this.prisma.$transaction(async tx => {
+      const invoiceNumber = await this.generateInvoiceNumber(tx, shopId);
 
-    // Preparer les donnees pour le PDF
-    const pdfData: InvoicePdfData = {
-      invoice_number: invoiceNumber,
-      issue_date: new Date(),
-      shop_name: sale.shop.name,
-      shop_address: sale.shop.address || undefined,
-      shop_phone: sale.shop.phone || undefined,
-      shop_email: sale.shop.email || undefined,
-      customer_name: sale.customer?.name,
-      customer_phone: sale.customer?.phone || undefined,
-      customer_email: sale.customer?.email || undefined,
-      customer_address: sale.customer?.address || undefined,
-      cashier_name: sale.cashier?.display_name,
-      items: sale.items.map(item => ({
-        description: item.product_name || item.product?.name || 'Produit',
-        qty: item.qty,
-        unit_price: item.unit_price,
-        discount: item.discount,
-        tax_rate: item.tax_rate,
-        subtotal: item.subtotal,
-        tax_total: item.tax_total,
-        total: item.total,
-      })),
-      subtotal: sale.subtotal,
-      discount: sale.discount,
-      tax_total: sale.tax_total,
-      grand_total: sale.grand_total,
-      paid_total: sale.paid_total,
-      balance_due: Math.max(0, sale.grand_total - sale.paid_total),
-    };
+      // Build invoice items from sale items
+      const invoiceItems = sale.items.map(item => {
+        const description = item.product
+          ? `${item.product.name} (${item.product.sku})`
+          : item.product_name || 'Article';
+        const taxRate = item.tax_rate || 0;
+        const itemSubtotal = Math.round(item.unit_price * item.qty);
+        const itemDiscount = item.discount || 0;
+        const netAmount = itemSubtotal - itemDiscount;
+        const itemTaxTotal = Math.round(netAmount * taxRate);
+        const itemTotal = netAmount + itemTaxTotal;
 
-    // Generer le PDF en base64
-    const pdfBase64 = await this.pdfGenerator.generateInvoicePdfBase64(pdfData);
+        return {
+          id: uuidv4(),
+          product_id: item.product_id,
+          description,
+          qty: item.qty,
+          unit_price: item.unit_price,
+          discount: itemDiscount,
+          tax_rate: taxRate,
+          subtotal: itemSubtotal,
+          tax_total: itemTaxTotal,
+          total: itemTotal,
+        };
+      });
 
-    // Creer la facture en base
-    const invoice = await this.prisma.invoice.create({
-      data: {
-        shop_id: shopId,
-        sale_id: saleId,
-        customer_id: sale.customer_id || null,
-        number: invoiceNumber,
-        status: 'ISSUED',
+      const subtotal = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const discount = sale.discount || 0;
+      const taxTotal = invoiceItems.reduce((sum, item) => sum + item.tax_total, 0);
+      const grandTotal = subtotal - discount + taxTotal;
+      const paidTotal = sale.paid_total || 0;
+      const balanceDue = grandTotal - paidTotal;
+
+      // Generate PDF data
+      const pdfData: InvoicePdfData = {
+        invoice_number: invoiceNumber,
         issue_date: new Date(),
-        subtotal: sale.subtotal,
-        discount: sale.discount,
-        tax_total: sale.tax_total,
-        grand_total: sale.grand_total,
-        paid_total: sale.paid_total,
-        balance_due: Math.max(0, sale.grand_total - sale.paid_total),
-        pdf_data: pdfBase64,
-        items: {
-          create: sale.items.map(item => ({
-            product_id: item.product_id,
-            description: item.product_name || item.product?.name || 'Produit',
-            qty: item.qty,
-            unit_price: item.unit_price,
-            discount: item.discount,
-            tax_rate: item.tax_rate,
-            subtotal: item.subtotal,
-            tax_total: item.tax_total,
-            total: item.total,
-          })),
-        },
-      },
-      include: {
-        items: true,
-        customer: true,
-      },
-    });
+        shop_name: sale.shop.name,
+        shop_address: sale.shop.address || undefined,
+        shop_phone: sale.shop.phone || undefined,
+        shop_email: sale.shop.email || undefined,
+        customer_name: sale.customer?.name,
+        customer_phone: sale.customer?.phone || undefined,
+        customer_email: sale.customer?.email || undefined,
+        customer_address: sale.customer?.address || undefined,
+        cashier_name: sale.cashier?.display_name,
+        items: invoiceItems.map(item => ({
+          description: item.description,
+          qty: item.qty,
+          unit_price: item.unit_price,
+          discount: item.discount,
+          tax_rate: item.tax_rate,
+          subtotal: item.subtotal,
+          tax_total: item.tax_total,
+          total: item.total,
+        })),
+        subtotal,
+        discount,
+        tax_total: taxTotal,
+        grand_total: grandTotal,
+        paid_total: paidTotal,
+        balance_due: balanceDue < 0 ? 0 : balanceDue,
+      };
 
-    return invoice;
+      const pdfBase64 = await this.pdfGenerator.generateInvoicePdfBase64(pdfData);
+
+      const invoice = await tx.invoice.create({
+        data: {
+          id: uuidv4(),
+          shop_id: shopId,
+          sale_id: saleId,
+          customer_id: sale.customer_id || null,
+          number: invoiceNumber,
+          status: paidTotal >= grandTotal ? 'PAID' : 'ISSUED',
+          issue_date: new Date(),
+          subtotal,
+          discount,
+          tax_total: taxTotal,
+          grand_total: grandTotal,
+          paid_total: paidTotal,
+          balance_due: balanceDue < 0 ? 0 : balanceDue,
+          notes: notes || null,
+          pdf_data: pdfBase64,
+          items: {
+            create: invoiceItems,
+          },
+        },
+        include: {
+          items: {
+            where: { deleted: false },
+          },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              first_name: true,
+              phone: true,
+              email: true,
+              address: true,
+            },
+          },
+          shop: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              address: true,
+              phone: true,
+              email: true,
+              currency: true,
+              tax_rate: true,
+            },
+          },
+        },
+      });
+
+      return invoice;
+    });
   }
 
   /**
@@ -195,7 +242,7 @@ export class InvoicesService {
     });
 
     if (!invoice) {
-      throw new NotFoundException('Facture non trouvée');
+      throw new NotFoundException(`Facture ${invoiceId} non trouvee`);
     }
 
     const pdfData: InvoicePdfData = {
@@ -260,7 +307,7 @@ export class InvoicesService {
     });
 
     if (!invoice) {
-      throw new NotFoundException('Facture non trouvée');
+      throw new NotFoundException(`Facture ${invoiceId} non trouvee`);
     }
 
     if (!invoice.pdf_data) {
@@ -273,12 +320,9 @@ export class InvoicesService {
   }
 
   /**
-   * Lister les factures d'une boutique
+   * List all invoices for a shop with filters
    */
-  async findAll(
-    shopId: string,
-    query: { customer_id?: string; start_date?: string; end_date?: string }
-  ): Promise<any[]> {
+  async findAll(shopId: string, query: SearchInvoiceDto) {
     const where: any = {
       shop_id: shopId,
       deleted: false,
@@ -286,6 +330,10 @@ export class InvoicesService {
 
     if (query.customer_id) {
       where.customer_id = query.customer_id;
+    }
+
+    if (query.status) {
+      where.status = query.status;
     }
 
     if (query.start_date || query.end_date) {
@@ -300,44 +348,118 @@ export class InvoicesService {
 
     return this.prisma.invoice.findMany({
       where,
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        issue_date: true,
-        grand_total: true,
-        paid_total: true,
-        balance_due: true,
+      include: {
         customer: {
-          select: { id: true, name: true, phone: true },
+          select: {
+            id: true,
+            name: true,
+            first_name: true,
+            phone: true,
+          },
         },
-        sale_id: true,
-        created_at: true,
+        items: {
+          where: { deleted: false },
+        },
       },
       orderBy: { created_at: 'desc' },
     });
   }
 
   /**
-   * Recuperer une facture par ID
+   * Get a single invoice by ID with full details
    */
-  async findOne(shopId: string, invoiceId: string): Promise<any> {
+  async findOne(shopId: string, id: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: {
-        id: invoiceId,
+        id,
         shop_id: shopId,
         deleted: false,
       },
       include: {
-        items: { where: { deleted: false } },
-        customer: true,
+        items: {
+          where: { deleted: false },
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+              },
+            },
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            first_name: true,
+            phone: true,
+            email: true,
+            address: true,
+          },
+        },
+        sale: {
+          select: {
+            id: true,
+            status: true,
+            payment_method: true,
+            created_at: true,
+          },
+        },
+        shop: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            address: true,
+            phone: true,
+            email: true,
+            currency: true,
+            tax_rate: true,
+          },
+        },
       },
     });
 
     if (!invoice) {
-      throw new NotFoundException('Facture non trouvée');
+      throw new NotFoundException(`Facture ${id} non trouvee`);
     }
 
     return invoice;
+  }
+
+  /**
+   * Cancel an invoice
+   */
+  async cancel(shopId: string, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        id,
+        shop_id: shopId,
+        deleted: false,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Facture ${id} non trouvee`);
+    }
+
+    if (invoice.status === 'CANCELLED') {
+      throw new BadRequestException('Cette facture est deja annulee');
+    }
+
+    return this.prisma.invoice.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        version: { increment: 1 },
+      },
+      include: {
+        items: { where: { deleted: false } },
+        customer: {
+          select: { id: true, name: true, first_name: true },
+        },
+      },
+    });
   }
 }

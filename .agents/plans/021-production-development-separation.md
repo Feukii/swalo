@@ -21,6 +21,7 @@ Afin de pouvoir développer de nouvelles fonctionnalités sans risquer d'affecte
 ## Problem Statement
 
 L'application SWALO est utilisée quotidiennement en production. Il est impératif de :
+
 1. Vérifier que la base de données de production est correctement utilisée par l'API déployée
 2. S'assurer qu'aucune modification non validée ne puisse atteindre la production
 3. Garantir l'intégrité des données utilisateur
@@ -47,60 +48,70 @@ L'application SWALO est utilisée quotidiennement en production. Il est impérat
 ## 1. ÉTAT DES BRANCHES GIT
 
 ### Situation Actuelle
-| Branche | Localisation | État |
-|---------|-------------|------|
-| `main` | Local + Remote | Production (déployée) |
-| `develop` | Local + Remote (courante) | Staging/Intégration |
-| `origin/dev` | Remote | Branche legacy (non utilisée) |
-| `origin/prod` | Remote | Branche legacy (non utilisée) |
-| `origin/test` | Remote | Branche legacy (non utilisée) |
+
+| Branche       | Localisation              | État                          |
+| ------------- | ------------------------- | ----------------------------- |
+| `main`        | Local + Remote            | Production (déployée)         |
+| `develop`     | Local + Remote (courante) | Staging/Intégration           |
+| `origin/dev`  | Remote                    | Branche legacy (non utilisée) |
+| `origin/prod` | Remote                    | Branche legacy (non utilisée) |
+| `origin/test` | Remote                    | Branche legacy (non utilisée) |
 
 ### Synchronisation des Branches
+
 - **develop** est **1 commit en avance** sur **main** : `78e7bb1 feat: setup development environment and workflow`
 - Ceci est l'état attendu - les modifications sont testées sur `develop` avant d'être promues vers `main`
 
 ### Problèmes Identifiés
-| Problème | Sévérité | Recommandation |
-|----------|----------|----------------|
-| Pas de hook pre-push actif | Moyenne | Ajouter un hook pour bloquer les push directs sur `main` |
-| Branches legacy (`dev`, `prod`, `test`) | Faible | Nettoyer les branches inutilisées |
-| Protection de branche GitHub non vérifiée | **HAUTE** | Configurer les règles de protection |
+
+| Problème                                  | Sévérité  | Recommandation                                           |
+| ----------------------------------------- | --------- | -------------------------------------------------------- |
+| Pas de hook pre-push actif                | Moyenne   | Ajouter un hook pour bloquer les push directs sur `main` |
+| Branches legacy (`dev`, `prod`, `test`)   | Faible    | Nettoyer les branches inutilisées                        |
+| Protection de branche GitHub non vérifiée | **HAUTE** | Configurer les règles de protection                      |
 
 ---
 
 ## 2. CONFIGURATION BASE DE DONNÉES NEON
 
 ### URL de Connexion Actuelle
+
 Le fichier `apps/api/.env` contient :
+
 ```
 DATABASE_URL="postgresql://neondb_owner:npg_***@ep-shiny-smoke-agjh1g6u-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 ```
 
 ### Analyse de l'Endpoint
-| Composant | Valeur | Signification |
-|-----------|--------|---------------|
-| Endpoint | `ep-shiny-smoke-agjh1g6u` | Identifiant unique du projet Neon |
-| Pooler | `-pooler.c-2.eu-central-1` | Connection pooling (PgBouncer) |
-| Région | `eu-central-1.aws` | Frankfurt, Allemagne |
-| SSL | `sslmode=require` | Connexion chiffrée |
+
+| Composant | Valeur                     | Signification                     |
+| --------- | -------------------------- | --------------------------------- |
+| Endpoint  | `ep-shiny-smoke-agjh1g6u`  | Identifiant unique du projet Neon |
+| Pooler    | `-pooler.c-2.eu-central-1` | Connection pooling (PgBouncer)    |
+| Région    | `eu-central-1.aws`         | Frankfurt, Allemagne              |
+| SSL       | `sslmode=require`          | Connexion chiffrée                |
 
 ### Classification
+
 **Cette URL correspond à une base de données PRODUCTION** basée sur :
+
 1. Endpoint Neon direct (pas localhost)
 2. Connection pooler activée (pour production)
 3. SSL/Channel binding requis
 4. Région EU-Central (proximité Afrique Centrale)
 
 ### Configuration de Déploiement (render.yaml)
+
 ```yaml
 envVars:
   - key: DATABASE_URL
-    sync: false  # Configuré manuellement dans Render Dashboard
+    sync: false # Configuré manuellement dans Render Dashboard
 ```
 
 **IMPORTANT** : La DATABASE_URL dans `render.yaml` a `sync: false`, ce qui signifie que le secret est configuré **manuellement dans le Render Dashboard**, pas depuis le fichier. C'est la configuration correcte.
 
 ### Recommandations Base de Données
+
 1. Vérifier que le Render Dashboard utilise bien l'URL de la branche `main` Neon
 2. Créer une branche `dev` sur Neon pour le développement/staging
 3. Configurer les secrets GitHub pour l'environnement staging avec la branche Neon `dev`
@@ -111,27 +122,29 @@ envVars:
 
 ### Workflows GitHub Actions
 
-| Workflow | Déclencheur | But |
-|----------|-------------|-----|
-| `deploy.yml` | Push/PR sur `main` | Déploiement production |
-| `deploy-staging.yml` | Push/PR sur `develop` | Déploiement staging |
-| `keep-alive.yml` | Cron schedule | Maintien API active |
+| Workflow             | Déclencheur           | But                    |
+| -------------------- | --------------------- | ---------------------- |
+| `deploy.yml`         | Push/PR sur `main`    | Déploiement production |
+| `deploy-staging.yml` | Push/PR sur `develop` | Déploiement staging    |
+| `keep-alive.yml`     | Cron schedule         | Maintien API active    |
 
 ### Points Forts
+
 - Lint bloquant (pas de `|| true`)
 - Build vérifié avant déploiement
 - Environnements séparés pour staging
 
 ### Problèmes Critiques Identifiés
 
-| Problème | Sévérité | Impact |
-|----------|----------|--------|
-| **Tests non exécutés en CI** | **CRITIQUE** | Du code avec tests échoués peut atteindre la production |
-| Pas de protection de branche GitHub | **CRITIQUE** | Merge direct sur `main` possible |
-| CORS trop permissif | Moyenne | `origin: true` accepte toutes les origines |
-| Pas de health check post-déploiement | Moyenne | Pas de vérification automatique après deploy |
+| Problème                             | Sévérité     | Impact                                                  |
+| ------------------------------------ | ------------ | ------------------------------------------------------- |
+| **Tests non exécutés en CI**         | **CRITIQUE** | Du code avec tests échoués peut atteindre la production |
+| Pas de protection de branche GitHub  | **CRITIQUE** | Merge direct sur `main` possible                        |
+| CORS trop permissif                  | Moyenne      | `origin: true` accepte toutes les origines              |
+| Pas de health check post-déploiement | Moyenne      | Pas de vérification automatique après deploy            |
 
 ### Workflow de Déploiement Actuel
+
 ```
 Push sur main
     ↓
@@ -152,21 +165,24 @@ Déploiement API (Render hook)
 
 ### Structure des Fichiers
 
-| Fichier | Statut | Risque |
-|---------|--------|--------|
-| `.env` | Gitignored | OK |
-| `.env.development` | Gitignored | OK |
-| `.env.production` | Gitignored | OK |
-| `.env.example` | Commité | OK (template) |
-| `apps/api/.env` | Gitignored | **ATTENTION** - contient credentials production |
+| Fichier            | Statut     | Risque                                          |
+| ------------------ | ---------- | ----------------------------------------------- |
+| `.env`             | Gitignored | OK                                              |
+| `.env.development` | Gitignored | OK                                              |
+| `.env.production`  | Gitignored | OK                                              |
+| `.env.example`     | Commité    | OK (template)                                   |
+| `apps/api/.env`    | Gitignored | **ATTENTION** - contient credentials production |
 
 ### Sécurité
+
 - Le `.gitignore` est correctement configuré (lignes 28-31)
 - Aucun fichier `.env` réel n'est commité
 - Les templates `.env.example` ne contiennent pas de vrais secrets
 
 ### Problème de Configuration Locale
+
 Le fichier `apps/api/.env` contient actuellement l'URL de production Neon. Pour le développement local, il devrait contenir :
+
 ```env
 DATABASE_URL="postgresql://swalo:swalo_password@localhost:5432/swalo_db?schema=public"
 ```
@@ -176,18 +192,21 @@ DATABASE_URL="postgresql://swalo:swalo_password@localhost:5432/swalo_db?schema=p
 ## 5. AUDIT DÉPLOIEMENT
 
 ### Render (API)
+
 - **Branche** : `main` uniquement
 - **Build** : Inclut migrations Prisma
 - **Secrets** : Configurés manuellement (sync: false)
 - **État** : OK
 
 ### Vercel (Web)
+
 - **Branche prod** : `main` avec flag `--prod`
 - **Branche staging** : `develop` sans `--prod` (preview)
 - **API URL** : Hardcodée vers production
 - **État** : OK
 
 ### Expo EAS (Mobile)
+
 - **Profiles** : `development`, `preview`, `production`
 - **Problème** : Preview et Production pointent vers la même API prod
 - **Recommandation** : Configurer l'URL de staging pour preview
@@ -199,6 +218,7 @@ DATABASE_URL="postgresql://swalo:swalo_password@localhost:5432/swalo_db?schema=p
 ### Protections en Place
 
 #### Protection du Seed
+
 ```typescript
 // apps/api/prisma/seed.ts
 if (process.env.NODE_ENV === 'production') {
@@ -208,6 +228,7 @@ if (process.env.NODE_ENV === 'production') {
 ```
 
 #### Protection du Nettoyage
+
 ```typescript
 // apps/api/src/common/prisma/prisma.service.ts
 async cleanDatabase() {
@@ -218,6 +239,7 @@ async cleanDatabase() {
 ```
 
 ### Migrations
+
 - 7 migrations en place (octobre 2025 - janvier 2026)
 - Toutes les migrations sont additives (pas de DROP)
 - Utilise `prisma migrate deploy` en production (idempotent)
@@ -229,11 +251,13 @@ async cleanDatabase() {
 ## 7. AUDIT API RUNTIME
 
 ### Configuration
+
 - ConfigModule NestJS avec scope global
 - Variables d'environnement chargées depuis `.env`
 - Logging adapté à l'environnement (errors only en prod)
 
 ### Health Check
+
 ```
 GET /api/health
 {
@@ -242,15 +266,18 @@ GET /api/health
   "uptime": ...
 }
 ```
+
 Pas d'exposition de secrets.
 
 ### Problème CORS
+
 ```typescript
 app.enableCors({
   origin: true, // Accepte toutes les origines
   credentials: true,
 });
 ```
+
 **Recommandation** : Restreindre les origines en production.
 
 ---
@@ -401,6 +428,7 @@ app.enableCors({
 
 - **ACTION** : Ajouter dans `docs/deployment/environments.md`
 - **CONTENU** :
+
   ```markdown
   ## Checklist Avant Merge vers Main
 
@@ -457,17 +485,20 @@ git push origin develop  # Doit déclencher le workflow staging
 ## NOTES IMPORTANTES
 
 ### Sécurité des Données
+
 - **Les données de production sont actuellement INTACTES** sur la branche Neon `main`
 - **L'API Render utilise les secrets configurés dans le Dashboard**, pas les fichiers commités
 - **Aucune action n'a compromis les données utilisateur**
 
 ### Pourquoi les Données sont Sûres
+
 1. Le `render.yaml` utilise `sync: false` pour DATABASE_URL
 2. Les secrets sont dans le Render Dashboard, pas dans Git
 3. Le seed script a une protection NODE_ENV=production
 4. Les migrations sont additives (pas de suppression)
 
 ### Ce Qui Doit Changer
+
 1. **Configuration locale** : Utiliser Docker au lieu de la vraie base Neon
 2. **CI/CD** : Ajouter l'exécution des tests
 3. **Protection de branche** : Empêcher les merges directs sur main
@@ -506,11 +537,13 @@ Health Check Automatique
 ## RESSOURCES
 
 ### Documentation Interne
+
 - `docs/guides/development-workflow.md` - Guide complet du workflow
 - `docs/deployment/environments.md` - Configuration des environnements
 - `docs/deployment/guide.md` - Guide de déploiement
 
 ### Documentation Externe
+
 - [Neon Branching](https://neon.tech/docs/manage/branches)
 - [GitHub Branch Protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches)
 - [Render Environment Variables](https://render.com/docs/configure-environment-variables)
