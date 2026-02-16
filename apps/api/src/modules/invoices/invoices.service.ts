@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PdfGeneratorService, InvoicePdfData } from './pdf-generator.service';
 import { SearchInvoiceDto } from './dto/create-invoice.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pdfGenerator: PdfGeneratorService
+  ) {}
 
   /**
    * Generate the next sequential invoice number for a shop
@@ -78,6 +82,8 @@ export class InvoicesService {
             },
           },
         },
+        cashier: { select: { display_name: true } },
+        shop: true,
       },
     });
 
@@ -126,6 +132,39 @@ export class InvoicesService {
       const paidTotal = sale.paid_total || 0;
       const balanceDue = grandTotal - paidTotal;
 
+      // Generate PDF data
+      const pdfData: InvoicePdfData = {
+        invoice_number: invoiceNumber,
+        issue_date: new Date(),
+        shop_name: sale.shop.name,
+        shop_address: sale.shop.address || undefined,
+        shop_phone: sale.shop.phone || undefined,
+        shop_email: sale.shop.email || undefined,
+        customer_name: sale.customer?.name,
+        customer_phone: sale.customer?.phone || undefined,
+        customer_email: sale.customer?.email || undefined,
+        customer_address: sale.customer?.address || undefined,
+        cashier_name: sale.cashier?.display_name,
+        items: invoiceItems.map(item => ({
+          description: item.description,
+          qty: item.qty,
+          unit_price: item.unit_price,
+          discount: item.discount,
+          tax_rate: item.tax_rate,
+          subtotal: item.subtotal,
+          tax_total: item.tax_total,
+          total: item.total,
+        })),
+        subtotal,
+        discount,
+        tax_total: taxTotal,
+        grand_total: grandTotal,
+        paid_total: paidTotal,
+        balance_due: balanceDue < 0 ? 0 : balanceDue,
+      };
+
+      const pdfBase64 = await this.pdfGenerator.generateInvoicePdfBase64(pdfData);
+
       const invoice = await tx.invoice.create({
         data: {
           id: uuidv4(),
@@ -142,6 +181,7 @@ export class InvoicesService {
           paid_total: paidTotal,
           balance_due: balanceDue < 0 ? 0 : balanceDue,
           notes: notes || null,
+          pdf_data: pdfBase64,
           items: {
             create: invoiceItems,
           },
@@ -177,6 +217,106 @@ export class InvoicesService {
 
       return invoice;
     });
+  }
+
+  /**
+   * Re-generer le PDF d'une facture existante
+   */
+  async regeneratePdf(shopId: string, invoiceId: string): Promise<any> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        shop_id: shopId,
+        deleted: false,
+      },
+      include: {
+        items: { where: { deleted: false } },
+        customer: true,
+        shop: true,
+        sale: {
+          include: {
+            cashier: { select: { display_name: true } },
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Facture ${invoiceId} non trouvee`);
+    }
+
+    const pdfData: InvoicePdfData = {
+      invoice_number: invoice.number,
+      issue_date: invoice.issue_date,
+      due_date: invoice.due_date || undefined,
+      shop_name: invoice.shop.name,
+      shop_address: invoice.shop.address || undefined,
+      shop_phone: invoice.shop.phone || undefined,
+      shop_email: invoice.shop.email || undefined,
+      customer_name: invoice.customer?.name,
+      customer_phone: invoice.customer?.phone || undefined,
+      customer_email: invoice.customer?.email || undefined,
+      customer_address: invoice.customer?.address || undefined,
+      cashier_name: invoice.sale?.cashier?.display_name,
+      items: invoice.items.map(item => ({
+        description: item.description,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        discount: item.discount,
+        tax_rate: item.tax_rate,
+        subtotal: item.subtotal,
+        tax_total: item.tax_total,
+        total: item.total,
+      })),
+      subtotal: invoice.subtotal,
+      discount: invoice.discount,
+      tax_total: invoice.tax_total,
+      grand_total: invoice.grand_total,
+      paid_total: invoice.paid_total,
+      balance_due: invoice.balance_due,
+    };
+
+    const pdfBase64 = await this.pdfGenerator.generateInvoicePdfBase64(pdfData);
+
+    await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { pdf_data: pdfBase64 },
+    });
+
+    return {
+      ...invoice,
+      pdf_data: pdfBase64,
+    };
+  }
+
+  /**
+   * Recuperer le PDF d'une facture (base64)
+   */
+  async getPdf(shopId: string, invoiceId: string): Promise<{ pdf_data: string; number: string }> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        shop_id: shopId,
+        deleted: false,
+      },
+      select: {
+        id: true,
+        number: true,
+        pdf_data: true,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Facture ${invoiceId} non trouvee`);
+    }
+
+    if (!invoice.pdf_data) {
+      // Regenerer le PDF si absent
+      const regenerated = await this.regeneratePdf(shopId, invoiceId);
+      return { pdf_data: regenerated.pdf_data, number: regenerated.number };
+    }
+
+    return { pdf_data: invoice.pdf_data, number: invoice.number };
   }
 
   /**

@@ -30,6 +30,8 @@ import CatalogHierarchyScreen from './src/screens/CatalogHierarchyScreen';
 import StockManagementScreen from './src/screens/StockManagementScreen';
 import CustomerBalancesSummaryScreen from './src/screens/CustomerBalancesSummaryScreen';
 import SupplierBalancesSummaryScreen from './src/screens/SupplierBalancesSummaryScreen';
+import PackagingTypesScreen from './src/screens/settings/PackagingTypesScreen';
+import InvoiceListScreen from './src/screens/invoices/InvoiceListScreen';
 import ProductBatchesScreen from './src/screens/products/ProductBatchesScreen';
 import SyncStatusScreen from './src/screens/SyncStatusScreen';
 import SyncConflictsScreen from './src/screens/SyncConflictsScreen';
@@ -66,6 +68,8 @@ type RootStackParamList = {
   ShopSettings: undefined;
   BusinessReports: undefined;
   TransactionHistory: undefined;
+  PackagingTypes: undefined;
+  InvoiceList: undefined;
   DesignTest: undefined;
   SyncStatus: undefined;
   SyncConflicts: undefined;
@@ -205,6 +209,8 @@ export default function App() {
             <Stack.Screen name="ShopSettings" component={ShopSettingsScreen} />
             <Stack.Screen name="BusinessReports" component={BusinessReportsScreen} />
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
+            <Stack.Screen name="PackagingTypes" component={PackagingTypesScreen} />
+            <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
 
             {/* Sync screens */}
             <Stack.Screen name="SyncStatus" component={SyncStatusScreen} />

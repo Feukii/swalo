@@ -876,3 +876,51 @@ export const adminApi = {
     return response.data;
   },
 };
+
+// Packaging Types API (Conditionnements)
+export const packagingTypesApi = {
+  getAll: async () => {
+    const response = await api.get('/packaging-types');
+    return response.data;
+  },
+  create: async (data: { name: string; symbol?: string; is_default?: boolean }) => {
+    const response = await api.post('/packaging-types', data);
+    return response.data;
+  },
+  update: async (id: string, data: { name?: string; symbol?: string; is_default?: boolean }) => {
+    const response = await api.put(`/packaging-types/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/packaging-types/${id}`);
+    return response.data;
+  },
+  initDefaults: async () => {
+    const response = await api.post('/packaging-types/init-defaults', {});
+    return response.data;
+  },
+};
+
+// Invoices API (Factures)
+export const invoicesApi = {
+  getAll: async (params?: { customer_id?: string; start_date?: string; end_date?: string }) => {
+    const response = await api.get('/invoices', { params });
+    return response.data;
+  },
+  getOne: async (id: string) => {
+    const response = await api.get(`/invoices/${id}`);
+    return response.data;
+  },
+  createFromSale: async (saleId: string) => {
+    const response = await api.post(`/invoices/from-sale/${saleId}`);
+    return response.data;
+  },
+  getPdfBase64: async (id: string) => {
+    const response = await api.get(`/invoices/${id}/pdf?format=base64`);
+    return response.data;
+  },
+  regeneratePdf: async (id: string) => {
+    const response = await api.post(`/invoices/${id}/regenerate-pdf`);
+    return response.data;
+  },
+};

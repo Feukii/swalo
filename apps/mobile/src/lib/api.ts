@@ -909,21 +909,32 @@ export const transfersApi = {
   },
 };
 
+// Invoices API (Factures)
 export const invoicesApi = {
   createFromSale: async (saleId: string, notes?: string) => {
     return api.post<any>(`/invoices/from-sale/${saleId}`, { notes });
   },
 
-  getAll: async (params?: { customer_id?: string; status?: string }) => {
+  getAll: async (params?: { customer_id?: string; status?: string; start_date?: string; end_date?: string }) => {
     const queryParams = new URLSearchParams();
     if (params?.customer_id) queryParams.append('customer_id', params.customer_id);
     if (params?.status) queryParams.append('status', params.status);
+    if (params?.start_date) queryParams.append('start_date', params.start_date);
+    if (params?.end_date) queryParams.append('end_date', params.end_date);
     const query = queryParams.toString();
     return api.get<any[]>(`/invoices${query ? `?${query}` : ''}`);
   },
 
   getOne: async (id: string) => {
     return api.get<any>(`/invoices/${id}`);
+  },
+
+  getPdfBase64: async (id: string) => {
+    return api.get<{ pdf_data: string; number: string }>(`/invoices/${id}/pdf?format=base64`);
+  },
+
+  regeneratePdf: async (id: string) => {
+    return api.post<any>(`/invoices/${id}/regenerate-pdf`);
   },
 
   cancel: async (id: string) => {

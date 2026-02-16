@@ -19,6 +19,8 @@ import Receivables from './pages/Receivables';
 import Debts from './pages/Debts';
 import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
+import PackagingTypes from './pages/PackagingTypes';
+import Invoices from './pages/Invoices';
 import UserManagement from './pages/UserManagement';
 import EnterpriseDashboard from './pages/EnterpriseDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -190,6 +192,17 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/invoices"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Invoices />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/debts"
           element={
@@ -241,6 +254,16 @@ function App() {
           element={
             <ProtectedRoute requireRole="BOSS">
               <ShopSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/packaging-types"
+          element={
+            <ProtectedRoute requireRole="OWNER">
+              <MainLayout>
+                <PackagingTypes />
+              </MainLayout>
             </ProtectedRoute>
           }
         />
