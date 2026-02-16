@@ -56,7 +56,10 @@ export default function Products() {
     try {
       setIsLoading(true);
       const [productsData, statsData, categoriesData] = await Promise.all([
-        productsApi.getAll({ search: searchTerm || undefined, category: selectedCategory || undefined }),
+        productsApi.getAll({
+          search: searchTerm || undefined,
+          category: selectedCategory || undefined,
+        }),
         productsApi.getStats(),
         productsApi.getCategories(),
       ]);
@@ -130,7 +133,7 @@ export default function Products() {
       handleCloseModal();
       loadData();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Erreur lors de l\'enregistrement');
+      alert(error.response?.data?.message || "Erreur lors de l'enregistrement");
     }
   };
 
@@ -156,7 +159,9 @@ export default function Products() {
           </div>
           <div className="card">
             <p className="text-gray-500 text-sm">Stock Faible</p>
-            <p className={`text-3xl font-bold mt-1 ${stats.low_stock_count > 0 ? 'text-danger-600' : 'text-success-600'}`}>
+            <p
+              className={`text-3xl font-bold mt-1 ${stats.low_stock_count > 0 ? 'text-danger-600' : 'text-success-600'}`}
+            >
               {stats.low_stock_count}
             </p>
           </div>
@@ -174,8 +179,18 @@ export default function Products() {
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
           <div className="flex-1 w-full md:w-auto flex gap-3">
             <div className="relative flex-1">
-              <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg
+                className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               <input
                 type="text"
@@ -192,11 +207,16 @@ export default function Products() {
             >
               <option value="">Toutes categories</option>
               {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
               ))}
             </select>
           </div>
-          <button onClick={() => handleOpenModal()} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+          <button
+            onClick={() => handleOpenModal()}
+            className="btn-primary flex items-center gap-2 whitespace-nowrap"
+          >
             <span>+</span>
             <span>Nouveau produit</span>
           </button>
@@ -213,9 +233,13 @@ export default function Products() {
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">{searchTerm ? 'Aucun produit trouve' : 'Aucun produit enregistre'}</p>
+            <p className="text-gray-500">
+              {searchTerm ? 'Aucun produit trouve' : 'Aucun produit enregistre'}
+            </p>
             {!searchTerm && (
-              <button onClick={() => handleOpenModal()} className="btn-primary mt-4">Creer le premier produit</button>
+              <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
+                Creer le premier produit
+              </button>
             )}
           </div>
         ) : (
@@ -223,14 +247,30 @@ export default function Products() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categorie</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Achat</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Prix Vente</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    SKU
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produit
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Categorie
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Prix Achat
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Prix Vente
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Stock
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Statut
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -239,29 +279,44 @@ export default function Products() {
                     <td className="px-6 py-4 font-mono text-sm text-gray-900">{product.sku}</td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-gray-900">{product.name}</p>
-                      {product.description && <p className="text-sm text-gray-500 truncate max-w-xs">{product.description}</p>}
+                      {product.description && (
+                        <p className="text-sm text-gray-500 truncate max-w-xs">
+                          {product.description}
+                        </p>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{product.category || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 text-right">{formatCurrency(product.cost_price)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 text-right">
+                      {formatCurrency(product.cost_price)}
+                    </td>
                     <td className="px-6 py-4 text-right">
                       {product.is_multi_price ? (
                         <div className="flex flex-col items-end gap-1">
                           <span className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(product.price_min || 0)} - {formatCurrency(product.price_max || 0)}
+                            {formatCurrency(product.price_min || 0)} -{' '}
+                            {formatCurrency(product.price_max || 0)}
                           </span>
-                          <span className="badge bg-warning-100 text-warning-800 text-xs">Multi-prix</span>
+                          <span className="badge bg-warning-100 text-warning-800 text-xs">
+                            Multi-prix
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(product.sell_price)}</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(product.sell_price)}
+                        </span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`badge ${product.is_low_stock ? 'badge-danger' : 'badge-success'}`}>
+                      <span
+                        className={`badge ${product.is_low_stock ? 'badge-danger' : 'badge-success'}`}
+                      >
                         {product.current_stock ?? 0}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`badge ${product.is_active ? 'badge-success' : 'bg-gray-100 text-gray-600'}`}>
+                      <span
+                        className={`badge ${product.is_active ? 'badge-success' : 'bg-gray-100 text-gray-600'}`}
+                      >
                         {product.is_active ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
@@ -296,14 +351,26 @@ export default function Products() {
             <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold">{editProduct ? 'Modifier le produit' : 'Nouveau produit'}</h2>
+                  <h2 className="text-xl font-bold">
+                    {editProduct ? 'Modifier le produit' : 'Nouveau produit'}
+                  </h2>
                   <p className="text-sm text-primary-100 mt-1">
-                    {editProduct ? 'Mettre a jour les informations' : 'Ajouter un nouveau produit au catalogue'}
+                    {editProduct
+                      ? 'Mettre a jour les informations'
+                      : 'Ajouter un nouveau produit au catalogue'}
                   </p>
                 </div>
-                <button onClick={handleCloseModal} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                <button
+                  onClick={handleCloseModal}
+                  className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -312,31 +379,64 @@ export default function Products() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">SKU <span className="text-danger-500">*</span></label>
-                  <input type="text" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} className="input" required />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    SKU <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sku}
+                    onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                    className="input"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Nom <span className="text-danger-500">*</span></label>
-                  <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="input" required />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Nom <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    className="input"
+                    required
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Description</label>
-                <textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} rows={2} className="input resize-none" />
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  rows={2}
+                  className="input resize-none"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Categorie</label>
-                  <input type="text" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="input" list="categories-list" />
+                  <input
+                    type="text"
+                    value={formData.category}
+                    onChange={e => setFormData({ ...formData, category: e.target.value })}
+                    className="input"
+                    list="categories-list"
+                  />
                   <datalist id="categories-list">
-                    {categories.map(cat => <option key={cat} value={cat} />)}
+                    {categories.map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
                   </datalist>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Unite</label>
-                  <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} className="input">
+                  <select
+                    value={formData.unit}
+                    onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                    className="input"
+                  >
                     <option value="piece">Piece</option>
                     <option value="kg">Kilogramme</option>
                     <option value="litre">Litre</option>
@@ -348,22 +448,51 @@ export default function Products() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Prix Achat (FCFA) <span className="text-danger-500">*</span></label>
-                  <input type="number" step="1" value={formData.cost_price} onChange={e => setFormData({ ...formData, cost_price: e.target.value })} className="input" required />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Prix Achat (FCFA) <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={formData.cost_price}
+                    onChange={e => setFormData({ ...formData, cost_price: e.target.value })}
+                    className="input"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Prix Vente (FCFA) <span className="text-danger-500">*</span></label>
-                  <input type="number" step="1" value={formData.sell_price} onChange={e => setFormData({ ...formData, sell_price: e.target.value })} className="input" required />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Prix Vente (FCFA) <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={formData.sell_price}
+                    onChange={e => setFormData({ ...formData, sell_price: e.target.value })}
+                    className="input"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Seuil alerte</label>
-                  <input type="number" value={formData.alert_threshold} onChange={e => setFormData({ ...formData, alert_threshold: e.target.value })} className="input" />
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Seuil alerte
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.alert_threshold}
+                    onChange={e => setFormData({ ...formData, alert_threshold: e.target.value })}
+                    className="input"
+                  />
                 </div>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={handleCloseModal} className="btn-secondary flex-1">Annuler</button>
-                <button type="submit" className="btn-primary flex-1">{editProduct ? 'Mettre a jour' : 'Creer'}</button>
+                <button type="button" onClick={handleCloseModal} className="btn-secondary flex-1">
+                  Annuler
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  {editProduct ? 'Mettre a jour' : 'Creer'}
+                </button>
               </div>
             </form>
           </div>

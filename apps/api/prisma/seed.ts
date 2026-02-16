@@ -154,6 +154,24 @@ async function main() {
 
   console.log('✅ Employé avec PIN 1234 créé');
 
+  // Ajouter role EMPLOYEE sur shop2 aussi
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: employeeUser.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: employeeUser.id,
+      shop_id: shop2.id,
+      role: 'EMPLOYEE',
+    },
+  });
+
+  console.log('✅ Employé PIN 1234 ajouté à shop2 (251225)');
+
   const adminUser = await prisma.user.upsert({
     where: { phone: '+221772222222' },
     update: {},
@@ -180,7 +198,69 @@ async function main() {
     },
   });
 
-  console.log('✅ Manager avec PIN 9999 créé');
+  // Ajouter role MANAGER sur shop2 aussi
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: adminUser.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: adminUser.id,
+      shop_id: shop2.id,
+      role: 'MANAGER',
+    },
+  });
+
+  console.log('✅ Manager avec PIN 9999 créé (shop1 + shop2)');
+
+  // Créer utilisateur Manager avec PIN 2222
+  const managerUser2 = await prisma.user.upsert({
+    where: { phone: '+221773333333' },
+    update: { pin_code: '2222' },
+    create: {
+      phone: '+221773333333',
+      pin_code: '2222',
+      display_name: 'Manager Test 2',
+      is_active: true,
+    },
+  });
+
+  // Role MANAGER sur shop1
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: managerUser2.id,
+        shop_id: shop.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: managerUser2.id,
+      shop_id: shop.id,
+      role: 'MANAGER',
+    },
+  });
+
+  // Role MANAGER sur shop2
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: managerUser2.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: managerUser2.id,
+      shop_id: shop2.id,
+      role: 'MANAGER',
+    },
+  });
+
+  console.log('✅ Manager avec PIN 2222 créé (shop1 + shop2)');
 
   // 5b. Créer un SUPERADMIN (pour web-admin)
   const superAdminPassword = await bcrypt.hash('superadmin123', 10);

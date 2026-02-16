@@ -62,15 +62,21 @@ export default function TransactionHistory() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'COMPLETED': return <span className="badge badge-success">Completee</span>;
-      case 'CANCELLED': return <span className="badge badge-danger">Annulee</span>;
-      case 'DRAFT': return <span className="badge bg-gray-100 text-gray-600">Brouillon</span>;
-      default: return <span className="badge bg-gray-100 text-gray-600">{status}</span>;
+      case 'COMPLETED':
+        return <span className="badge badge-success">Completee</span>;
+      case 'CANCELLED':
+        return <span className="badge badge-danger">Annulee</span>;
+      case 'DRAFT':
+        return <span className="badge bg-gray-100 text-gray-600">Brouillon</span>;
+      default:
+        return <span className="badge bg-gray-100 text-gray-600">{status}</span>;
     }
   };
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-  const formatTime = (d: string) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatTime = (d: string) =>
+    new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   const handleCancel = async (id: string) => {
     if (!confirm('Annuler cette vente ?')) return;
@@ -79,7 +85,7 @@ export default function TransactionHistory() {
       loadData();
       setDetailView(null);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Erreur lors de l\'annulation');
+      alert(error.response?.data?.message || "Erreur lors de l'annulation");
     }
   };
 
@@ -117,7 +123,11 @@ export default function TransactionHistory() {
       {/* Filters */}
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="input w-auto">
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="input w-auto"
+          >
             <option value="">Tous statuts</option>
             <option value="COMPLETED">Completees</option>
             <option value="CANCELLED">Annulees</option>
@@ -125,9 +135,19 @@ export default function TransactionHistory() {
           </select>
           <div className="flex gap-2 items-center">
             <label className="text-sm text-gray-500">Du</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="input w-auto" />
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="input w-auto"
+            />
             <label className="text-sm text-gray-500">au</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="input w-auto" />
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className="input w-auto"
+            />
           </div>
         </div>
       </div>
@@ -137,7 +157,9 @@ export default function TransactionHistory() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique des ventes</h2>
 
         {isLoading ? (
-          <div className="flex justify-center py-12"><div className="w-12 h-12 spinner"></div></div>
+          <div className="flex justify-center py-12">
+            <div className="w-12 h-12 spinner"></div>
+          </div>
         ) : sales.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">Aucune vente trouvee</p>
@@ -147,24 +169,40 @@ export default function TransactionHistory() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Articles</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Client
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Articles
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Statut
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sales.map(sale => (
                   <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-gray-900">{formatDate(sale.created_at)}</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatDate(sale.created_at)}
+                      </p>
                       <p className="text-xs text-gray-500">{formatTime(sale.created_at)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-gray-900">{getCustomerName(sale.customer)}</p>
-                      {sale.notes && <p className="text-xs text-gray-500 truncate max-w-xs">{sale.notes}</p>}
+                      {sale.notes && (
+                        <p className="text-xs text-gray-500 truncate max-w-xs">{sale.notes}</p>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="badge-primary">
@@ -172,7 +210,9 @@ export default function TransactionHistory() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <p className="text-sm font-bold text-gray-900">{formatCurrency(sale.total)}</p>
+                      <p className="text-sm font-bold text-gray-900">
+                        {formatCurrency(sale.total)}
+                      </p>
                       {sale.discount && sale.discount > 0 && (
                         <p className="text-xs text-danger-500">-{formatCurrency(sale.discount)}</p>
                       )}
@@ -206,8 +246,18 @@ export default function TransactionHistory() {
                     {formatDate(detailView.created_at)} a {formatTime(detailView.created_at)}
                   </p>
                 </div>
-                <button onClick={() => setDetailView(null)} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <button
+                  onClick={() => setDetailView(null)}
+                  className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -248,10 +298,18 @@ export default function TransactionHistory() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-100">
-                          <th className="py-2 text-left text-xs font-medium text-gray-500">Produit</th>
-                          <th className="py-2 text-center text-xs font-medium text-gray-500">Qte</th>
-                          <th className="py-2 text-right text-xs font-medium text-gray-500">Prix unit.</th>
-                          <th className="py-2 text-right text-xs font-medium text-gray-500">Total</th>
+                          <th className="py-2 text-left text-xs font-medium text-gray-500">
+                            Produit
+                          </th>
+                          <th className="py-2 text-center text-xs font-medium text-gray-500">
+                            Qte
+                          </th>
+                          <th className="py-2 text-right text-xs font-medium text-gray-500">
+                            Prix unit.
+                          </th>
+                          <th className="py-2 text-right text-xs font-medium text-gray-500">
+                            Total
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -261,8 +319,12 @@ export default function TransactionHistory() {
                               {item.product?.name || item.product_name || '-'}
                             </td>
                             <td className="py-2 text-center text-sm text-gray-600">{item.qty}</td>
-                            <td className="py-2 text-right text-sm text-gray-600">{formatCurrency(item.unit_price)}</td>
-                            <td className="py-2 text-right text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                            <td className="py-2 text-right text-sm text-gray-600">
+                              {formatCurrency(item.unit_price)}
+                            </td>
+                            <td className="py-2 text-right text-sm font-medium text-gray-900">
+                              {formatCurrency(item.total)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -273,11 +335,16 @@ export default function TransactionHistory() {
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 {detailView.status === 'COMPLETED' && (
-                  <button onClick={() => handleCancel(detailView.id)} className="btn-sm text-danger-600 hover:bg-danger-50 border border-danger-200 rounded-lg px-4 py-2">
+                  <button
+                    onClick={() => handleCancel(detailView.id)}
+                    className="btn-sm text-danger-600 hover:bg-danger-50 border border-danger-200 rounded-lg px-4 py-2"
+                  >
                     Annuler la vente
                   </button>
                 )}
-                <button onClick={() => setDetailView(null)} className="btn-secondary flex-1">Fermer</button>
+                <button onClick={() => setDetailView(null)} className="btn-secondary flex-1">
+                  Fermer
+                </button>
               </div>
             </div>
           </div>

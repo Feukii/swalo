@@ -158,9 +158,7 @@ export default function Home() {
           }}
         >
           <p className="text-sm font-medium text-white/80 mb-2">Solde de caisse</p>
-          <p className="text-4xl font-bold text-white tracking-tight">
-            {formatFCFA(cashBalance)}
-          </p>
+          <p className="text-4xl font-bold text-white tracking-tight">{formatFCFA(cashBalance)}</p>
         </div>
 
         {/* KPI Cards - Activite du jour */}
@@ -172,12 +170,8 @@ export default function Home() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                 Ventes du jour
               </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {todaySalesCount}
-              </p>
-              <p className="text-sm text-gray-400 mt-1">
-                vente{todaySalesCount > 1 ? 's' : ''}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{todaySalesCount}</p>
+              <p className="text-sm text-gray-400 mt-1">vente{todaySalesCount > 1 ? 's' : ''}</p>
             </div>
 
             {/* Entrees */}
@@ -185,11 +179,10 @@ export default function Home() {
               <p className="text-xs font-medium text-green-600 uppercase tracking-wide mb-2">
                 Entrees
               </p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatFCFA(todayEntries)}
-              </p>
+              <p className="text-2xl font-bold text-green-600">{formatFCFA(todayEntries)}</p>
               <p className="text-sm text-gray-400 mt-1">
-                {cashStats?.entriesCount || 0} operation{(cashStats?.entriesCount || 0) > 1 ? 's' : ''}
+                {cashStats?.entriesCount || 0} operation
+                {(cashStats?.entriesCount || 0) > 1 ? 's' : ''}
               </p>
             </div>
 
@@ -198,9 +191,7 @@ export default function Home() {
               <p className="text-xs font-medium text-red-600 uppercase tracking-wide mb-2">
                 Sorties
               </p>
-              <p className="text-2xl font-bold text-red-600">
-                {formatFCFA(todayExits)}
-              </p>
+              <p className="text-2xl font-bold text-red-600">{formatFCFA(todayExits)}</p>
               <p className="text-sm text-gray-400 mt-1">
                 {cashStats?.exitsCount || 0} operation{(cashStats?.exitsCount || 0) > 1 ? 's' : ''}
               </p>
@@ -211,12 +202,13 @@ export default function Home() {
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                 Solde Net
               </p>
-              <p className={`text-2xl font-bold ${todayNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {todayNet >= 0 ? '+' : ''}{formatFCFA(todayNet)}
+              <p
+                className={`text-2xl font-bold ${todayNet >= 0 ? 'text-green-600' : 'text-red-600'}`}
+              >
+                {todayNet >= 0 ? '+' : ''}
+                {formatFCFA(todayNet)}
               </p>
-              <p className="text-sm text-gray-400 mt-1">
-                entrees - sorties
-              </p>
+              <p className="text-sm text-gray-400 mt-1">entrees - sorties</p>
             </div>
           </div>
         </div>
@@ -273,21 +265,15 @@ export default function Home() {
                 </div>
                 <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {debtsStats.totalCount}
-                    </p>
+                    <p className="text-2xl font-bold text-gray-900">{debtsStats.totalCount}</p>
                     <p className="text-xs text-gray-500">Actives</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-yellow-500">
-                      {debtsStats.pendingCount}
-                    </p>
+                    <p className="text-2xl font-bold text-yellow-500">{debtsStats.pendingCount}</p>
                     <p className="text-xs text-gray-500">En attente</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-500">
-                      {debtsStats.partialCount}
-                    </p>
+                    <p className="text-2xl font-bold text-blue-500">{debtsStats.partialCount}</p>
                     <p className="text-xs text-gray-500">Partielles</p>
                   </div>
                 </div>
@@ -305,16 +291,18 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <p className="text-sm text-gray-500 mb-1">Total produits</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {productStats.total_products}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">{productStats.total_products}</p>
                 <p className="text-xs text-gray-400 mt-1">
                   {productStats.active_products} actif{productStats.active_products > 1 ? 's' : ''}
                 </p>
               </div>
-              <div className={`rounded-lg p-4 text-center ${productStats.low_stock_count > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+              <div
+                className={`rounded-lg p-4 text-center ${productStats.low_stock_count > 0 ? 'bg-red-50' : 'bg-green-50'}`}
+              >
                 <p className="text-sm text-gray-500 mb-1">Alertes stock faible</p>
-                <p className={`text-2xl font-bold ${productStats.low_stock_count > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <p
+                  className={`text-2xl font-bold ${productStats.low_stock_count > 0 ? 'text-red-600' : 'text-green-600'}`}
+                >
                   {productStats.low_stock_count}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -334,7 +322,8 @@ export default function Home() {
                   {formatFCFA(salesStats?.total_revenue || 0)}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {salesStats?.total_sales || 0} vente{(salesStats?.total_sales || 0) > 1 ? 's' : ''} au total
+                  {salesStats?.total_sales || 0} vente
+                  {(salesStats?.total_sales || 0) > 1 ? 's' : ''} au total
                 </p>
               </div>
             </div>

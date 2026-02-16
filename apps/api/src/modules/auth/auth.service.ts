@@ -394,6 +394,8 @@ export class AuthService {
           }
         : null,
       role: userRole.role,
+      enabled_modules: shop.enabled_modules ?? [],
+      license_tier: shopEnterprise?.license_tier ?? null,
       ...tokens,
     };
   }
@@ -551,7 +553,14 @@ export class AuthService {
             shop: {
               include: {
                 enterprise: {
-                  select: { id: true, code: true, name: true, logo_url: true },
+                  select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    logo_url: true,
+                    license_tier: true,
+                    licensed_until: true,
+                  },
                 },
               },
             },
@@ -567,15 +576,20 @@ export class AuthService {
     const primaryRole = user.user_roles[0] ?? null;
     const { password_hash: _passwordHash2, user_roles, ...userWithoutPassword } = user;
 
+    const shop = primaryRole ? primaryRole.shop : null;
+    const enterprise = primaryRole?.shop?.enterprise ?? null;
+
     return {
       user: userWithoutPassword,
-      shop: primaryRole ? primaryRole.shop : null,
-      enterprise: primaryRole?.shop?.enterprise ?? null,
+      shop,
+      enterprise,
       role: primaryRole ? primaryRole.role : null,
       roles: user_roles.map(role => ({
         role: role.role,
         shop: role.shop,
       })),
+      enabled_modules: shop?.enabled_modules ?? [],
+      license_tier: enterprise?.license_tier ?? null,
     };
   }
 

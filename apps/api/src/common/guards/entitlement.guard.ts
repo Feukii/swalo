@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
 import { REQUIRED_MODULE_KEY } from '../decorators/require-module.decorator';
+import { getModuleDefinition } from '@swalo/core/modules/registry';
 
 @Injectable()
 export class EntitlementGuard implements CanActivate {
@@ -51,9 +52,15 @@ export class EntitlementGuard implements CanActivate {
     }
 
     if (!shop.enabled_modules.includes(requiredModule)) {
-      throw new ForbiddenException(
-        `Le module "${requiredModule}" n'est pas active pour cette boutique. Contactez votre administrateur.`
-      );
+      const moduleDef = getModuleDefinition(requiredModule);
+      const moduleName = moduleDef?.name ?? requiredModule;
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'MODULE_DISABLED',
+        module: requiredModule,
+        moduleName,
+        message: `Le module "${moduleName}" n'est pas inclus dans votre licence. Contactez votre administrateur.`,
+      });
     }
 
     return true;

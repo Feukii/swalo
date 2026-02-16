@@ -3,8 +3,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ImportService, ImportPreviewResult } from './import.service';
 import { ImportPreviewDto } from './dto/import-preview.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('import')
+@RequireModule('import')
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 

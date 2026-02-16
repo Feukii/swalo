@@ -59,8 +59,7 @@ type PaymentMethod = 'cash' | 'credit';
 // ---------------------------------------------------------------------------
 
 /** Formate un montant entier FCFA avec separateurs de milliers. */
-const formatFCFA = (amount: number): string =>
-  amount.toLocaleString('fr-FR') + ' FCFA';
+const formatFCFA = (amount: number): string => amount.toLocaleString('fr-FR') + ' FCFA';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -154,13 +153,10 @@ export default function Sale() {
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.unitPrice * item.qty, 0),
-    [cart],
+    [cart]
   );
 
-  const totalItems = useMemo(
-    () => cart.reduce((sum, item) => sum + item.qty, 0),
-    [cart],
-  );
+  const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.qty, 0), [cart]);
 
   /** Map productId -> total qty in cart (across batches). */
   const cartQtyByProduct = useMemo(() => {
@@ -189,7 +185,7 @@ export default function Sale() {
                 sell_price: p.sell_price ?? p.price ?? 0,
                 available_qty: p.available_qty ?? p.quantity ?? p.total_quantity ?? 0,
               }))
-            : [],
+            : []
         );
       } catch (err) {
         console.error('Erreur chargement prix:', err);
@@ -205,10 +201,8 @@ export default function Sale() {
   };
 
   const addItemToCart = (product: Product, unitPrice: number, batchId?: string) => {
-    setCart((prev) => {
-      const existing = prev.find(
-        (item) => item.productId === product.id && item.batchId === batchId,
-      );
+    setCart(prev => {
+      const existing = prev.find(item => item.productId === product.id && item.batchId === batchId);
 
       if (existing) {
         // Check stock
@@ -219,10 +213,10 @@ export default function Sale() {
           setTimeout(() => setErrorMessage(''), 3000);
           return prev;
         }
-        return prev.map((item) =>
+        return prev.map(item =>
           item.productId === product.id && item.batchId === batchId
             ? { ...item, qty: item.qty + 1 }
-            : item,
+            : item
         );
       }
 
@@ -253,7 +247,7 @@ export default function Sale() {
   };
 
   const updateQty = (index: number, delta: number) => {
-    setCart((prev) => {
+    setCart(prev => {
       const item = prev[index];
       if (!item) return prev;
 
@@ -263,17 +257,14 @@ export default function Sale() {
       }
 
       // Check stock limit
-      const product = products.find((p) => p.id === item.productId);
+      const product = products.find(p => p.id === item.productId);
       const currentStock = product?.current_stock ?? 0;
-      const otherQty =
-        prev
-          .filter((_, i) => i !== index)
-          .filter((c) => c.productId === item.productId)
-          .reduce((s, c) => s + c.qty, 0);
+      const otherQty = prev
+        .filter((_, i) => i !== index)
+        .filter(c => c.productId === item.productId)
+        .reduce((s, c) => s + c.qty, 0);
       if (newQty + otherQty > currentStock) {
-        setErrorMessage(
-          `Stock insuffisant pour ${item.productName} (${currentStock} disponibles)`,
-        );
+        setErrorMessage(`Stock insuffisant pour ${item.productName} (${currentStock} disponibles)`);
         setTimeout(() => setErrorMessage(''), 3000);
         return prev;
       }
@@ -283,7 +274,7 @@ export default function Sale() {
   };
 
   const removeItem = (index: number) => {
-    setCart((prev) => prev.filter((_, i) => i !== index));
+    setCart(prev => prev.filter((_, i) => i !== index));
   };
 
   // =========================================================================
@@ -309,16 +300,13 @@ export default function Sale() {
       // 1. Create the sale
       const salePayload = {
         customer_id: selectedCustomerId || undefined,
-        items: cart.map((item) => ({
+        items: cart.map(item => ({
           product_id: item.productId,
           qty: item.qty,
           unit_price: item.unitPrice,
         })),
         status: 'COMPLETED' as const,
-        notes:
-          paymentMethod === 'credit'
-            ? 'Vente a credit'
-            : 'Vente au comptant',
+        notes: paymentMethod === 'credit' ? 'Vente a credit' : 'Vente au comptant',
       };
 
       const createdSale = await salesApi.create(salePayload);
@@ -343,7 +331,7 @@ export default function Sale() {
       // 3. Success
       const customerLabel = selectedCustomerId
         ? (() => {
-            const c = customers.find((cu) => cu.id === selectedCustomerId);
+            const c = customers.find(cu => cu.id === selectedCustomerId);
             return c ? (c.first_name ? `${c.first_name} ${c.name}` : c.name) : '';
           })()
         : 'Client comptant';
@@ -351,7 +339,7 @@ export default function Sale() {
       setSuccessMessage(
         paymentMethod === 'cash'
           ? `Vente enregistree - ${formatFCFA(cartTotal)} (especes) - ${customerLabel}`
-          : `Vente a credit enregistree - ${formatFCFA(cartTotal)} - ${customerLabel}`,
+          : `Vente a credit enregistree - ${formatFCFA(cartTotal)} - ${customerLabel}`
       );
 
       // 4. Reset cart & reload products
@@ -365,7 +353,7 @@ export default function Sale() {
     } catch (err: any) {
       console.error('Erreur lors de la vente:', err);
       setErrorMessage(
-        err?.response?.data?.message || 'Erreur lors de l\'enregistrement de la vente.',
+        err?.response?.data?.message || "Erreur lors de l'enregistrement de la vente."
       );
     } finally {
       setSubmitting(false);
@@ -428,7 +416,7 @@ export default function Sale() {
                 type="text"
                 placeholder="Rechercher un produit (nom, SKU, marque...)"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
                 className="input pl-10"
               />
             </div>
@@ -445,12 +433,10 @@ export default function Sale() {
                 >
                   Toutes
                 </button>
-                {categories.map((cat) => (
+                {categories.map(cat => (
                   <button
                     key={cat}
-                    onClick={() =>
-                      setSelectedCategory(selectedCategory === cat ? '' : cat)
-                    }
+                    onClick={() => setSelectedCategory(selectedCategory === cat ? '' : cat)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                       selectedCategory === cat
                         ? 'bg-primary-600 text-white'
@@ -494,7 +480,7 @@ export default function Sale() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {products.map((product) => {
+                {products.map(product => {
                   const inCartQty = cartQtyByProduct.get(product.id) || 0;
                   const stock = product.current_stock ?? 0;
                   const isOutOfStock = stock <= 0;
@@ -617,9 +603,7 @@ export default function Sale() {
                 >
                   {/* Product info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {item.productName}
-                    </p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
                     <p className="text-xs text-gray-500">
                       {formatFCFA(item.unitPrice)} x {item.qty} ={' '}
                       <span className="font-semibold text-gray-700">
@@ -634,8 +618,18 @@ export default function Sale() {
                       onClick={() => updateQty(index, -1)}
                       className="w-7 h-7 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 transition-colors"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M20 12H4"
+                        />
                       </svg>
                     </button>
                     <span className="w-8 text-center text-sm font-semibold text-gray-900">
@@ -645,8 +639,18 @@ export default function Sale() {
                       onClick={() => updateQty(index, 1)}
                       className="w-7 h-7 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 transition-colors"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -674,16 +678,14 @@ export default function Sale() {
           <div className="border-t border-gray-200 p-4 space-y-4 bg-white">
             {/* Customer select */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Client
-              </label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Client</label>
               <select
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                onChange={e => setSelectedCustomerId(e.target.value)}
                 className="input text-sm"
               >
                 <option value="">Client comptant</option>
-                {customers.map((c) => (
+                {customers.map(c => (
                   <option key={c.id} value={c.id}>
                     {c.first_name ? `${c.first_name} ${c.name}` : c.name}
                     {c.phone ? ` (${c.phone})` : ''}
@@ -732,9 +734,7 @@ export default function Sale() {
             {/* Total */}
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <p className="text-xs text-gray-500 mb-1">Total</p>
-              <p className="text-3xl font-bold text-gray-900">
-                {formatFCFA(cartTotal)}
-              </p>
+              <p className="text-3xl font-bold text-gray-900">{formatFCFA(cartTotal)}</p>
             </div>
 
             {/* Validate button */}
@@ -754,12 +754,7 @@ export default function Sale() {
                 </>
               ) : (
                 <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -787,9 +782,7 @@ export default function Sale() {
                 <div>
                   <h3 className="text-lg font-bold">Choisir le prix</h3>
                   {priceModalProduct && (
-                    <p className="text-sm text-white/80 mt-0.5">
-                      {priceModalProduct.name}
-                    </p>
+                    <p className="text-sm text-white/80 mt-0.5">{priceModalProduct.name}</p>
                   )}
                 </div>
                 <button
@@ -824,9 +817,7 @@ export default function Sale() {
                   <div className="w-8 h-8 spinner" />
                 </div>
               ) : priceOptions.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">
-                  Aucun prix disponible.
-                </p>
+                <p className="text-sm text-gray-400 text-center py-4">Aucun prix disponible.</p>
               ) : (
                 priceOptions.map((option, idx) => (
                   <button
@@ -839,8 +830,8 @@ export default function Sale() {
                         {formatFCFA(option.sell_price)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {option.available_qty} unite{option.available_qty > 1 ? 's' : ''}{' '}
-                        disponible{option.available_qty > 1 ? 's' : ''}
+                        {option.available_qty} unite{option.available_qty > 1 ? 's' : ''} disponible
+                        {option.available_qty > 1 ? 's' : ''}
                       </p>
                     </div>
                     <svg
@@ -863,10 +854,7 @@ export default function Sale() {
 
             {/* Modal footer */}
             <div className="px-6 pb-6">
-              <button
-                onClick={closePriceModal}
-                className="btn-secondary w-full"
-              >
+              <button onClick={closePriceModal} className="btn-secondary w-full">
                 Annuler
               </button>
             </div>

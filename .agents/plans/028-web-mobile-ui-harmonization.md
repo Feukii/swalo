@@ -17,6 +17,7 @@ So that I have the same features and experience regardless of the platform
 ## Problem Statement
 
 Actuellement, la web est incomplete par rapport au mobile :
+
 - **Dashboard.tsx** est un placeholder qui sert 5 routes mais n'implemente que la gestion produits
 - **POS.tsx** n'est que de la gestion de caisse, pas un vrai point de vente avec panier
 - **Pas de SaleScreen** (POS avec panier, multi-prix, FIFO)
@@ -47,6 +48,7 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 ### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
 
 **Web (source actuelle) :**
+
 - `apps/web/src/App.tsx` - Router et routes actuelles
 - `apps/web/src/pages/Dashboard.tsx` (740 lines) - A remplacer par des pages dediees
 - `apps/web/src/pages/POS.tsx` (618 lines) - Gestion caisse actuelle (a renommer CashPage)
@@ -65,6 +67,7 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 - `apps/web/src/constants/theme.ts` - Theme web actuel
 
 **Mobile (reference a reproduire) :**
+
 - `apps/mobile/src/screens/HomeScreen.tsx` - Dashboard KPIs a reproduire
 - `apps/mobile/src/screens/SaleScreen.tsx` - POS avec panier a reproduire
 - `apps/mobile/src/screens/CashScreen.tsx` - Gestion caisse complete a reproduire
@@ -81,11 +84,13 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 - `apps/mobile/src/components/ui/` - Composants UI mobile de reference
 
 **Shared :**
+
 - `packages/core/src/` - Schemas Zod partages, types, constantes
 
 ### New Files to Create
 
 **Pages (14 nouvelles) :**
+
 - `apps/web/src/pages/Home.tsx` - Dashboard KPIs (miroir HomeScreen mobile)
 - `apps/web/src/pages/Sale.tsx` - POS avec panier, multi-prix, FIFO (miroir SaleScreen)
 - `apps/web/src/pages/Cash.tsx` - Gestion caisse enrichie (fusion POS.tsx + CashScreen mobile)
@@ -101,6 +106,7 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 - `apps/web/src/pages/ShopSwitcher.tsx` - Changement de boutique (entreprise multi-shop)
 
 **Composants reutilisables (optionnel - extraire si duplication) :**
+
 - `apps/web/src/components/ui/KPICard.tsx` - Carte KPI reutilisable
 - `apps/web/src/components/ui/StatusBadge.tsx` - Badge de statut
 - `apps/web/src/components/ui/SearchBar.tsx` - Barre de recherche
@@ -109,20 +115,24 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 ### Patterns to Follow
 
 **Naming Conventions:**
+
 - Pages web : PascalCase dans `apps/web/src/pages/`, nommees sans suffixe "Page" (ex: `Home.tsx`, `Sale.tsx`)
 - Composants : PascalCase dans `apps/web/src/components/`
 - API calls : utiliser les fonctions existantes de `api.ts` (productsApi, cashApi, salesApi, etc.)
 - Store : Zustand dans `apps/web/src/store/`
 
 **Error Handling:**
+
 - Pattern existant : try/catch avec console.error + affichage message dans le state
 - Voir Customers.tsx et POS.tsx pour le pattern
 
 **Data Validation:**
+
 - Utiliser les schemas Zod de `@swalo/core` quand disponibles
 - Validation inline pour les formulaires simples (pattern de POS.tsx)
 
 **State Management:**
+
 - Zustand pour l'auth globale (authStore existant)
 - useState local pour les modales, formulaires, donnees de page
 - useEffect pour le chargement initial des donnees
@@ -137,6 +147,7 @@ Creer les pages web manquantes en miroir du mobile, utilisant l'API existante (d
 Harmoniser le theme et creer les composants UI reutilisables.
 
 **Tasks:**
+
 - Aligner le theme web (`theme.ts`) avec le mobile (`theme-v2.ts`) pour les memes couleurs, spacing, radius
 - Creer les composants UI reutilisables : KPICard, StatusBadge, SearchBar, DateRangePicker
 - Mettre a jour le layout sidebar pour matcher les noms et icones du mobile
@@ -146,6 +157,7 @@ Harmoniser le theme et creer les composants UI reutilisables.
 Restructurer la navigation et creer la page d'accueil KPIs.
 
 **Tasks:**
+
 - Creer Home.tsx (Dashboard KPIs) comme page d'accueil (`/` route)
 - Ajouter toutes les nouvelles routes dans App.tsx
 - Mettre a jour le sidebar pour refleter la structure complete
@@ -156,6 +168,7 @@ Restructurer la navigation et creer la page d'accueil KPIs.
 Pages critiques pour l'activite quotidienne.
 
 **Tasks:**
+
 - Creer Sale.tsx : POS complet avec panier, recherche produits, multi-prix, selection client, methodes de paiement (cash/credit)
 - Ameliorer Cash.tsx : reprendre toutes les features du CashScreen mobile (journal mixte cash+credit, categories entrees/sorties, modales conditionnelles, verification solde)
 - Creer TransactionHistory.tsx : historique complet des transactions avec filtres
@@ -165,6 +178,7 @@ Pages critiques pour l'activite quotidienne.
 Pages de gestion produits et stock.
 
 **Tasks:**
+
 - Creer Products.tsx : extraction du Dashboard.tsx avec liste complete, recherche, filtres, CRUD
 - Creer ProductDetails.tsx : vue detail produit individuel avec batches, mouvements, prix
 - Creer ProductCatalog.tsx : catalogue navigable avec vue grille/liste
@@ -177,6 +191,7 @@ Pages de gestion produits et stock.
 Pages financieres dediees.
 
 **Tasks:**
+
 - Creer Receivables.tsx : resume global des creances clients (miroir CustomerBalancesSummaryScreen)
 - Creer Debts.tsx : resume global des dettes fournisseurs (miroir SupplierBalancesSummaryScreen)
 - Les pages CustomerDetails.tsx et SupplierDetails.tsx existent deja (gardees telles quelles)
@@ -186,6 +201,7 @@ Pages financieres dediees.
 Fonctionnalites multi-boutique.
 
 **Tasks:**
+
 - Creer ShopSwitcher.tsx : changement de boutique pour utilisateurs multi-shop
 - Verifier que EnterpriseDashboard.tsx est complet par rapport au mobile
 - Ajouter indicateur boutique active dans le header
@@ -193,6 +209,7 @@ Fonctionnalites multi-boutique.
 ### Phase 7: Polish & Cleanup (1 jour)
 
 **Tasks:**
+
 - Supprimer l'ancien Dashboard.tsx (remplace par les pages dediees)
 - Renommer POS.tsx en Cash.tsx (ou supprimer si fusionne)
 - Tester toutes les pages
@@ -242,7 +259,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Resume dettes fournisseurs (montant total, nombre actif)
   - Top 5 produits du jour
   - Derniere synchro / statut connexion
-  Utiliser les APIs : cashApi.getStats(), receivablesApi, debtsApi, productsApi.getStats()
+    Utiliser les APIs : cashApi.getStats(), receivablesApi, debtsApi, productsApi.getStats()
 - **PATTERN**: `apps/mobile/src/screens/HomeScreen.tsx` pour le layout, `apps/web/src/pages/BusinessReports.tsx` pour le style web
 - **GOTCHA**: Les montants sont en FCFA entier (pas de centimes). Utiliser formatCurrency de @swalo/core
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
@@ -263,8 +280,8 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - `/debts` → Debts (nouveau)
   - `/transactions` → TransactionHistory (nouveau)
   - `/shop-switcher` → ShopSwitcher (nouveau)
-  Garder les routes existantes (customers, suppliers, reports, enterprise, admin, settings).
-  Supprimer les routes qui pointent vers Dashboard (/sales, /receivables, /debts, /inventory pointant vers Dashboard).
+    Garder les routes existantes (customers, suppliers, reports, enterprise, admin, settings).
+    Supprimer les routes qui pointent vers Dashboard (/sales, /receivables, /debts, /inventory pointant vers Dashboard).
 - **PATTERN**: Structure de routes existante dans App.tsx
 - **GOTCHA**: Ne pas casser les routes existantes qui fonctionnent (customers, suppliers, reports, enterprise)
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
@@ -284,7 +301,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Rapports (Reports) - icone graphique
   - Historique (TransactionHistory) - icone horloge
   - Section Admin : Entreprises, Utilisateurs, Parametres
-  Garder le systeme de sidebar collapsible existant.
+    Garder le systeme de sidebar collapsible existant.
 - **PATTERN**: Structure existante dans MainLayout.tsx, noms du MainTabNavigator mobile
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -298,7 +315,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - **Modal multi-prix** : Quand un produit a plusieurs prix (batches differents), afficher les options avec prix, quantite dispo, et nombre de batches.
   - **Modal validation** : Resume du panier, client, total, toggle override prix avec raison obligatoire. Boutons confirmer/annuler.
   - **Apres vente** : Bouton generer facture (optionnel).
-  Utiliser les APIs : productsApi.getAll(), productBatchesApi, salesApi.create(), cashApi.createEntry() (pour vente cash), receivablesApi (pour vente credit), customersApi.getAll()
+    Utiliser les APIs : productsApi.getAll(), productBatchesApi, salesApi.create(), cashApi.createEntry() (pour vente cash), receivablesApi (pour vente credit), customersApi.getAll()
 - **PATTERN**: `apps/mobile/src/screens/SaleScreen.tsx` pour la logique metier, `apps/web/src/pages/POS.tsx` pour le style web
 - **GOTCHA**: Le FIFO est gere cote API. Le front doit envoyer batch_id si multi-prix. Credit desactive si pas de client. Montants FCFA entiers.
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
@@ -311,7 +328,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - **Journal mixte** : Liste des transactions du jour incluant cash ET credit (creances/dettes). Les transactions credit affichees en jaune avec label "(A credit)". Modal detail au clic.
   - **Modale Entree** : Categories (Ventes, Remboursement client, Divers). Mode paiement (Cash/Credit pour Ventes). Si credit : cree une creance, pas une entree cash. Selection client conditionnelle.
   - **Modale Sortie** : Categories (Achats marchandises, Loyers, Reglement fournisseur, Depenses courantes, Divers). Mode paiement (Cash/Credit pour Achats). Si credit : cree une dette, pas une sortie cash. Selection fournisseur conditionnelle. Verification solde suffisant.
-  Utiliser les APIs : cashApi, receivablesApi, debtsApi, customersApi, suppliersApi
+    Utiliser les APIs : cashApi, receivablesApi, debtsApi, customersApi, suppliersApi
 - **PATTERN**: `apps/mobile/src/screens/CashScreen.tsx` pour la logique complete, `apps/web/src/pages/POS.tsx` pour le code existant a etendre
 - **GOTCHA**: Les transactions credit n'impactent PAS le solde cash. Verification solde pour sorties. Note obligatoire pour "Divers".
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
@@ -323,7 +340,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Liste paginee des transactions avec : date, heure, type, categorie, montant, client/fournisseur, note
   - Modal detail au clic
   - Export (optionnel)
-  Utiliser : cashApi.getAll() avec parametres de filtre
+    Utiliser : cashApi.getAll() avec parametres de filtre
 - **PATTERN**: `apps/mobile/src/screens/TransactionHistoryScreen.tsx`, `apps/web/src/pages/BusinessReports.tsx` pour les filtres de dates
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -338,7 +355,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Tableau/grille produits : SKU, nom, categorie, prix achat, prix vente, stock actuel, statut, badge multi-prix
   - Bouton creer produit (modale)
   - Clic sur produit → navigation vers ProductDetails
-  Utiliser : productsApi.getAll(), productsApi.getStats(), productsApi.getCategories(), productsApi.create()
+    Utiliser : productsApi.getAll(), productsApi.getStats(), productsApi.getCategories(), productsApi.create()
 - **PATTERN**: Code existant dans `apps/web/src/pages/Dashboard.tsx` (extraire le code produits), `apps/mobile/src/screens/ProductCatalogScreen.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -350,7 +367,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Liste des batches actifs avec quantite restante, prix, dates
   - Historique des mouvements de stock
   - Boutons : modifier, ajouter batch/stock
-  Utiliser : productsApi.getOne(), productBatchesApi.getByProduct(), inventoryApi (si existe)
+    Utiliser : productsApi.getOne(), productBatchesApi.getByProduct(), inventoryApi (si existe)
 - **PATTERN**: `apps/mobile/src/screens/ProductDetailsScreen.tsx`, `apps/web/src/pages/ProductBatches.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -361,7 +378,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Compteurs a chaque niveau (nombre de produits)
   - Clic pour descendre dans la hierarchie
   - Breadcrumb pour remonter
-  Utiliser : productsApi.getAll() avec groupement cote front
+    Utiliser : productsApi.getAll() avec groupement cote front
 - **PATTERN**: `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -373,7 +390,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Produits en rupture
   - Bouton ajouter du stock (reception marchandise → cree un batch)
   - Historique des mouvements de stock
-  Utiliser : productsApi, productBatchesApi, inventoryApi (mouvements)
+    Utiliser : productsApi, productBatchesApi, inventoryApi (mouvements)
 - **PATTERN**: `apps/mobile/src/screens/StockManagementScreen.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -386,7 +403,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Liste des creances actives groupees par client avec : nom client, montant du, montant paye, solde restant, statut (PENDING/PARTIAL/PAID)
   - Bouton paiement rapide
   - Clic sur client → navigation vers CustomerDetails existant
-  Utiliser : receivablesApi, customersApi
+    Utiliser : receivablesApi, customersApi
 - **PATTERN**: `apps/mobile/src/screens/CustomerBalancesSummaryScreen.tsx`, `apps/web/src/pages/CustomerDetails.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -397,7 +414,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Liste des dettes actives groupees par fournisseur avec : nom fournisseur, montant du, montant paye, solde restant, statut
   - Bouton paiement rapide
   - Clic sur fournisseur → navigation vers SupplierDetails existant
-  Utiliser : debtsApi, suppliersApi
+    Utiliser : debtsApi, suppliersApi
 - **PATTERN**: `apps/mobile/src/screens/SupplierBalancesSummaryScreen.tsx`, `apps/web/src/pages/SupplierDetails.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -409,7 +426,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   - Liste des boutiques de l'entreprise
   - Boutique active mise en evidence
   - Clic pour changer de boutique (met a jour le token/contexte)
-  Utiliser : enterpriseApi.getShops(), authApi (refresh token avec nouveau shop_id)
+    Utiliser : enterpriseApi.getShops(), authApi (refresh token avec nouveau shop_id)
 - **PATTERN**: `apps/mobile/src/screens/ShopSwitcherScreen.tsx`
 - **VALIDATE**: `pnpm --filter @swalo/web run lint`
 
@@ -434,6 +451,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Composants UI reutilisables (KPICard, StatusBadge, SearchBar)
 **Requirements**:
+
 - Jest + React Testing Library (deja configure dans le projet)
 - Tester le rendu des props, les interactions utilisateur basiques
 - **VALIDATION COMMAND**: `pnpm --filter @swalo/web run test`
@@ -441,6 +459,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Integration Tests
 
 **Scope**: Flux complets de chaque page
+
 - **Sale.tsx** : Ajouter produit au panier → modifier quantite → selectionner client → valider vente
 - **Cash.tsx** : Creer entree → verifier journal → creer sortie credit → verifier pas d'impact solde
 - **Products.tsx** : Recherche → filtre → creation produit
@@ -514,6 +533,7 @@ pnpm run validate
 ## NOTES
 
 **Architecture web vs mobile :**
+
 - Le web utilise les APIs HTTP (api.ts) au lieu du SQLite local
 - Pas de mode offline pour le web (pas necessaire)
 - Le web a un layout sidebar, le mobile a des bottom tabs
@@ -521,6 +541,7 @@ pnpm run validate
 - Le web peut utiliser des tableaux, le mobile utilise des FlatList
 
 **Priorite d'implementation :**
+
 1. Sale.tsx (POS) - critique pour l'activite quotidienne
 2. Cash.tsx - critique pour la gestion financiere
 3. Home.tsx - important pour la vue d'ensemble
@@ -528,6 +549,7 @@ pnpm run validate
 5. Le reste est secondaire
 
 **APK Size (mobile) :**
+
 - Ce plan ne touche PAS l'app mobile, donc pas d'impact sur la taille APK
 - Le web est une SPA servie par Vite, pas de contrainte de taille
 

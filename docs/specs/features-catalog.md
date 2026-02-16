@@ -1,8 +1,8 @@
 # SWALO - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-02-10
+> **Dernière mise à jour** : 2026-02-16
 > **Version application** : 1.0.0
-> **Branche** : feature/phase2-fifo-multiprice
+> **Branche** : feature/web-mobile-harmonization-modules-bugfix
 >
 > **Ce fichier DOIT être mis à jour à chaque ajout ou modification de fonctionnalité.**
 
@@ -1225,10 +1225,10 @@ Chaque opération :
 | --------------- | ------------------------------------------------------ |
 | **Description** | Système de design centralisé pour l'application mobile |
 | **Plateformes** | Mobile                                                 |
-| **Fichier**     | `apps/mobile/src/constants/theme.ts` (281 lignes)      |
+| **Fichier**     | `apps/mobile/src/constants/theme-v2.ts`                |
 
-- Couleurs primaires (Sky Blue), secondaires (Violet)
-- Couleurs sémantiques : succès (vert), danger (rouge), avertissement (ambre), info (bleu)
+- Couleurs primaires : Bleu Petrole / Navy (#0F2A44)
+- Couleurs sémantiques : succès (#1EB980), danger (rouge), avertissement (ambre), info (bleu)
 - Couleurs par contexte : clients (ambre), fournisseurs (rouge), caisse (violet)
 - Couleurs par rôle utilisateur
 - Tokens d'espacement, typographie, ombres, rayons de bordure
@@ -1243,16 +1243,30 @@ Chaque opération :
 
 Composants : `ScreenHeader`, `KPICard`, `ListItem`, `SearchableSelect`, `BalanceIndicator`, `StatusBadge`, `TransactionDetailModal`, `DateRangePicker`, `ProductCard`, `IconButton`, `OfflineBanner`, `ErrorBoundary`
 
-### 14.3 Thème web (Tailwind)
+### 14.3 Thème web (Tailwind) - Harmonisé avec mobile
 
-| Propriété       | Valeur                                                                                |
-| --------------- | ------------------------------------------------------------------------------------- |
-| **Description** | Configuration Tailwind CSS avec couleurs et animations                                |
-| **Plateformes** | Web                                                                                   |
-| **Fichiers**    | `apps/web/tailwind.config.js`, `apps/web/src/index.css`                               |
-| **Statut**      | **Partiellement implémenté** - de nombreuses pages utilisent encore des styles inline |
+| Propriété       | Valeur                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| **Description** | Configuration Tailwind CSS harmonisée avec le thème mobile (palette Navy #0F2A44, succès #1EB980) |
+| **Plateformes** | Web                                                                                               |
+| **Fichiers**    | `apps/web/tailwind.config.js`, `apps/web/src/index.css`, `apps/web/src/components/ui/Logo.tsx`    |
+| **Statut**      | **Implémenté** (Plan 029) - Toutes les pages utilisent la palette Navy harmonisée avec le mobile  |
 
-Classes CSS existantes : `.btn-*`, `.card`, `.badge-*`, `.input`, `.text-gradient`, `.glass`, `.spinner`
+- Palette primaire Navy : 50 (#EEF5FB) .. 900 (#0F2A44) - identique au mobile
+- Succès : #1EB980 (identique mobile)
+- Logo SWALO (SVG/PNG) partagé entre web et mobile
+- Classes CSS : `.btn-*`, `.card`, `.badge-*`, `.input`, `.text-gradient`, `.glass`, `.spinner`
+
+### 14.3b Composant Logo web
+
+| Propriété       | Valeur                                                                   |
+| --------------- | ------------------------------------------------------------------------ |
+| **Description** | Composant Logo réutilisable avec variantes icon/full et tailles sm/md/lg |
+| **Plateformes** | Web                                                                      |
+| **Fichier**     | `apps/web/src/components/ui/Logo.tsx`                                    |
+| **Statut**      | **Implémenté** (Plan 029)                                                |
+
+- Utilisé dans la sidebar (MainLayout), la page de connexion (LoginPin), la page de création de boutique
 
 ### 14.4 Navigation mobile (5 onglets)
 
@@ -1270,18 +1284,24 @@ Classes CSS existantes : `.btn-*`, `.card`, `.badge-*`, `.input`, `.text-gradien
 | Stock   | `StockManagementScreen` | Boîte        |
 | Plus    | `MoreScreen`            | Menu         |
 
-### 14.5 Layout web (sidebar + top bar)
+### 14.5 Layout web (sidebar + top bar) - Module-aware
 
-| Propriété       | Valeur                                                              |
-| --------------- | ------------------------------------------------------------------- |
-| **Description** | Interface web avec barre latérale de navigation et barre supérieure |
-| **Plateformes** | Web                                                                 |
-| **Fichier**     | `apps/web/src/components/Layout/MainLayout.tsx`                     |
+| Propriété       | Valeur                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------- |
+| **Description** | Interface web avec sidebar filtrant les modules selon la licence (grisés si non inclus) |
+| **Plateformes** | Web                                                                                     |
+| **Fichiers**    | `apps/web/src/components/Layout/MainLayout.tsx`, `apps/web/src/hooks/useModules.ts`     |
+| **Statut**      | **Implémenté** (Plan 029)                                                               |
+
+Chaque item de navigation est associé a un module. Si le module n'est pas inclus dans la licence :
+
+- L'item est affiché en gris (opacity-40) avec un cadenas
+- Un tooltip indique "Licence X - Module non inclus"
+- Le clic est desactivé
 
 Éléments de navigation sidebar :
 
-- Caisse, Ventes, Produits, Clients, Créances, Fournisseurs, Dettes, Inventaire, Rapports, Entreprises
-- Section admin (conditionnel SUPERADMIN) : Admin Dashboard, Entreprises, Boutiques, Utilisateurs, Logs d'audit, Configuration
+- Accueil, Vente (sales), Caisse (cash), Historique (sales), Produits (products), Catalogue (products), Stock (inventory), Clients (customers), Creances (receivables), Fournisseurs (suppliers), Dettes (debts), Rapports (reports), Entreprises (enterprise)
 - Section admin (conditionnel BOSS/MANAGER) : Gestion Utilisateurs
 
 ---
@@ -1459,7 +1479,9 @@ Erreurs Prisma mappées :
 | **PROFESSIONAL** | Coeur + Étendu           | Boutique avec employés      |
 | **ENTERPRISE**   | Coeur + Étendu + Premium | PME multi-boutiques         |
 
-> Le système d'activation de modules est **implémenté** (Plan 023 - Phase 5). Le champ `enabled_modules` sur Shop contrôle les modules actifs. L'`EntitlementGuard` (APP_GUARD global) vérifie que le module requis est activé avant chaque requête. Si `enabled_modules` est vide, tous les modules sont autorisés (rétrocompatibilité). Les contrôleurs `suppliers`, `debts` et `receivables` sont décorés avec `@RequireModule()`. Le registre des modules est dans `packages/core/src/modules/registry.ts`.
+> Le système d'activation de modules est **implémenté** (Plan 023 - Phase 5, complété Plan 029). Le champ `enabled_modules` sur Shop contrôle les modules actifs. L'`EntitlementGuard` (APP_GUARD global) vérifie que le module requis est activé avant chaque requête. Si `enabled_modules` est vide, tous les modules sont autorisés (rétrocompatibilité). Les contrôleurs décorés avec `@RequireModule()` : `suppliers`, `debts`, `receivables`, `transfers`, `invoices`, `import`, `enterprise`, `notifications`, `packaging-types`. Le registre des modules est dans `packages/core/src/modules/registry.ts`.
+>
+> **Plan 029** : L'`EntitlementGuard` retourne un code structuré `MODULE_DISABLED` avec le nom du module dans la réponse 403. Les frontends (web + mobile) interceptent ce code pour afficher un message contextuel. La réponse d'authentification (`/auth/me`, `/auth/pin`) inclut désormais `enabled_modules` et `license_tier`. Le web affiche les modules non inclus en gris dans la sidebar avec un cadenas. Le mobile affiche une alerte avec le nom du module et le tier de licence.
 >
 > **Plan 026** : Validation licence active. `updateShopModules()` vérifie que les modules demandés sont autorisés par le `license_tier` de l'entreprise via `getAvailableModulesForLicense()`. Validation des dépendances inter-modules via `validateModuleDependencies()`. `updateLicense()` auto-synchronise les modules des boutiques lors d'un downgrade (supprime les modules non autorisés par le nouveau tier).
 
@@ -1475,12 +1497,13 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                                                                                                                                                                             | Auteur      |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                       | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                        | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                      | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                    | Claude Code |
+| Date       | Description                                                                                                                                                                                                                                                                                                                                                           | Auteur      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web | Claude Code |
+| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                               | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                     | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                      | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                    | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                  | Claude Code |
 
 <!-- EOF -->

@@ -4,8 +4,10 @@ import { Role } from '@prisma/client';
 import { PackagingTypesService } from './packaging-types.service';
 import { CreatePackagingTypeDto } from './dto/create-packaging-type.dto';
 import { UpdatePackagingTypeDto } from './dto/update-packaging-type.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('packaging-types')
+@RequireModule('packaging-types')
 export class PackagingTypesController {
   constructor(private readonly packagingTypesService: PackagingTypesService) {}
 

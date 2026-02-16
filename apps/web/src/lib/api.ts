@@ -39,6 +39,23 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Gestion des modules desactives (403)
+    if (error.response?.status === 403) {
+      const data = error.response.data as any;
+      if (data?.code === 'MODULE_DISABLED') {
+        window.dispatchEvent(
+          new CustomEvent('module-disabled', {
+            detail: {
+              module: data.module,
+              moduleName: data.moduleName,
+              message: data.message,
+            },
+          })
+        );
+      }
+      return Promise.reject(error);
+    }
+
     // Retry logic pour timeouts et erreurs réseau (cold start)
     if (!config || !config.retry) {
       config.retry = 0;
