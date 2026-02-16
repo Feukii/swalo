@@ -255,7 +255,7 @@ const SHOPS: ShopConfig[] = [
   },
 ];
 
-async function createShopWithProducts(shopConfig: ShopConfig) {
+async function createShopWithProducts(shopConfig: ShopConfig, enterpriseId: string) {
   console.log(`\n--- Creation de la boutique ${shopConfig.code} ---`);
 
   // 1. Creer ou recuperer l'utilisateur proprietaire
@@ -288,6 +288,7 @@ async function createShopWithProducts(shopConfig: ShopConfig) {
       email: shopConfig.email,
       currency: 'XOF',
       owner_id: owner.id,
+      enterprise_id: enterpriseId,
     },
   });
 
@@ -305,7 +306,7 @@ async function createShopWithProducts(shopConfig: ShopConfig) {
     create: {
       user_id: owner.id,
       shop_id: shop.id,
-      role: 'OWNER',
+      role: 'BOSS',
     },
   });
 
@@ -321,7 +322,7 @@ async function createShopWithProducts(shopConfig: ShopConfig) {
     create: {
       pin_code: shopConfig.pin,
       shop_id: shop.id,
-      role: 'OWNER',
+      role: 'BOSS',
       display_name: `Owner ${shopConfig.code}`,
       created_by: owner.id,
       valid_from: new Date(),
@@ -380,10 +381,22 @@ async function main() {
   console.log('   SEED: Boutiques 042026 et 122026');
   console.log('===========================================');
 
+  // Recuperer l'entreprise existante (creee par le seed principal)
+  const enterprise = await prisma.enterprise.findFirst({
+    where: { code: 'ENT-SWALO' },
+  });
+
+  if (!enterprise) {
+    console.error('Erreur: Entreprise ENT-SWALO non trouvee. Lancez le seed principal d abord.');
+    process.exit(1);
+  }
+
+  console.log(`[OK] Entreprise trouvee: ${enterprise.name}`);
+
   const results = [];
 
   for (const shopConfig of SHOPS) {
-    const result = await createShopWithProducts(shopConfig);
+    const result = await createShopWithProducts(shopConfig, enterprise.id);
     results.push(result);
   }
 
