@@ -29,8 +29,11 @@ import { Product } from '../types/stock';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, customerRepo, stockBatchRepo } from '../db/repositories';
-import { createSaleOffline, createCashEntryOffline } from '../db/offlineWrite';
-import { syncEngine } from '../db/sync';
+import {
+  createSaleOffline,
+  createCashEntryOffline,
+  createReceivableOffline,
+} from '../db/offlineWrite';
 
 interface CartItem {
   productId: string;
@@ -46,15 +49,6 @@ interface PriceOption {
   batch_count: number;
   batches: { id: string; remaining_quantity: number }[];
 }
-import {
-  customersApi,
-  receivablesApi,
-  cashApi,
-  productsApi,
-  inventoryApi,
-  productPricesApi,
-  invoicesApi,
-} from '../lib/api';
 import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -85,116 +79,55 @@ export default function SaleScreen() {
   const [priceModalProduct, setPriceModalProduct] = useState<any>(null);
   const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
 
-  // Offline-first: Load products from local DB first, then API
-  const loadProducts = async () => {
+  // Offline-first: Load products from local SQLite
+  const loadProducts = useCallback(async () => {
+    if (!shopId) return;
     setIsLoadingProducts(true);
     try {
-      // Step 1: Read from local SQLite (instant, works offline)
-      if (shopId) {
-        try {
-          const localProducts = await productRepo.getAll(shopId, {
-            where: { is_active: 1 },
-            orderBy: 'name ASC',
-          });
-          if (localProducts.length > 0) {
-            // Enrich with stock info from local stock_batches
-            const enriched = await Promise.all(
-              localProducts.map(async p => {
-                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
-                return { ...p, current_stock: totalStock };
-              })
-            );
-            setProducts(enriched);
-          }
-        } catch (e) {
-          console.log('Local product read skipped:', e);
-        }
-      }
-
-      // Step 2: Fetch from API in background (for fresh data)
-      if (syncEngine.isOnline) {
-        try {
-          const loadedProducts = await productsApi.getAll();
-          const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
-          setProducts(activeProducts);
-
-          // Sync API products to local DB
-          if (shopId) {
-            for (const p of loadedProducts) {
-              await productRepo.upsertFromServer({
-                ...p,
-                is_active: p.is_active !== false ? 1 : 0,
-                deleted: p.deleted ? 1 : 0,
-              });
-            }
-          }
-        } catch (error) {
-          console.log('API product fetch failed (using local data):', error);
-        }
-      }
+      const localProducts = await productRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
+      });
+      const enriched = await Promise.all(
+        localProducts.map(async p => {
+          const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+          return { ...p, current_stock: totalStock };
+        })
+      );
+      setProducts(enriched);
     } catch (error) {
       console.error('Erreur chargement produits:', error);
     } finally {
       setIsLoadingProducts(false);
     }
-  };
+  }, [shopId]);
 
-  // Offline-first: Load customers from local DB first, then API
-  const loadCustomers = async () => {
+  // Offline-first: Load customers from local SQLite
+  const loadCustomers = useCallback(async () => {
+    if (!shopId) return;
     try {
       const defaultCustomer = { id: 'cash', name: 'Client comptant', first_name: '' };
-
-      // Step 1: Read from local SQLite
-      if (shopId) {
-        try {
-          const localCustomers = await customerRepo.getAll(shopId, {
-            where: { is_active: 1 },
-            orderBy: 'name ASC',
-          });
-          if (localCustomers.length > 0) {
-            setCustomers([defaultCustomer, ...localCustomers]);
-          }
-        } catch (e) {
-          console.log('Local customer read skipped:', e);
-        }
-      }
-
-      // Step 2: Fetch from API in background
-      if (syncEngine.isOnline) {
-        try {
-          const loadedCustomers = await customersApi.getAll({ is_active: true });
-          setCustomers([defaultCustomer, ...loadedCustomers]);
-
-          // Sync to local DB
-          if (shopId) {
-            for (const c of loadedCustomers) {
-              await customerRepo.upsertFromServer({
-                ...c,
-                is_active: c.is_active !== false ? 1 : 0,
-                deleted: c.deleted ? 1 : 0,
-              });
-            }
-          }
-        } catch (error) {
-          console.log('API customer fetch failed (using local data):', error);
-        }
-      }
+      const localCustomers = await customerRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
+      });
+      setCustomers([defaultCustomer, ...localCustomers]);
     } catch (error) {
       console.error('Erreur chargement clients:', error);
       setCustomers([{ id: 'cash', name: 'Client comptant', first_name: '' }]);
     }
-  };
+  }, [shopId]);
 
   useEffect(() => {
     loadProducts();
     loadCustomers();
-  }, [shopId]);
+  }, [loadProducts, loadCustomers]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
       loadCustomers();
-    }, [shopId])
+    }, [loadProducts, loadCustomers])
   );
 
   // Quand on change de client, vérifier si crédit est valide
@@ -218,22 +151,51 @@ export default function SaleScreen() {
     const productName = `${product.family} - ${product.article_type} ${product.brand}`;
     const currentStock = product.current_stock || 0;
 
-    // Vérifier si le produit a plusieurs prix actifs
-    try {
-      const pricesData = await productPricesApi.getAvailablePrices(product.id);
+    // Check multi-price from local stock batches
+    if (shopId) {
+      try {
+        const batches = await stockBatchRepo.getByProduct(shopId, product.id);
+        const activeBatches = batches.filter(b => b.remaining_quantity > 0);
 
-      if (pricesData.is_multi_price) {
-        // Produit multi-prix: afficher le modal de sélection
-        setPriceModalProduct(product);
-        setPriceOptions(pricesData.prices);
-        setShowPriceModal(true);
-        return;
+        // Group by sell_price to detect multi-price
+        const priceGroups = new Map<
+          number,
+          {
+            sell_price: number;
+            total_quantity: number;
+            batch_count: number;
+            batches: { id: string; remaining_quantity: number }[];
+          }
+        >();
+        activeBatches.forEach(b => {
+          const existing = priceGroups.get(b.sell_price);
+          if (existing) {
+            existing.total_quantity += b.remaining_quantity;
+            existing.batch_count++;
+            existing.batches.push({ id: b.id, remaining_quantity: b.remaining_quantity });
+          } else {
+            priceGroups.set(b.sell_price, {
+              sell_price: b.sell_price,
+              total_quantity: b.remaining_quantity,
+              batch_count: 1,
+              batches: [{ id: b.id, remaining_quantity: b.remaining_quantity }],
+            });
+          }
+        });
+
+        if (priceGroups.size > 1) {
+          // Multi-price: show selection modal
+          setPriceModalProduct(product);
+          setPriceOptions(Array.from(priceGroups.values()));
+          setShowPriceModal(true);
+          return;
+        }
+      } catch (e) {
+        console.log('Multi-price check skipped:', e);
       }
-    } catch {
-      // Si l'API échoue, on continue sans vérification multi-prix
     }
 
-    // Mono-prix ou pas de lots: ajout normal
+    // Single price or no batches: add directly
     addToCartDirect(product, productName, currentStock);
   };
 
@@ -383,92 +345,55 @@ export default function SaleScreen() {
       const amount = effectiveTotal; // FCFA = pas de centimes
       const itemsDescription = cart.map(item => `${item.productName} x${item.quantity}`).join(', ');
 
-      if (syncEngine.isOnline) {
-        // ONLINE MODE: Use existing API calls (server-authoritative)
-        if (paymentMethod === 'credit') {
-          await receivablesApi.create({
-            customer_id: selectedCustomer,
-            amount: amount,
-            description: `Vente à crédit - ${getTotalItems()} article(s)`,
-            notes: itemsDescription,
-          });
-        } else {
-          await cashApi.createEntry({
-            type: 'IN',
-            category: 'vente',
-            amount: amount,
-            note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
-            customer_id: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
-          });
-        }
-
-        // Déduire le stock via API
-        for (const item of cart) {
-          try {
-            if (item.batchId) {
-              await inventoryApi.saleFromBatch({
-                product_id: item.productId,
-                batch_id: item.batchId,
-                quantity: item.quantity,
-              });
-            } else {
-              await inventoryApi.saleOut({
-                product_id: item.productId,
-                quantity: item.quantity,
-              });
-            }
-          } catch (error: any) {
-            console.error(`Erreur déduction stock pour ${item.productName}:`, error);
-          }
-        }
-      } else {
-        // OFFLINE MODE: Write locally + enqueue for sync
-        if (shopId && userId) {
-          if (paymentMethod === 'credit') {
-            // Credit sales need receivables API - enqueue for later
-            await createCashEntryOffline({
-              shopId,
-              cashierId: userId,
-              type: 'IN',
-              category: 'vente_credit',
-              amount: 0, // No cash impact for credit sale
-              note: `Vente à crédit - ${getTotalItems()} article(s): ${itemsDescription}`,
-              customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
-            });
-          } else {
-            await createCashEntryOffline({
-              shopId,
-              cashierId: userId,
-              type: 'IN',
-              category: 'vente',
-              amount: amount,
-              note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
-              customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
-            });
-          }
-
-          // Create sale record with local stock deduction
-          await createSaleOffline({
-            shopId,
-            cashierId: userId,
-            customerId: selectedCustomer !== 'cash' ? selectedCustomer : null,
-            paymentMethod,
-            grandTotal: amount,
-            items: cart.map(item => {
-              const product = products.find(p => p.id === item.productId);
-              return {
-                productId: item.productId,
-                productName: item.productName,
-                sku: product?.sku || '',
-                qty: item.quantity,
-                unitPrice: item.unitPrice || product?.sell_price || 0,
-                batchId: item.batchId,
-              };
-            }),
-            note: itemsDescription,
-          });
-        }
+      if (!shopId || !userId) {
+        Alert.alert('Erreur', 'Session invalide');
+        return;
       }
+
+      // Create receivable for credit sales
+      if (paymentMethod === 'credit') {
+        await createReceivableOffline({
+          shopId,
+          customerId: selectedCustomer,
+          amount: amount,
+          description: `Vente à crédit - ${getTotalItems()} article(s)`,
+          notes: itemsDescription,
+        });
+      } else {
+        // Cash sale: create cash entry
+        await createCashEntryOffline({
+          shopId,
+          cashierId: userId,
+          type: 'IN',
+          category: 'vente',
+          amount: amount,
+          note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
+          customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
+        });
+      }
+
+      // Create sale record with local stock deduction
+      await createSaleOffline({
+        shopId,
+        cashierId: userId,
+        customerId: selectedCustomer !== 'cash' ? selectedCustomer : null,
+        paymentMethod,
+        grandTotal: amount,
+        items: cart.map(item => {
+          const product = products.find(p => p.id === item.productId);
+          return {
+            productId: item.productId,
+            productName: item.productName,
+            sku: product?.sku || '',
+            qty: item.quantity,
+            unitPrice: item.unitPrice || product?.sell_price || 0,
+            batchId: item.batchId,
+          };
+        }),
+        note: itemsDescription,
+        expectedTotal: overridePrice ? computedTotal : undefined,
+        pricingNotes: overridePrice ? pricingNotes : undefined,
+      });
 
       // Build invoice data from cart for local PDF generation
       const buildInvoiceData = (): InvoiceData => {
@@ -521,7 +446,6 @@ export default function SaleScreen() {
       };
 
       // Message de succès selon le mode de paiement
-      const offlineNote = !syncEngine.isOnline ? '\n\n(Enregistre hors-ligne)' : '';
       const invoiceButton = {
         text: 'Facture',
         onPress: () => {
@@ -533,13 +457,13 @@ export default function SaleScreen() {
       if (paymentMethod === 'credit') {
         Alert.alert(
           'Vente a credit enregistree',
-          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\n\n✓ Creance creee\n✓ Stock mis a jour\n\nLe solde caisse n'est pas impacte.${offlineNote}`,
+          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\n\n✓ Creance creee\n✓ Stock mis a jour\n\nLe solde caisse n'est pas impacte.`,
           [invoiceButton, { text: 'OK', onPress: resetForm }]
         );
       } else {
         Alert.alert(
           'Vente enregistree',
-          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\nMode: Especes\n\n✓ Entree caisse creee\n✓ Stock mis a jour\n✓ Solde caisse +${formatMoney(amount)}${offlineNote}`,
+          `Client: ${customerName}\nMontant: ${formatMoney(amount)}\nMode: Especes\n\n✓ Entree caisse creee\n✓ Stock mis a jour\n✓ Solde caisse +${formatMoney(amount)}`,
           [invoiceButton, { text: 'OK', onPress: resetForm }]
         );
       }

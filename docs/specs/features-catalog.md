@@ -2,7 +2,7 @@
 
 > **Dernière mise à jour** : 2026-02-16
 > **Version application** : 1.0.0
-> **Branche** : feature/web-mobile-harmonization-modules-bugfix
+> **Branche** : develop
 >
 > **Ce fichier DOIT être mis à jour à chaque ajout ou modification de fonctionnalité.**
 
@@ -802,15 +802,29 @@ Sections disponibles :
 | **Fichiers clés** | `apps/mobile/src/db/schema.ts`, `apps/mobile/src/db/repositories.ts`       |
 | **Technologie**   | Expo SQLite (expo-sqlite v16) avec mode WAL                                |
 
-**Entités synchronisées localement (7) :**
+**Entités synchronisées localement (21) :**
 
 - `products` - Catalogue produits
 - `stock_batches` - Lots de stock (FIFO)
+- `packaging_types` - Types d'emballage
 - `customers` - Clients
+- `suppliers` - Fournisseurs
 - `sales` - Ventes
 - `sale_items` - Articles de vente
 - `cash_entries` - Entrées/sorties de caisse
+- `cash_sessions` - Sessions de caisse
 - `inventory_movements` - Mouvements de stock
+- `inventory_sessions` - Sessions d'inventaire
+- `inventory_counts` - Comptages d'inventaire
+- `client_receivables` - Créances clients
+- `client_receivable_payments` - Paiements de créances
+- `supplier_debts` - Dettes fournisseurs
+- `supplier_debt_payments` - Paiements de dettes
+- `supplier_invoices` - Factures fournisseurs
+- `supplier_invoice_items` - Articles de factures fournisseurs
+- `payments` - Paiements génériques
+- `invoices` - Factures
+- `invoice_items` - Articles de factures
 
 Chaque enregistrement local possède des métadonnées de sync :
 
@@ -822,21 +836,30 @@ Chaque enregistrement local possède des métadonnées de sync :
 
 | Propriété       | Valeur                                                                               |
 | --------------- | ------------------------------------------------------------------------------------ |
-| **Description** | Créer des ventes, des entrées de caisse et des lots de stock sans connexion internet |
+| **Description** | CRUD complet offline pour toutes les entités métier                                 |
 | **Plateformes** | Mobile                                                                               |
 | **Module**      | Coeur                                                                                |
 | **Fichier**     | `apps/mobile/src/db/offlineWrite.ts`                                                 |
 
-**3 opérations offline implémentées :**
+**22+ opérations offline implémentées :**
 
 1. **Vente offline** (`createSaleOffline`) : crée la vente + articles + déstocke en FIFO localement
 2. **Entrée de caisse offline** (`createCashEntryOffline`) : enregistre l'entrée/sortie localement
 3. **Lot de stock offline** (`createStockBatchOffline`) : crée le lot + mouvement d'inventaire
+4. **Produit CRUD offline** (`createProductOffline`, `updateProductOffline`, `deleteProductOffline`)
+5. **Client CRUD offline** (`createCustomerOffline`, `updateCustomerOffline`, `deleteCustomerOffline`)
+6. **Fournisseur CRUD offline** (`createSupplierOffline`, `updateSupplierOffline`, `deleteSupplierOffline`)
+7. **Créance offline** (`createReceivableOffline`, `payReceivableOffline`)
+8. **Dette fournisseur offline** (`createSupplierDebtOffline`, `paySupplierDebtOffline`)
+9. **Paiement offline** (`createPaymentOffline`)
+10. **Session de caisse offline** (`openCashSessionOffline`, `closeCashSessionOffline`)
+11. **Facture offline** (`createInvoiceOffline`)
+12. **Inventaire offline** (`startInventorySessionOffline`, `addInventoryCountOffline`, `completeInventorySessionOffline`)
 
 Chaque opération :
 
 - Génère un `client_op_id` unique pour l'idempotence
-- Est mise en file d'attente (`_mutation_queue`)
+- Est mise en file d'attente (`_mutation_queue`) avec priorité automatique
 - Déclenche une tentative de sync si le réseau est disponible
 
 ### 9.3 Moteur de synchronisation
@@ -872,10 +895,11 @@ Chaque opération :
 | **Plateformes** | Mobile                                                                                                 |
 | **Module**      | Coeur                                                                                                  |
 
-- Polling toutes les 60 secondes quand connecté
+- Intervalle adaptatif : 60s (normal), 5min (batterie < 30%)
 - Détection de connectivité via `expo-network`
 - Sync immédiate au retour de connexion
-- Événements : `sync_start`, `sync_complete`, `sync_error`, `connectivity_change`
+- File d'attente prioritaire : sales/cash (1) > créances/dettes (2) > référence (3)
+- Événements : `sync_start`, `sync_complete`, `sync_error`, `connectivity_change`, `pending_count_change`
 
 ### 9.5 Gestion des conflits
 
@@ -888,8 +912,10 @@ Chaque opération :
 
 - Détection basée sur le champ `version` (concurrence optimiste)
 - Conflits stockés dans `_sync_conflicts`
-- Résolution manuelle : accepter la version serveur ou forcer la version locale
-- Interface dédiée pour visualiser et résoudre les conflits
+- **Auto-résolution** pour données de référence (produits, clients, fournisseurs) : Last-Write-Wins (serveur)
+- **Résolution manuelle** pour données financières (ventes, caisse, créances, dettes)
+- Champ `auto_resolved` pour traçabilité des résolutions automatiques
+- Interface dédiée pour visualiser et résoudre les conflits manuels
 
 ### 9.6 Indicateur offline
 
@@ -916,6 +942,53 @@ Chaque opération :
 - Contrainte unique `[device_id, client_op_id]` sur les tables critiques
 - Format : `{prefix}_{device_id}_{timestamp}_{random}`
 - Le serveur détecte les doublons et retourne "applied" sans re-traitement
+
+### 9.8 Authentification PIN offline
+
+| Propriété         | Valeur                                                                  |
+| ----------------- | ----------------------------------------------------------------------- |
+| **Description**   | Login par PIN sans connexion internet via cache local                   |
+| **Plateformes**   | Mobile                                                                  |
+| **Module**        | Coeur                                                                   |
+| **Fichiers clés** | `apps/mobile/src/db/authCache.ts`, `apps/mobile/src/screens/LoginPinScreen.tsx` |
+
+- Cache du hash bcrypt du PIN dans la table `auth_cache` (SQLite)
+- TTL de 7 jours (aligné sur le refresh token)
+- Stockage du rôle et modules activés pour RBAC offline
+- Requiert au moins un login online initial pour peupler le cache
+- Indicateur visuel "Mode hors-ligne" en cas de login offline
+
+### 9.9 Rapports & KPIs offline
+
+| Propriété         | Valeur                                                                      |
+| ----------------- | --------------------------------------------------------------------------- |
+| **Description**   | Rapports et indicateurs calculés localement via requêtes SQLite agrégées    |
+| **Plateformes**   | Mobile                                                                      |
+| **Module**        | Coeur                                                                       |
+| **Fichiers clés** | `apps/mobile/src/db/reports.ts`, `apps/mobile/src/hooks/useOfflineReports.ts` |
+
+- Ventes journalières (total, nombre, cash vs crédit, moyenne)
+- Flux de trésorerie (entrées/sorties, net, par catégorie)
+- Rapport stock (valeur totale, ruptures, alertes)
+- Créances et dettes (solde, actives, payées)
+- Top produits et clients par chiffre d'affaires
+- Indicateur de fraîcheur des données (vert < 10min, orange < 1h, rouge > 1h)
+- Auto-rafraîchissement après synchronisation (debounce 5s)
+
+### 9.10 Rétention et maintenance des données
+
+| Propriété         | Valeur                                                  |
+| ----------------- | ------------------------------------------------------- |
+| **Description**   | Purge automatique des données anciennes synchronisées   |
+| **Plateformes**   | Mobile                                                  |
+| **Module**        | Coeur                                                   |
+| **Fichiers clés** | `apps/mobile/src/db/maintenance.ts`                     |
+
+- Purge des enregistrements transactionnels synchronisés de plus de 90 jours
+- Tables purgées : sales, sale_items, cash_entries, inventory_movements, payments, invoices
+- Tables jamais purgées : products, customers, suppliers, stock_batches (données de référence)
+- Protection des enregistrements avec mutations en attente
+- Exécution quotidienne automatique après la première synchronisation réussie
 
 ---
 
@@ -1401,18 +1474,18 @@ Erreurs Prisma mappées :
 | Fonctionnalité             | Mobile | Web | API | Offline |
 | -------------------------- | :----: | :-: | :-: | :-----: |
 | Login email/mot de passe   |   -    |  X  |  X  |    -    |
-| Login PIN                  |   X    |  X  |  X  |    -    |
-| Gestion produits (CRUD)    |   X    |  X  |  X  | Lecture |
+| Login PIN                  |   X    |  X  |  X  |    X    |
+| Gestion produits (CRUD)    |   X    |  X  |  X  |    X    |
 | Stock batches & FIFO       |   X    |  X  |  X  |    X    |
 | Multi-prix                 |   X    |  X  |  X  |    X    |
 | Ventes (POS)               |   X    |  X  |  X  |    X    |
-| Facturation PDF            |   X    |  -  |  X  |    -    |
+| Facturation PDF            |   X    |  -  |  X  |    X    |
 | Gestion de caisse          |   X    |  X  |  X  |    X    |
-| Clients (CRUD)             |   X    |  X  |  X  | Lecture |
-| Créances & paiements       |   X    |  X  |  X  |    -    |
-| Fournisseurs (CRUD)        |   X    |  X  |  X  |    -    |
-| Dettes & paiements         |   X    |  X  |  X  |    -    |
-| Rapports & KPIs            |   X    |  X  |  X  |    -    |
+| Clients (CRUD)             |   X    |  X  |  X  |    X    |
+| Créances & paiements       |   X    |  X  |  X  |    X    |
+| Fournisseurs (CRUD)        |   X    |  X  |  X  |    X    |
+| Dettes & paiements         |   X    |  X  |  X  |    X    |
+| Rapports & KPIs            |   X    |  X  |  X  |    X    |
 | Synchronisation            |   X    |  -  |  X  |    X    |
 | Résolution conflits        |   X    |  -  |  X  |    -    |
 | Entreprise multi-shop      |   -    |  X  |  X  |    -    |
@@ -1425,7 +1498,7 @@ Erreurs Prisma mappées :
 | PIN invites                |   X    |  X  |  X  |    -    |
 | Paramètres boutique        |   X    |  X  |  X  |    -    |
 
-**Légende :** X = Supporté | - = Non supporté | Lecture = Consultation offline uniquement
+**Légende :** X = Supporté | - = Non supporté
 
 ---
 
@@ -1497,13 +1570,15 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                                                                                                                                                                                                                                                                           | Auteur      |
+<<<<<<< HEAD
+| Date       | Description                                                                                                                                                                                                                                                             | Auteur      |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web | Claude Code |
-| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                               | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                     | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                      | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                    | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                  | Claude Code |
+| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen | Claude Code |
+| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités | Claude Code |
 
 <!-- EOF -->

@@ -210,9 +210,6 @@ importers:
       '@swalo/core':
         specifier: workspace:*
         version: link:../../packages/core
-      axios:
-        specifier: ^1.7.9
-        version: 1.12.2
       expo:
         specifier: ~54.0.23
         version: 54.0.23(@babel/core@7.28.4)(react-native@0.81.5)(react@19.1.0)
@@ -252,9 +249,6 @@ importers:
       expo-updates:
         specifier: ~29.0.16
         version: 29.0.16(expo@54.0.23)(react-native@0.81.5)(react@19.1.0)
-      lucide-react-native:
-        specifier: ^0.447.0
-        version: 0.447.0(react-native-svg@15.15.1)(react-native@0.81.5)(react@19.1.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -276,9 +270,6 @@ importers:
       react-native-web:
         specifier: ^0.21.2
         version: 0.21.2(react-dom@19.1.0)(react@19.1.0)
-      zustand:
-        specifier: ^5.0.4
-        version: 5.0.8(@types/react@19.1.17)(react@19.1.0)
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -8952,18 +8943,6 @@ packages:
     dependencies:
       yallist: 3.1.1
 
-  /lucide-react-native@0.447.0(react-native-svg@15.15.1)(react-native@0.81.5)(react@19.1.0):
-    resolution: {integrity: sha512-GKL2gisreGA1m26M5gkgVNCNhegubALayAC3xEtjKRNu0Lpl1Dgsfze0QhiWWS3TAZ10NKJ8236PwLuVjRsVPA==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0
-      react-native: '*'
-      react-native-svg: ^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0
-    dependencies:
-      react: 19.1.0
-      react-native: 0.81.5(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0)
-      react-native-svg: 15.15.1(react-native@0.81.5)(react@19.1.0)
-    dev: false
-
   /luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
@@ -13234,28 +13213,6 @@ packages:
 
   /zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  /zustand@5.0.8(@types/react@19.1.17)(react@19.1.0):
-    resolution: {integrity: sha512-gyPKpIaxY9XcO2vSMrLbiER7QMAMGOQZVRdJ6Zi782jkbzZygq5GI9nG8g+sMgitRtndwaBSl7uiqC49o1SSiw==}
-    engines: {node: '>=12.20.0'}
-    peerDependencies:
-      '@types/react': '>=18.0.0'
-      immer: '>=9.0.6'
-      react: '>=18.0.0'
-      use-sync-external-store: '>=1.2.0'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      immer:
-        optional: true
-      react:
-        optional: true
-      use-sync-external-store:
-        optional: true
-    dependencies:
-      '@types/react': 19.1.17
-      react: 19.1.0
-    dev: false
 
   /zustand@5.0.8(@types/react@19.1.17)(react@19.2.0):
     resolution: {integrity: sha512-gyPKpIaxY9XcO2vSMrLbiER7QMAMGOQZVRdJ6Zi782jkbzZygq5GI9nG8g+sMgitRtndwaBSl7uiqC49o1SSiw==}

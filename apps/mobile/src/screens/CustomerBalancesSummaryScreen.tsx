@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Users } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { customersApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { customerRepo, clientReceivableRepo } from '../db/repositories';
 
 interface CustomerBalancesSummaryScreenProps {
   navigation: any;
@@ -23,8 +24,8 @@ interface CustomerBalancesSummaryScreenProps {
 interface CustomerWithBalance {
   id: string;
   name: string;
-  first_name?: string;
-  phone?: string;
+  first_name?: string | null;
+  phone?: string | null;
   is_active: boolean;
   total_balance: number;
 }
@@ -32,36 +33,48 @@ interface CustomerWithBalance {
 export default function CustomerBalancesSummaryScreen({
   navigation,
 }: CustomerBalancesSummaryScreenProps) {
+  const { shopId } = useCurrentUser();
   const [customers, setCustomers] = useState<CustomerWithBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      const data = await customersApi.getAll();
-      setCustomers(data);
-    } catch (error: any) {
+      const localCustomers = await customerRepo.getAll(shopId, { orderBy: 'name ASC' });
+      const allReceivables = await clientReceivableRepo.getAll(shopId);
+
+      // Compute balance per customer
+      const balanceMap = new Map<string, number>();
+      allReceivables.forEach(r => {
+        const prev = balanceMap.get(r.customer_id) || 0;
+        balanceMap.set(r.customer_id, prev + r.balance);
+      });
+
+      const customersWithBalance: CustomerWithBalance[] = localCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        first_name: c.first_name,
+        phone: c.phone,
+        is_active: c.is_active === 1,
+        total_balance: balanceMap.get(c.id) || 0,
+      }));
+
+      setCustomers(customersWithBalance);
+    } catch (error) {
       console.error('Erreur chargement clients:', error);
-      if (error.message === 'Unauthorized') {
-        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('LoginPin'),
-          },
-        ]);
-      } else {
-        Alert.alert('Erreur', 'Impossible de charger les clients');
-      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCustomers();
+    }, [loadCustomers])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

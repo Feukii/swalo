@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,35 +12,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Users, Plus, Eye } from '../components/icons/SimpleIcons';
-import { ScreenHeader, ListItem, KPICard, StatusBadge, IconButton } from '../components/ui';
+import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput } from '../utils/phone';
-import { customersApi } from '../lib/api';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { customerRepo } from '../db/repositories';
-import { syncEngine } from '../db/sync';
+import { useLocalCustomers } from '../hooks/useLocalData';
+import { createCustomerOffline, createReceivableOffline } from '../db/offlineWrite';
 
 interface CustomersScreenProps {
   navigation: any;
 }
 
-interface Customer {
-  id: string;
-  name: string;
-  first_name?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  is_active: boolean;
-}
-
 export default function CustomersScreen({ navigation }: CustomersScreenProps) {
-  const { shopId } = useCurrentUser();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { shop } = useCurrentUser();
+  const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
+
+  // Local data hook - reads from SQLite
+  const { data: customers, loading: isLoading, refresh } = useLocalCustomers(shopId);
 
   // Form state
   const [name, setName] = useState('');
@@ -48,66 +38,6 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const [phone, setPhone] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    loadCustomers();
-  }, [shopId]);
-
-  const loadCustomers = async () => {
-    setIsLoading(true);
-    try {
-      // Step 1: Read from local DB first
-      if (shopId) {
-        try {
-          const localCustomers = await customerRepo.getAll(shopId, { orderBy: 'name ASC' });
-          if (localCustomers.length > 0) {
-            setCustomers(
-              localCustomers.map(c => ({
-                ...c,
-                is_active: c.is_active === 1,
-              })) as any
-            );
-          }
-        } catch (e) {
-          console.log('Local customer read skipped:', e);
-        }
-      }
-
-      // Step 2: Fetch from API if online
-      if (syncEngine.isOnline) {
-        const data = await customersApi.getAll();
-        setCustomers(data);
-
-        // Sync to local DB
-        if (shopId) {
-          for (const c of data) {
-            customerRepo
-              .upsertFromServer({
-                ...c,
-                is_active: c.is_active !== false ? 1 : 0,
-                deleted: c.deleted ? 1 : 0,
-              })
-              .catch(() => undefined);
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('Erreur chargement clients:', error);
-
-      if (error.message === 'Unauthorized') {
-        Alert.alert('Session expirée', 'Votre session a expiré. Veuillez vous reconnecter.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('LoginPin'),
-          },
-        ]);
-      } else if (customers.length === 0) {
-        Alert.alert('Erreur', 'Impossible de charger les clients');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleOpenModal = () => {
     setName('');
@@ -157,32 +87,36 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       initialBalanceValue = Math.round(balance);
     }
 
+    if (!shopId) {
+      Alert.alert('Erreur', 'Boutique non identifiée');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const customerData: any = {
+      const { customerId } = await createCustomerOffline({
+        shopId,
         name: name.trim(),
-      };
+        firstName: firstName.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
 
-      if (firstName.trim()) {
-        customerData.first_name = firstName.trim();
+      // If initial balance provided, create a receivable
+      if (initialBalanceValue && initialBalanceValue > 0) {
+        await createReceivableOffline({
+          shopId,
+          customerId,
+          amount: initialBalanceValue,
+          description: 'Solde initial',
+        });
       }
 
-      if (phone.trim()) {
-        customerData.phone = phone.trim();
-      }
-
-      if (initialBalanceValue !== undefined) {
-        customerData.initial_balance = initialBalanceValue;
-      }
-
-      await customersApi.create(customerData);
-
-      Alert.alert('Succès', 'Client créé avec succès');
+      Alert.alert('Succes', 'Client cree avec succes');
       handleCloseModal();
-      loadCustomers();
+      await refresh();
     } catch (error: any) {
-      console.error('Erreur lors de la création:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la création');
+      console.error('Erreur lors de la creation:', error);
+      Alert.alert('Erreur', error.message || 'Erreur lors de la creation');
     } finally {
       setIsSaving(false);
     }

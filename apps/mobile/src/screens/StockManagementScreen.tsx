@@ -17,7 +17,6 @@ import {
   Package,
   Search,
   Plus,
-  TrendingUp,
   TrendingDown,
   AlertTriangle,
   DollarSign,
@@ -25,11 +24,9 @@ import {
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { productsApi, inventoryApi } from '../lib/api';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, stockBatchRepo } from '../db/repositories';
 import { createStockBatchOffline } from '../db/offlineWrite';
-import { syncEngine } from '../db/sync';
 
 interface StockItem {
   id: string;
@@ -59,76 +56,50 @@ export default function StockManagementScreen({ navigation }: any) {
   const [sellingPrice, setSellingPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadProducts = async (showRefresh = false) => {
-    if (showRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
+  const loadProducts = useCallback(
+    async (showRefresh = false) => {
+      if (!shopId) return;
+      if (showRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
 
-    try {
-      // Step 1: Read from local DB (instant, works offline)
-      if (shopId) {
-        try {
-          const localProducts = await productRepo.getAll(shopId, {
-            where: { is_active: 1 },
-            orderBy: 'name ASC',
-          });
-          if (localProducts.length > 0) {
-            const enriched = await Promise.all(
-              localProducts.map(async p => {
-                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
-                return {
-                  ...p,
-                  current_stock: totalStock,
-                  is_active: true,
-                } as StockItem;
-              })
-            );
-            setProducts(enriched);
-            setFilteredProducts(enriched);
-          }
-        } catch (e) {
-          console.log('Local stock read skipped:', e);
-        }
-      }
-
-      // Step 2: Fetch from API if online
-      if (syncEngine.isOnline) {
-        const loadedProducts = await productsApi.getAll();
-        const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
-        setProducts(activeProducts);
-        setFilteredProducts(activeProducts);
-
-        // Sync to local DB
-        if (shopId) {
-          for (const p of loadedProducts) {
-            productRepo
-              .upsertFromServer({
-                ...p,
-                is_active: p.is_active !== false ? 1 : 0,
-                deleted: p.deleted ? 1 : 0,
-              })
-              .catch(() => undefined);
-          }
-        }
-      }
-    } catch (error) {
-      if (products.length === 0) {
+      try {
+        const localProducts = await productRepo.getAll(shopId, {
+          where: { is_active: 1 },
+          orderBy: 'name ASC',
+        });
+        const enriched = await Promise.all(
+          localProducts.map(async p => {
+            const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+            return {
+              ...p,
+              current_stock: totalStock,
+              is_active: true,
+            } as StockItem;
+          })
+        );
+        setProducts(enriched);
+        setFilteredProducts(enriched);
+      } catch (error) {
         console.error('Erreur chargement produits:', error);
-        Alert.alert('Erreur', 'Impossible de charger les produits');
+        if (products.length === 0) {
+          Alert.alert('Erreur', 'Impossible de charger les produits');
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+    },
+    [shopId]
+  );
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [loadProducts]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
-    }, [])
+    }, [loadProducts])
   );
 
   useEffect(() => {
@@ -164,7 +135,7 @@ export default function StockManagementScreen({ navigation }: any) {
   };
 
   const handleStockUpdate = async () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !shopId) return;
 
     const quantity = parseInt(stockQuantity);
     const buyPrice = parseInt(unitPrice);
@@ -189,58 +160,26 @@ export default function StockManagementScreen({ navigation }: any) {
 
     try {
       const newStock = (selectedProduct.current_stock || 0) + quantity;
-      let result: any = null;
 
-      if (syncEngine.isOnline) {
-        // ONLINE: Use API (server-authoritative)
-        result = await inventoryApi.createBatch({
-          product_id: selectedProduct.id,
-          quantity: quantity,
-          cost_price: buyPrice,
-          sell_price: sellPrice,
-          notes: 'Approvisionnement',
-        });
-      } else if (shopId) {
-        // OFFLINE: Create batch locally + enqueue mutation
-        await createStockBatchOffline({
-          shopId,
-          productId: selectedProduct.id,
-          quantity,
-          costPrice: buyPrice,
-          sellPrice: sellPrice,
-          notes: 'Approvisionnement',
-        });
-      }
+      await createStockBatchOffline({
+        shopId,
+        productId: selectedProduct.id,
+        quantity,
+        costPrice: buyPrice,
+        sellPrice: sellPrice,
+        notes: 'Approvisionnement',
+      });
 
-      // Fermer le modal et recharger immédiatement
       closeStockModal();
       await loadProducts();
 
-      // Construire le message avec info de changement de prix si applicable
-      let message =
+      const message =
         `+${quantity} unités ajoutées\n\n` +
         `Nouveau stock: ${newStock} unités\n` +
         `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
         `Prix de vente: ${formatMoney(sellPrice)}/unité`;
 
-      if (!syncEngine.isOnline) {
-        message += '\n\n(Enregistré hors-ligne)';
-      }
-
-      if (result?.price_change) {
-        const pc = result.price_change;
-        const costSign = pc.cost_diff > 0 ? '+' : '';
-        const sellSign = pc.sell_diff > 0 ? '+' : '';
-        message +=
-          `\n\n--- Changement de prix ---\n` +
-          `Achat: ${formatMoney(pc.old_cost)} → ${formatMoney(pc.new_cost)} (${costSign}${pc.cost_diff_pct}%)\n` +
-          `Vente: ${formatMoney(pc.old_sell)} → ${formatMoney(pc.new_sell)} (${sellSign}${pc.sell_diff_pct}%)`;
-      }
-
-      Alert.alert(
-        result?.price_change ? 'Approvisionnement - Prix modifié' : 'Approvisionnement enregistré',
-        message
-      );
+      Alert.alert('Approvisionnement enregistré', message);
     } catch (error: any) {
       console.error("Erreur lors de l'approvisionnement:", error);
       Alert.alert('Erreur', error.message || "Impossible d'enregistrer l'approvisionnement");

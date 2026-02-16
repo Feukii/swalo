@@ -28,12 +28,14 @@ import {
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { productsApi, importApi, packagingTypesApi } from '../lib/api';
-import * as DocumentPicker from 'expo-document-picker';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, stockBatchRepo } from '../db/repositories';
-import { syncEngine } from '../db/sync';
+import {
+  createProductOffline,
+  updateProductOffline,
+  deleteProductOffline,
+} from '../db/offlineWrite';
 
 interface Product {
   id: string;
@@ -159,101 +161,64 @@ export default function ProductCatalogScreen({ navigation }: any) {
   const [newUnitName, setNewUnitName] = useState('');
   const [newUnitSymbol, setNewUnitSymbol] = useState('');
 
-  // Charger les types de conditionnement
-  const loadPackagingTypes = async () => {
-    try {
-      const types = await packagingTypesApi.getAll();
-      setPackagingTypes(types);
-    } catch (error) {
-      console.error('Erreur chargement conditionnements:', error);
-      // Utiliser les valeurs de fallback
-      setPackagingTypes(FALLBACK_UNITS.map((u, i) => ({ id: String(i), name: u, symbol: u })));
-    }
+  // Charger les types de conditionnement (fallback local)
+  const loadPackagingTypes = () => {
+    setPackagingTypes(FALLBACK_UNITS.map((u, i) => ({ id: String(i), name: u, symbol: u })));
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      // Step 1: Try local DB first (instant, works offline)
-      if (shopId) {
-        try {
-          const where: Record<string, unknown> = {};
-          if (selectedFamily) where.family = selectedFamily;
-          if (selectedBrand) where.brand = selectedBrand;
-          if (selectedType) where.article_type = selectedType;
+      const where: Record<string, unknown> = { is_active: 1 };
+      if (selectedFamily) where.family = selectedFamily;
+      if (selectedBrand) where.brand = selectedBrand;
+      if (selectedType) where.article_type = selectedType;
 
-          let localProducts;
-          if (searchQuery) {
-            localProducts = await productRepo.search(shopId, searchQuery);
-          } else {
-            localProducts = await productRepo.getAll(shopId, { where, orderBy: 'name ASC' });
-          }
-
-          if (localProducts.length > 0) {
-            // Enrich with stock data
-            const enriched = await Promise.all(
-              localProducts.map(async p => {
-                const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
-                return {
-                  ...p,
-                  is_active: p.is_active === 1,
-                  current_stock: totalStock,
-                  is_low_stock: totalStock <= p.alert_threshold,
-                };
-              })
-            );
-            setProducts(enriched as any);
-          }
-        } catch (e) {
-          console.log('Local catalog read skipped:', e);
-        }
+      let localProducts;
+      if (searchQuery) {
+        localProducts = await productRepo.search(shopId, searchQuery);
+      } else {
+        localProducts = await productRepo.getAll(shopId, { where, orderBy: 'name ASC' });
       }
 
-      // Step 2: Fetch from API if online
-      if (syncEngine.isOnline) {
-        const [productsData, filtersData] = await Promise.all([
-          productsApi.getAll({
-            search: searchQuery || undefined,
-            family: selectedFamily || undefined,
-            brand: selectedBrand || undefined,
-            article_type: selectedType || undefined,
-          }),
-          productsApi.getFilters({
-            family: selectedFamily || undefined,
-            brand: selectedBrand || undefined,
-            article_type: selectedType || undefined,
-          }),
-        ]);
+      // Enrich with stock data
+      const enriched = await Promise.all(
+        localProducts.map(async p => {
+          const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+          return {
+            ...p,
+            is_active: p.is_active === 1,
+            current_stock: totalStock,
+            is_low_stock: totalStock <= p.alert_threshold,
+          };
+        })
+      );
+      setProducts(enriched as any);
 
-        setProducts(productsData);
-        setFilters(filtersData);
-
-        // Sync products to local DB in background
-        if (shopId) {
-          for (const p of productsData) {
-            productRepo
-              .upsertFromServer({
-                ...p,
-                is_active: p.is_active !== false ? 1 : 0,
-                deleted: p.deleted ? 1 : 0,
-              })
-              .catch(() => undefined);
-          }
-        }
-      }
+      // Compute filters locally from ALL products (not just filtered ones)
+      const allProducts = await productRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
+      });
+      const families = [...new Set(allProducts.map(p => p.family).filter(Boolean))] as string[];
+      const brands = [...new Set(allProducts.map(p => p.brand).filter(Boolean))] as string[];
+      const article_types = [
+        ...new Set(allProducts.map(p => p.article_type).filter(Boolean)),
+      ] as string[];
+      setFilters({ families, brands, article_types });
     } catch (error: any) {
-      // Only show error if we have no local data
       if (products.length === 0) {
         Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
       }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId, searchQuery, selectedFamily, selectedBrand, selectedType]);
 
   useEffect(() => {
     loadData();
-  }, [searchQuery, selectedFamily, selectedBrand, selectedType]);
+  }, [loadData]);
 
   useEffect(() => {
     loadPackagingTypes();
@@ -262,8 +227,7 @@ export default function ProductCatalogScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       loadData();
-      loadPackagingTypes();
-    }, [])
+    }, [loadData])
   );
 
   // Générer un code SKU automatique
@@ -312,7 +276,7 @@ export default function ProductCatalogScreen({ navigation }: any) {
     setShowProductModal(true);
   };
 
-  // Sauvegarder le produit
+  // Sauvegarder le produit (offline-first)
   const saveProduct = async () => {
     // Validation
     if (!formData.sku.trim()) {
@@ -330,58 +294,53 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
     setIsSaving(true);
     try {
-      const data = {
-        sku: formData.sku.trim(),
-        name: formData.name.trim(),
-        barcode: formData.barcode?.trim() || undefined,
-        description: formData.description?.trim() || undefined,
-        family: formData.family.trim(),
-        article_type: formData.article_type?.trim() || undefined,
-        brand: formData.brand?.trim() || undefined,
-        reference: formData.reference?.trim() || undefined,
-        unit: formData.unit,
-        cost_price: parseInt(formData.cost_price) || 0,
-        sell_price: parseInt(formData.sell_price) || 0,
-        alert_threshold: parseInt(formData.alert_threshold) || 5,
-        is_active: formData.is_active,
-      };
-
-      console.log('💾 Saving product:', {
-        isEditing,
-        productId: formData.id,
-        data,
-      });
-
       if (isEditing && formData.id) {
-        console.log('📝 Updating product:', formData.id);
-        const result = await productsApi.update(formData.id, data);
-        console.log('✅ Product updated:', result);
-        Alert.alert('Succès', 'Article modifié avec succès');
+        await updateProductOffline(formData.id, {
+          shopId: shopId!,
+          name: formData.name.trim(),
+          sku: formData.sku.trim(),
+          barcode: formData.barcode?.trim() || undefined,
+          description: formData.description?.trim() || undefined,
+          family: formData.family.trim(),
+          articleType: formData.article_type?.trim() || undefined,
+          brand: formData.brand?.trim() || undefined,
+          reference: formData.reference?.trim() || undefined,
+          unit: formData.unit,
+          costPrice: parseInt(formData.cost_price) || 0,
+          sellPrice: parseInt(formData.sell_price) || 0,
+          alertThreshold: parseInt(formData.alert_threshold) || 5,
+        });
+        Alert.alert('Succes', 'Article modifie avec succes');
       } else {
-        console.log('➕ Creating new product');
-        const result = await productsApi.create(data);
-        console.log('✅ Product created:', result);
-        Alert.alert('Succès', 'Article ajouté avec succès');
+        await createProductOffline({
+          shopId: shopId!,
+          name: formData.name.trim(),
+          sku: formData.sku.trim(),
+          barcode: formData.barcode?.trim() || undefined,
+          description: formData.description?.trim() || undefined,
+          family: formData.family.trim(),
+          articleType: formData.article_type?.trim() || undefined,
+          brand: formData.brand?.trim() || undefined,
+          reference: formData.reference?.trim() || undefined,
+          unit: formData.unit,
+          costPrice: parseInt(formData.cost_price) || 0,
+          sellPrice: parseInt(formData.sell_price) || 0,
+          alertThreshold: parseInt(formData.alert_threshold) || 5,
+        });
+        Alert.alert('Succes', 'Article ajoute avec succes');
       }
 
       setShowProductModal(false);
       setFormData(DEFAULT_FORM);
       loadData();
     } catch (error: any) {
-      console.error('❌ Error saving product:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error response:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
-      Alert.alert(
-        'Erreur',
-        error.response?.data?.message || error.message || 'Impossible de sauvegarder'
-      );
+      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Supprimer un produit
+  // Supprimer un produit (offline-first)
   const deleteProduct = (product: Product) => {
     Alert.alert('Supprimer', `Voulez-vous vraiment supprimer "${product.name}" ?`, [
       { text: 'Annuler', style: 'cancel' },
@@ -390,8 +349,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await productsApi.delete(product.id);
-            Alert.alert('Succès', 'Article supprimé');
+            await deleteProductOffline(product.id);
+            Alert.alert('Succes', 'Article supprime');
             loadData();
           } catch (error: any) {
             Alert.alert('Erreur', error.message || 'Impossible de supprimer');
@@ -424,9 +383,9 @@ export default function ProductCatalogScreen({ navigation }: any) {
     setShowHierarchyEditModal(true);
   };
 
-  // Save hierarchy edit using batch update API
+  // Save hierarchy edit using local batch update (offline-first)
   const saveHierarchyEdit = async () => {
-    if (!hierarchyEditType || !hierarchyEditNewValue.trim()) {
+    if (!hierarchyEditType || !hierarchyEditNewValue.trim() || !shopId) {
       Alert.alert('Erreur', 'Veuillez entrer une valeur');
       return;
     }
@@ -438,35 +397,46 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
     setIsHierarchySaving(true);
     try {
-      const request: any = {
-        level: hierarchyEditType,
-        old_value: hierarchyEditOldValue,
-        new_value: hierarchyEditNewValue.trim(),
-      };
+      // Get all products to find matching ones
+      const allProducts = await productRepo.getAll(shopId, { orderBy: 'name ASC' });
+      let matchingProducts = allProducts;
 
-      // Add filter context for article_type, brand, and reference
-      if (hierarchyEditType === 'article_type' && hierarchyEditContext.family) {
-        request.family = hierarchyEditContext.family;
+      // Filter based on context
+      if (hierarchyEditContext.family) {
+        matchingProducts = matchingProducts.filter(p => p.family === hierarchyEditContext.family);
       }
-      if (hierarchyEditType === 'brand') {
-        if (hierarchyEditContext.family) request.family = hierarchyEditContext.family;
-        if (hierarchyEditContext.article_type)
-          request.article_type = hierarchyEditContext.article_type;
+      if (hierarchyEditContext.article_type) {
+        matchingProducts = matchingProducts.filter(
+          p => p.article_type === hierarchyEditContext.article_type
+        );
       }
-      if (hierarchyEditType === 'reference') {
-        if (hierarchyEditContext.family) request.family = hierarchyEditContext.family;
-        if (hierarchyEditContext.article_type)
-          request.article_type = hierarchyEditContext.article_type;
-        if (hierarchyEditContext.brand) request.brand = hierarchyEditContext.brand;
+      if (hierarchyEditContext.brand) {
+        matchingProducts = matchingProducts.filter(p => p.brand === hierarchyEditContext.brand);
       }
 
-      const result = await productsApi.batchUpdateHierarchy(request);
-      Alert.alert('Succès', result.message || `${result.count} produit(s) mis à jour`);
+      // Filter by old value
+      matchingProducts = matchingProducts.filter(p => {
+        if (hierarchyEditType === 'family') return p.family === hierarchyEditOldValue;
+        if (hierarchyEditType === 'article_type') return p.article_type === hierarchyEditOldValue;
+        if (hierarchyEditType === 'brand') return p.brand === hierarchyEditOldValue;
+        if (hierarchyEditType === 'reference') return p.reference === hierarchyEditOldValue;
+        return false;
+      });
+
+      // Update each matching product
+      for (const p of matchingProducts) {
+        await updateProductOffline(p.id, {
+          [hierarchyEditType === 'article_type' ? 'articleType' : hierarchyEditType]:
+            hierarchyEditNewValue.trim(),
+        } as any);
+      }
+
+      Alert.alert('Succes', `${matchingProducts.length} produit(s) mis a jour`);
       setShowHierarchyEditModal(false);
       loadData();
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de mettre à jour');
+      console.error('Erreur lors de la mise a jour:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de mettre a jour');
     } finally {
       setIsHierarchySaving(false);
     }
@@ -488,114 +458,17 @@ export default function ProductCatalogScreen({ navigation }: any) {
   };
 
   const pickDocument = async () => {
-    try {
-      console.log('📂 Opening document picker...');
-      const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          'text/csv',
-          'text/plain', // Some CSV files are detected as text/plain
-          'application/vnd.ms-excel',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          '*/*', // Fallback for any file type
-        ],
-        copyToCacheDirectory: true,
-      });
-
-      console.log('📄 Document picker result:', JSON.stringify(result, null, 2));
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('❌ Document selection cancelled');
-        return;
-      }
-
-      const file = result.assets[0];
-      console.log('📄 Selected file:', file.name, 'URI:', file.uri);
-
-      // Read file content as base64
-      setIsImporting(true);
-      try {
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
-        console.log('📦 File blob size:', blob.size, 'bytes');
-
-        const reader = new FileReader();
-
-        reader.onerror = () => {
-          console.error('❌ FileReader error:', reader.error);
-          Alert.alert('Erreur', 'Impossible de lire le contenu du fichier');
-          setIsImporting(false);
-        };
-
-        reader.onloadend = async () => {
-          try {
-            const base64Content = (reader.result as string).split(',')[1];
-            console.log('📤 Base64 content length:', base64Content?.length || 0);
-
-            if (!base64Content) {
-              Alert.alert('Erreur', 'Le fichier semble vide');
-              setIsImporting(false);
-              return;
-            }
-
-            setImportFile({ name: file.name, content: base64Content });
-
-            // Preview the import
-            console.log('🔄 Calling preview API...');
-            const preview = await importApi.previewCatalog(base64Content, file.name);
-            console.log('✅ Preview result:', JSON.stringify(preview, null, 2));
-            setImportPreview(preview);
-            setImportStep('preview');
-          } catch (error: any) {
-            console.error('❌ Erreur lors de la prévisualisation:', error);
-            Alert.alert(
-              'Erreur',
-              error.message ||
-                'Impossible de prévisualiser le fichier. Vérifiez le format et les colonnes.'
-            );
-          } finally {
-            setIsImporting(false);
-          }
-        };
-
-        reader.readAsDataURL(blob);
-      } catch (fetchError: any) {
-        console.error('❌ Error fetching file:', fetchError);
-        Alert.alert('Erreur', 'Impossible de lire le fichier sélectionné');
-        setIsImporting(false);
-      }
-    } catch (error: any) {
-      console.error('❌ Erreur lors de la sélection du fichier:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sélectionner le fichier');
-      setIsImporting(false);
-    }
+    Alert.alert(
+      'Fonctionnalite en ligne',
+      "L'import de catalogue CSV necessite une connexion internet. Veuillez vous connecter et reessayer."
+    );
   };
 
   const confirmImport = async () => {
-    if (!importFile) return;
-
-    setIsImporting(true);
-    try {
-      const result = await importApi.confirmCatalog(importFile.content, importFile.name);
-      setImportStep('success');
-      Alert.alert(
-        'Import réussi',
-        `${result.created_count || 0} article(s) créé(s), ${result.updated_count || 0} mis à jour`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              closeImportModal();
-              loadData();
-            },
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.error("Erreur lors de l'import:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'importer le catalogue");
-    } finally {
-      setIsImporting(false);
-    }
+    Alert.alert(
+      'Fonctionnalite en ligne',
+      "L'import de catalogue necessite une connexion internet."
+    );
   };
 
   // Suggestions filtrées
@@ -1751,27 +1624,22 @@ export default function ProductCatalogScreen({ navigation }: any) {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalSaveButton, { flex: 1 }]}
-                    onPress={async () => {
+                    onPress={() => {
                       if (!newUnitName.trim()) {
-                        Alert.alert('Erreur', "Le nom de l'unité est requis");
+                        Alert.alert('Erreur', "Le nom de l'unite est requis");
                         return;
                       }
-                      try {
-                        await packagingTypesApi.create({
-                          name: newUnitName.trim(),
-                          symbol:
-                            newUnitSymbol.trim() ||
-                            newUnitName.trim().toLowerCase().substring(0, 3),
-                        });
-                        await loadPackagingTypes();
-                        setFormData(prev => ({ ...prev, unit: newUnitName.trim() }));
-                        setShowNewUnitInput(false);
-                        setNewUnitName('');
-                        setNewUnitSymbol('');
-                        setShowUnitPicker(false);
-                      } catch (error: any) {
-                        Alert.alert('Erreur', error.message || "Impossible de créer l'unité");
-                      }
+                      const symbol =
+                        newUnitSymbol.trim() || newUnitName.trim().toLowerCase().substring(0, 3);
+                      setPackagingTypes(prev => [
+                        ...prev,
+                        { id: String(prev.length), name: newUnitName.trim(), symbol },
+                      ]);
+                      setFormData(prev => ({ ...prev, unit: newUnitName.trim() }));
+                      setShowNewUnitInput(false);
+                      setNewUnitName('');
+                      setNewUnitSymbol('');
+                      setShowUnitPicker(false);
                     }}
                   >
                     <Text style={styles.modalSaveButtonText}>Créer</Text>

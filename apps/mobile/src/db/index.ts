@@ -23,6 +23,20 @@ export {
   saleItemRepo,
   cashEntryRepo,
   inventoryMovementRepo,
+  supplierRepo,
+  supplierDebtRepo,
+  supplierDebtPaymentRepo,
+  supplierInvoiceRepo,
+  supplierInvoiceItemRepo,
+  clientReceivableRepo,
+  clientReceivablePaymentRepo,
+  paymentRepo,
+  invoiceRepo,
+  invoiceItemRepo,
+  packagingTypeRepo,
+  cashSessionRepo,
+  inventorySessionRepo,
+  inventoryCountRepo,
 } from './repositories';
 export type {
   LocalProduct,
@@ -33,6 +47,20 @@ export type {
   LocalSaleItem,
   LocalCashEntry,
   LocalInventoryMovement,
+  LocalSupplier,
+  LocalSupplierDebt,
+  LocalSupplierDebtPayment,
+  LocalSupplierInvoice,
+  LocalSupplierInvoiceItem,
+  LocalClientReceivable,
+  LocalClientReceivablePayment,
+  LocalPayment,
+  LocalInvoice,
+  LocalInvoiceItem,
+  LocalPackagingType,
+  LocalCashSession,
+  LocalInventorySession,
+  LocalInventoryCount,
 } from './repositories';
 
 export {
@@ -51,5 +79,31 @@ export {
   getTotalQueueCount,
   clearQueue,
   getPendingGroupedByEntity,
+  SYNC_PRIORITY,
+  getEntityPriority,
 } from './queue';
 export type { MutationOp, MutationStatus, MutationRecord } from './queue';
+
+export { cacheAuthCredentials, verifyOfflinePin, getCachedAuth, clearAuthCache } from './authCache';
+export type { AuthCacheEntry } from './authCache';
+
+export {
+  getDailySalesReport,
+  getCashFlowReport,
+  getStockReport,
+  getReceivablesReport,
+  getDebtsReport,
+  getTopProductsReport,
+  getTopCustomersReport,
+  getLastSyncAt,
+} from './reports';
+export type {
+  DailySalesReport,
+  CashFlowReport,
+  StockReport,
+  ReceivablesReport,
+  DebtsReport,
+  TopItem,
+} from './reports';
+
+export { pruneOldData, runDailyMaintenance } from './maintenance';

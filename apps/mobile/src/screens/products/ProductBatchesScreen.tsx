@@ -14,18 +14,8 @@ import { Package } from '../../components/icons/SimpleIcons';
 import { ScreenHeader } from '../../components/ui';
 import { Colors, Spacing } from '../../constants/theme-v2';
 import { formatMoney } from '../../utils/money';
-import { inventoryApi } from '../../lib/api';
-
-interface StockBatch {
-  id: string;
-  product_id: string;
-  quantity: number;
-  remaining_quantity: number;
-  cost_price: number;
-  sell_price: number;
-  notes?: string;
-  created_at: string;
-}
+import { stockBatchRepo, LocalStockBatch } from '../../db/repositories';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 interface BatchStats {
   total_batches: number;
@@ -54,39 +44,55 @@ function formatDate(dateString: string): string {
 
 export default function ProductBatchesScreen({ navigation, route }: ProductBatchesScreenProps) {
   const { productId, productName } = route.params;
-  const [batches, setBatches] = useState<StockBatch[]>([]);
+  const { shopId } = useCurrentUser();
+  const [batches, setBatches] = useState<LocalStockBatch[]>([]);
   const [stats, setStats] = useState<BatchStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadBatches = async (showRefresh = false) => {
-    if (showRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
+  const loadBatches = useCallback(
+    async (showRefresh = false) => {
+      if (!shopId) return;
 
-    try {
-      const result = await inventoryApi.getProductBatches(productId);
-      setBatches(result.batches || []);
-      setStats(result.stats || null);
-    } catch (error: any) {
-      console.error('Erreur chargement lots:', error);
-      Alert.alert('Erreur', 'Impossible de charger les lots de stock');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+      if (showRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
+
+      try {
+        const localBatches = await stockBatchRepo.getByProduct(shopId, productId, false);
+        setBatches(localBatches);
+
+        const batchesWithStock = localBatches.filter(b => b.remaining_quantity > 0);
+        setStats({
+          total_batches: localBatches.length,
+          batches_with_stock: batchesWithStock.length,
+          total_quantity: batchesWithStock.reduce((s, b) => s + b.remaining_quantity, 0),
+          total_value: batchesWithStock.reduce(
+            (s, b) => s + b.remaining_quantity * b.cost_price,
+            0
+          ),
+        });
+      } catch (error: any) {
+        console.error('Erreur chargement lots:', error);
+        Alert.alert('Erreur', 'Impossible de charger les lots de stock');
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [shopId, productId]
+  );
 
   useEffect(() => {
     loadBatches();
-  }, [productId]);
+  }, [loadBatches]);
 
   useFocusEffect(
     useCallback(() => {
       loadBatches();
-    }, [productId])
+    }, [loadBatches])
   );
 
-  const renderBatchCard = ({ item }: { item: StockBatch }) => {
+  const renderBatchCard = ({ item }: { item: LocalStockBatch }) => {
     const isExhausted = item.remaining_quantity === 0;
     const progressRatio = item.quantity > 0 ? item.remaining_quantity / item.quantity : 0;
     const progressPercent = Math.round(progressRatio * 100);
