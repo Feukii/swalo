@@ -32,6 +32,9 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 export async function initDatabase(): Promise<void> {
   const db = await getDatabase();
 
+  // Clean up legacy tables that may exist on older devices
+  await db.execAsync('DROP TABLE IF EXISTS auth_cache;');
+
   await db.execAsync(`
     -- Schema version tracking
     CREATE TABLE IF NOT EXISTS _schema_version (

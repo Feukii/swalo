@@ -1,32 +1,39 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import { useModules } from '../../hooks/useModules';
+import Logo from '../ui/Logo';
 
 interface NavItem {
   name: string;
   path: string;
   icon: string;
   badge?: number;
+  module?: string;
 }
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, shop, enterprise, role, logout } = useAuthStore();
+  const { isModuleEnabled, licenseTier } = useModules();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const baseNavItems: NavItem[] = [
-    { name: 'Caisse', path: '/pos', icon: '💰' },
-    { name: 'Ventes', path: '/sales', icon: '📊' },
-    { name: 'Produits', path: '/products', icon: '📦' },
-    { name: 'Clients', path: '/customers', icon: '👥' },
-    { name: 'Créances', path: '/receivables', icon: '💳' },
-    { name: 'Fournisseurs', path: '/suppliers', icon: '🏪' },
-    { name: 'Dettes', path: '/debts', icon: '💸' },
-    { name: 'Inventaire', path: '/inventory', icon: '📋' },
-    { name: 'Rapports', path: '/reports', icon: '📈' },
-    { name: 'Entreprises', path: '/enterprise', icon: '🏢' },
+    { name: 'Accueil', path: '/', icon: '🏠' },
+    { name: 'Vente', path: '/sale', icon: '🛒', module: 'sales' },
+    { name: 'Caisse', path: '/cash', icon: '💰', module: 'cash' },
+    { name: 'Historique', path: '/sales', icon: '📊', module: 'sales' },
+    { name: 'Produits', path: '/products', icon: '📦', module: 'products' },
+    { name: 'Catalogue', path: '/catalog', icon: '🗂️', module: 'products' },
+    { name: 'Stock', path: '/stock', icon: '📋', module: 'inventory' },
+    { name: 'Clients', path: '/customers', icon: '👥', module: 'customers' },
+    { name: 'Creances', path: '/receivables', icon: '💳', module: 'receivables' },
+    { name: 'Fournisseurs', path: '/suppliers', icon: '🏪', module: 'suppliers' },
+    { name: 'Dettes', path: '/debts', icon: '💸', module: 'debts' },
+    { name: 'Rapports', path: '/reports', icon: '📈', module: 'reports' },
+    { name: 'Entreprises', path: '/enterprise', icon: '🏢', module: 'enterprise' },
   ];
 
   // Admin menu items (shop-level admin only)
@@ -43,7 +50,10 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     navigate('/login');
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -57,12 +67,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
           {sidebarOpen ? (
             <>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                  S
-                </div>
-                <span className="text-xl font-bold text-gradient">SWALO</span>
-              </div>
+              <Logo variant="full" size="sm" />
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -75,7 +80,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               onClick={() => setSidebarOpen(true)}
               className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors mx-auto"
             >
-              ▶
+              <Logo variant="icon" size="sm" />
             </button>
           )}
         </div>
@@ -83,30 +88,54 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-2">
           <div className="space-y-1">
-            {navItems.map(item => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center ${
-                  sidebarOpen ? 'px-3' : 'px-2 justify-center'
-                } py-3 rounded-lg transition-all duration-200 group relative ${
-                  isActive(item.path)
-                    ? 'bg-primary-50 text-primary-700 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-2xl">{item.icon}</span>
-                {sidebarOpen && <span className="ml-3 text-sm">{item.name}</span>}
-                {item.badge && sidebarOpen && (
-                  <span className="ml-auto badge-danger">{item.badge}</span>
-                )}
-                {!sidebarOpen && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                    {item.name}
+            {navItems.map(item => {
+              const enabled = !item.module || isModuleEnabled(item.module);
+              const tierLabel = licenseTier || 'STARTER';
+
+              if (enabled) {
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center ${
+                      sidebarOpen ? 'px-3' : 'px-2 justify-center'
+                    } py-3 rounded-lg transition-all duration-200 group relative ${
+                      isActive(item.path)
+                        ? 'bg-primary-50 text-primary-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-2xl">{item.icon}</span>
+                    {sidebarOpen && <span className="ml-3 text-sm">{item.name}</span>}
+                    {item.badge && sidebarOpen && (
+                      <span className="ml-auto badge-danger">{item.badge}</span>
+                    )}
+                    {!sidebarOpen && (
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                        {item.name}
+                      </div>
+                    )}
+                  </Link>
+                );
+              }
+
+              return (
+                <div
+                  key={item.path}
+                  className={`flex items-center ${
+                    sidebarOpen ? 'px-3' : 'px-2 justify-center'
+                  } py-3 rounded-lg opacity-40 cursor-not-allowed group relative`}
+                  title={`Module non disponible avec votre licence ${tierLabel}`}
+                >
+                  <span className="text-2xl grayscale">{item.icon}</span>
+                  {sidebarOpen && <span className="ml-3 text-sm text-gray-400">{item.name}</span>}
+                  {sidebarOpen && <span className="ml-auto text-xs text-gray-400">🔒</span>}
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 max-w-48">
+                    Licence {tierLabel} - Module non inclus
                   </div>
-                )}
-              </Link>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </nav>
 
@@ -115,7 +144,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {sidebarOpen ? (
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-medium">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-700 to-primary-900 flex items-center justify-center text-white font-medium">
                   {user?.display_name?.charAt(0) || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">

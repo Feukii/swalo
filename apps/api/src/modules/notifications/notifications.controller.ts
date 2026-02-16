@@ -3,6 +3,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { NotificationsService } from './notifications.service';
 import { IsInt, Min, Max } from 'class-validator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 export class TriggerMonthlyDto {
   @IsInt()
@@ -17,6 +18,7 @@ export class TriggerMonthlyDto {
 }
 
 @Controller('notifications')
+@RequireModule('notifications')
 export class NotificationsController {
   private readonly logger = new Logger(NotificationsController.name);
 

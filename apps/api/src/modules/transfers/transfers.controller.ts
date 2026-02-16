@@ -4,8 +4,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import { TransfersService } from './transfers.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('transfers')
+@RequireModule('transfers')
 export class TransfersController {
   constructor(private readonly transfersService: TransfersService) {}
 

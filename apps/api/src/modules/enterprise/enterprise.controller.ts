@@ -4,8 +4,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import { EnterpriseService } from './enterprise.service';
 import { UpdateEnterpriseDto } from './dto/create-enterprise.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('enterprises')
+@RequireModule('enterprise')
 export class EnterpriseController {
   constructor(private readonly enterpriseService: EnterpriseService) {}
 

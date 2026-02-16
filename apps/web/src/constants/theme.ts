@@ -104,6 +104,36 @@ export const Colors = {
   },
 };
 
+// Spacing (matches mobile theme-v2.ts)
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  '2xl': 24,
+  '3xl': 32,
+};
+
+// Border radius (matches mobile theme-v2.ts)
+export const BorderRadius = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  sheet: 24,
+};
+
+// Typography scale (matches mobile theme-v2.ts)
+export const Typography = {
+  display: { fontSize: 32, fontWeight: '700' as const, lineHeight: 40 },
+  h1: { fontSize: 24, fontWeight: '700' as const, lineHeight: 32 },
+  h2: { fontSize: 20, fontWeight: '600' as const, lineHeight: 28 },
+  h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
+  caption: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18 },
+  micro: { fontSize: 11, fontWeight: '500' as const, lineHeight: 16 },
+};
+
 export const Gradients = {
   primary: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
   customers: Colors.context.customers.gradient,

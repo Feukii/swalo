@@ -78,6 +78,15 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
       if (response.enterprise) {
         await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
       }
+      if ((response as any).enabled_modules) {
+        await AsyncStorage.setItem(
+          'enabled_modules',
+          JSON.stringify((response as any).enabled_modules)
+        );
+      }
+      if ((response as any).license_tier) {
+        await AsyncStorage.setItem('license_tier', (response as any).license_tier);
+      }
 
       // 2. Cache credentials for future offline login
       await cacheAuthCredentials({

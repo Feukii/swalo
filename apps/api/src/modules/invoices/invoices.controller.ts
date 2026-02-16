@@ -4,8 +4,10 @@ import { CreateInvoiceFromSaleDto, SearchInvoiceDto } from './dto/create-invoice
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('invoices')
+@RequireModule('invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
