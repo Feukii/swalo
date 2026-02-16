@@ -69,7 +69,7 @@ export default function CreateShop() {
 
   if (result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4">
         <div className="w-full max-w-2xl">
           <div className="bg-white rounded-3xl shadow-2xl p-8" id="printable-section">
             {/* En-tête */}
@@ -97,8 +97,10 @@ export default function CreateShop() {
 
             {/* Informations boutique */}
             <div className="space-y-6 mb-8">
-              <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-6">
-                <h2 className="text-lg font-bold text-purple-900 mb-4">📋 Informations Boutique</h2>
+              <div className="bg-primary-50 border-2 border-primary-200 rounded-2xl p-6">
+                <h2 className="text-lg font-bold text-primary-900 mb-4">
+                  📋 Informations Boutique
+                </h2>
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-semibold text-gray-600 block mb-1">
@@ -218,7 +220,7 @@ export default function CreateShop() {
               </button>
               <button
                 onClick={handleCreateAnother}
-                className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-colors"
+                className="flex-1 py-3 bg-primary-900 hover:bg-primary-700 text-white font-bold rounded-xl transition-colors"
               >
                 ➕ Nouvelle Boutique
               </button>
@@ -236,12 +238,12 @@ export default function CreateShop() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-3xl shadow-2xl p-8">
           {/* En-tête */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-900 to-primary-700 rounded-2xl flex items-center justify-center shadow-lg">
               <svg
                 className="w-10 h-10 text-white"
                 fill="none"
@@ -256,7 +258,7 @@ export default function CreateShop() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-900 to-primary-700 bg-clip-text text-transparent mb-2">
               Nouvelle Boutique
             </h1>
             <p className="text-gray-600 text-sm">Administration SWALO</p>
@@ -275,7 +277,7 @@ export default function CreateShop() {
                 placeholder="Ex: Boutique Tech Center"
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
               />
             </div>
 
@@ -290,7 +292,7 @@ export default function CreateShop() {
                 placeholder="Ex: Jean Dupont"
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
               />
             </div>
 
@@ -304,7 +306,7 @@ export default function CreateShop() {
                 onChange={e => setPhone(e.target.value)}
                 placeholder="Ex: +237 6XX XX XX XX"
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
               />
             </div>
 
@@ -314,7 +316,7 @@ export default function CreateShop() {
                 value={currency}
                 onChange={e => setCurrency(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
               >
                 <option value="XOF">XOF (Franc CFA)</option>
                 <option value="XAF">XAF (Franc CFA)</option>
@@ -332,7 +334,7 @@ export default function CreateShop() {
             <button
               type="submit"
               disabled={isLoading || !shopName || !ownerName}
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -349,7 +351,7 @@ export default function CreateShop() {
           <div className="mt-6 text-center">
             <button
               onClick={() => navigate('/login')}
-              className="text-purple-600 text-sm font-medium hover:text-purple-700 hover:underline transition-colors"
+              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
             >
               ← Retour à la connexion
             </button>

@@ -71,6 +71,18 @@ class ApiClient {
           throw new Error('Unauthorized');
         }
 
+        // Gérer les modules désactivés (403)
+        if (response.status === 403) {
+          const errorData: any = await response.json().catch(() => ({}));
+          if (errorData?.code === 'MODULE_DISABLED') {
+            const err = new Error(errorData.message || 'Module non disponible');
+            (err as any).code = 'MODULE_DISABLED';
+            (err as any).module = errorData.module;
+            (err as any).moduleName = errorData.moduleName;
+            throw err;
+          }
+        }
+
         const error: ApiError = await response.json().catch(() => ({
           message: 'Une erreur est survenue',
         }));

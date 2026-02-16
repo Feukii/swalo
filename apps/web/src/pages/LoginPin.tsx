@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import Logo from '../components/ui/Logo';
 
 export default function LoginPin() {
   const [shopCode, setShopCode] = useState('');
@@ -62,19 +63,17 @@ export default function LoginPin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800 flex items-center justify-center p-4 animate-fade-in">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4 animate-fade-in">
       <div className="w-full max-w-md">
         {/* Card principale */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 animate-scale-in">
           {/* Logo et titre */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-4xl font-bold text-white">S</span>
+            <div className="mx-auto mb-4 flex items-center justify-center">
+              <Logo variant="icon" size="lg" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent mb-2">
-              SWALO
-            </h1>
-            <p className="text-gray-600 text-sm">Gérez, Vendez, Prospérez</p>
+            <h1 className="text-3xl font-bold text-primary-900 mb-2">SWALO</h1>
+            <p className="text-gray-600 text-sm">Gerez, Vendez, Prosperez</p>
           </div>
 
           {/* Formulaire */}
@@ -100,7 +99,7 @@ export default function LoginPin() {
                   maxLength={6}
                   autoFocus
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -118,7 +117,7 @@ export default function LoginPin() {
                   placeholder="••••"
                   maxLength={4}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:ring-2 focus:ring-purple-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -133,7 +132,7 @@ export default function LoginPin() {
               <button
                 type="submit"
                 disabled={isLoading || shopCode.length !== 6 || pin.length !== 4}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -166,7 +165,7 @@ export default function LoginPin() {
           <div className="text-center">
             <Link
               to="/create-shop"
-              className="text-purple-600 text-sm font-medium hover:text-purple-700 hover:underline transition-colors"
+              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
             >
               Créer une nouvelle boutique (Admin)
             </Link>
