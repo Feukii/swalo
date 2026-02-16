@@ -70,15 +70,20 @@ export default function CatalogHierarchy() {
   };
 
   const toggleCategory = (name: string) => {
-    setExpandedCategory(prev => prev === name ? null : name);
+    setExpandedCategory(prev => (prev === name ? null : name));
   };
 
   const totalProducts = categories.reduce((sum, c) => sum + c.count, 0);
 
   const filteredCategories = searchTerm
-    ? categories.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+    ? categories.filter(
+        c =>
+          c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.products.some(
+            p =>
+              p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+          )
       )
     : categories;
 
@@ -107,8 +112,18 @@ export default function CatalogHierarchy() {
       {/* Search */}
       <div className="card">
         <div className="relative">
-          <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg
+            className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
           <input
             type="text"
@@ -125,7 +140,9 @@ export default function CatalogHierarchy() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Arborescence catalogue</h2>
 
         {isLoading ? (
-          <div className="flex justify-center py-12"><div className="w-12 h-12 spinner"></div></div>
+          <div className="flex justify-center py-12">
+            <div className="w-12 h-12 spinner"></div>
+          </div>
         ) : filteredCategories.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">Aucune categorie trouvee</p>
@@ -146,18 +163,27 @@ export default function CatalogHierarchy() {
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
                     </svg>
                     <span className="font-medium text-gray-900">{cat.name}</span>
                   </div>
-                  <span className="badge-primary">{cat.count} produit{cat.count > 1 ? 's' : ''}</span>
+                  <span className="badge-primary">
+                    {cat.count} produit{cat.count > 1 ? 's' : ''}
+                  </span>
                 </button>
 
                 {/* Expanded Products */}
                 {expandedCategory === cat.name && (
                   <div className="border-t border-gray-200 bg-gray-50">
                     {cat.products.length === 0 ? (
-                      <p className="p-4 text-sm text-gray-500">Aucun produit dans cette categorie</p>
+                      <p className="p-4 text-sm text-gray-500">
+                        Aucun produit dans cette categorie
+                      </p>
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {cat.products.map(p => (
@@ -174,12 +200,26 @@ export default function CatalogHierarchy() {
                               </div>
                             </div>
                             <div className="flex items-center gap-4">
-                              <span className={`text-sm font-medium ${(p.current_stock ?? 0) <= 0 ? 'text-danger-600' : 'text-gray-600'}`}>
+                              <span
+                                className={`text-sm font-medium ${(p.current_stock ?? 0) <= 0 ? 'text-danger-600' : 'text-gray-600'}`}
+                              >
                                 {p.current_stock ?? 0} en stock
                               </span>
-                              <span className="text-sm font-semibold text-gray-900">{formatFCFA(p.sell_price)}</span>
-                              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              <span className="text-sm font-semibold text-gray-900">
+                                {formatFCFA(p.sell_price)}
+                              </span>
+                              <svg
+                                className="w-4 h-4 text-gray-300"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5l7 7-7 7"
+                                />
                               </svg>
                             </div>
                           </div>

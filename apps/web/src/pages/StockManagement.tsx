@@ -57,14 +57,20 @@ export default function StockManagement() {
   const filteredProducts = products.filter(p => {
     const stock = p.current_stock ?? 0;
     switch (stockFilter) {
-      case 'low': return stock > 0 && stock <= p.alert_threshold;
-      case 'out': return stock <= 0;
-      case 'ok': return stock > p.alert_threshold;
-      default: return true;
+      case 'low':
+        return stock > 0 && stock <= p.alert_threshold;
+      case 'out':
+        return stock <= 0;
+      case 'ok':
+        return stock > p.alert_threshold;
+      default:
+        return true;
     }
   });
 
-  const lowStockProducts = products.filter(p => (p.current_stock ?? 0) > 0 && (p.current_stock ?? 0) <= p.alert_threshold);
+  const lowStockProducts = products.filter(
+    p => (p.current_stock ?? 0) > 0 && (p.current_stock ?? 0) <= p.alert_threshold
+  );
   const outOfStockProducts = products.filter(p => (p.current_stock ?? 0) <= 0);
 
   const getStockColor = (product: Product) => {
@@ -89,13 +95,17 @@ export default function StockManagement() {
           </div>
           <div className="card">
             <p className="text-gray-500 text-sm">Stock faible</p>
-            <p className={`text-3xl font-bold mt-1 ${lowStockProducts.length > 0 ? 'text-warning-600' : 'text-success-600'}`}>
+            <p
+              className={`text-3xl font-bold mt-1 ${lowStockProducts.length > 0 ? 'text-warning-600' : 'text-success-600'}`}
+            >
               {lowStockProducts.length}
             </p>
           </div>
           <div className="card">
             <p className="text-gray-500 text-sm">Rupture de stock</p>
-            <p className={`text-3xl font-bold mt-1 ${outOfStockProducts.length > 0 ? 'text-danger-600' : 'text-success-600'}`}>
+            <p
+              className={`text-3xl font-bold mt-1 ${outOfStockProducts.length > 0 ? 'text-danger-600' : 'text-success-600'}`}
+            >
               {outOfStockProducts.length}
             </p>
           </div>
@@ -106,8 +116,18 @@ export default function StockManagement() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
           <div className="relative flex-1 w-full">
-            <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg
+              className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
             <input
               type="text"
@@ -118,12 +138,18 @@ export default function StockManagement() {
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {([
-              { value: 'all', label: 'Tous', count: products.length },
-              { value: 'low', label: 'Stock faible', count: lowStockProducts.length },
-              { value: 'out', label: 'Rupture', count: outOfStockProducts.length },
-              { value: 'ok', label: 'En stock', count: products.length - lowStockProducts.length - outOfStockProducts.length },
-            ] as const).map(f => (
+            {(
+              [
+                { value: 'all', label: 'Tous', count: products.length },
+                { value: 'low', label: 'Stock faible', count: lowStockProducts.length },
+                { value: 'out', label: 'Rupture', count: outOfStockProducts.length },
+                {
+                  value: 'ok',
+                  label: 'En stock',
+                  count: products.length - lowStockProducts.length - outOfStockProducts.length,
+                },
+              ] as const
+            ).map(f => (
               <button
                 key={f.value}
                 onClick={() => setStockFilter(f.value)}
@@ -145,7 +171,9 @@ export default function StockManagement() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Etat du stock</h2>
 
         {isLoading ? (
-          <div className="flex justify-center py-12"><div className="w-12 h-12 spinner"></div></div>
+          <div className="flex justify-center py-12">
+            <div className="w-12 h-12 spinner"></div>
+          </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500">Aucun produit dans cette categorie</p>
@@ -155,14 +183,30 @@ export default function StockManagement() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categorie</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Seuil</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Prix achat</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valeur stock</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    SKU
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produit
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Categorie
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Stock
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Seuil
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Prix achat
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Valeur stock
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -177,13 +221,21 @@ export default function StockManagement() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{product.category || '-'}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${getStockColor(product)}`}>
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${getStockColor(product)}`}
+                        >
                           {stock}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center text-sm text-gray-500">{product.alert_threshold}</td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-600">{formatCurrency(product.cost_price)}</td>
-                      <td className="px-6 py-4 text-right text-sm font-medium text-gray-900">{formatCurrency(stockValue)}</td>
+                      <td className="px-6 py-4 text-center text-sm text-gray-500">
+                        {product.alert_threshold}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-gray-600">
+                        {formatCurrency(product.cost_price)}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm font-medium text-gray-900">
+                        {formatCurrency(stockValue)}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => navigate(`/products/${product.id}/batches`)}

@@ -2,13 +2,13 @@
 
 ## Boutiques disponibles
 
-| Code Boutique | Nom | Entreprise | Seed |
-| ------------- | --- | ---------- | ---- |
-| `011225` | SWALO Boutique 01 | ENT-SWALO | `seed.ts` |
-| `251225` | SWALO Boutique 02 | ENT-SWALO | `seed.ts` |
-| `010126` | Boutique Test 010126 | - | `seed-test-shop.ts` |
-| `042026` | Boutique 042026 | - | `seed-shops-042026-122026.ts` |
-| `122026` | Boutique 122026 | - | `seed-shops-042026-122026.ts` |
+| Code Boutique | Nom                  | Entreprise | Seed                          |
+| ------------- | -------------------- | ---------- | ----------------------------- |
+| `011225`      | SWALO Boutique 01    | ENT-SWALO  | `seed.ts`                     |
+| `251225`      | SWALO Boutique 02    | ENT-SWALO  | `seed.ts`                     |
+| `010126`      | Boutique Test 010126 | -          | `seed-test-shop.ts`           |
+| `042026`      | Boutique 042026      | -          | `seed-shops-042026-122026.ts` |
+| `122026`      | Boutique 122026      | -          | `seed-shops-042026-122026.ts` |
 
 ---
 
@@ -16,41 +16,41 @@
 
 ### Boutique 011225 / 251225 (seed principal)
 
-| Role | Code PIN | Utilisateur |
-| ------------ | -------- | ------------------- |
-| **BOSS** | `0000` | Proprietaire Test |
-| **MANAGER** | `9999` | Admin Test |
-| **MANAGER** | `2222` | Manager Test |
-| **EMPLOYEE** | `1234` | Employe Test |
+| Role         | Code PIN | Utilisateur       |
+| ------------ | -------- | ----------------- |
+| **BOSS**     | `0000`   | Proprietaire Test |
+| **MANAGER**  | `9999`   | Admin Test        |
+| **MANAGER**  | `2222`   | Manager Test      |
+| **EMPLOYEE** | `1234`   | Employe Test      |
 
 ### Boutique 010126 (seed test-shop)
 
-| Role | Code PIN | Utilisateur |
-| --------- | -------- | -------------------- |
-| **OWNER** | `0126` | Test Owner 010126 |
+| Role      | Code PIN | Utilisateur       |
+| --------- | -------- | ----------------- |
+| **OWNER** | `0126`   | Test Owner 010126 |
 
 ### Boutique 042026 (seed shops-042026-122026)
 
-| Role | Code PIN | Utilisateur |
-| --------- | -------- | -------------- |
-| **OWNER** | `0426` | Owner 042026 |
+| Role      | Code PIN | Utilisateur  |
+| --------- | -------- | ------------ |
+| **OWNER** | `0426`   | Owner 042026 |
 
 ### Boutique 122026 (seed shops-042026-122026)
 
-| Role | Code PIN | Utilisateur |
-| --------- | -------- | -------------- |
-| **OWNER** | `1226` | Owner 122026 |
+| Role      | Code PIN | Utilisateur  |
+| --------- | -------- | ------------ |
+| **OWNER** | `1226`   | Owner 122026 |
 
 ---
 
 ## Connexion Web (Email / Mot de passe)
 
-| Compte | Email | Mot de passe | Role | Boutique |
-| --------------- | ----------------------- | -------------- | ---------- | ------------ |
-| Proprietaire | `owner@swalo.com` | `password123` | BOSS | 011225 + 251225 |
-| Test 010126 | `test010126@swalo.com` | `test123` | OWNER | 010126 |
-| Owner 042026 | `shop042026@swalo.com` | `swalo2026` | OWNER | 042026 |
-| Owner 122026 | `shop122026@swalo.com` | `swalo2026` | OWNER | 122026 |
+| Compte       | Email                  | Mot de passe  | Role  | Boutique        |
+| ------------ | ---------------------- | ------------- | ----- | --------------- |
+| Proprietaire | `owner@swalo.com`      | `password123` | BOSS  | 011225 + 251225 |
+| Test 010126  | `test010126@swalo.com` | `test123`     | OWNER | 010126          |
+| Owner 042026 | `shop042026@swalo.com` | `swalo2026`   | OWNER | 042026          |
+| Owner 122026 | `shop122026@swalo.com` | `swalo2026`   | OWNER | 122026          |
 
 ---
 
@@ -58,8 +58,8 @@
 
 URL : `http://localhost:3004` (dev) ou domaine de production
 
-| Compte | Email | Mot de passe |
-| --------------- | ------------------------- | ---------------- |
+| Compte          | Email                  | Mot de passe    |
+| --------------- | ---------------------- | --------------- |
 | **Super Admin** | `superadmin@swalo.com` | `superadmin123` |
 
 Le SUPERADMIN a acces a toutes les boutiques et bypass les guards BlockStatus et Entitlement.
