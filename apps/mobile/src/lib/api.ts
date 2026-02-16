@@ -62,13 +62,21 @@ class ApiClient {
       if (!response.ok) {
         // Gérer l'expiration de session (401 Unauthorized)
         if (response.status === 401) {
+          // Lire le message d'erreur du serveur avant de nettoyer
+          const errorData: ApiError = await response.json().catch(() => ({
+            message: 'Unauthorized',
+          }));
+          const serverMessage = Array.isArray(errorData.message)
+            ? errorData.message[0]
+            : errorData.message;
+
           // Supprimer le token et les données utilisateur
           await AsyncStorage.removeItem('access_token');
           await AsyncStorage.removeItem('user');
           await AsyncStorage.removeItem('shop');
 
-          // Lancer une erreur spécifique pour l'authentification
-          throw new Error('Unauthorized');
+          // Lancer l'erreur avec le message du serveur (pas un générique)
+          throw new Error(serverMessage || 'Code boutique ou PIN invalide');
         }
 
         // Gérer les modules désactivés (403)
