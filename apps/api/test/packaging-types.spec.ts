@@ -13,6 +13,9 @@ describe('PackagingTypesService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    product: {
+      count: jest.fn(),
+    },
   };
 
   const shopId = 'shop-123';
@@ -142,6 +145,7 @@ describe('PackagingTypesService', () => {
         name: 'Carton',
         is_default: false,
       });
+      mockPrismaService.product.count.mockResolvedValue(0);
       mockPrismaService.packagingType.update.mockResolvedValue({});
 
       const result = await service.delete(shopId, 'pt-1');
@@ -176,8 +180,8 @@ describe('PackagingTypesService', () => {
       const result = await service.initDefaults(shopId);
 
       expect(result.message).toContain('initialisés');
-      // 5 default types: Pièce, Carton, Douzaine, Paquet, Boîte
-      expect(mockPrismaService.packagingType.create).toHaveBeenCalledTimes(5);
+      // 9 default types: Pièce, Carton, Douzaine, Paquet, Boîte, Unité, Kilogramme, Gramme, Litre
+      expect(mockPrismaService.packagingType.create).toHaveBeenCalledTimes(9);
     });
 
     it('should not duplicate existing packaging types', async () => {
@@ -187,14 +191,18 @@ describe('PackagingTypesService', () => {
         .mockResolvedValueOnce({ name: 'Carton' })
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
 
       mockPrismaService.packagingType.create.mockResolvedValue({});
 
       await service.initDefaults(shopId);
 
-      // Only 3 new types created
-      expect(mockPrismaService.packagingType.create).toHaveBeenCalledTimes(3);
+      // Only 7 new types created (9 total - 2 existing)
+      expect(mockPrismaService.packagingType.create).toHaveBeenCalledTimes(7);
     });
   });
 });

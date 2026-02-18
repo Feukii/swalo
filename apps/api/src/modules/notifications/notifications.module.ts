@@ -4,6 +4,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
@@ -30,7 +31,10 @@ import { NotificationsScheduler } from './notifications.scheduler';
           from: config.get<string>('SMTP_FROM', '"SWALO" <noreply@swalo.app>'),
         },
         template: {
-          dir: join(__dirname, 'templates'),
+          // In webpack mode __dirname resolves to dist root; fallback to full path
+          dir: existsSync(join(__dirname, 'templates'))
+            ? join(__dirname, 'templates')
+            : join(__dirname, 'modules', 'notifications', 'templates'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,

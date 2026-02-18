@@ -80,14 +80,15 @@ export default function Invoices() {
       const base64 = data.pdf_base64 || data.base64 || data;
 
       // Ouvrir le PDF dans un nouvel onglet
-      const pdfData = typeof base64 === 'string' && base64.startsWith('data:')
-        ? base64
-        : `data:application/pdf;base64,${base64}`;
+      const pdfData =
+        typeof base64 === 'string' && base64.startsWith('data:')
+          ? base64
+          : `data:application/pdf;base64,${base64}`;
       const newWindow = window.open();
       if (newWindow) {
         newWindow.document.write(
           `<html><head><title>Facture ${invoice.invoice_number}</title></head>` +
-          `<body style="margin:0"><iframe src="${pdfData}" width="100%" height="100%" style="border:none;"></iframe></body></html>`
+            `<body style="margin:0"><iframe src="${pdfData}" width="100%" height="100%" style="border:none;"></iframe></body></html>`
         );
         newWindow.document.close();
       }
@@ -138,7 +139,12 @@ export default function Invoices() {
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.issued}</p>
             </div>
             <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -157,7 +163,12 @@ export default function Invoices() {
               <p className="text-3xl font-bold text-gray-900 mt-1">{stats.paid}</p>
             </div>
             <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6 text-green-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -178,7 +189,12 @@ export default function Invoices() {
               </p>
             </div>
             <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6 text-yellow-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -238,7 +254,12 @@ export default function Invoices() {
         ) : invoices.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-8 h-8 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -322,7 +343,12 @@ export default function Invoices() {
                             </>
                           ) : (
                             <>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
                                 <path
                                   strokeLinecap="round"
                                   strokeLinejoin="round"

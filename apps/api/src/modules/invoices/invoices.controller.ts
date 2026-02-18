@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query, Body, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceFromSaleDto, SearchInvoiceDto } from './dto/create-invoice.dto';

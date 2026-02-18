@@ -85,7 +85,7 @@ export async function pruneOldData(
         params = [cutoffISO];
       }
 
-      const rows = await tx.getAllAsync<{ id: string }>(query, params);
+      const rows = await tx.getAllAsync<{ id: string }>(query, params as any[]);
 
       // Filter out records with pending mutations
       const toPrune = rows.filter(r => !pendingIds.has(r.id));

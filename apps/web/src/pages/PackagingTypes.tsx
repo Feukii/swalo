@@ -138,7 +138,8 @@ export default function PackagingTypes() {
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
           <p className="text-gray-600 text-sm">
-            {packagingTypes.length} conditionnement{packagingTypes.length !== 1 ? 's' : ''} enregistré{packagingTypes.length !== 1 ? 's' : ''}
+            {packagingTypes.length} conditionnement{packagingTypes.length !== 1 ? 's' : ''}{' '}
+            enregistré{packagingTypes.length !== 1 ? 's' : ''}
           </p>
           <div className="flex gap-3">
             {packagingTypes.length === 0 && !isLoading && (
@@ -179,7 +180,12 @@ export default function PackagingTypes() {
         ) : packagingTypes.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-8 h-8 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -244,7 +250,11 @@ export default function PackagingTypes() {
                               ? 'text-gray-300 cursor-not-allowed'
                               : 'text-danger-600 hover:text-danger-700'
                           }`}
-                          title={type.is_default ? 'Les types par défaut ne peuvent pas être supprimés' : 'Supprimer'}
+                          title={
+                            type.is_default
+                              ? 'Les types par défaut ne peuvent pas être supprimés'
+                              : 'Supprimer'
+                          }
                         >
                           Supprimer
                         </button>
@@ -327,11 +337,7 @@ export default function PackagingTypes() {
                   Annuler
                 </button>
                 <button type="submit" className="btn-primary flex-1" disabled={isSaving}>
-                  {isSaving
-                    ? 'Enregistrement...'
-                    : selectedType
-                      ? 'Mettre à jour'
-                      : 'Créer'}
+                  {isSaving ? 'Enregistrement...' : selectedType ? 'Mettre à jour' : 'Créer'}
                 </button>
               </div>
             </form>
@@ -345,7 +351,12 @@ export default function PackagingTypes() {
           <div className="bg-white w-full max-w-md rounded-3xl shadow-medium animate-scale-in">
             <div className="p-6 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-danger-50 flex items-center justify-center">
-                <svg className="w-8 h-8 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-8 h-8 text-danger-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -359,10 +370,7 @@ export default function PackagingTypes() {
                 Voulez-vous vraiment supprimer ce conditionnement ? Cette action est irréversible.
               </p>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  className="btn-secondary flex-1"
-                >
+                <button onClick={() => setShowDeleteConfirm(null)} className="btn-secondary flex-1">
                   Annuler
                 </button>
                 <button

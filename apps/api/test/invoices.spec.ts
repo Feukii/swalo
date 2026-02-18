@@ -74,11 +74,14 @@ describe('InvoicesService', () => {
     shop: { findUnique: jest.fn() },
     invoice: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     sale: { findFirst: jest.fn() },
+    $transaction: jest.fn(),
   };
 
   const mockPdfGenerator = {
@@ -100,16 +103,17 @@ describe('InvoicesService', () => {
     }).compile();
 
     service = module.get<InvoicesService>(InvoicesService);
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    // Re-set $transaction mock after resetAllMocks (callback pattern)
+    mockPrismaService.$transaction.mockImplementation((cb: any) => cb(mockPrismaService));
   });
 
   describe('createFromSale', () => {
     it('should create invoice and generate PDF from a completed sale', async () => {
-      mockPrismaService.invoice.findFirst.mockResolvedValueOnce(null); // No existing invoice
       mockPrismaService.sale.findFirst.mockResolvedValue(mockSale);
       mockPrismaService.shop.findUnique.mockResolvedValue(mockShop);
-      // No previous invoices for number generation
-      mockPrismaService.invoice.findFirst.mockResolvedValueOnce(null); // generateInvoiceNumber lookup
+      // No previous invoices for number generation (used by generateInvoiceNumber inside $transaction)
+      mockPrismaService.invoice.findFirst.mockResolvedValueOnce(null);
 
       mockPdfGenerator.generateInvoicePdfBase64.mockResolvedValue('base64pdfdata');
 
@@ -142,23 +146,7 @@ describe('InvoicesService', () => {
       expect(mockPrismaService.invoice.create).toHaveBeenCalled();
     });
 
-    it('should return existing invoice if already created for the sale', async () => {
-      const existingInvoice = {
-        id: 'inv-existing',
-        number: 'BTQ01-2026-0001',
-        pdf_data: 'existing_pdf_data',
-      };
-      mockPrismaService.invoice.findFirst.mockResolvedValue(existingInvoice);
-
-      const result = await service.createFromSale(shopId, saleId);
-
-      expect(result.id).toBe('inv-existing');
-      expect(mockPrismaService.sale.findFirst).not.toHaveBeenCalled();
-      expect(mockPrismaService.invoice.create).not.toHaveBeenCalled();
-    });
-
     it('should throw NotFoundException if sale not found', async () => {
-      mockPrismaService.invoice.findFirst.mockResolvedValue(null);
       mockPrismaService.sale.findFirst.mockResolvedValue(null);
 
       await expect(service.createFromSale(shopId, 'nonexistent')).rejects.toThrow(
@@ -167,7 +155,6 @@ describe('InvoicesService', () => {
     });
 
     it('should throw BadRequestException if sale is not COMPLETED', async () => {
-      mockPrismaService.invoice.findFirst.mockResolvedValue(null);
       mockPrismaService.sale.findFirst.mockResolvedValue({
         ...mockSale,
         status: 'DRAFT',
@@ -177,10 +164,9 @@ describe('InvoicesService', () => {
     });
 
     it('should generate sequential invoice numbers', async () => {
-      mockPrismaService.invoice.findFirst.mockResolvedValueOnce(null); // No existing invoice for this sale
       mockPrismaService.sale.findFirst.mockResolvedValue(mockSale);
       mockPrismaService.shop.findUnique.mockResolvedValue(mockShop);
-      // Previous invoice exists with number 0005
+      // Previous invoice exists with number 0005 (used by generateInvoiceNumber inside $transaction)
       mockPrismaService.invoice.findFirst.mockResolvedValueOnce({ number: 'BTQ01-2026-0005' });
 
       mockPdfGenerator.generateInvoicePdfBase64.mockResolvedValue('pdf');

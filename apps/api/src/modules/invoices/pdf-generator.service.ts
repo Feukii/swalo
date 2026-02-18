@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
+import { existsSync } from 'fs';
 
 /**
  * Donnees necessaires pour generer une facture PDF
@@ -55,8 +56,28 @@ export class PdfGeneratorService {
     this.pdfmake = require('pdfmake');
 
     // Resolve font paths from pdfmake package
-    const pdfmakePath = path.dirname(require.resolve('pdfmake/package.json'));
-    const fontsDir = path.join(pdfmakePath, 'fonts', 'Roboto');
+    // In webpack mode, require.resolve may point to dist/ instead of node_modules
+    let fontsDir = '';
+    try {
+      const pdfmakePath = path.dirname(require.resolve('pdfmake/package.json'));
+      fontsDir = path.join(pdfmakePath, 'fonts', 'Roboto');
+    } catch {
+      fontsDir = '';
+    }
+
+    // Fallback: walk up from cwd to find node_modules/pdfmake/fonts/Roboto
+    if (!fontsDir || !existsSync(fontsDir)) {
+      const candidates = [
+        path.join(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto'),
+        path.join(__dirname, '..', '..', '..', 'node_modules', 'pdfmake', 'fonts', 'Roboto'),
+      ];
+      for (const candidate of candidates) {
+        if (existsSync(candidate)) {
+          fontsDir = candidate;
+          break;
+        }
+      }
+    }
 
     this.pdfmake.setFonts({
       Roboto: {

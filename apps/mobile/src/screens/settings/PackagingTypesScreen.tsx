@@ -50,7 +50,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
   const loadData = useCallback(async () => {
     try {
       const response = await packagingTypesApi.getAll();
-      const data = response.data ?? response;
+      const data = (response as any).data ?? response;
       setPackagingTypes(Array.isArray(data) ? data : []);
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Impossible de charger les conditionnements');

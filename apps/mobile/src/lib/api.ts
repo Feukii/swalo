@@ -915,7 +915,12 @@ export const invoicesApi = {
     return api.post<any>(`/invoices/from-sale/${saleId}`, { notes });
   },
 
-  getAll: async (params?: { customer_id?: string; status?: string; start_date?: string; end_date?: string }) => {
+  getAll: async (params?: {
+    customer_id?: string;
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
     const queryParams = new URLSearchParams();
     if (params?.customer_id) queryParams.append('customer_id', params.customer_id);
     if (params?.status) queryParams.append('status', params.status);

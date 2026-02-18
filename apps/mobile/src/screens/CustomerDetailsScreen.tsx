@@ -92,7 +92,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<
     Array<{
-      type: 'receivable' | 'payment' | 'cash';
+      type: 'receivable' | 'payment' | 'cash' | 'sale';
       date: string;
       amount: number;
       note?: string;

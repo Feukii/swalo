@@ -1,6 +1,6 @@
 # SWALO - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-02-16
+> **Dernière mise à jour** : 2026-02-19
 > **Version application** : 1.0.0
 > **Branche** : develop
 >
@@ -756,12 +756,22 @@ KPIs affichés : solde de caisse, entrées/sorties du jour, nombre de ventes, ch
 
 ### 8.2 Rapports de gestion
 
-| Propriété         | Valeur                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| **Description**   | Rapports détaillés par période : flux de caisse, clients, fournisseurs                        |
-| **Plateformes**   | Mobile, Web                                                                                   |
-| **Module**        | Étendu (reports)                                                                              |
-| **Fichiers clés** | `apps/mobile/src/screens/BusinessReportsScreen.tsx`, `apps/web/src/pages/BusinessReports.tsx` |
+| Propriété         | Valeur                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Description**   | Rapports détaillés par période : flux de caisse, clients, fournisseurs                                                                                                                                 |
+| **Plateformes**   | Mobile, Web, API                                                                                                                                                                                       |
+| **Module**        | Étendu (reports)                                                                                                                                                                                       |
+| **Fichiers clés** | `apps/api/src/modules/reports/reports.controller.ts`, `apps/api/src/modules/reports/reports.service.ts`, `apps/mobile/src/screens/BusinessReportsScreen.tsx`, `apps/web/src/pages/BusinessReports.tsx` |
+
+**Endpoints API** :
+
+- `GET /reports/sales` - Rapport des ventes (total, CA, ticket moyen, ventilation par mode de paiement)
+- `GET /reports/stock` - Rapport du stock (produits actifs, alertes, quantité et valeur totale)
+- `GET /reports/cash` - Rapport de trésorerie (entrées, sorties, solde, créances/dettes en cours)
+- `GET /reports/overview` - Vue d'ensemble consolidée (sales + stock + cash)
+
+Tous les endpoints acceptent `?start_date=` et `?end_date=` pour le filtrage par période.
+Accès : BOSS, MANAGER (SUPERADMIN bypass).
 
 Sections disponibles :
 
@@ -776,7 +786,7 @@ Sections disponibles :
 | Propriété       | Valeur                                                                             |
 | --------------- | ---------------------------------------------------------------------------------- |
 | **Description** | Filtrer les rapports par période (aujourd'hui, semaine, mois, année, personnalisé) |
-| **Plateformes** | Mobile, Web                                                                        |
+| **Plateformes** | Mobile, Web, API                                                                   |
 | **Module**      | Étendu                                                                             |
 
 ### 8.4 Historique des transactions
@@ -834,12 +844,12 @@ Chaque enregistrement local possède des métadonnées de sync :
 
 ### 9.2 Opérations offline
 
-| Propriété       | Valeur                                                                               |
-| --------------- | ------------------------------------------------------------------------------------ |
-| **Description** | CRUD complet offline pour toutes les entités métier                                 |
-| **Plateformes** | Mobile                                                                               |
-| **Module**      | Coeur                                                                                |
-| **Fichier**     | `apps/mobile/src/db/offlineWrite.ts`                                                 |
+| Propriété       | Valeur                                              |
+| --------------- | --------------------------------------------------- |
+| **Description** | CRUD complet offline pour toutes les entités métier |
+| **Plateformes** | Mobile                                              |
+| **Module**      | Coeur                                               |
+| **Fichier**     | `apps/mobile/src/db/offlineWrite.ts`                |
 
 **22+ opérations offline implémentées :**
 
@@ -945,11 +955,11 @@ Chaque opération :
 
 ### 9.8 Authentification PIN offline
 
-| Propriété         | Valeur                                                                  |
-| ----------------- | ----------------------------------------------------------------------- |
-| **Description**   | Login par PIN sans connexion internet via cache local                   |
-| **Plateformes**   | Mobile                                                                  |
-| **Module**        | Coeur                                                                   |
+| Propriété         | Valeur                                                                          |
+| ----------------- | ------------------------------------------------------------------------------- |
+| **Description**   | Login par PIN sans connexion internet via cache local                           |
+| **Plateformes**   | Mobile                                                                          |
+| **Module**        | Coeur                                                                           |
 | **Fichiers clés** | `apps/mobile/src/db/authCache.ts`, `apps/mobile/src/screens/LoginPinScreen.tsx` |
 
 - Cache du hash bcrypt du PIN dans la table `auth_cache` (SQLite)
@@ -960,11 +970,11 @@ Chaque opération :
 
 ### 9.9 Rapports & KPIs offline
 
-| Propriété         | Valeur                                                                      |
-| ----------------- | --------------------------------------------------------------------------- |
-| **Description**   | Rapports et indicateurs calculés localement via requêtes SQLite agrégées    |
-| **Plateformes**   | Mobile                                                                      |
-| **Module**        | Coeur                                                                       |
+| Propriété         | Valeur                                                                        |
+| ----------------- | ----------------------------------------------------------------------------- |
+| **Description**   | Rapports et indicateurs calculés localement via requêtes SQLite agrégées      |
+| **Plateformes**   | Mobile                                                                        |
+| **Module**        | Coeur                                                                         |
 | **Fichiers clés** | `apps/mobile/src/db/reports.ts`, `apps/mobile/src/hooks/useOfflineReports.ts` |
 
 - Ventes journalières (total, nombre, cash vs crédit, moyenne)
@@ -977,12 +987,12 @@ Chaque opération :
 
 ### 9.10 Rétention et maintenance des données
 
-| Propriété         | Valeur                                                  |
-| ----------------- | ------------------------------------------------------- |
-| **Description**   | Purge automatique des données anciennes synchronisées   |
-| **Plateformes**   | Mobile                                                  |
-| **Module**        | Coeur                                                   |
-| **Fichiers clés** | `apps/mobile/src/db/maintenance.ts`                     |
+| Propriété         | Valeur                                                |
+| ----------------- | ----------------------------------------------------- |
+| **Description**   | Purge automatique des données anciennes synchronisées |
+| **Plateformes**   | Mobile                                                |
+| **Module**        | Coeur                                                 |
+| **Fichiers clés** | `apps/mobile/src/db/maintenance.ts`                   |
 
 - Purge des enregistrements transactionnels synchronisés de plus de 90 jours
 - Tables purgées : sales, sale_items, cash_entries, inventory_movements, payments, invoices
@@ -1570,14 +1580,14 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                                                                                                                                                                             | Auteur      |
+| Date       | Description                                                                                                                                                                                                                                                                                                                                                           | Auteur      |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web | Claude Code |
-| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen | Claude Code |
-| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités | Claude Code |
+| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen         | Claude Code |
+| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                               | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                     | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                      | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                    | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                  | Claude Code |
 
 <!-- EOF -->
