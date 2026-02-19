@@ -320,7 +320,7 @@ export default function StockManagementScreen({ navigation }: any) {
                     </Text>
                   </View>
 
-                  {product.cost_price && product.sell_price && (
+                  {product.cost_price != null && product.sell_price != null && (
                     <View style={styles.priceInfo}>
                       <Text style={styles.priceLabel}>
                         Achat: {formatMoney(product.cost_price)}

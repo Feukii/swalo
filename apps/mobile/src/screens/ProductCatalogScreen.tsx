@@ -30,7 +30,9 @@ import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import * as DocumentPicker from 'expo-document-picker';
 import { productRepo, stockBatchRepo } from '../db/repositories';
+import { importApi } from '../lib/api';
 import {
   createProductOffline,
   updateProductOffline,
@@ -458,17 +460,54 @@ export default function ProductCatalogScreen({ navigation }: any) {
   };
 
   const pickDocument = async () => {
-    Alert.alert(
-      'Fonctionnalite en ligne',
-      "L'import de catalogue CSV necessite une connexion internet. Veuillez vous connecter et reessayer."
-    );
+    try {
+      setIsImporting(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        setIsImporting(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      const content = await response.text();
+
+      const preview = await importApi.previewCatalog(content, asset.name);
+
+      setImportFile({ name: asset.name, content });
+      setImportPreview(preview);
+      setImportStep('preview');
+    } catch (error: any) {
+      Alert.alert(
+        'Erreur',
+        error.message || 'Impossible de lire le fichier. Verifiez votre connexion internet.'
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const confirmImport = async () => {
-    Alert.alert(
-      'Fonctionnalite en ligne',
-      "L'import de catalogue necessite une connexion internet."
-    );
+    if (!importFile) return;
+    try {
+      setIsImporting(true);
+      await importApi.confirmCatalog(importFile.content, importFile.name);
+      setImportStep('success');
+      Alert.alert('Import reussi', 'Le catalogue a ete mis a jour avec succes.');
+      closeImportModal();
+      loadProducts();
+    } catch (error: any) {
+      Alert.alert(
+        'Erreur',
+        error.message || "Impossible d'importer le catalogue. Verifiez votre connexion internet."
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Suggestions filtrées

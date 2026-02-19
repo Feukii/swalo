@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Users,
@@ -20,23 +21,60 @@ import {
 import { ScreenHeader, ListItem } from '../components/ui';
 import { Colors } from '../constants/theme-v2';
 
+const MENU_ITEMS = [
+  { icon: Users, title: 'Clients', screen: 'Customers', module: 'customers' },
+  { icon: Building, title: 'Fournisseurs', screen: 'Suppliers', module: 'suppliers' },
+  {
+    icon: Clock,
+    title: 'Historique des transactions',
+    screen: 'TransactionHistory',
+    module: 'sales',
+  },
+  { icon: BarChart3, title: 'Rapports', screen: 'BusinessReports', module: 'reports' },
+  {
+    icon: Package,
+    title: 'Catalogue Articles',
+    screen: 'ProductCatalog',
+    module: 'products',
+  },
+  {
+    icon: Receipt,
+    title: 'Factures',
+    screen: 'InvoiceList',
+    module: 'invoices',
+  },
+  { icon: UserCog, title: 'Utilisateurs', screen: 'UserManagement', module: 'admin' },
+  {
+    icon: ArrowLeftRight,
+    title: 'Transferts inter-boutiques',
+    screen: 'Transfers',
+    module: 'transfers',
+  },
+  { icon: Store, title: 'Mes boutiques', screen: 'ShopSwitcher', module: 'enterprise' },
+  { icon: RefreshCw, title: 'Synchronisation', screen: 'SyncStatus' },
+  { icon: Settings, title: 'Administration', screen: 'ShopAdmin' },
+];
+
 export default function MoreScreen({ navigation }: any) {
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [licenseTier, setLicenseTier] = useState<string>('STARTER');
 
-  useEffect(() => {
-    const loadModules = async () => {
-      try {
-        const modules = await AsyncStorage.getItem('enabled_modules');
-        const tier = await AsyncStorage.getItem('license_tier');
-        if (modules) setEnabledModules(JSON.parse(modules));
-        if (tier) setLicenseTier(tier);
-      } catch {
-        // Fallback: all modules allowed
-      }
-    };
-    loadModules();
-  }, []);
+  // Bug 9: Recharger les modules a chaque focus (au lieu de useEffect([]))
+  useFocusEffect(
+    useCallback(() => {
+      const loadModules = async () => {
+        try {
+          const modules = await AsyncStorage.getItem('enabled_modules');
+          const tier = await AsyncStorage.getItem('license_tier');
+          if (modules) setEnabledModules(JSON.parse(modules));
+          if (tier) setLicenseTier(tier);
+        } catch {
+          // Fallback: all modules allowed
+        }
+      };
+      loadModules();
+    }, [])
+  );
 
   const isModuleEnabled = (moduleCode?: string): boolean => {
     if (!moduleCode) return true;
@@ -80,72 +118,47 @@ export default function MoreScreen({ navigation }: any) {
     navigation.getParent()?.navigate(screenName);
   };
 
+  // Bug 8a: Séparer modules actifs et non disponibles
+  const enabledItems = MENU_ITEMS.filter(item => isModuleEnabled(item.module));
+  const disabledItems = MENU_ITEMS.filter(item => !isModuleEnabled(item.module));
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader title="Plus" />
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Modules actifs */}
         <View style={styles.card}>
-          {[
-            { icon: Users, title: 'Clients', screen: 'Customers', module: 'customers' },
-            { icon: Building, title: 'Fournisseurs', screen: 'Suppliers', module: 'suppliers' },
-            {
-              icon: Clock,
-              title: 'Historique des transactions',
-              screen: 'TransactionHistory',
-              module: 'sales',
-            },
-            { icon: BarChart3, title: 'Rapports', screen: 'BusinessReports', module: 'reports' },
-            {
-              icon: Package,
-              title: 'Catalogue Articles',
-              screen: 'ProductCatalog',
-              module: 'products',
-            },
-            {
-              icon: Receipt,
-              title: 'Factures',
-              screen: 'InvoiceList',
-              module: 'invoices',
-            },
-            {
-              icon: Package,
-              title: 'Conditionnements',
-              screen: 'PackagingTypes',
-              module: 'products',
-            },
-            { icon: UserCog, title: 'Utilisateurs', screen: 'UserManagement', module: 'admin' },
-            {
-              icon: ArrowLeftRight,
-              title: 'Transferts inter-boutiques',
-              screen: 'Transfers',
-              module: 'transfers',
-            },
-            { icon: Store, title: 'Mes boutiques', screen: 'ShopSwitcher', module: 'enterprise' },
-            { icon: RefreshCw, title: 'Synchronisation', screen: 'SyncStatus' },
-            { icon: Settings, title: 'Administration', screen: 'ShopAdmin' },
-          ].map(item => {
-            const enabled = isModuleEnabled(item.module);
+          {enabledItems.map(item => {
             const IconComponent = item.icon;
             return (
-              <View key={item.screen} style={!enabled ? styles.disabledItem : undefined}>
-                <ListItem
-                  icon={
-                    enabled ? (
-                      <IconComponent size={20} color={Colors.primary[900]} />
-                    ) : (
-                      <Lock size={20} color={Colors.textColors.disabled} />
-                    )
-                  }
-                  title={item.title}
-                  onClick={() =>
-                    enabled ? navigateToScreen(item.screen) : handleDisabledModule(item.title)
-                  }
-                />
-              </View>
+              <ListItem
+                key={item.screen}
+                icon={<IconComponent size={20} color={Colors.primary[900]} />}
+                title={item.title}
+                onClick={() => navigateToScreen(item.screen)}
+              />
             );
           })}
         </View>
+
+        {/* Modules non disponibles */}
+        {disabledItems.length > 0 && (
+          <View style={styles.disabledSection}>
+            <Text style={styles.sectionTitle}>Modules non disponibles</Text>
+            <View style={styles.card}>
+              {disabledItems.map(item => (
+                <View key={item.screen} style={styles.disabledItem}>
+                  <ListItem
+                    icon={<Lock size={20} color={Colors.textColors.disabled} />}
+                    title={item.title}
+                    onClick={() => handleDisabledModule(item.title)}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={[styles.card, { marginTop: 24 }]}>
           <ListItem
@@ -174,6 +187,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 18,
     overflow: 'hidden',
+  },
+  disabledSection: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.muted.foreground,
+    marginBottom: 8,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   disabledItem: {
     opacity: 0.4,
