@@ -28,7 +28,12 @@ import { Colors, Spacing } from '../constants/theme-v2';
 import { Product } from '../types/stock';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { productRepo, customerRepo, stockBatchRepo } from '../db/repositories';
+import {
+  productRepo,
+  customerRepo,
+  stockBatchRepo,
+  clientReceivableRepo,
+} from '../db/repositories';
 import {
   createSaleOffline,
   createCashEntryOffline,
@@ -352,6 +357,22 @@ export default function SaleScreen() {
 
       // Create receivable for credit sales
       if (paymentMethod === 'credit') {
+        // Vérifier le plafond de crédit du client
+        if (customer && customer.credit_limit > 0) {
+          const pendingReceivables = await clientReceivableRepo.getAll(shopId, {
+            where: { customer_id: selectedCustomer, status: 'PENDING' },
+          });
+          const currentBalance = pendingReceivables.reduce((sum, r) => sum + (r.balance || 0), 0);
+          if (currentBalance + amount > customer.credit_limit) {
+            Alert.alert(
+              'Plafond de credit atteint',
+              `Solde impaye: ${formatMoney(currentBalance)}\nLimite: ${formatMoney(customer.credit_limit)}\n\nContactez le manager pour augmenter le plafond.`
+            );
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
         await createReceivableOffline({
           shopId,
           customerId: selectedCustomer,

@@ -172,6 +172,9 @@ export const authApi = {
     await AsyncStorage.removeItem('access_token');
     await AsyncStorage.removeItem('user');
   },
+  getMe: async () => {
+    return api.get<any>('/auth/me');
+  },
   verifyShop: async (code: string) => {
     return api.get<{
       exists: boolean;

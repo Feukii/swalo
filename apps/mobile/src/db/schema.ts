@@ -6,7 +6,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'swalo.db';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -32,13 +32,23 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 export async function initDatabase(): Promise<void> {
   const db = await getDatabase();
 
-  // Clean up legacy tables that may exist on older devices
-  await db.execAsync('DROP TABLE IF EXISTS auth_cache;');
-
   await db.execAsync(`
     -- Schema version tracking
     CREATE TABLE IF NOT EXISTS _schema_version (
       version INTEGER NOT NULL
+    );
+
+    -- Auth cache for offline PIN authentication
+    CREATE TABLE IF NOT EXISTS auth_cache (
+      user_id TEXT PRIMARY KEY,
+      shop_id TEXT NOT NULL,
+      shop_code TEXT NOT NULL,
+      pin_hash TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      enabled_modules TEXT NOT NULL DEFAULT '[]',
+      cached_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
     );
 
     -- Products (mirror of Prisma Product)
@@ -68,6 +78,7 @@ export async function initDatabase(): Promise<void> {
       version INTEGER NOT NULL DEFAULT 1,
       device_id TEXT,
       client_op_id TEXT,
+      packaging_type_id TEXT,
       _sync_status TEXT NOT NULL DEFAULT 'synced',
       _server_id TEXT,
       _last_synced_at TEXT
@@ -657,6 +668,24 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_mutation_queue_status ON _mutation_queue(status, priority ASC, timestamp ASC);
     `);
     await db.runAsync('UPDATE _schema_version SET version = 4');
+  }
+
+  if (currentVersion < 5) {
+    // Migration v5: Add packaging_type_id to products, expected_total/pricing_notes to sales
+    // Using try/catch per statement because columns may already exist on newer installs
+    const alterStatements = [
+      'ALTER TABLE products ADD COLUMN packaging_type_id TEXT;',
+      'ALTER TABLE sales ADD COLUMN expected_total INTEGER;',
+      'ALTER TABLE sales ADD COLUMN pricing_notes TEXT;',
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await db.execAsync(stmt);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 5');
   }
 }
 

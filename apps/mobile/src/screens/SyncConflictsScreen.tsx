@@ -48,6 +48,20 @@ const ENTITY_LABELS: Record<string, string> = {
   inventory_movements: 'Mouvement de stock',
 };
 
+const REASON_LABELS: Record<string, string> = {
+  version_conflict: 'Modifie ailleurs pendant que vous travailliez hors-ligne.',
+  stock_insufficient: 'Le stock a change depuis votre derniere synchronisation.',
+  duplicate_operation: 'Cette operation a deja ete traitee par le serveur.',
+  entity_deleted: 'Cet element a ete supprime sur un autre appareil.',
+};
+
+const getReasonLabel = (reason: string): string => {
+  for (const [key, label] of Object.entries(REASON_LABELS)) {
+    if (reason.toLowerCase().includes(key)) return label;
+  }
+  return 'Une modification a eu lieu sur un autre appareil.';
+};
+
 export default function SyncConflictsScreen({ navigation }: any) {
   const [conflicts, setConflicts] = useState<ConflictRecord[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,12 +84,12 @@ export default function SyncConflictsScreen({ navigation }: any) {
   const handleAcceptServer = useCallback(
     async (conflict: ConflictRecord) => {
       Alert.alert(
-        'Accepter la version serveur',
-        'Vos modifications locales seront perdues. Continuer ?',
+        'Garder la version en ligne',
+        'Vos modifications locales seront remplacees par la version du serveur. Continuer ?',
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Accepter',
+            text: 'Confirmer',
             style: 'destructive',
             onPress: async () => {
               await syncEngine.resolveConflict(conflict.id, 'accept_server');
@@ -101,12 +115,12 @@ export default function SyncConflictsScreen({ navigation }: any) {
       }
 
       Alert.alert(
-        'Forcer la version locale',
-        'La version du serveur sera ecrasee par votre version. Continuer ?',
+        'Garder ma version',
+        'La version du serveur sera remplacee par votre version locale. Continuer ?',
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Forcer',
+            text: 'Confirmer',
             style: 'destructive',
             onPress: async () => {
               // Retry the mutation
@@ -143,8 +157,7 @@ export default function SyncConflictsScreen({ navigation }: any) {
         <Text style={styles.conflictDate}>{formatDate(item.created_at)}</Text>
       </View>
 
-      <Text style={styles.conflictReason}>{item.reason}</Text>
-      <Text style={styles.conflictId}>ID: {item.entity_id.substring(0, 8)}...</Text>
+      <Text style={styles.conflictReason}>{getReasonLabel(item.reason)}</Text>
 
       <View style={styles.conflictActions}>
         <TouchableOpacity
@@ -152,7 +165,7 @@ export default function SyncConflictsScreen({ navigation }: any) {
           onPress={() => handleAcceptServer(item)}
         >
           <Server size={14} color="#fff" />
-          <Text style={styles.actionButtonText}>Accepter serveur</Text>
+          <Text style={styles.actionButtonText}>Garder la version en ligne</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -160,7 +173,7 @@ export default function SyncConflictsScreen({ navigation }: any) {
           onPress={() => handleForceClient(item)}
         >
           <Smartphone size={14} color="#fff" />
-          <Text style={styles.actionButtonText}>Forcer local</Text>
+          <Text style={styles.actionButtonText}>Garder ma version</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -224,8 +237,7 @@ const styles = StyleSheet.create({
   },
   conflictEntity: { fontSize: 15, fontWeight: '600', color: '#1E293B', flex: 1 },
   conflictDate: { fontSize: 12, color: '#64748B' },
-  conflictReason: { fontSize: 14, color: '#9A3412', marginBottom: 4 },
-  conflictId: { fontSize: 12, color: '#94A3B8', marginBottom: 12 },
+  conflictReason: { fontSize: 14, color: '#9A3412', marginBottom: 12 },
   conflictActions: {
     flexDirection: 'row',
     gap: 8,
@@ -241,7 +253,7 @@ const styles = StyleSheet.create({
   },
   acceptButton: { backgroundColor: '#2563EB' },
   forceButton: { backgroundColor: '#EA580C' },
-  actionButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  actionButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   emptyState: {
     flex: 1,
     alignItems: 'center',

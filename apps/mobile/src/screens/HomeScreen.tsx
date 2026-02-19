@@ -7,8 +7,10 @@ import { ScreenHeader, KPICard, ListItem, TransactionDetailModal } from '../comp
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { getTodayLabel } from '../utils/date';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
+import { authApi } from '../lib/api';
 import {
   cashEntryRepo,
   clientReceivableRepo,
@@ -49,7 +51,7 @@ const freshnessColors: Record<FreshnessLevel, string> = {
 };
 
 export default function HomeScreen() {
-  const { shopId } = useCurrentUser();
+  const { shopId, shop, enterprise } = useCurrentUser();
   const freshness = useSyncFreshness();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -177,10 +179,29 @@ export default function HomeScreen() {
     loadData();
   }, [loadData]);
 
+  // Rafraichir les donnees utilisateur/licence depuis le serveur au focus
+  const refreshUserData = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) return;
+
+      const meData = await authApi.getMe();
+      if (meData.enabled_modules) {
+        await AsyncStorage.setItem('enabled_modules', JSON.stringify(meData.enabled_modules));
+      }
+      if (meData.license_tier) {
+        await AsyncStorage.setItem('license_tier', meData.license_tier);
+      }
+    } catch {
+      // Silently fail - offline or server unavailable
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+      refreshUserData();
+    }, [loadData, refreshUserData])
   );
 
   const onRefresh = async () => {
@@ -191,7 +212,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Swalo" />
+      <ScreenHeader
+        title={
+          enterprise?.name && shop?.name
+            ? `${enterprise.name} - ${shop.name}`
+            : shop?.name || 'Swalo'
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
