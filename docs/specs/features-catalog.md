@@ -1556,11 +1556,11 @@ Erreurs Prisma mappées :
 
 ### Plans de licence
 
-| Plan             | Modules inclus           | Cible                       |
-| ---------------- | ------------------------ | --------------------------- |
-| **STARTER**      | Coeur uniquement         | Petit commerçant individuel |
-| **PROFESSIONAL** | Coeur + Étendu           | Boutique avec employés      |
-| **ENTERPRISE**   | Coeur + Étendu + Premium | PME multi-boutiques         |
+| Plan             | Modules inclus                                    | Nb  | Cible                       |
+| ---------------- | ------------------------------------------------- | --- | --------------------------- |
+| **STARTER**      | Coeur + Étendu                                    | 12  | Petit commerçant individuel |
+| **PROFESSIONAL** | Coeur + Étendu + Premium (sauf packaging-types)   | 17  | Boutique avec employés      |
+| **ENTERPRISE**   | Tous les modules                                  | 18  | PME multi-boutiques         |
 
 > Le système d'activation de modules est **implémenté** (Plan 023 - Phase 5, complété Plan 029). Le champ `enabled_modules` sur Shop contrôle les modules actifs. L'`EntitlementGuard` (APP_GUARD global) vérifie que le module requis est activé avant chaque requête. Si `enabled_modules` est vide, tous les modules sont autorisés (rétrocompatibilité). Les contrôleurs décorés avec `@RequireModule()` : `suppliers`, `debts`, `receivables`, `transfers`, `invoices`, `import`, `enterprise`, `notifications`, `packaging-types`. Le registre des modules est dans `packages/core/src/modules/registry.ts`.
 >
@@ -1582,6 +1582,7 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 | Date       | Description                                                                                                                                                                                                                                                                                                                                                           | Auteur      |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-02-19 | Fix 9 bugs mobile: migration SQLite v5 (packaging_type_id, expected_total, pricing_notes), fix Text rendering stock, credit limit enforcement (PENDING+PARTIAL) sur SaleScreen/CustomerDetailsScreen/CashScreen, import CSV reel via expo-document-picker, messages conflits sync humanises, modules desactives regroupes dans MoreScreen, refresh licence au focus, auto-sync au focus HomeScreen. Correction table licences dans features-catalog (STARTER = Coeur + Etendu, pas Coeur uniquement) | Claude Code |
 | 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web | Claude Code |
 | 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen         | Claude Code |
 | 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                               | Claude Code |

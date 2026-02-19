@@ -10,6 +10,7 @@ import { getTodayLabel } from '../utils/date';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
+import { syncEngine } from '../db/sync';
 import { authApi } from '../lib/api';
 import {
   cashEntryRepo,
@@ -201,6 +202,8 @@ export default function HomeScreen() {
     useCallback(() => {
       loadData();
       refreshUserData();
+      // Déclencher une sync en arrière-plan pour garder les données à jour
+      syncEngine.fullSync().catch(() => undefined);
     }, [loadData, refreshUserData])
   );
 

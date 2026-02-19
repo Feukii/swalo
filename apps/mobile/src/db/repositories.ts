@@ -651,6 +651,15 @@ class ClientReceivableRepository extends LocalRepository<LocalClientReceivable> 
     );
     return row?.total ?? 0;
   }
+
+  async getCustomerBalance(shopId: string, customerId: string): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(balance), 0) as total FROM client_receivables WHERE shop_id = ? AND customer_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL')`,
+      [shopId, customerId]
+    );
+    return row?.total ?? 0;
+  }
 }
 
 // ============================================================

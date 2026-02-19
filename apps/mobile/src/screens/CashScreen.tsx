@@ -35,6 +35,7 @@ import {
   createReceivableOffline,
   createSupplierDebtOffline,
 } from '../db/offlineWrite';
+import { checkCreditLimit } from '../utils/creditCheck';
 
 // Interface pour les transactions de caisse (cash + crédit)
 interface CashTransaction {
@@ -329,6 +330,20 @@ export default function CashScreen({ navigation }: any) {
 
       // Si vente à crédit, créer une créance client au lieu d'une entrée de caisse
       if (entryCategory === 'ventes' && entryPaymentMode === 'credit') {
+        // Vérifier le plafond de crédit
+        const creditCustomer = customers.find(c => c.id === selectedCustomerId);
+        const creditError = await checkCreditLimit(
+          shopId,
+          selectedCustomerId,
+          creditCustomer?.credit_limit || 0,
+          amountValue
+        );
+        if (creditError) {
+          Alert.alert('Plafond de credit atteint', creditError);
+          setIsSubmitting(false);
+          return;
+        }
+
         await createReceivableOffline({
           shopId,
           customerId: selectedCustomerId,
