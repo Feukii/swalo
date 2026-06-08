@@ -120,7 +120,9 @@ jobs:
         run: cd apps/mobile && pnpm install
 
       - name: Build on EAS
-        run: cd apps/mobile && eas build --platform all --non-interactive --no-wait
+        # iOS désactivé tant que les credentials Apple (certificat de distribution)
+        # ne sont pas configurés dans EAS. Repasser à --platform all une fois prêt.
+        run: cd apps/mobile && eas build --platform android --non-interactive --no-wait
 
   # Deploy API to Render (automatic via render.yaml)
   notify-render:
