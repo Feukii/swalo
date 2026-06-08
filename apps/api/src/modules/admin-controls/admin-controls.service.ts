@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
-  getAvailableModulesForLicense,
+  MODULE_DEFINITIONS,
   validateModuleDependencies,
   type LicenseTier,
 } from '@swalo/core/modules/registry';
@@ -381,10 +381,9 @@ export class AdminControlsService {
     });
     if (!shop) throw new NotFoundException('Boutique non trouvée');
 
-    // Validate modules against enterprise license tier
+    // Validate modules against enterprise license tier (with overrides)
     const licenseTier = shop.enterprise.license_tier as LicenseTier;
-    const allowedModules = getAvailableModulesForLicense(licenseTier);
-    const allowedCodes = allowedModules.map(m => m.code);
+    const allowedCodes = await this.getEffectiveAllowedCodes(licenseTier);
 
     const unauthorized = modules.filter(m => !allowedCodes.includes(m));
     if (unauthorized.length > 0) {
@@ -424,5 +423,42 @@ export class AdminControlsService {
     });
 
     return updated;
+  }
+
+  // ==================== HELPERS ====================
+
+  private readonly LICENSE_TIER_ORDER: Record<string, number> = {
+    STARTER: 0,
+    PROFESSIONAL: 1,
+    ENTERPRISE: 2,
+  };
+
+  /**
+   * Get allowed module codes for a license tier, respecting SystemConfig overrides.
+   */
+  private async getEffectiveAllowedCodes(licenseTier: LicenseTier): Promise<string[]> {
+    const config = await this.prisma.systemConfig.findUnique({
+      where: { key: 'license_tier_overrides' },
+    });
+
+    const overrides: Record<string, string> = {};
+    if (config) {
+      try {
+        const parsed = JSON.parse(config.value);
+        if (Array.isArray(parsed)) {
+          for (const o of parsed) {
+            overrides[o.code] = o.minimumLicenseTier;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const tierLevel = this.LICENSE_TIER_ORDER[licenseTier];
+    return MODULE_DEFINITIONS.filter(m => {
+      const minTier = overrides[m.code] || m.minimumLicenseTier;
+      return this.LICENSE_TIER_ORDER[minTier] <= tierLevel;
+    }).map(m => m.code);
   }
 }

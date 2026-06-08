@@ -88,16 +88,20 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
         await AsyncStorage.setItem('license_tier', (response as any).license_tier);
       }
 
-      // 2. Cache credentials for future offline login
-      await cacheAuthCredentials({
-        userId: response.user.id,
-        shopId: response.shop.id,
-        shopCode,
-        pin,
-        name: response.user.name,
-        role: response.role,
-        enabledModules: response.shop.enabled_modules ?? [],
-      });
+      // 2. Cache credentials for future offline login (non-blocking)
+      try {
+        await cacheAuthCredentials({
+          userId: response.user.id,
+          shopId: response.shop.id,
+          shopCode,
+          pin,
+          name: response.user.name,
+          role: response.role,
+          enabledModules: response.shop.enabled_modules ?? [],
+        });
+      } catch (cacheErr) {
+        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
+      }
 
       navigation.replace('Main');
     } catch (error: any) {

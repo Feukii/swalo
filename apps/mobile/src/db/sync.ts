@@ -246,6 +246,9 @@ class SyncEngine {
       // Then pull (server changes to local)
       await this.pull();
 
+      // Ensure a fresh timestamp even if pull() didn't return a serverTime
+      await AsyncStorage.setItem(SYNC_META_LAST_SYNC, new Date().toISOString());
+
       // Update pending count
       await this.updatePendingCount();
 

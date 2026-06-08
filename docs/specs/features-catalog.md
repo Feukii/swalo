@@ -1,6 +1,6 @@
 # SWALO - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-02-19
+> **Dernière mise à jour** : 2026-04-23
 > **Version application** : 1.0.0
 > **Branche** : develop
 >
@@ -28,6 +28,7 @@
 16. [Fonctionnalités planifiées (non implémentées)](#16-fonctionnalités-planifiées-non-implémentées)
 17. [Matrice de compatibilité par plateforme](#17-matrice-de-compatibilité-par-plateforme)
 18. [Classification modulaire](#18-classification-modulaire)
+19. [Matrice des rôles](#19-matrice-des-rôles)
 
 ---
 
@@ -1274,6 +1275,60 @@ Chaque opération :
 | **Particularités** | Sidebar sombre, tokens séparés (`admin_access_token`), branding "SWALO Admin", login email/mot de passe uniquement |
 | **Statut**         | **Implémenté** (Plan 025)                                                                                          |
 
+### 12.18 Configuration des licences (tier-module mapping)
+
+| Propriété         | Valeur                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Page de configuration permettant de definir quel tier de licence est requis pour chaque module, avec overrides dynamiques |
+| **Plateformes**   | Web Admin, API                                                                                                            |
+| **Module**        | Premium (admin)                                                                                                           |
+| **Endpoints**     | `GET /api/admin/license-config`, `PUT /api/admin/license-config`                                                          |
+| **Fichiers cles** | `admin.service.ts`, `admin.controller.ts`, `apps/web-admin/src/pages/LicenseConfig.tsx`                                   |
+| **Roles**         | SUPERADMIN                                                                                                                |
+| **Statut**        | **Implemente**                                                                                                            |
+
+- Tableau matriciel avec modules groupes par classification (Coeur/Etendu/Premium)
+- Dropdown tier minimum par module (STARTER/PROFESSIONAL/ENTERPRISE)
+- Modules CORE verrouilles a STARTER
+- Validation des dependances inter-modules
+- Auto-sync : retire les modules non autorises des boutiques apres modification
+- Resume par tier en haut de page avec compteur de modules
+- Overrides stockes dans SystemConfig (`license_tier_overrides`)
+
+### 12.19 Blocage/deblocage d'entreprise (Web Admin)
+
+| Propriete         | Valeur                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| **Description**   | Boutons bloquer/debloquer entreprise dans le panel de detail, avec cascade sur les boutiques |
+| **Plateformes**   | Web Admin, API                                                                               |
+| **Module**        | Premium (admin)                                                                              |
+| **Endpoints**     | `POST /api/admin/enterprises/:id/block`, `POST /api/admin/enterprises/:id/unblock`           |
+| **Fichiers cles** | `admin-controls.service.ts`, `apps/web-admin/src/pages/AdminEnterprises.tsx`                 |
+| **Roles**         | SUPERADMIN                                                                                   |
+| **Statut**        | **Implemente**                                                                               |
+
+- Modal de raison pour le blocage, confirmation pour le deblocage
+- Avertissement : blocage cascade vers toutes les boutiques
+- Deblocage : ne debloque que les boutiques bloquees en cascade
+
+### 12.20 Gestion des modules par boutique (Web Admin)
+
+| Propriete         | Valeur                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Description**   | Edition des modules actives par boutique depuis les pages Entreprises et Boutiques, avec groupement par tier |
+| **Plateformes**   | Web Admin, API                                                                                               |
+| **Module**        | Premium (admin)                                                                                              |
+| **Endpoints**     | `GET /api/admin/shops/:id/modules`, `POST /api/admin/shops/:id/modules`                                      |
+| **Fichiers cles** | `admin-controls.service.ts`, `AdminEnterprises.tsx`, `AdminShops.tsx`                                        |
+| **Roles**         | SUPERADMIN                                                                                                   |
+| **Statut**        | **Implemente**                                                                                               |
+
+- Badges modules par boutique dans le panel detail entreprise
+- Modal d'edition avec checkboxes groupees par tier (Coeur/Etendu/Premium)
+- Modules non autorises par la licence greyes/desactives
+- Validation des dependances cote API
+- Bouton "Modules" par boutique dans les pages Entreprises et Boutiques
+
 ---
 
 ## 13. Import & Export de données
@@ -1556,11 +1611,11 @@ Erreurs Prisma mappées :
 
 ### Plans de licence
 
-| Plan             | Modules inclus                                    | Nb  | Cible                       |
-| ---------------- | ------------------------------------------------- | --- | --------------------------- |
-| **STARTER**      | Coeur + Étendu                                    | 12  | Petit commerçant individuel |
-| **PROFESSIONAL** | Coeur + Étendu + Premium (sauf packaging-types)   | 17  | Boutique avec employés      |
-| **ENTERPRISE**   | Tous les modules                                  | 18  | PME multi-boutiques         |
+| Plan             | Modules inclus                                  | Nb  | Cible                       |
+| ---------------- | ----------------------------------------------- | --- | --------------------------- |
+| **STARTER**      | Coeur + Étendu                                  | 12  | Petit commerçant individuel |
+| **PROFESSIONAL** | Coeur + Étendu + Premium (sauf packaging-types) | 17  | Boutique avec employés      |
+| **ENTERPRISE**   | Tous les modules                                | 18  | PME multi-boutiques         |
 
 > Le système d'activation de modules est **implémenté** (Plan 023 - Phase 5, complété Plan 029). Le champ `enabled_modules` sur Shop contrôle les modules actifs. L'`EntitlementGuard` (APP_GUARD global) vérifie que le module requis est activé avant chaque requête. Si `enabled_modules` est vide, tous les modules sont autorisés (rétrocompatibilité). Les contrôleurs décorés avec `@RequireModule()` : `suppliers`, `debts`, `receivables`, `transfers`, `invoices`, `import`, `enterprise`, `notifications`, `packaging-types`. Le registre des modules est dans `packages/core/src/modules/registry.ts`.
 >
@@ -1578,17 +1633,67 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ---
 
+## 19. Matrice des rôles
+
+> Consolidation rôle × domaine fonctionnel. **L = lecture, E = écriture/édition, S = suppression/actions sensibles, — = accès refusé.** Les permissions fines par endpoint sont décorées par `@Roles(...)` dans les contrôleurs ; cette matrice reflète l'état courant du code dans `apps/api/src/modules/**/*.controller.ts`.
+
+| Domaine fonctionnel                                | SUPERADMIN | BOSS | MANAGER | EMPLOYEE |
+| -------------------------------------------------- | :--------: | :--: | :-----: | :------: |
+| Authentification (login, PIN, profil, switch-shop) |     L      |  LE  |   LE    |    LE    |
+| Inscription / création de boutique (self-serve)    |     —      |  E   |    —    |    —     |
+| Modification code boutique (6 chiffres)            |     —      |  E   |    —    |    —     |
+| PIN invites (génération, consommation)             |     L      |  LE  |   LE    |    —     |
+| Devices (liste, révocation)                        |     L      |  LE  |   LE    |    —     |
+| Horaires de travail                                |     L      |  LE  |   LE    |    L     |
+| Produits : CRUD + lots FIFO + multi-prix           |     L      | LES  |   LES   |    L     |
+| Produits : alertes stock bas, stats                |     L      |  L   |    L    |    L     |
+| Inventaire : mouvements, ajustements               |     L      | LES  |   LES   |    LE    |
+| Conditionnements (packaging-types)                 |     L      | LES  |   LES   |    L     |
+| Ventes (POS, panier, annulation)                   |     L      | LES  |   LES   |    LE    |
+| Remises                                            |     L      |  LE  |   LE    |    L     |
+| Facturation (création + PDF)                       |     L      |  LE  |   LE    |    L     |
+| Caisse : entrées/sorties, achat marchandise        |     L      | LES  |   LES   |    LE    |
+| Caisse : corrections (montants négatifs)           |     L      | LES  |    —    |    —     |
+| Clients (CRUD, fusion doublons, limite crédit)     |     L      | LES  |   LES   |    LE    |
+| Créances clients + paiements + remboursement       |     L      | LES  |   LES   |    LE    |
+| Fournisseurs (CRUD, limite emprunt)                |     L      | LES  |   LES   |    LE    |
+| Dettes fournisseurs + paiements + remboursement    |     L      | LES  |   LES   |    LE    |
+| Transferts inter-boutiques                         |     L      | LES  |   LES   |    —     |
+| Rapports & KPIs (ventes, caisse, tableaux de bord) |     L      |  L   |    L    |    —     |
+| Import CSV/Excel                                   |     L      |  LE  |   LE    |    —     |
+| Export CSV / audit                                 |     L      |  L   |    L    |    —     |
+| Entreprises (CRUD, licences, blocage cascade)      |    LES     |  —   |    —    |    —     |
+| Boutiques globales (CRUD, modules, blocage)        |    LES     |  —   |    —    |    —     |
+| Utilisateurs globaux (search, rôles, blocage)      |    LES     |  —   |    —    |    —     |
+| Configuration licences (tier ↔ module mapping)    |    LES     |  —   |    —    |    —     |
+| SystemConfig (clé/valeur plateforme)               |    LES     |  —   |    —    |    —     |
+| Logs d'audit (lecture + export)                    |     L      |  —   |    —    |    —     |
+| Statistiques système (plateforme)                  |     L      |  —   |    —    |    —     |
+
+### Règles transversales
+
+- `SUPERADMIN` contourne `BlockStatusGuard` et `EntitlementGuard` (voir `apps/api/src/common/guards/`).
+- `BOSS` est propriétaire d'une boutique ; toutes ses actions sont scopées à son `shop_id` via le JWT (`JwtAuthGuard`).
+- `MANAGER` dispose des mêmes accès métier que `BOSS` sauf les actions sensibles suivantes : corrections négatives de caisse, modification du code boutique et inscription. `MANAGER` peut gérer le personnel de sa boutique.
+- `EMPLOYEE` est limité aux opérations quotidiennes : ventes, caisse, inventaire, fiches clients/fournisseurs et encaissements de créances/dettes. Pas d'accès aux rapports de pilotage ni à l'admin.
+- L'activation de modules (`enabled_modules`) prime sur les rôles : un module désactivé retourne `403 MODULE_DISABLED` pour tous les rôles sauf `SUPERADMIN`.
+- Chaque rôle est attribué **par boutique** via `UserRole`. Un même utilisateur peut être `BOSS` d'une boutique et `EMPLOYEE` d'une autre.
+
+---
+
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                                                                                                                                                                                                                                                                           | Auteur      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Auteur      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-04-23 | Ajout section 19 "Matrice des rôles" (SUPERADMIN/BOSS/MANAGER/EMPLOYEE × domaines fonctionnels). Fix erreurs compilation : ProductCatalogScreen.tsx (loadProducts → loadData, TS2552) ; LicenseConfig.tsx (suppression import React inutilisé, TS6133). Validation complète OK (lint + tests + builds web/web-admin/api)                                                                                                                                                                             | Claude Code |
+| 2026-02-19 | Web-admin : page Configuration Licences (GET/PUT /admin/license-config, overrides tier-module, auto-sync boutiques), blocage/deblocage entreprise avec cascade boutiques, edition modules par boutique (groupes par tier, filtrage licence). Mobile : fix sync freshness (timestamp garanti apres fullSync, re-lecture AsyncStorage dans intervalle 60s). API : getEffectiveModulesForLicense() avec SystemConfig overrides, updateShopModules respecte overrides                                    | Claude Code |
 | 2026-02-19 | Fix 9 bugs mobile: migration SQLite v5 (packaging_type_id, expected_total, pricing_notes), fix Text rendering stock, credit limit enforcement (PENDING+PARTIAL) sur SaleScreen/CustomerDetailsScreen/CashScreen, import CSV reel via expo-document-picker, messages conflits sync humanises, modules desactives regroupes dans MoreScreen, refresh licence au focus, auto-sync au focus HomeScreen. Correction table licences dans features-catalog (STARTER = Coeur + Etendu, pas Coeur uniquement) | Claude Code |
-| 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web | Claude Code |
-| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen         | Claude Code |
-| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                               | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                     | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                      | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                    | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                  | Claude Code |
+| 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web                                                                                                                                | Claude Code |
+| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen                                                                                                                                        | Claude Code |
+| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                                                                                                                                                              | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                                                                                                                                                    | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                                                                                                                                                     | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                                                                                                                                                   | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                                                                                                                                                 | Claude Code |
 
 <!-- EOF -->

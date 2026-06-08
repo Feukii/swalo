@@ -83,14 +83,17 @@ export function useSyncFreshness(): FreshnessInfo {
     return unsubscribe;
   }, []);
 
-  // Update freshness periodically (every minute)
+  // Update freshness periodically (every minute) — re-read from AsyncStorage
   useEffect(() => {
     const interval = setInterval(() => {
-      setFreshness(getFreshnessInfo(lastSyncedAt));
+      AsyncStorage.getItem(SYNC_META_LAST_SYNC).then(value => {
+        setLastSyncedAt(value);
+        setFreshness(getFreshnessInfo(value));
+      });
     }, 60_000);
 
     return () => clearInterval(interval);
-  }, [lastSyncedAt]);
+  }, []);
 
   return freshness;
 }
