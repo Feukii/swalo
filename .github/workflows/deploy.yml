@@ -65,10 +65,24 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       
+      - name: Check Vercel configuration
+        id: vercel_config
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "VERCEL_TOKEN secret not configured, skipping Vercel production deployment..."
+            echo "Note: Configure VERCEL_TOKEN/VERCEL_ORG_ID/VERCEL_PROJECT_ID secrets to enable web prod deploy"
+          fi
+
       - name: Deploy to Vercel
+        if: steps.vercel_config.outputs.configured == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -97,9 +111,14 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
           
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
       - name: Install dependencies
         run: cd apps/mobile && pnpm install
-        
+
       - name: Build on EAS
         run: cd apps/mobile && eas build --platform all --non-interactive --no-wait
 
