@@ -24,12 +24,20 @@ import {
   Check,
   Upload,
   FileSpreadsheet,
+  ChevronDown,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { productsApi, importApi } from '../lib/api';
-import * as DocumentPicker from 'expo-document-picker';
 import { formatMoney } from '../utils/money';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import * as DocumentPicker from 'expo-document-picker';
+import { productRepo, stockBatchRepo } from '../db/repositories';
+import { importApi } from '../lib/api';
+import {
+  createProductOffline,
+  updateProductOffline,
+  deleteProductOffline,
+} from '../db/offlineWrite';
 
 interface Product {
   id: string;
@@ -48,6 +56,9 @@ interface Product {
   alert_threshold: number;
   current_stock: number;
   is_low_stock: boolean;
+  is_multi_price?: boolean;
+  price_min?: number;
+  price_max?: number;
 }
 
 interface Filters {
@@ -73,7 +84,8 @@ interface ProductFormData {
   is_active: boolean;
 }
 
-const UNITS = ['unit', 'pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack'];
+// Fallback units si l'API n'est pas disponible
+const FALLBACK_UNITS = ['unit', 'pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack'];
 
 const DEFAULT_FORM: ProductFormData = {
   sku: '',
@@ -92,6 +104,7 @@ const DEFAULT_FORM: ProductFormData = {
 };
 
 export default function ProductCatalogScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<'articles' | 'catalogue'>('articles');
   const [products, setProducts] = useState<Product[]>([]);
   const [filters, setFilters] = useState<Filters>({ families: [], brands: [], article_types: [] });
@@ -141,54 +154,82 @@ export default function ProductCatalogScreen({ navigation }: any) {
   const [isImporting, setIsImporting] = useState(false);
   const [importStep, setImportStep] = useState<'select' | 'preview' | 'success'>('select');
 
-  const loadData = async () => {
+  // Types de conditionnement (unités)
+  const [packagingTypes, setPackagingTypes] = useState<
+    Array<{ id: string; name: string; symbol: string }>
+  >([]);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showNewUnitInput, setShowNewUnitInput] = useState(false);
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitSymbol, setNewUnitSymbol] = useState('');
+
+  // Charger les types de conditionnement (fallback local)
+  const loadPackagingTypes = () => {
+    setPackagingTypes(FALLBACK_UNITS.map((u, i) => ({ id: String(i), name: u, symbol: u })));
+  };
+
+  const loadData = useCallback(async () => {
+    if (!shopId) return;
     setIsLoading(true);
     try {
-      console.log('📦 Loading products with params:', {
-        search: searchQuery || undefined,
-        family: selectedFamily || undefined,
-        brand: selectedBrand || undefined,
-        article_type: selectedType || undefined,
+      const where: Record<string, unknown> = { is_active: 1 };
+      if (selectedFamily) where.family = selectedFamily;
+      if (selectedBrand) where.brand = selectedBrand;
+      if (selectedType) where.article_type = selectedType;
+
+      let localProducts;
+      if (searchQuery) {
+        localProducts = await productRepo.search(shopId, searchQuery);
+      } else {
+        localProducts = await productRepo.getAll(shopId, { where, orderBy: 'name ASC' });
+      }
+
+      // Enrich with stock data
+      const enriched = await Promise.all(
+        localProducts.map(async p => {
+          const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
+          return {
+            ...p,
+            is_active: p.is_active === 1,
+            current_stock: totalStock,
+            is_low_stock: totalStock <= p.alert_threshold,
+          };
+        })
+      );
+      setProducts(enriched as any);
+
+      // Compute filters locally from ALL products (not just filtered ones)
+      const allProducts = await productRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
       });
-
-      const [productsData, filtersData] = await Promise.all([
-        productsApi.getAll({
-          search: searchQuery || undefined,
-          family: selectedFamily || undefined,
-          brand: selectedBrand || undefined,
-          article_type: selectedType || undefined,
-        }),
-        // Cascade filtering: pass current filter selections to narrow options
-        productsApi.getFilters({
-          family: selectedFamily || undefined,
-          brand: selectedBrand || undefined,
-          article_type: selectedType || undefined,
-        }),
-      ]);
-
-      console.log('✅ Products loaded:', productsData.length);
-      console.log('✅ Filters loaded:', filtersData);
-
-      setProducts(productsData);
-      setFilters(filtersData);
+      const families = [...new Set(allProducts.map(p => p.family).filter(Boolean))] as string[];
+      const brands = [...new Set(allProducts.map(p => p.brand).filter(Boolean))] as string[];
+      const article_types = [
+        ...new Set(allProducts.map(p => p.article_type).filter(Boolean)),
+      ] as string[];
+      setFilters({ families, brands, article_types });
     } catch (error: any) {
-      console.error('❌ Error loading products:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error response:', error.response?.data);
-      Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
+      if (products.length === 0) {
+        Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId, searchQuery, selectedFamily, selectedBrand, selectedType]);
 
   useEffect(() => {
     loadData();
-  }, [searchQuery, selectedFamily, selectedBrand, selectedType]);
+  }, [loadData]);
+
+  useEffect(() => {
+    loadPackagingTypes();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+    }, [loadData])
   );
 
   // Générer un code SKU automatique
@@ -237,7 +278,7 @@ export default function ProductCatalogScreen({ navigation }: any) {
     setShowProductModal(true);
   };
 
-  // Sauvegarder le produit
+  // Sauvegarder le produit (offline-first)
   const saveProduct = async () => {
     // Validation
     if (!formData.sku.trim()) {
@@ -255,58 +296,53 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
     setIsSaving(true);
     try {
-      const data = {
-        sku: formData.sku.trim(),
-        name: formData.name.trim(),
-        barcode: formData.barcode?.trim() || undefined,
-        description: formData.description?.trim() || undefined,
-        family: formData.family.trim(),
-        article_type: formData.article_type?.trim() || undefined,
-        brand: formData.brand?.trim() || undefined,
-        reference: formData.reference?.trim() || undefined,
-        unit: formData.unit,
-        cost_price: parseInt(formData.cost_price) || 0,
-        sell_price: parseInt(formData.sell_price) || 0,
-        alert_threshold: parseInt(formData.alert_threshold) || 5,
-        is_active: formData.is_active,
-      };
-
-      console.log('💾 Saving product:', {
-        isEditing,
-        productId: formData.id,
-        data,
-      });
-
       if (isEditing && formData.id) {
-        console.log('📝 Updating product:', formData.id);
-        const result = await productsApi.update(formData.id, data);
-        console.log('✅ Product updated:', result);
-        Alert.alert('Succès', 'Article modifié avec succès');
+        await updateProductOffline(formData.id, {
+          shopId: shopId!,
+          name: formData.name.trim(),
+          sku: formData.sku.trim(),
+          barcode: formData.barcode?.trim() || undefined,
+          description: formData.description?.trim() || undefined,
+          family: formData.family.trim(),
+          articleType: formData.article_type?.trim() || undefined,
+          brand: formData.brand?.trim() || undefined,
+          reference: formData.reference?.trim() || undefined,
+          unit: formData.unit,
+          costPrice: parseInt(formData.cost_price) || 0,
+          sellPrice: parseInt(formData.sell_price) || 0,
+          alertThreshold: parseInt(formData.alert_threshold) || 5,
+        });
+        Alert.alert('Succes', 'Article modifie avec succes');
       } else {
-        console.log('➕ Creating new product');
-        const result = await productsApi.create(data);
-        console.log('✅ Product created:', result);
-        Alert.alert('Succès', 'Article ajouté avec succès');
+        await createProductOffline({
+          shopId: shopId!,
+          name: formData.name.trim(),
+          sku: formData.sku.trim(),
+          barcode: formData.barcode?.trim() || undefined,
+          description: formData.description?.trim() || undefined,
+          family: formData.family.trim(),
+          articleType: formData.article_type?.trim() || undefined,
+          brand: formData.brand?.trim() || undefined,
+          reference: formData.reference?.trim() || undefined,
+          unit: formData.unit,
+          costPrice: parseInt(formData.cost_price) || 0,
+          sellPrice: parseInt(formData.sell_price) || 0,
+          alertThreshold: parseInt(formData.alert_threshold) || 5,
+        });
+        Alert.alert('Succes', 'Article ajoute avec succes');
       }
 
       setShowProductModal(false);
       setFormData(DEFAULT_FORM);
       loadData();
     } catch (error: any) {
-      console.error('❌ Error saving product:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error response:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
-      Alert.alert(
-        'Erreur',
-        error.response?.data?.message || error.message || 'Impossible de sauvegarder'
-      );
+      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Supprimer un produit
+  // Supprimer un produit (offline-first)
   const deleteProduct = (product: Product) => {
     Alert.alert('Supprimer', `Voulez-vous vraiment supprimer "${product.name}" ?`, [
       { text: 'Annuler', style: 'cancel' },
@@ -315,8 +351,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await productsApi.delete(product.id);
-            Alert.alert('Succès', 'Article supprimé');
+            await deleteProductOffline(product.id);
+            Alert.alert('Succes', 'Article supprime');
             loadData();
           } catch (error: any) {
             Alert.alert('Erreur', error.message || 'Impossible de supprimer');
@@ -349,9 +385,9 @@ export default function ProductCatalogScreen({ navigation }: any) {
     setShowHierarchyEditModal(true);
   };
 
-  // Save hierarchy edit using batch update API
+  // Save hierarchy edit using local batch update (offline-first)
   const saveHierarchyEdit = async () => {
-    if (!hierarchyEditType || !hierarchyEditNewValue.trim()) {
+    if (!hierarchyEditType || !hierarchyEditNewValue.trim() || !shopId) {
       Alert.alert('Erreur', 'Veuillez entrer une valeur');
       return;
     }
@@ -363,35 +399,46 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
     setIsHierarchySaving(true);
     try {
-      const request: any = {
-        level: hierarchyEditType,
-        old_value: hierarchyEditOldValue,
-        new_value: hierarchyEditNewValue.trim(),
-      };
+      // Get all products to find matching ones
+      const allProducts = await productRepo.getAll(shopId, { orderBy: 'name ASC' });
+      let matchingProducts = allProducts;
 
-      // Add filter context for article_type, brand, and reference
-      if (hierarchyEditType === 'article_type' && hierarchyEditContext.family) {
-        request.family = hierarchyEditContext.family;
+      // Filter based on context
+      if (hierarchyEditContext.family) {
+        matchingProducts = matchingProducts.filter(p => p.family === hierarchyEditContext.family);
       }
-      if (hierarchyEditType === 'brand') {
-        if (hierarchyEditContext.family) request.family = hierarchyEditContext.family;
-        if (hierarchyEditContext.article_type)
-          request.article_type = hierarchyEditContext.article_type;
+      if (hierarchyEditContext.article_type) {
+        matchingProducts = matchingProducts.filter(
+          p => p.article_type === hierarchyEditContext.article_type
+        );
       }
-      if (hierarchyEditType === 'reference') {
-        if (hierarchyEditContext.family) request.family = hierarchyEditContext.family;
-        if (hierarchyEditContext.article_type)
-          request.article_type = hierarchyEditContext.article_type;
-        if (hierarchyEditContext.brand) request.brand = hierarchyEditContext.brand;
+      if (hierarchyEditContext.brand) {
+        matchingProducts = matchingProducts.filter(p => p.brand === hierarchyEditContext.brand);
       }
 
-      const result = await productsApi.batchUpdateHierarchy(request);
-      Alert.alert('Succès', result.message || `${result.count} produit(s) mis à jour`);
+      // Filter by old value
+      matchingProducts = matchingProducts.filter(p => {
+        if (hierarchyEditType === 'family') return p.family === hierarchyEditOldValue;
+        if (hierarchyEditType === 'article_type') return p.article_type === hierarchyEditOldValue;
+        if (hierarchyEditType === 'brand') return p.brand === hierarchyEditOldValue;
+        if (hierarchyEditType === 'reference') return p.reference === hierarchyEditOldValue;
+        return false;
+      });
+
+      // Update each matching product
+      for (const p of matchingProducts) {
+        await updateProductOffline(p.id, {
+          [hierarchyEditType === 'article_type' ? 'articleType' : hierarchyEditType]:
+            hierarchyEditNewValue.trim(),
+        } as any);
+      }
+
+      Alert.alert('Succes', `${matchingProducts.length} produit(s) mis a jour`);
       setShowHierarchyEditModal(false);
       loadData();
     } catch (error: any) {
-      console.error('Erreur lors de la mise à jour:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de mettre à jour');
+      console.error('Erreur lors de la mise a jour:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de mettre a jour');
     } finally {
       setIsHierarchySaving(false);
     }
@@ -414,109 +461,50 @@ export default function ProductCatalogScreen({ navigation }: any) {
 
   const pickDocument = async () => {
     try {
-      console.log('📂 Opening document picker...');
+      setIsImporting(true);
       const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          'text/csv',
-          'text/plain', // Some CSV files are detected as text/plain
-          'application/vnd.ms-excel',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          '*/*', // Fallback for any file type
-        ],
+        type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'],
         copyToCacheDirectory: true,
       });
 
-      console.log('📄 Document picker result:', JSON.stringify(result, null, 2));
-
       if (result.canceled || !result.assets || result.assets.length === 0) {
-        console.log('❌ Document selection cancelled');
+        setIsImporting(false);
         return;
       }
 
-      const file = result.assets[0];
-      console.log('📄 Selected file:', file.name, 'URI:', file.uri);
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      const content = await response.text();
 
-      // Read file content as base64
-      setIsImporting(true);
-      try {
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
-        console.log('📦 File blob size:', blob.size, 'bytes');
+      const preview = await importApi.previewCatalog(content, asset.name);
 
-        const reader = new FileReader();
-
-        reader.onerror = () => {
-          console.error('❌ FileReader error:', reader.error);
-          Alert.alert('Erreur', 'Impossible de lire le contenu du fichier');
-          setIsImporting(false);
-        };
-
-        reader.onloadend = async () => {
-          try {
-            const base64Content = (reader.result as string).split(',')[1];
-            console.log('📤 Base64 content length:', base64Content?.length || 0);
-
-            if (!base64Content) {
-              Alert.alert('Erreur', 'Le fichier semble vide');
-              setIsImporting(false);
-              return;
-            }
-
-            setImportFile({ name: file.name, content: base64Content });
-
-            // Preview the import
-            console.log('🔄 Calling preview API...');
-            const preview = await importApi.previewCatalog(base64Content, file.name);
-            console.log('✅ Preview result:', JSON.stringify(preview, null, 2));
-            setImportPreview(preview);
-            setImportStep('preview');
-          } catch (error: any) {
-            console.error('❌ Erreur lors de la prévisualisation:', error);
-            Alert.alert(
-              'Erreur',
-              error.message || "Impossible de prévisualiser le fichier. Vérifiez le format et les colonnes."
-            );
-          } finally {
-            setIsImporting(false);
-          }
-        };
-
-        reader.readAsDataURL(blob);
-      } catch (fetchError: any) {
-        console.error('❌ Error fetching file:', fetchError);
-        Alert.alert('Erreur', 'Impossible de lire le fichier sélectionné');
-        setIsImporting(false);
-      }
+      setImportFile({ name: asset.name, content });
+      setImportPreview(preview);
+      setImportStep('preview');
     } catch (error: any) {
-      console.error('❌ Erreur lors de la sélection du fichier:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sélectionner le fichier');
+      Alert.alert(
+        'Erreur',
+        error.message || 'Impossible de lire le fichier. Verifiez votre connexion internet.'
+      );
+    } finally {
       setIsImporting(false);
     }
   };
 
   const confirmImport = async () => {
     if (!importFile) return;
-
-    setIsImporting(true);
     try {
-      const result = await importApi.confirmCatalog(importFile.content, importFile.name);
+      setIsImporting(true);
+      await importApi.confirmCatalog(importFile.content, importFile.name);
       setImportStep('success');
-      Alert.alert(
-        'Import réussi',
-        `${result.created_count || 0} article(s) créé(s), ${result.updated_count || 0} mis à jour`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              closeImportModal();
-              loadData();
-            },
-          },
-        ]
-      );
+      Alert.alert('Import reussi', 'Le catalogue a ete mis a jour avec succes.');
+      closeImportModal();
+      loadData();
     } catch (error: any) {
-      console.error("Erreur lors de l'import:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'importer le catalogue");
+      Alert.alert(
+        'Erreur',
+        error.message || "Impossible d'importer le catalogue. Verifiez votre connexion internet."
+      );
     } finally {
       setIsImporting(false);
     }
@@ -568,7 +556,18 @@ export default function ProductCatalogScreen({ navigation }: any) {
               </View>
             </View>
             <View style={styles.productMeta}>
-              <Text style={styles.productPrice}>{formatMoney(item.sell_price)}</Text>
+              {item.is_multi_price ? (
+                <Text style={styles.productPriceRange}>
+                  {formatMoney(item.price_min || 0)} - {formatMoney(item.price_max || 0)}
+                </Text>
+              ) : (
+                <Text style={styles.productPrice}>{formatMoney(item.sell_price)}</Text>
+              )}
+              {item.is_multi_price && (
+                <View style={styles.multiPriceTag}>
+                  <Text style={styles.multiPriceTagText}>Multi-prix</Text>
+                </View>
+              )}
               <View style={[styles.stockBadge, { backgroundColor: stockStatus.color + '20' }]}>
                 <View style={[styles.stockDot, { backgroundColor: stockStatus.color }]} />
                 <Text style={[styles.stockText, { color: stockStatus.color }]}>
@@ -1324,9 +1323,13 @@ export default function ProductCatalogScreen({ navigation }: any) {
                   </View>
                   <View style={[styles.formGroup, { flex: 1 }]}>
                     <Text style={styles.formLabel}>Unité</Text>
-                    <View style={styles.unitPicker}>
-                      <Text style={styles.unitPickerText}>{formData.unit}</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.unitPicker}
+                      onPress={() => setShowUnitPicker(true)}
+                    >
+                      <Text style={styles.unitPickerText}>{formData.unit || 'Sélectionner'}</Text>
+                      <ChevronDown size={16} color={Colors.muted.foreground} />
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -1470,7 +1473,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
                   </Text>
                   <Text style={styles.importHint}>
                     Colonnes requises: Code Article, Libellé Article{'\n'}
-                    Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix vente
+                    Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix
+                    vente
                   </Text>
                   <TouchableOpacity
                     style={styles.importPickButton}
@@ -1574,6 +1578,124 @@ export default function ProductCatalogScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unit Picker Modal */}
+      <Modal
+        visible={showUnitPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowUnitPicker(false);
+          setShowNewUnitInput(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+            <Text style={styles.modalTitle}>Choisir l'unité</Text>
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {packagingTypes.map(type => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={[
+                    styles.unitPickerOption,
+                    formData.unit === type.name && styles.unitPickerOptionActive,
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, unit: type.name }));
+                    setShowUnitPicker(false);
+                    setShowNewUnitInput(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.unitPickerOptionText,
+                      formData.unit === type.name && styles.unitPickerOptionTextActive,
+                    ]}
+                  >
+                    {type.name}
+                  </Text>
+                  <Text style={styles.unitPickerOptionSymbol}>({type.symbol})</Text>
+                  {formData.unit === type.name && <Check size={18} color={Colors.primary[900]} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Bouton créer nouveau type */}
+            {!showNewUnitInput ? (
+              <TouchableOpacity
+                style={styles.addUnitButton}
+                onPress={() => setShowNewUnitInput(true)}
+              >
+                <Plus size={16} color={Colors.primary[900]} />
+                <Text style={styles.addUnitButtonText}>Ajouter une unité</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.newUnitForm}>
+                <TextInput
+                  style={[styles.input, { marginBottom: Spacing.sm }]}
+                  placeholder="Nom (ex: Sachet)"
+                  placeholderTextColor={Colors.muted.foreground}
+                  value={newUnitName}
+                  onChangeText={setNewUnitName}
+                  autoFocus
+                />
+                <TextInput
+                  style={[styles.input, { marginBottom: Spacing.sm }]}
+                  placeholder="Symbole (ex: sac)"
+                  placeholderTextColor={Colors.muted.foreground}
+                  value={newUnitSymbol}
+                  onChangeText={setNewUnitSymbol}
+                />
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                  <TouchableOpacity
+                    style={[styles.modalCancelButton, { flex: 1 }]}
+                    onPress={() => {
+                      setShowNewUnitInput(false);
+                      setNewUnitName('');
+                      setNewUnitSymbol('');
+                    }}
+                  >
+                    <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalSaveButton, { flex: 1 }]}
+                    onPress={() => {
+                      if (!newUnitName.trim()) {
+                        Alert.alert('Erreur', "Le nom de l'unite est requis");
+                        return;
+                      }
+                      const symbol =
+                        newUnitSymbol.trim() || newUnitName.trim().toLowerCase().substring(0, 3);
+                      setPackagingTypes(prev => [
+                        ...prev,
+                        { id: String(prev.length), name: newUnitName.trim(), symbol },
+                      ]);
+                      setFormData(prev => ({ ...prev, unit: newUnitName.trim() }));
+                      setShowNewUnitInput(false);
+                      setNewUnitName('');
+                      setNewUnitSymbol('');
+                      setShowUnitPicker(false);
+                    }}
+                  >
+                    <Text style={styles.modalSaveButtonText}>Créer</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { marginTop: Spacing.md }]}
+              onPress={() => {
+                setShowUnitPicker(false);
+                setShowNewUnitInput(false);
+              }}
+            >
+              <Text style={styles.modalCancelButtonText}>Fermer</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1781,6 +1903,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
+  },
+  productPriceRange: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.warning.main,
+  },
+  multiPriceTag: {
+    backgroundColor: Colors.warning.main + '20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-end',
+  },
+  multiPriceTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.warning.main,
   },
   stockBadge: {
     flexDirection: 'row',
@@ -2160,6 +2299,9 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   unitPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -2170,6 +2312,54 @@ const styles = StyleSheet.create({
   unitPickerText: {
     fontSize: 15,
     color: Colors.text,
+  },
+  unitPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  unitPickerOptionActive: {
+    backgroundColor: Colors.primary[50],
+  },
+  unitPickerOptionText: {
+    fontSize: 16,
+    color: Colors.text,
+    flex: 1,
+  },
+  unitPickerOptionTextActive: {
+    fontWeight: '600',
+    color: Colors.primary[900],
+  },
+  unitPickerOptionSymbol: {
+    fontSize: 13,
+    color: Colors.muted.foreground,
+  },
+  addUnitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary[900],
+    borderRadius: 12,
+    borderStyle: 'dashed',
+  },
+  addUnitButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.primary[900],
+  },
+  newUnitForm: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
   },
   toggleRow: {
     flexDirection: 'row',

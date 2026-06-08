@@ -162,14 +162,37 @@ export class ProductsService {
       orderBy,
     });
 
-    // Calculer le stock pour chaque produit
+    // Calculer le stock et les infos multi-prix pour chaque produit
     const productsWithStock = await Promise.all(
       products.map(async product => {
         const stock = await this.calculateStock(product.id, shopId);
+
+        // Vérifier si le produit a des prix multiples (batches actifs avec prix différents)
+        const activeBatches = await this.prisma.stockBatch.findMany({
+          where: {
+            shop_id: shopId,
+            product_id: product.id,
+            remaining_quantity: { gt: 0 },
+            deleted: false,
+          },
+          select: { sell_price: true },
+        });
+
+        const distinctPrices = [...new Set(activeBatches.map(b => b.sell_price))].sort(
+          (a, b) => a - b
+        );
+        const is_multi_price = distinctPrices.length > 1;
+
         return {
           ...product,
           current_stock: stock,
           is_low_stock: stock <= product.alert_threshold,
+          is_multi_price,
+          price_min: distinctPrices.length > 0 ? distinctPrices[0] : product.sell_price,
+          price_max:
+            distinctPrices.length > 0
+              ? distinctPrices[distinctPrices.length - 1]
+              : product.sell_price,
         };
       })
     );
@@ -520,6 +543,88 @@ export class ProductsService {
     }
 
     return totalValue;
+  }
+
+  /**
+   * Récupérer les prix de vente disponibles pour un produit (depuis les lots actifs)
+   */
+  async getAvailablePrices(productId: string, shopId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, shop_id: shopId, deleted: false },
+      select: { id: true, name: true, sell_price: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Produit non trouvé');
+    }
+
+    // Récupérer les lots avec du stock disponible
+    const batches = await this.prisma.stockBatch.findMany({
+      where: {
+        shop_id: shopId,
+        product_id: productId,
+        remaining_quantity: { gt: 0 },
+        deleted: false,
+      },
+      orderBy: { created_at: 'asc' },
+      select: {
+        id: true,
+        sell_price: true,
+        cost_price: true,
+        remaining_quantity: true,
+        created_at: true,
+      },
+    });
+
+    // Grouper par prix de vente, en conservant les batch IDs
+    const priceMap = new Map<
+      number,
+      {
+        sell_price: number;
+        total_quantity: number;
+        batch_count: number;
+        batches: { id: string; remaining_quantity: number; cost_price: number; created_at: Date }[];
+      }
+    >();
+    for (const batch of batches) {
+      const existing = priceMap.get(batch.sell_price);
+      if (existing) {
+        existing.total_quantity += batch.remaining_quantity;
+        existing.batch_count += 1;
+        existing.batches.push({
+          id: batch.id,
+          remaining_quantity: batch.remaining_quantity,
+          cost_price: batch.cost_price,
+          created_at: batch.created_at,
+        });
+      } else {
+        priceMap.set(batch.sell_price, {
+          sell_price: batch.sell_price,
+          total_quantity: batch.remaining_quantity,
+          batch_count: 1,
+          batches: [
+            {
+              id: batch.id,
+              remaining_quantity: batch.remaining_quantity,
+              cost_price: batch.cost_price,
+              created_at: batch.created_at,
+            },
+          ],
+        });
+      }
+    }
+
+    const prices = Array.from(priceMap.values()).sort((a, b) => a.sell_price - b.sell_price);
+    const is_multi_price = prices.length > 1;
+
+    return {
+      product_id: product.id,
+      product_name: product.name,
+      default_price: product.sell_price,
+      prices,
+      total_stock: batches.reduce((sum, b) => sum + b.remaining_quantity, 0),
+      is_multi_price,
+    };
   }
 
   /**

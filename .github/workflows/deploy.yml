@@ -43,8 +43,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        run: cd apps/api && pnpm exec prisma generate
+
       - name: Lint
-        run: pnpm run lint || true
+        run: pnpm run lint
+
+      - name: Run Tests
+        run: pnpm run test
 
       - name: Build all packages (with Turbo cache)
         run: |
@@ -106,3 +112,27 @@ jobs:
       - name: Trigger Render Deploy
         run: |
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+  # Verify API health after deployment
+  verify-health:
+    needs: notify-render
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render deployment
+        run: sleep 60
+
+      - name: Verify API Health
+        run: |
+          for i in $(seq 1 10); do
+            echo "Health check attempt $i/10..."
+            if curl -sf https://swalo-api.onrender.com/api/health; then
+              echo ""
+              echo "API is healthy!"
+              exit 0
+            fi
+            echo "API not ready, waiting 30s..."
+            sleep 30
+          done
+          echo "API health check failed after 10 attempts"
+          exit 1

@@ -15,7 +15,16 @@ import { ScreenHeader, ListItem, TransactionDetailModal } from '../components/ui
 import DateRangePicker from '../components/ui/DateRangePicker';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { cashApi, receivablesApi, debtsApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import {
+  cashEntryRepo,
+  clientReceivableRepo,
+  supplierDebtRepo,
+  customerRepo,
+  supplierRepo,
+  LocalCustomer,
+  LocalSupplier,
+} from '../db/repositories';
 
 interface Transaction {
   id: string;
@@ -24,8 +33,8 @@ interface Transaction {
   amount: number;
   note?: string;
   created_at: string;
-  customer?: { name: string; first_name?: string };
-  supplier?: { name: string; first_name?: string };
+  customer_id?: string;
+  supplier_id?: string;
   isCredit?: boolean;
 }
 
@@ -55,6 +64,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function TransactionHistoryScreen({ navigation }: any) {
+  const { shopId } = useCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
@@ -74,6 +84,10 @@ export default function TransactionHistoryScreen({ navigation }: any) {
   // Transaction detail
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Local lookup data
+  const [customersMap, setCustomersMap] = useState<Map<string, LocalCustomer>>(new Map());
+  const [suppliersMap, setSuppliersMap] = useState<Map<string, LocalSupplier>>(new Map());
 
   // Stats
   const [stats, setStats] = useState({
@@ -123,73 +137,83 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     return { start, end };
   };
 
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
+    if (!shopId) return;
     try {
       setIsLoading(true);
       const { start, end } = getPeriodDates();
+      const startISO = start.toISOString();
+      const endISO = end.toISOString();
 
-      // Récupérer les transactions cash et les créances/dettes
-      const [cashData, receivablesData, debtsData] = await Promise.all([
-        cashApi.getAll({
-          start_date: start.toISOString(),
-          end_date: end.toISOString(),
-        }),
-        receivablesApi.getAll(),
-        debtsApi.getAll(),
-      ]);
+      // Load local data
+      const allCashEntries = await cashEntryRepo.getAll(shopId, { orderBy: 'created_at DESC' });
+      const allReceivables = await clientReceivableRepo.getAll(shopId);
+      const allDebts = await supplierDebtRepo.getAll(shopId);
+
+      // Load customer/supplier lookup maps
+      const localCustomers = await customerRepo.getAll(shopId);
+      const localSuppliers = await supplierRepo.getAll(shopId);
+      const cMap = new Map<string, LocalCustomer>();
+      localCustomers.forEach(c => cMap.set(c.id, c));
+      setCustomersMap(cMap);
+      const sMap = new Map<string, LocalSupplier>();
+      localSuppliers.forEach(s => sMap.set(s.id, s));
+      setSuppliersMap(sMap);
 
       const allTransactions: Transaction[] = [];
 
-      // Ajouter les transactions cash
-      if (Array.isArray(cashData)) {
-        cashData.forEach((entry: any) => {
-          const entryDate = new Date(entry.created_at);
-          if (entryDate >= start && entryDate <= end) {
-            allTransactions.push({
-              ...entry,
-              isCredit: false,
-            });
-          }
-        });
-      }
+      // Filter cash entries by date range
+      allCashEntries.forEach(entry => {
+        if (entry.created_at >= startISO && entry.created_at <= endISO) {
+          allTransactions.push({
+            id: entry.id,
+            type: entry.type as 'IN' | 'OUT',
+            category: entry.category || (entry.type === 'IN' ? 'entree' : 'sortie'),
+            amount: entry.amount,
+            note: entry.note || undefined,
+            created_at: entry.created_at,
+            customer_id: entry.customer_id || undefined,
+            supplier_id: entry.supplier_id || undefined,
+            isCredit: false,
+          });
+        }
+      });
 
       // Ajouter les ventes à crédit (créances)
-      if (Array.isArray(receivablesData)) {
-        receivablesData.forEach((receivable: any) => {
-          const createdDate = new Date(receivable.created_at);
-          if (createdDate >= start && createdDate <= end) {
-            allTransactions.push({
-              id: `receivable_${receivable.id}`,
-              type: 'IN',
-              category: 'vente_credit',
-              amount: receivable.amount,
-              note: receivable.description || 'Vente à crédit',
-              created_at: receivable.created_at,
-              customer: receivable.customer,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      allReceivables.forEach(receivable => {
+        if (
+          receivable.amount > 0 &&
+          receivable.created_at >= startISO &&
+          receivable.created_at <= endISO
+        ) {
+          allTransactions.push({
+            id: `receivable_${receivable.id}`,
+            type: 'IN',
+            category: 'vente_credit',
+            amount: receivable.amount,
+            note: receivable.description || 'Vente à crédit',
+            created_at: receivable.created_at,
+            customer_id: receivable.customer_id,
+            isCredit: true,
+          });
+        }
+      });
 
       // Ajouter les achats à crédit (dettes)
-      if (Array.isArray(debtsData)) {
-        debtsData.forEach((debt: any) => {
-          const createdDate = new Date(debt.created_at);
-          if (createdDate >= start && createdDate <= end) {
-            allTransactions.push({
-              id: `debt_${debt.id}`,
-              type: 'OUT',
-              category: 'achat_credit',
-              amount: debt.amount,
-              note: debt.description || 'Achat à crédit',
-              created_at: debt.created_at,
-              supplier: debt.supplier,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      allDebts.forEach(debt => {
+        if (debt.amount > 0 && debt.created_at >= startISO && debt.created_at <= endISO) {
+          allTransactions.push({
+            id: `debt_${debt.id}`,
+            type: 'OUT',
+            category: 'achat_credit',
+            amount: debt.amount,
+            note: debt.description || 'Achat à crédit',
+            created_at: debt.created_at,
+            supplier_id: debt.supplier_id,
+            isCredit: true,
+          });
+        }
+      });
 
       // Trier par date décroissante
       allTransactions.sort(
@@ -212,7 +236,7 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [shopId, selectedPeriod, startDate, endDate]);
 
   // Filtrer les transactions selon les critères sélectionnés
   useEffect(() => {
@@ -251,12 +275,12 @@ export default function TransactionHistoryScreen({ navigation }: any) {
 
   useEffect(() => {
     loadTransactions();
-  }, [selectedPeriod]);
+  }, [loadTransactions]);
 
   useFocusEffect(
     useCallback(() => {
       loadTransactions();
-    }, [selectedPeriod])
+    }, [loadTransactions])
   );
 
   const onRefresh = async () => {
@@ -298,17 +322,19 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     }
   };
 
+  const getPersonName = (id?: string, type?: 'customer' | 'supplier'): string | undefined => {
+    if (!id) return undefined;
+    if (type === 'customer') {
+      const c = customersMap.get(id);
+      return c ? `${c.first_name || ''} ${c.name}`.trim() : undefined;
+    }
+    const s = suppliersMap.get(id);
+    return s ? `${s.first_name || ''} ${s.name}`.trim() : undefined;
+  };
+
   const handleTransactionClick = (transaction: Transaction) => {
-    const customerName = transaction.customer
-      ? transaction.customer.first_name
-        ? `${transaction.customer.first_name} ${transaction.customer.name}`
-        : transaction.customer.name
-      : undefined;
-    const supplierName = transaction.supplier
-      ? transaction.supplier.first_name
-        ? `${transaction.supplier.first_name} ${transaction.supplier.name}`
-        : transaction.supplier.name
-      : undefined;
+    const customerName = getPersonName(transaction.customer_id, 'customer');
+    const supplierName = getPersonName(transaction.supplier_id, 'supplier');
 
     setSelectedTransaction({
       type: transaction.type === 'IN' ? 'entry' : 'exit',
@@ -463,15 +489,10 @@ export default function TransactionHistoryScreen({ navigation }: any) {
               </View>
             ) : (
               filteredTransactions.map(transaction => {
-                const personName = transaction.customer
-                  ? transaction.customer.first_name
-                    ? `${transaction.customer.first_name} ${transaction.customer.name}`
-                    : transaction.customer.name
-                  : transaction.supplier
-                    ? transaction.supplier.first_name
-                      ? `${transaction.supplier.first_name} ${transaction.supplier.name}`
-                      : transaction.supplier.name
-                    : '';
+                const personName =
+                  getPersonName(transaction.customer_id, 'customer') ||
+                  getPersonName(transaction.supplier_id, 'supplier') ||
+                  '';
 
                 const amountColor = transaction.isCredit
                   ? 'warning'

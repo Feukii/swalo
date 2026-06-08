@@ -43,8 +43,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        run: cd apps/api && pnpm exec prisma generate
+
       - name: Lint
-        run: pnpm run lint || true
+        run: pnpm run lint
+
+      - name: Run Tests
+        run: pnpm run test
 
       - name: Build packages (with Turbo cache)
         run: pnpm turbo build --filter=@swalo/core
@@ -66,10 +72,24 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Vercel configuration
+        id: vercel_config
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "VERCEL_TOKEN secret not configured, skipping Vercel deployment..."
+            echo "Note: Configure VERCEL_TOKEN/VERCEL_ORG_ID/VERCEL_PROJECT_ID secrets to enable staging web deploy"
+          fi
+
       - name: Deploy to Vercel (Preview)
+        if: steps.vercel_config.outputs.configured == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -84,13 +104,14 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      RENDER_DEPLOY_HOOK_STAGING: ${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}
     steps:
       - name: Trigger Render Staging Deploy
-        if: secrets.RENDER_DEPLOY_HOOK_STAGING != ''
         run: |
-          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}" ]; then
+          if [ -n "$RENDER_DEPLOY_HOOK_STAGING" ]; then
             echo "Triggering Render staging deployment..."
-            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_STAGING }}"
+            curl -X POST "$RENDER_DEPLOY_HOOK_STAGING"
           else
             echo "No staging deploy hook configured, skipping..."
             echo "Note: Configure RENDER_DEPLOY_HOOK_STAGING secret for separate staging service"

@@ -57,7 +57,7 @@ So that I always see the current state of accounts.
 2. **Stock Calculation**: Change the calculation from `stock -= movement.qty` to `stock += movement.qty`. Since SALE movements already have negative quantities, adding them will correctly reduce stock.
 
 3. **Amount Handling**: Standardize that:
-   - All API calls receive amounts in centimes (user input * 100)
+   - All API calls receive amounts in centimes (user input \* 100)
    - All displays show amounts in FCFA (API value / 100)
    - Fix CustomerDetailsScreen.tsx createReceivable to multiply by 100
 
@@ -79,24 +79,29 @@ So that I always see the current state of accounts.
 ### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
 
 #### Stock Bug
+
 - `apps/api/src/modules/inventory/inventory.service.ts` (lines 50-70) - Why: Contains the CRITICAL stock calculation bug
 - `apps/api/src/modules/sales/sales.service.ts` - Why: Creates inventory movements with negative quantities for sales
 
 #### Cash Screen
+
 - `apps/mobile/src/screens/CashScreen.tsx` (lines 115-123, 521-579, 652-658, 1279-1418) - Why: Contains merchandise purchase code to remove
 
 #### Amount Bug
+
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx` (lines 424, 485, 496) - Why: Shows inconsistent amount handling
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx` - Why: May have similar amount handling issues
 - `apps/mobile/src/utils/money.ts` - Why: Contains correct money formatting functions
 
 #### Sync
+
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx` - Why: Check for useFocusEffect implementation
 - `apps/mobile/src/screens/CustomersScreen.tsx` - Why: Check for useFocusEffect implementation
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx` - Why: Check for useFocusEffect implementation
 - `apps/mobile/src/screens/SuppliersScreen.tsx` - Why: Check for useFocusEffect implementation
 
 #### Catalog Hierarchy
+
 - `apps/mobile/src/lib/api.ts` (batchUpdateHierarchy function) - Why: Sends incorrect payload structure
 - `apps/api/src/modules/products/dto/batch-update-hierarchy.dto.ts` - Why: Defines expected DTO structure
 - `apps/mobile/src/screens/CatalogHierarchyScreen.tsx` - Why: Uses the batchUpdateHierarchy function
@@ -112,12 +117,14 @@ So that I always see the current state of accounts.
 ### Patterns to Follow
 
 **Amount Conversion Pattern:**
+
 ```
 User Input (FCFA) -> API (centimes): amount * 100
 API (centimes) -> Display (FCFA): amount / 100
 ```
 
 **useFocusEffect Pattern:**
+
 ```typescript
 useFocusEffect(
   useCallback(() => {
@@ -230,7 +237,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Task 7: VERIFY - Amount handling in SupplierDetailsScreen
 
 - **IMPLEMENT**: Check `apps/mobile/src/screens/SupplierDetailsScreen.tsx` for similar amount handling issues with createDebt and other operations
-- **PATTERN**: Same as Task 6 - amounts to API should be * 100
+- **PATTERN**: Same as Task 6 - amounts to API should be \* 100
 - **DEPENDENCIES**: None
 - **GOTCHA**: May already be correct - only fix if there's an issue
 - **VALIDATE**: Create a debt and verify amount displays correctly
@@ -287,7 +294,9 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
   ```
   to:
   ```typescript
-  { level, old_value, new_value, family, article_type, brand }
+  {
+    (level, old_value, new_value, family, article_type, brand);
+  }
   ```
 - **PATTERN**: Flat object structure matching BatchUpdateHierarchyDto
 - **DEPENDENCIES**: None
@@ -330,11 +339,13 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Inventory stock calculation
 **Requirements**:
+
 - Test that SALE movements (negative qty) reduce stock
 - Test that PURCHASE movements (positive qty) increase stock
 - Test stock calculation with mixed movement types
 
 **Test Cases**:
+
 - Initial stock 100, SALE of -5 = stock 95
 - Initial stock 100, PURCHASE of +10 = stock 110
 - Initial stock 100, SALE -5, PURCHASE +10 = stock 105
@@ -345,12 +356,14 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Full sale flow with stock reduction
 **Requirements**:
+
 - Create a product with stock 100
 - Make a sale of 5 units
 - Verify stock is now 95 (not 105)
 
 **Scope**: Customer receivable amount handling
 **Requirements**:
+
 - Create receivable of 25000 FCFA
 - Verify API receives 2500000 centimes
 - Verify display shows 25000 FCFA
@@ -360,6 +373,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Stock reduction to exactly 0
 - Stock reduction that would go negative (should be blocked or allowed based on business rules)
 - Large amounts: 1,000,000 FCFA
@@ -477,12 +491,14 @@ pnpm run validate
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Internal Resources
+
 - Stock movements: `apps/api/src/modules/inventory/inventory.service.ts`
 - Sales flow: `apps/api/src/modules/sales/sales.service.ts`
 - Money utilities: `apps/mobile/src/utils/money.ts`
 - API client: `apps/mobile/src/lib/api.ts`
 
 ### Patterns Reference
+
 - useFocusEffect: https://reactnavigation.org/docs/use-focus-effect/
 
 ---
@@ -490,6 +506,7 @@ pnpm run validate
 ## NOTES
 
 **Critical Bug Priority:**
+
 1. Stock calculation (CRITICAL - data integrity)
 2. Amount handling (HIGH - financial accuracy)
 3. Merchandise removal (MEDIUM - cleanup)
@@ -505,6 +522,7 @@ pnpm run validate
 3. **Catalog Bug**: The mobile client was wrapping filter properties in a `filters` object, but the backend DTO validates properties at the root level.
 
 **Risk Assessment:**
+
 - Stock fix: Medium (affects inventory calculations)
 - Merchandise removal: Low (removing unused code)
 - Amount fix: Medium (affects financial data)
@@ -512,6 +530,7 @@ pnpm run validate
 - Catalog fix: Low (simple payload change)
 
 **Important Reminders**:
+
 - Test stock calculation thoroughly before and after fix
 - Verify no other code depends on the buggy stock behavior
 - Check all screens for amount handling consistency

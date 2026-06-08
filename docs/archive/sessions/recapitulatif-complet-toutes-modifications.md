@@ -11,40 +11,40 @@
 
 ### Statistiques finales
 
-| Métrique | Valeur |
-|----------|--------|
-| **Tâches complétées** | 10/10 (100%) |
-| **Fichiers créés** | 7 composants + 1 migration |
-| **Fichiers modifiés** | 15 fichiers |
-| **Lignes de code** | ~3500 lignes |
-| **Lignes de documentation** | ~3000 lignes |
-| **Bugs critiques corrigés** | 5/5 (100%) |
+| Métrique                    | Valeur                     |
+| --------------------------- | -------------------------- |
+| **Tâches complétées**       | 10/10 (100%)               |
+| **Fichiers créés**          | 7 composants + 1 migration |
+| **Fichiers modifiés**       | 15 fichiers                |
+| **Lignes de code**          | ~3500 lignes               |
+| **Lignes de documentation** | ~3000 lignes               |
+| **Bugs critiques corrigés** | 5/5 (100%)                 |
 
 ### Résumé des sessions
 
-| Session | Durée | Tâches | Status |
-|---------|-------|--------|--------|
-| Session 1 - Fonctionnalités principales | 3h | 1-5 | ✅ Complétées |
-| Session 2 - Soldes négatifs | 20 min | 6-7 | ✅ Complétées |
-| Session 3 - Synchronisation Ventes/Stock | 50 min | 8-9 | ✅ Complétées |
-| Session 4 - Corrections bugs critiques | 40 min | Bugs | ✅ Corrigés |
+| Session                                  | Durée  | Tâches | Status        |
+| ---------------------------------------- | ------ | ------ | ------------- |
+| Session 1 - Fonctionnalités principales  | 3h     | 1-5    | ✅ Complétées |
+| Session 2 - Soldes négatifs              | 20 min | 6-7    | ✅ Complétées |
+| Session 3 - Synchronisation Ventes/Stock | 50 min | 8-9    | ✅ Complétées |
+| Session 4 - Corrections bugs critiques   | 40 min | Bugs   | ✅ Corrigés   |
 
 ---
 
 ## 🎯 Liste complète des tâches
 
-| # | Tâche | Complexité | Durée | Status |
-|---|-------|------------|-------|--------|
-| 1 | Corrections ProductCatalogScreen | Moyenne | 30 min | ✅ |
-| 2 | Catalogue Hiérarchique (4 niveaux) | Élevée | 1h30 | ✅ |
-| 3 | Prix historisés (migration DB) | Moyenne | 45 min | ✅ |
-| 4 | Filtre calendrier Transactions | Moyenne | 1h | ✅ |
-| 5 | Filtre calendrier Rapports | Facile | 20 min | ✅ |
-| 6 | Solde négatif client | Facile | 15 min | ✅ |
-| 7 | Solde négatif fournisseur | Facile | 15 min | ✅ |
-| 8 | Synchronisation Ventes-Catalogue | Moyenne | 20 min | ✅ |
-| 9 | Nouvelle gestion du Stock | Élevée | 30 min | ✅ |
-| 10 | Backend FIFO (stock_batches) | Élevée | - | 🔄 Planifié |
+| #   | Tâche                              | Complexité | Durée  | Status      |
+| --- | ---------------------------------- | ---------- | ------ | ----------- |
+| 1   | Corrections ProductCatalogScreen   | Moyenne    | 30 min | ✅          |
+| 2   | Catalogue Hiérarchique (4 niveaux) | Élevée     | 1h30   | ✅          |
+| 3   | Prix historisés (migration DB)     | Moyenne    | 45 min | ✅          |
+| 4   | Filtre calendrier Transactions     | Moyenne    | 1h     | ✅          |
+| 5   | Filtre calendrier Rapports         | Facile     | 20 min | ✅          |
+| 6   | Solde négatif client               | Facile     | 15 min | ✅          |
+| 7   | Solde négatif fournisseur          | Facile     | 15 min | ✅          |
+| 8   | Synchronisation Ventes-Catalogue   | Moyenne    | 20 min | ✅          |
+| 9   | Nouvelle gestion du Stock          | Élevée     | 30 min | ✅          |
+| 10  | Backend FIFO (stock_batches)       | Élevée     | -      | 🔄 Planifié |
 
 **Taux de complétion : 90% (9/10 tâches)**
 
@@ -55,9 +55,11 @@
 ### Composants React Native (4)
 
 #### 1. CatalogHierarchyScreen.tsx (680 lignes)
+
 **Emplacement** : `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
 
 **Fonctionnalités** :
+
 - Arborescence 4 niveaux : Famille → Article → Marque → Référence
 - Expand/collapse avec chevrons animés
 - Boutons + (ajouter) et ✏️ (modifier) à chaque niveau
@@ -66,6 +68,7 @@
 - Interface responsive
 
 **Code clé** :
+
 ```typescript
 // Structure hiérarchique
 interface HierarchyNode {
@@ -88,6 +91,7 @@ const buildHierarchy = (products: Product[]): HierarchyNode[] => {
 ```
 
 **Impact** :
+
 - ✅ Vue organisée du catalogue
 - ✅ Navigation intuitive
 - ✅ Gestion complète CRUD par niveau
@@ -95,9 +99,11 @@ const buildHierarchy = (products: Product[]): HierarchyNode[] => {
 ---
 
 #### 2. DateRangePicker.tsx (438 lignes)
+
 **Emplacement** : `apps/mobile/src/components/ui/DateRangePicker.tsx`
 
 **Fonctionnalités** :
+
 - Sélection plage de dates (début + fin)
 - Calendrier visuel avec indicateurs
 - Marquage jours avec données (points verts)
@@ -105,6 +111,7 @@ const buildHierarchy = (products: Product[]): HierarchyNode[] => {
 - Boutons Annuler/Appliquer
 
 **Props** :
+
 ```typescript
 interface DateRangePickerProps {
   visible: boolean;
@@ -117,6 +124,7 @@ interface DateRangePickerProps {
 ```
 
 **Impact** :
+
 - ✅ Filtrage personnalisé des rapports
 - ✅ Expérience utilisateur améliorée
 - ✅ Réutilisable dans plusieurs écrans
@@ -124,9 +132,11 @@ interface DateRangePickerProps {
 ---
 
 #### 3. StockManagementScreen.tsx (700 lignes)
+
 **Emplacement** : `apps/mobile/src/screens/StockManagementScreen.tsx`
 
 **Fonctionnalités** :
+
 - **KPIs en temps réel** :
   - Stock faible (produits sous seuil)
   - Rupture de stock (produits à 0)
@@ -145,16 +155,18 @@ interface DateRangePickerProps {
 - Pull-to-refresh
 
 **Code clé - Calcul KPIs** :
+
 ```typescript
 const lowStockCount = products.filter(p => getStockStatus(p) === 'low').length;
 const outOfStockCount = products.filter(p => getStockStatus(p) === 'out').length;
 const totalValue = products.reduce(
-  (sum, p) => sum + ((p.current_stock || 0) * (p.unit_price || 0)),
+  (sum, p) => sum + (p.current_stock || 0) * (p.unit_price || 0),
   0
 );
 ```
 
 **Impact** :
+
 - ✅ Gestion professionnelle du stock
 - ✅ Approvisionnement avec prix historisés
 - ✅ Alertes automatiques
@@ -163,9 +175,11 @@ const totalValue = products.reduce(
 ---
 
 #### 4. ProductCatalogScreen.tsx (améliorations)
+
 **Emplacement** : `apps/mobile/src/screens/ProductCatalogScreen.tsx`
 
 **Corrections** :
+
 - ✅ Suppression `device_id` des appels API
 - ✅ Ajout icône X manquante
 - ✅ Logs de débogage complets
@@ -173,6 +187,7 @@ const totalValue = products.reduce(
 - ✅ Filtre `is_active` côté client
 
 **Impact** :
+
 - ✅ Écran maintenant stable et fonctionnel
 
 ---
@@ -180,9 +195,11 @@ const totalValue = products.reduce(
 ### Migration base de données (1)
 
 #### 20260120200000_add_stock_batches.sql
+
 **Emplacement** : `apps/api/prisma/migrations/`
 
 **Structure** :
+
 ```sql
 CREATE TABLE stock_batches (
   id TEXT PRIMARY KEY,
@@ -205,6 +222,7 @@ CREATE INDEX idx_stock_batches_remaining
 ```
 
 **Impact** :
+
 - ✅ Base prête pour système FIFO
 - ✅ Traçabilité complète des lots
 - ✅ Performance optimisée (index)
@@ -229,21 +247,25 @@ CREATE INDEX idx_stock_batches_remaining
 ### Frontend Mobile (12 fichiers)
 
 #### 1. SaleScreen.tsx
+
 **Emplacement** : `apps/mobile/src/screens/SaleScreen.tsx`
 
 **Modifications** :
+
 - Migration AsyncStorage → API catalogue
 - Filtre `is_active` côté client
 - Affichage : Famille / Article Marque / Stock
 - Mise à jour stock via API après vente
 
 **Avant** :
+
 ```typescript
 import { getProducts, updateMultipleProductsStock } from '../utils/stockManager';
 const loadedProducts = await getProducts(); // AsyncStorage
 ```
 
 **Après** :
+
 ```typescript
 import { productsApi } from '../lib/api';
 const loadedProducts = await productsApi.getAll();
@@ -251,6 +273,7 @@ const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
 ```
 
 **Impact** :
+
 - ✅ Source unique de vérité (catalogue)
 - ✅ Synchronisation en temps réel
 - ✅ Plus de doublons produits
@@ -262,7 +285,9 @@ const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
 ---
 
 #### 3. CustomerDetailsScreen.tsx
+
 **Modifications** :
+
 - Gestion remboursement avec solde négatif
 - Fonction `createNegativeReceivable`
 - Alertes avant action
@@ -270,6 +295,7 @@ const activeProducts = loadedProducts.filter((p: any) => p.is_active !== false);
 - Affichage signe négatif dans KPI
 
 **Code clé** :
+
 ```typescript
 const createNegativeReceivable = async (amountValue: number) => {
   await receivablesApi.create({
@@ -292,6 +318,7 @@ const createNegativeReceivable = async (amountValue: number) => {
 ```
 
 **Impact** :
+
 - ✅ Gestion réaliste des flux
 - ✅ Soldes négatifs visibles
 - ✅ Alertes claires
@@ -299,18 +326,22 @@ const createNegativeReceivable = async (amountValue: number) => {
 ---
 
 #### 4. SupplierDetailsScreen.tsx
+
 **Modifications identiques à CustomerDetailsScreen** pour les fournisseurs.
 
 ---
 
 #### 5. BusinessReportsScreen.tsx
+
 **Modifications** :
+
 - Intégration DateRangePicker
 - Filtrage par plage personnalisée
 - Extraction dates avec données
 - Reset auto lors filtre prédéfini
 
 **Code clé** :
+
 ```typescript
 const [customDateRange, setCustomDateRange] = useState<{
   start: Date | null;
@@ -318,26 +349,28 @@ const [customDateRange, setCustomDateRange] = useState<{
 }>({ start: null, end: null });
 
 // Extraction dates avec transactions
-const datesWithTransactions = transactions.map(t =>
-  format(new Date(t.created_at), 'yyyy-MM-dd')
-);
+const datesWithTransactions = transactions.map(t => format(new Date(t.created_at), 'yyyy-MM-dd'));
 ```
 
 ---
 
 #### 6. TransactionHistoryScreen.tsx
+
 **Modifications identiques à BusinessReportsScreen**.
 
 ---
 
 #### 7. CashScreen.tsx
+
 **Modifications** :
+
 - Remboursement client → créance négative
 - Règlement fournisseur → dette négative
 - Alertes avec montant
 - Entrée caisse + transaction comptable
 
 **Code clé** :
+
 ```typescript
 // Remboursement client
 if (entryCategory === 'remboursement_client') {
@@ -360,13 +393,16 @@ if (entryCategory === 'remboursement_client') {
 ```
 
 **Impact** :
+
 - ✅ Soldes mis à jour correctement
 - ✅ Suivi trésorerie complet
 
 ---
 
 #### 8. App.tsx
+
 **Modifications** :
+
 - Ajout route StockManagement
 - Ajout dans RootStackParamList
 
@@ -384,7 +420,9 @@ type RootStackParamList = {
 ---
 
 #### 9. MainTabNavigator.tsx
+
 **Modifications** :
+
 - Remplacement StockScreen → StockManagementScreen
 - Import nouveau composant
 
@@ -404,7 +442,9 @@ import StockManagementScreen from '../screens/StockManagementScreen';
 ---
 
 #### 10. SimpleIcons.tsx
+
 **Modifications** :
+
 - Ajout icône X manquante
 
 ```typescript
@@ -426,13 +466,16 @@ export const X = ({ size = 24, color = '#000000' }: IconProps) => (
 ### Backend API (3 fichiers)
 
 #### 1. create-receivable.dto.ts
+
 **Emplacement** : `apps/api/src/modules/receivables/dto/create-receivable.dto.ts`
 
 **Modifications** :
+
 - Suppression validation `@Min(0)` sur `amount`
 - Permet montants négatifs (remboursements)
 
 **Avant** :
+
 ```typescript
 @IsInt()
 @Min(0)
@@ -440,6 +483,7 @@ amount: number;
 ```
 
 **Après** :
+
 ```typescript
 @IsInt()
 amount: number; // Removed @Min(0) to allow negative amounts (refunds)
@@ -448,6 +492,7 @@ amount: number; // Removed @Min(0) to allow negative amounts (refunds)
 ---
 
 #### 2. create-debt.dto.ts
+
 **Emplacement** : `apps/api/src/modules/debts/dto/create-debt.dto.ts`
 
 **Modifications identiques** pour les dettes fournisseurs.
@@ -455,6 +500,7 @@ amount: number; // Removed @Min(0) to allow negative amounts (refunds)
 ---
 
 #### 3. search-product.dto.ts
+
 **Emplacement** : `apps/api/src/modules/products/dto/search-product.dto.ts`
 
 **Déjà existant** : Validation stricte `@IsBoolean()` pour `is_active`.
@@ -467,6 +513,7 @@ amount: number; // Removed @Min(0) to allow negative amounts (refunds)
 ### Bug 1 : Erreur `is_active must be a boolean value`
 
 **Symptôme** :
+
 ```
 ERROR Erreur chargement produits: [Error: is_active must be a boolean value]
 ```
@@ -475,10 +522,12 @@ ERROR Erreur chargement produits: [Error: is_active must be a boolean value]
 Le DTO valide strictement que `is_active` doit être un booléen. Passé comme string dans l'URL query.
 
 **Fichiers corrigés** :
+
 - `SaleScreen.tsx`
 - `StockManagementScreen.tsx`
 
 **Solution** :
+
 ```typescript
 // Avant
 const loadedProducts = await productsApi.getAll({ is_active: true });
@@ -501,6 +550,7 @@ Remboursement depuis CashScreen → solde client inchangé.
 Création entrée caisse uniquement, pas de créance négative.
 
 **Fichiers corrigés** :
+
 - `CashScreen.tsx`
 
 **Solution** :
@@ -519,6 +569,7 @@ Règlement depuis CashScreen → solde fournisseur inchangé.
 Création sortie caisse uniquement, pas de dette négative.
 
 **Fichiers corrigés** :
+
 - `CashScreen.tsx`
 
 **Solution** :
@@ -531,6 +582,7 @@ Création dette négative + sortie caisse.
 ### Bug 4 : Erreur `due_date should not exist`
 
 **Symptôme** :
+
 ```
 ERROR [Error: property due_date should not exist,amount must not be less than 0]
 ```
@@ -539,6 +591,7 @@ ERROR [Error: property due_date should not exist,amount must not be less than 0]
 Les DTOs n'acceptent pas `due_date` et refusent les montants négatifs.
 
 **Fichiers corrigés** :
+
 - `create-receivable.dto.ts` (backend)
 - `create-debt.dto.ts` (backend)
 - `CashScreen.tsx` (frontend)
@@ -546,6 +599,7 @@ Les DTOs n'acceptent pas `due_date` et refusent les montants négatifs.
 - `SupplierDetailsScreen.tsx` (frontend)
 
 **Solution** :
+
 - Backend : Suppression `@Min(0)` sur `amount`
 - Frontend : Suppression `due_date` des appels API
 
@@ -562,10 +616,12 @@ Soldes négatifs affichés comme positifs (ex: `5 000 F` au lieu de `-5 000 F`).
 `formatMoney` utilise `Math.abs()` qui supprime le signe.
 
 **Fichiers corrigés** :
+
 - `CustomerDetailsScreen.tsx`
 - `SupplierDetailsScreen.tsx`
 
 **Solution** :
+
 ```typescript
 value={
   (balance || 0) < 0
@@ -582,48 +638,48 @@ value={
 
 ### Onglet Ventes
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| Source données | AsyncStorage local | API Catalogue centralisée |
-| Synchronisation | Manuelle | Automatique en temps réel |
-| Affichage produit | Nom simple | Famille / Article Marque / Stock |
-| Mise à jour stock | Local (asyncstorage) | API (base de données) |
-| Cohérence | ❌ Doublons possibles | ✅ Source unique de vérité |
+| Aspect            | Avant                 | Après                            |
+| ----------------- | --------------------- | -------------------------------- |
+| Source données    | AsyncStorage local    | API Catalogue centralisée        |
+| Synchronisation   | Manuelle              | Automatique en temps réel        |
+| Affichage produit | Nom simple            | Famille / Article Marque / Stock |
+| Mise à jour stock | Local (asyncstorage)  | API (base de données)            |
+| Cohérence         | ❌ Doublons possibles | ✅ Source unique de vérité       |
 
 ---
 
 ### Onglet Stock
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| Interface | Modification manuelle | Approvisionnement guidé |
-| Prix | Non géré | Prix achat + Prix vente |
-| Historique prix | ❌ Non disponible | ✅ Prêt pour FIFO |
-| Alertes | ❌ Aucune | ✅ Visuelles (couleurs) |
-| Recherche | Basique | Multi-critères avancée |
-| Statistiques | ❌ Aucune | ✅ KPIs temps réel |
-| Marges | ❌ Non calculées | ✅ Calcul automatique |
+| Aspect          | Avant                 | Après                   |
+| --------------- | --------------------- | ----------------------- |
+| Interface       | Modification manuelle | Approvisionnement guidé |
+| Prix            | Non géré              | Prix achat + Prix vente |
+| Historique prix | ❌ Non disponible     | ✅ Prêt pour FIFO       |
+| Alertes         | ❌ Aucune             | ✅ Visuelles (couleurs) |
+| Recherche       | Basique               | Multi-critères avancée  |
+| Statistiques    | ❌ Aucune             | ✅ KPIs temps réel      |
+| Marges          | ❌ Non calculées      | ✅ Calcul automatique   |
 
 ---
 
 ### Rapports
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
-| Filtres | Fixes (Jour/Semaine/Mois/Année) | + Plage personnalisée |
-| Calendrier | ❌ Non disponible | ✅ Avec indicateurs visuels |
-| Jours avec données | Non marqués | ✅ Points verts |
+| Aspect             | Avant                           | Après                       |
+| ------------------ | ------------------------------- | --------------------------- |
+| Filtres            | Fixes (Jour/Semaine/Mois/Année) | + Plage personnalisée       |
+| Calendrier         | ❌ Non disponible               | ✅ Avec indicateurs visuels |
+| Jours avec données | Non marqués                     | ✅ Points verts             |
 
 ---
 
 ### Clients & Fournisseurs
 
-| Aspect | Avant | Après |
-|--------|-------|-------|
+| Aspect          | Avant      | Après                     |
+| --------------- | ---------- | ------------------------- |
 | Soldes négatifs | ❌ Bloqués | ✅ Autorisés avec alertes |
-| Affichage signe | Invisible | ✅ Visible (ex: -5 000 F) |
-| Messages | Basiques | ✅ Avertissements clairs |
-| Badges | Simples | ✅ Rouge pour négatifs |
+| Affichage signe | Invisible  | ✅ Visible (ex: -5 000 F) |
+| Messages        | Basiques   | ✅ Avertissements clairs  |
+| Badges          | Simples    | ✅ Rouge pour négatifs    |
 
 ---
 
@@ -631,13 +687,13 @@ value={
 
 ### Gains de productivité
 
-| Fonctionnalité | Gain | Impact financier |
-|----------------|------|------------------|
-| Catalogue unifié | -30% erreurs | Évite pertes stock |
-| Stock moderne | -50% temps gestion | Meilleure rotation |
-| Prix historisés | Base FIFO | Marges précises |
-| Filtres dates | -70% temps recherche | Décisions rapides |
-| Soldes négatifs | Flux réaliste | Trésorerie claire |
+| Fonctionnalité   | Gain                 | Impact financier   |
+| ---------------- | -------------------- | ------------------ |
+| Catalogue unifié | -30% erreurs         | Évite pertes stock |
+| Stock moderne    | -50% temps gestion   | Meilleure rotation |
+| Prix historisés  | Base FIFO            | Marges précises    |
+| Filtres dates    | -70% temps recherche | Décisions rapides  |
+| Soldes négatifs  | Flux réaliste        | Trésorerie claire  |
 
 ### ROI estimé
 
@@ -652,6 +708,7 @@ value={
 ## ✅ Checklist complète de test
 
 ### Onglet Ventes
+
 - [x] Produits du catalogue s'affichent
 - [x] Recherche fonctionne
 - [x] Ajout au panier OK
@@ -660,6 +717,7 @@ value={
 - [x] Stock mis à jour après vente
 
 ### Onglet Stock
+
 - [x] KPIs affichés correctement
 - [x] Recherche multi-critères OK
 - [x] Statuts (couleurs) corrects
@@ -669,6 +727,7 @@ value={
 - [x] Prix enregistrés correctement
 
 ### Filtres de date
+
 - [x] DateRangePicker s'ouvre (Rapports)
 - [x] Jours avec données marqués
 - [x] Filtrage fonctionne
@@ -676,6 +735,7 @@ value={
 - [x] DateRangePicker fonctionne (Transactions)
 
 ### Soldes négatifs
+
 - [x] Alerte client sans dette
 - [x] Création créance négative OK
 - [x] Badge rouge visible (client)
@@ -687,12 +747,14 @@ value={
 - [x] Signe négatif affiché dans KPI
 
 ### Catalogue hiérarchique
+
 - [x] Navigation Famille → Article → Marque → Référence
 - [x] Expand/collapse fonctionne
 - [x] Boutons + et ✏️ visibles
 - [x] Blocage suppression si stock > 0
 
 ### Remboursements/Règlements depuis Caisse
+
 - [x] Remboursement client crée créance négative
 - [x] Solde client mis à jour
 - [x] Règlement fournisseur crée dette négative
@@ -703,6 +765,7 @@ value={
 ## 🚀 Prochaines étapes
 
 ### Court terme (1-2 jours)
+
 1. ✅ **Tester toutes les fonctionnalités** (voir checklist ci-dessus)
 2. ✅ **Valider bugs critiques corrigés**
 3. 🔄 **Finaliser Task 10** : Backend service pour stock_batches (FIFO)
@@ -711,6 +774,7 @@ value={
    - Afficher historique des lots par produit
 
 ### Moyen terme (1 semaine)
+
 4. Tests unitaires pour nouvelles fonctionnalités
 5. Optimisations de performance
 6. Documentation utilisateur finale
@@ -718,6 +782,7 @@ value={
 8. Ajustements selon retours
 
 ### Long terme (1 mois)
+
 9. Statistiques avancées (marges par période, rotation stock)
 10. Scanner de code-barres pour ventes rapides
 11. Promotions et remises sur produits
@@ -780,6 +845,7 @@ swalo_dev_temp/
 ```
 
 **Légende** :
+
 - ✨ Nouveau fichier
 - ✏️ Fichier modifié
 

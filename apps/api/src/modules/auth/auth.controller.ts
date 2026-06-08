@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Request, Patch, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, Request, Patch, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
   LoginDto,
@@ -8,8 +8,7 @@ import {
   CreateShopDto,
   UpdateShopCodeDto,
 } from './dto/auth.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { LocalAuthGuard as _LocalAuthGuard } from '../../common/guards/local-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -19,6 +18,7 @@ export class AuthController {
    * POST /api/auth/register
    * Inscription d'un nouveau propriétaire de boutique
    */
+  @Public()
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -28,6 +28,7 @@ export class AuthController {
    * POST /api/auth/login
    * Connexion d'un utilisateur
    */
+  @Public()
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -38,6 +39,7 @@ export class AuthController {
    * Authentification par code Boutique + PIN (6 chiffres + 4 chiffres)
    * Conforme au CDC SWALO - Section 2
    */
+  @Public()
   @Post('pin')
   async loginWithPin(@Body() dto: PinLoginDto) {
     const deviceInfo = dto.device_id
@@ -56,6 +58,7 @@ export class AuthController {
    * Création rapide d'une boutique (Admin Web uniquement)
    * Génère automatiquement shop_code (6 chiffres) et PIN propriétaire (4 chiffres)
    */
+  @Public()
   @Post('create-shop')
   async createShop(@Body() dto: CreateShopDto) {
     return this.authService.createShop(dto);
@@ -66,6 +69,7 @@ export class AuthController {
    * Vérifie si une boutique existe (endpoint public pour diagnostic)
    * Ne retourne pas de données sensibles
    */
+  @Public()
   @Get('verify-shop/:code')
   async verifyShop(@Param('code') code: string) {
     return this.authService.verifyShopExists(code);
@@ -75,6 +79,7 @@ export class AuthController {
    * POST /api/auth/refresh
    * Rafraîchissement du token
    */
+  @Public()
   @Post('refresh')
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
@@ -84,7 +89,6 @@ export class AuthController {
    * GET /api/auth/me
    * Récupère les infos de l'utilisateur connecté
    */
-  @UseGuards(JwtAuthGuard)
   @Get('me')
   async getProfile(@Request() req: any) {
     return this.authService.getUserWithRoles(req.user.userId);
@@ -95,9 +99,26 @@ export class AuthController {
    * Modification du code boutique par le propriétaire
    * Requiert confirmation du PIN
    */
-  @UseGuards(JwtAuthGuard)
   @Patch('shop-code')
   async updateShopCode(@Request() req: any, @Body() dto: UpdateShopCodeDto) {
     return this.authService.updateShopCode(req.user.shopId, req.user.userId, dto);
+  }
+
+  /**
+   * POST /api/auth/switch-shop
+   * Switch to a different shop (multi-shop users)
+   */
+  @Post('switch-shop')
+  async switchShop(@Request() req: any, @Body() body: { shop_id: string }) {
+    return this.authService.switchShop(req.user.userId, body.shop_id);
+  }
+
+  /**
+   * GET /api/auth/accessible-shops
+   * Get all shops accessible to the current user
+   */
+  @Get('accessible-shops')
+  async getAccessibleShops(@Request() req: any) {
+    return this.authService.getAccessibleShops(req.user.userId);
   }
 }

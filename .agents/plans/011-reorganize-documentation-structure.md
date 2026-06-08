@@ -13,6 +13,7 @@ Afin de retrouver facilement l'information pertinente et maintenir une base de c
 ## Problem Statement
 
 Le projet souffre actuellement de:
+
 - **29 fichiers .md à la racine** - créant un encombrement visuel et rendant difficile la navigation
 - **Mélange de types de documents** - spécifications, logs de session, guides, rapports de bugs, le tout au même niveau
 - **Pas de convention de nommage** - fichiers en français/anglais, majuscules/minuscules, styles variés
@@ -41,37 +42,37 @@ Appliquer les bonnes pratiques documentées par [MkDocs](https://www.mkdocs.org/
 
 ### Fichiers actuels à la racine (29 fichiers .md)
 
-| Fichier | Catégorie proposée | Action |
-|---------|-------------------|--------|
-| `README.md` | Racine | **Conserver** - Point d'entrée du projet |
-| `CLAUDE.md` | Racine | **Conserver et mettre à jour** - Instructions pour Claude |
-| `SWALO_Cahier_des_Charges_Unifie.md` | `docs/specs/` | Déplacer |
-| `cahier_des_charges_technique_swalo_offline_first_oriente_ia_codeuse.md` | `docs/specs/` | Déplacer |
-| `DOCUMENTATION_SWALO.md` | `docs/guides/` | Déplacer |
-| `CHARTE_COULEURS.md` | `docs/design/` | Déplacer |
-| `CODES_PIN.md` | `docs/reference/` | Déplacer |
-| `IMPLEMENTATION_PLAN.md` | `docs/specs/` | Déplacer |
-| `PRIX_HISTORISES_DESIGN.md` | `docs/design/` | Déplacer |
-| `INTEGRATION_DATERANGEPICKER.md` | `docs/guides/` | Déplacer |
-| `MANUAL_TESTING_GUIDE.md` | `docs/guides/` | Déplacer |
-| `GUIDE_TEST_NOUVELLES_FONCTIONNALITES.md` | `docs/guides/` | Déplacer |
-| `PRODUCT_CATALOG_DEPLOYMENT.md` | `docs/deployment/` | Déplacer |
-| `CORRECTIFS_API_FINALE.md` | `docs/archive/sessions/` | Archiver |
-| `CORRECTIFS_BUGS_CRITIQUES.md` | `docs/archive/sessions/` | Archiver |
-| `CORRECTIFS_FINAUX_SESSION_5.md` | `docs/archive/sessions/` | Archiver |
-| `DEBUG_PRODUCT_CATALOG.md` | `docs/archive/sessions/` | Archiver |
-| `FINAL_IMPLEMENTATION_REPORT.md` | `docs/archive/sessions/` | Archiver |
-| `IMPLEMENTATION_COMPLETE_SUMMARY.md` | `docs/archive/sessions/` | Archiver |
-| `IMPLEMENTATION_STATUS.md` | `docs/archive/sessions/` | Archiver |
-| `LOGIQUE_FINALE_CORRECTE.md` | `docs/archive/sessions/` | Archiver |
-| `MISE_A_JOUR_VENTES_STOCK.md` | `docs/archive/sessions/` | Archiver |
-| `MODIFICATIONS_REALISEES.md` | `docs/archive/sessions/` | Archiver |
-| `RECAPITULATIF_COMPLET_TOUTES_MODIFICATIONS.md` | `docs/archive/sessions/` | Archiver |
-| `RECAPITULATIF_SESSION_FINALE.md` | `docs/archive/sessions/` | Archiver |
-| `RESUME_FINAL_SESSION.md` | `docs/archive/sessions/` | Archiver |
-| `SESSION_COMPLETE_RESUME.md` | `docs/archive/sessions/` | Archiver |
-| `SESSION_CONTINUATION_SUMMARY.md` | `docs/archive/sessions/` | Archiver |
-| `STATUS_MODIFICATIONS.md` | `docs/archive/sessions/` | Archiver |
+| Fichier                                                                  | Catégorie proposée       | Action                                                    |
+| ------------------------------------------------------------------------ | ------------------------ | --------------------------------------------------------- |
+| `README.md`                                                              | Racine                   | **Conserver** - Point d'entrée du projet                  |
+| `CLAUDE.md`                                                              | Racine                   | **Conserver et mettre à jour** - Instructions pour Claude |
+| `SWALO_Cahier_des_Charges_Unifie.md`                                     | `docs/specs/`            | Déplacer                                                  |
+| `cahier_des_charges_technique_swalo_offline_first_oriente_ia_codeuse.md` | `docs/specs/`            | Déplacer                                                  |
+| `DOCUMENTATION_SWALO.md`                                                 | `docs/guides/`           | Déplacer                                                  |
+| `CHARTE_COULEURS.md`                                                     | `docs/design/`           | Déplacer                                                  |
+| `CODES_PIN.md`                                                           | `docs/reference/`        | Déplacer                                                  |
+| `IMPLEMENTATION_PLAN.md`                                                 | `docs/specs/`            | Déplacer                                                  |
+| `PRIX_HISTORISES_DESIGN.md`                                              | `docs/design/`           | Déplacer                                                  |
+| `INTEGRATION_DATERANGEPICKER.md`                                         | `docs/guides/`           | Déplacer                                                  |
+| `MANUAL_TESTING_GUIDE.md`                                                | `docs/guides/`           | Déplacer                                                  |
+| `GUIDE_TEST_NOUVELLES_FONCTIONNALITES.md`                                | `docs/guides/`           | Déplacer                                                  |
+| `PRODUCT_CATALOG_DEPLOYMENT.md`                                          | `docs/deployment/`       | Déplacer                                                  |
+| `CORRECTIFS_API_FINALE.md`                                               | `docs/archive/sessions/` | Archiver                                                  |
+| `CORRECTIFS_BUGS_CRITIQUES.md`                                           | `docs/archive/sessions/` | Archiver                                                  |
+| `CORRECTIFS_FINAUX_SESSION_5.md`                                         | `docs/archive/sessions/` | Archiver                                                  |
+| `DEBUG_PRODUCT_CATALOG.md`                                               | `docs/archive/sessions/` | Archiver                                                  |
+| `FINAL_IMPLEMENTATION_REPORT.md`                                         | `docs/archive/sessions/` | Archiver                                                  |
+| `IMPLEMENTATION_COMPLETE_SUMMARY.md`                                     | `docs/archive/sessions/` | Archiver                                                  |
+| `IMPLEMENTATION_STATUS.md`                                               | `docs/archive/sessions/` | Archiver                                                  |
+| `LOGIQUE_FINALE_CORRECTE.md`                                             | `docs/archive/sessions/` | Archiver                                                  |
+| `MISE_A_JOUR_VENTES_STOCK.md`                                            | `docs/archive/sessions/` | Archiver                                                  |
+| `MODIFICATIONS_REALISEES.md`                                             | `docs/archive/sessions/` | Archiver                                                  |
+| `RECAPITULATIF_COMPLET_TOUTES_MODIFICATIONS.md`                          | `docs/archive/sessions/` | Archiver                                                  |
+| `RECAPITULATIF_SESSION_FINALE.md`                                        | `docs/archive/sessions/` | Archiver                                                  |
+| `RESUME_FINAL_SESSION.md`                                                | `docs/archive/sessions/` | Archiver                                                  |
+| `SESSION_COMPLETE_RESUME.md`                                             | `docs/archive/sessions/` | Archiver                                                  |
+| `SESSION_CONTINUATION_SUMMARY.md`                                        | `docs/archive/sessions/` | Archiver                                                  |
+| `STATUS_MODIFICATIONS.md`                                                | `docs/archive/sessions/` | Archiver                                                  |
 
 ### Fichiers existants dans `docs/` à conserver
 
@@ -90,6 +91,7 @@ Appliquer les bonnes pratiques documentées par [MkDocs](https://www.mkdocs.org/
 ### Fichiers dans `.agents/plans/` à numéroter
 
 Fichiers existants (10) à renuméroter:
+
 1. `catalog-stock-import-features.md` → `001-catalog-stock-import-features.md`
 2. `deployment-infrastructure-setup.md` → `002-deployment-infrastructure-setup.md`
 3. `fix-balance-display-division-by-100.md` → `003-fix-balance-display-division-by-100.md`
@@ -112,11 +114,13 @@ Fichiers existants (10) à renuméroter:
 ### Patterns to Follow
 
 **Conventions de nommage adoptées:**
+
 - Noms de fichiers en **kebab-case** (minuscules avec tirets)
 - Préfixe numérique à 3 chiffres pour les plans (ex: `001-`, `002-`)
 - Noms descriptifs en anglais pour la cohérence avec le code
 
 **Structure hiérarchique:**
+
 - Documentation organisée par **thème/catégorie**
 - Archives séparées pour les documents historiques
 - README.md dans chaque sous-dossier expliquant son contenu
@@ -128,6 +132,7 @@ Fichiers existants (10) à renuméroter:
 ### Phase 1: Préparation de la structure
 
 Créer l'arborescence de dossiers dans `docs/`:
+
 - `docs/specs/` - Spécifications et cahiers des charges
 - `docs/guides/` - Guides utilisateur et développeur
 - `docs/design/` - Documentation de design (UI, architecture)

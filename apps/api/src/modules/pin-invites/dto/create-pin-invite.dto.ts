@@ -8,8 +8,8 @@ export class CreatePinInviteDto {
   @IsOptional()
   invited_phone?: string;
 
-  @IsEnum(['OWNER', 'MANAGER', 'CASHIER', 'SUPERADMIN', 'ADMIN', 'EMPLOYEE'])
-  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'SUPERADMIN' | 'ADMIN' | 'EMPLOYEE';
+  @IsEnum(['BOSS', 'MANAGER', 'EMPLOYEE', 'SUPERADMIN'])
+  role: 'BOSS' | 'MANAGER' | 'EMPLOYEE' | 'SUPERADMIN';
 
   @IsDateString()
   @IsOptional()

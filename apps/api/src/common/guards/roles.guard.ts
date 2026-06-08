@@ -41,6 +41,11 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
+    // SUPERADMIN bypasses all role checks
+    if (userRole.role === Role.SUPERADMIN) {
+      return true;
+    }
+
     return requiredRoles.some(role => userRole.role === role);
   }
 }

@@ -43,6 +43,7 @@ Permet de basculer rapidement entre les environnements de développement, produc
 ### Usage
 
 **Windows (PowerShell)** :
+
 ```powershell
 .\scripts\switch-env.ps1 dev     # Environnement de développement (Neon dev branch)
 .\scripts\switch-env.ps1 prod    # Environnement de production (Neon main branch)
@@ -50,6 +51,7 @@ Permet de basculer rapidement entre les environnements de développement, produc
 ```
 
 **Linux/Mac (Bash)** :
+
 ```bash
 chmod +x scripts/switch-env.sh   # Première fois seulement
 ./scripts/switch-env.sh dev      # Environnement de développement
@@ -59,11 +61,11 @@ chmod +x scripts/switch-env.sh   # Première fois seulement
 
 ### Environnements disponibles
 
-| Environnement | Base de données | Usage |
-|---------------|-----------------|-------|
-| `dev` | Neon branch `development` | Développement de nouvelles fonctionnalités |
-| `prod` | Neon branch `main` | ⚠️ Production - données réelles |
-| `local` | Docker PostgreSQL (localhost:5432) | Développement 100% local sans internet |
+| Environnement | Base de données                    | Usage                                      |
+| ------------- | ---------------------------------- | ------------------------------------------ |
+| `dev`         | Neon branch `development`          | Développement de nouvelles fonctionnalités |
+| `prod`        | Neon branch `main`                 | ⚠️ Production - données réelles            |
+| `local`       | Docker PostgreSQL (localhost:5432) | Développement 100% local sans internet     |
 
 ### Ce que fait le script
 
@@ -88,6 +90,7 @@ npx prisma studio
 ## 📋 Workflow recommandé
 
 ### Développement quotidien
+
 ```bash
 # Matin: Basculer en dev
 .\scripts\switch-env.ps1 dev
@@ -103,6 +106,7 @@ git push origin dev
 ```
 
 ### Tests en local (offline)
+
 ```bash
 # Basculer en local
 .\scripts\switch-env.ps1 local
@@ -115,6 +119,7 @@ npm run dev
 ```
 
 ### Déploiement en production
+
 ```bash
 # ⚠️ ATTENTION: Vérifier que tout est testé en dev d'abord!
 

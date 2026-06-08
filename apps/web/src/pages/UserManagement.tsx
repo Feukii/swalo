@@ -59,8 +59,8 @@ export default function UserManagement() {
 
   const ROLES = [
     { value: 'EMPLOYEE', label: 'Employé' },
-    { value: 'ADMIN', label: 'Administrateur' },
-    { value: 'OWNER', label: 'Propriétaire' },
+    { value: 'MANAGER', label: 'Manager' },
+    { value: 'BOSS', label: 'Patron' },
   ];
 
   useEffect(() => {
@@ -216,15 +216,15 @@ export default function UserManagement() {
                   <td className="px-6 py-4">
                     <span
                       className={`badge ${
-                        userRole.role === 'ADMIN' || userRole.role === 'OWNER'
+                        userRole.role === 'MANAGER' || userRole.role === 'BOSS'
                           ? 'badge-primary'
                           : 'badge-secondary'
                       }`}
                     >
                       {userRole.role === 'EMPLOYEE' && 'Employé'}
-                      {userRole.role === 'ADMIN' && 'Admin'}
-                      {userRole.role === 'OWNER' && 'Propriétaire'}
                       {userRole.role === 'MANAGER' && 'Manager'}
+                      {userRole.role === 'BOSS' && 'Patron'}
+                      {userRole.role === 'SUPERADMIN' && 'Super Admin'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">

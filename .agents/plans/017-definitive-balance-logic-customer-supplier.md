@@ -3,6 +3,7 @@
 ## Feature Description
 
 Ce plan etablit une structure DEFINITIVE et PERENNE pour la gestion des soldes clients et fournisseurs. Apres 5 bugs recurrents sur cette fonctionnalite, nous devons:
+
 1. Documenter clairement la logique metier
 2. Identifier TOUTES les operations qui affectent les soldes
 3. Verifier que l'implementation actuelle est correcte
@@ -17,6 +18,7 @@ Afin de savoir exactement qui me doit de l'argent et a qui je dois de l'argent
 ## Problem Statement
 
 Les bugs recurrents proviennent de:
+
 1. **Confusion semantique**: Manque de documentation claire sur ce que signifie un solde positif/negatif
 2. **Operations multiples**: Plusieurs endroits du code modifient les soldes
 3. **Logique dispersee**: La logique est repartie entre services sans vue d'ensemble
@@ -37,13 +39,14 @@ Les bugs recurrents proviennent de:
 
 **Definition**: Le solde client represente ce que le client nous doit.
 
-| Solde | Signification | Exemple |
-|-------|---------------|---------|
-| **POSITIF** (+10000) | Le client nous doit de l'argent | Vente a credit non payee |
+| Solde                | Signification                     | Exemple                      |
+| -------------------- | --------------------------------- | ---------------------------- |
+| **POSITIF** (+10000) | Le client nous doit de l'argent   | Vente a credit non payee     |
 | **NEGATIF** (-10000) | Nous devons de l'argent au client | Trop-percu, remboursement du |
-| **ZERO** (0) | Compte equilibre | Aucune dette |
+| **ZERO** (0)         | Compte equilibre                  | Aucune dette                 |
 
 **Formule de calcul**:
+
 ```
 total_balance = SUM(ClientReceivable.balance) pour toutes les creances du client
 ```
@@ -52,13 +55,14 @@ total_balance = SUM(ClientReceivable.balance) pour toutes les creances du client
 
 **Definition**: Le solde fournisseur represente ce que nous devons au fournisseur.
 
-| Solde | Signification | Exemple |
-|-------|---------------|---------|
-| **POSITIF** (+10000) | Nous devons de l'argent au fournisseur | Achat a credit non paye |
-| **NEGATIF** (-10000) | Le fournisseur nous doit de l'argent | Trop-paye, remboursement du |
-| **ZERO** (0) | Compte equilibre | Aucune dette |
+| Solde                | Signification                          | Exemple                     |
+| -------------------- | -------------------------------------- | --------------------------- |
+| **POSITIF** (+10000) | Nous devons de l'argent au fournisseur | Achat a credit non paye     |
+| **NEGATIF** (-10000) | Le fournisseur nous doit de l'argent   | Trop-paye, remboursement du |
+| **ZERO** (0)         | Compte equilibre                       | Aucune dette                |
 
 **Formule de calcul**:
+
 ```
 total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 ```
@@ -70,18 +74,21 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 ### A. OPERATIONS CLIENT (ClientReceivable)
 
 #### 1. Vente a credit
+
 - **Declencheur**: Creation d'une vente avec paiement differe
 - **Impact**: +amount sur ClientReceivable
 - **Cash Impact**: Aucun (pas d'argent physique)
 - **Fichier**: `sales.service.ts`
 
 #### 2. Paiement client (encaissement creance)
+
 - **Declencheur**: Client paie sa dette
 - **Impact**: Reduction du `balance` sur les ClientReceivable existantes
 - **Cash Impact**: +amount (IN) dans CashEntry
 - **Fichier**: `cash.service.ts` (ligne 155-199)
 
 #### 3. Remboursement client (le client nous paye)
+
 - **Declencheur**: Le client nous rembourse / nous paye
 - **Precondition**: Aucune (fonctionne quel que soit le solde)
 - **Impact**: -amount sur ClientReceivable (creance NEGATIVE = solde DIMINUE)
@@ -92,6 +99,7 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
   - Solde -5000, remboursement 2500 → nouveau solde -7500
 
 #### 4. Ajustement de solde (creance initiale/manuelle)
+
 - **Declencheur**: Creation manuelle d'une creance
 - **Impact**: +/- amount sur ClientReceivable
 - **Cash Impact**: Aucun
@@ -100,12 +108,14 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 ### B. OPERATIONS FOURNISSEUR (SupplierDebt)
 
 #### 1. Achat a credit
+
 - **Declencheur**: Achat de marchandises avec paiement differe
 - **Impact**: +amount sur SupplierDebt
 - **Cash Impact**: Aucun ou partiel
 - **Fichier**: `cash.service.ts` (createMerchandisePurchase)
 
 #### 2. Reglement fournisseur (nous payons le fournisseur)
+
 - **Declencheur**: Nous payons le fournisseur
 - **Precondition**: Aucune (fonctionne quel que soit le solde)
 - **Impact**: -amount sur SupplierDebt (dette NEGATIVE = solde DIMINUE)
@@ -116,6 +126,7 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
   - Solde -3500, reglement 4000 → nouveau solde -7500
 
 #### 4. Ajustement de solde (dette initiale/manuelle)
+
 - **Declencheur**: Creation manuelle d'une dette
 - **Impact**: +/- amount sur SupplierDebt
 - **Cash Impact**: Aucun
@@ -127,23 +138,23 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 
 ### CLIENT
 
-| Operation | ClientReceivable | CashEntry | Exemple |
-|-----------|------------------|-----------|---------|
-| Vente a credit | +5000 (PENDING) | - | Solde: 0 → +5000 |
-| Remboursement client (client nous paye) | -3000 (PAID) | +3000 (IN) | Solde: +5000 → +2000 |
-| Remboursement client (sur solde negatif) | -2500 (PAID) | +2500 (IN) | Solde: -5000 → -7500 |
-| Solde initial positif | +5000 (PENDING) | - | Solde: 0 → +5000 |
+| Operation                                | ClientReceivable | CashEntry  | Exemple              |
+| ---------------------------------------- | ---------------- | ---------- | -------------------- |
+| Vente a credit                           | +5000 (PENDING)  | -          | Solde: 0 → +5000     |
+| Remboursement client (client nous paye)  | -3000 (PAID)     | +3000 (IN) | Solde: +5000 → +2000 |
+| Remboursement client (sur solde negatif) | -2500 (PAID)     | +2500 (IN) | Solde: -5000 → -7500 |
+| Solde initial positif                    | +5000 (PENDING)  | -          | Solde: 0 → +5000     |
 
 **REGLE SIMPLE**: Remboursement client = Client nous paye = Caisse IN + Solde client DIMINUE
 
 ### FOURNISSEUR
 
-| Operation | SupplierDebt | CashEntry | Exemple |
-|-----------|--------------|-----------|---------|
-| Achat a credit | +5000 (PENDING) | - | Solde: 0 → +5000 |
-| Reglement fournisseur (on paye) | -2000 (PAID) | -2000 (OUT) | Solde: +3000 → +1000 |
-| Reglement fournisseur (sur solde negatif) | -4000 (PAID) | -4000 (OUT) | Solde: -3500 → -7500 |
-| Solde initial positif | +5000 (PENDING) | - | Solde: 0 → +5000 |
+| Operation                                 | SupplierDebt    | CashEntry   | Exemple              |
+| ----------------------------------------- | --------------- | ----------- | -------------------- |
+| Achat a credit                            | +5000 (PENDING) | -           | Solde: 0 → +5000     |
+| Reglement fournisseur (on paye)           | -2000 (PAID)    | -2000 (OUT) | Solde: +3000 → +1000 |
+| Reglement fournisseur (sur solde negatif) | -4000 (PAID)    | -4000 (OUT) | Solde: -3500 → -7500 |
+| Solde initial positif                     | +5000 (PENDING) | -           | Solde: 0 → +5000     |
 
 **REGLE SIMPLE**: Reglement fournisseur = On paye le fournisseur = Caisse OUT + Solde fournisseur DIMINUE
 
@@ -154,6 +165,7 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 ### Fichiers critiques a verifier
 
 **Services principaux:**
+
 - `apps/api/src/modules/customers/customers.service.ts` (lignes 127-134, 340-394)
 - `apps/api/src/modules/suppliers/suppliers.service.ts` (lignes 127-134, 340-394)
 - `apps/api/src/modules/cash/cash.service.ts` (lignes 99-200)
@@ -161,10 +173,12 @@ total_balance = SUM(SupplierDebt.balance) pour toutes les dettes du fournisseur
 - `apps/api/src/modules/debts/debts.service.ts`
 
 **Tests existants:**
+
 - `apps/api/test/customers-refund.spec.ts`
 - `apps/api/test/suppliers-refund.spec.ts`
 
 **Ecrans mobiles:**
+
 - `apps/mobile/src/screens/CustomerDetailScreen.tsx`
 - `apps/mobile/src/screens/SupplierDetailScreen.tsx`
 - `apps/mobile/src/screens/CashScreen.tsx`
@@ -265,43 +279,51 @@ Creer des tests pour chaque scenario documente.
 
 **Scope**: Services customers, suppliers, cash
 **Requirements**:
+
 - Test createRefund avec solde negatif -> succès
 - Test createRefund avec solde positif -> erreur
 - Test createRefund avec montant > solde du -> erreur
 - Test claimRefund avec solde negatif -> succès
 - Test claimRefund avec solde positif -> erreur
 - Test calcul de balance apres operations
-**VALIDATION COMMAND**: `cd apps/api && pnpm test`
+  **VALIDATION COMMAND**: `cd apps/api && pnpm test`
 
 ### Integration Tests
 
 **Scope**: Flux complet de transactions
 **Requirements**:
+
 - Creation vente a credit -> verification solde
 - Paiement creance -> verification solde
 - Remboursement -> verification solde et caisse
-**VALIDATION COMMAND**: `cd apps/api && pnpm test`
+  **VALIDATION COMMAND**: `cd apps/api && pnpm test`
 
 ---
 
 ## VALIDATION COMMANDS
 
 ### Level 1: Syntax and Style
+
 ```bash
 pnpm run validate
 ```
+
 **Expected Result**: 0 errors
 
 ### Level 2: Unit Tests
+
 ```bash
 cd apps/api && pnpm test
 ```
+
 **Expected Result**: All 58+ tests pass
 
 ### Level 3: Full Validation
+
 ```bash
 pnpm run validate
 ```
+
 **Expected Result**: All tasks successful
 
 ---
@@ -349,12 +371,14 @@ pnpm run validate
 ### Convention de signes - REFERENCE DEFINITIVE
 
 **CLIENT**:
+
 - ClientReceivable.amount POSITIF = le client nous doit de l'argent (sa dette augmente)
 - ClientReceivable.amount NEGATIF = le client nous paye (sa dette diminue)
 - **Remboursement client** = Le CLIENT nous paye = CashEntry IN + ClientReceivable NEGATIF
 - Le solde client DIMINUE toujours lors d'un remboursement (quel que soit le signe actuel)
 
 **FOURNISSEUR**:
+
 - SupplierDebt.amount POSITIF = nous devons au fournisseur (notre dette augmente)
 - SupplierDebt.amount NEGATIF = nous payons le fournisseur (notre dette diminue)
 - **Reglement fournisseur** = NOUS payons le fournisseur = CashEntry OUT + SupplierDebt NEGATIF
@@ -363,9 +387,11 @@ pnpm run validate
 ### Exemples concrets
 
 **Remboursement client**:
+
 - Solde client +10000, remboursement 3000 → nouveau solde +7000 (client nous devait, il paye)
 - Solde client -5000, remboursement 2500 → nouveau solde -7500 (client nous paye en avance)
 
 **Reglement fournisseur**:
+
 - Solde fournisseur +3000, reglement 2000 → nouveau solde +1000 (on lui devait, on paye)
 - Solde fournisseur -3500, reglement 4000 → nouveau solde -7500 (on le paye en avance)

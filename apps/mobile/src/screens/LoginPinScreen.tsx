@@ -15,7 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../lib/api';
+import { cacheAuthCredentials, verifyOfflinePin } from '../db/authCache';
 import { Colors, Spacing } from '../constants/theme-v2';
+import { WifiOff } from '../components/icons/SimpleIcons';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +29,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
   const [shopCode, setShopCode] = useState('');
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isOfflineLogin, setIsOfflineLogin] = useState(false);
 
   // Ref to prevent multiple auto-submit attempts
   const hasAutoSubmittedRef = useRef(false);
@@ -46,8 +49,10 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
     }
   }, [pin]);
 
+  /**
+   * Try online login first. On network error, fallback to offline PIN verification.
+   */
   const handleSubmit = async () => {
-    // Validation
     if (shopCode.length !== 6) {
       Alert.alert('Erreur', 'Le code boutique doit contenir 6 chiffres');
       return;
@@ -59,26 +64,110 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
     }
 
     setIsLoading(true);
+    setIsOfflineLogin(false);
+
     try {
-      // Appel API avec shop_code + pin_code
+      // 1. Try online login
       const response = await authApi.loginWithPin(shopCode, pin);
 
-      // Sauvegarder les tokens et infos
+      // Save tokens and user info
       await AsyncStorage.setItem('access_token', response.access_token);
       await AsyncStorage.setItem('refresh_token', response.refresh_token);
       await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
       await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
+      if (response.enterprise) {
+        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
+      }
+      if ((response as any).enabled_modules) {
+        await AsyncStorage.setItem(
+          'enabled_modules',
+          JSON.stringify((response as any).enabled_modules)
+        );
+      }
+      if ((response as any).license_tier) {
+        await AsyncStorage.setItem('license_tier', (response as any).license_tier);
+      }
 
-      // Naviguer vers l'app principale avec tabs
+      // 2. Cache credentials for future offline login (non-blocking)
+      try {
+        await cacheAuthCredentials({
+          userId: response.user.id,
+          shopId: response.shop.id,
+          shopCode,
+          pin,
+          name: response.user.name,
+          role: response.role,
+          enabledModules: response.shop.enabled_modules ?? [],
+        });
+      } catch (cacheErr) {
+        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
+      }
+
       navigation.replace('Main');
     } catch (error: any) {
-      console.error('Erreur de connexion:', error);
-      const errorMessage = error?.message || 'Code boutique ou PIN invalide';
-      Alert.alert('Erreur', errorMessage);
-      setShopCode('');
-      setPin('');
+      // 3. On network error, try offline login
+      const isNetworkError =
+        error?.message?.includes('Network') ||
+        error?.message?.includes('fetch') ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('réseau');
+
+      if (isNetworkError) {
+        await handleOfflineLogin();
+      } else {
+        console.error('Erreur de connexion:', error);
+        const errorMessage = error?.message || 'Code boutique ou PIN invalide';
+        Alert.alert('Erreur', errorMessage);
+        setShopCode('');
+        setPin('');
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Verify PIN against local cache for offline login.
+   */
+  const handleOfflineLogin = async () => {
+    try {
+      const cached = await verifyOfflinePin(shopCode, pin);
+
+      if (!cached) {
+        Alert.alert(
+          'Hors-ligne',
+          'Impossible de se connecter hors-ligne. Aucun identifiant en cache pour cette boutique, ou le cache a expire. Connectez-vous une premiere fois avec internet.'
+        );
+        setShopCode('');
+        setPin('');
+        return;
+      }
+
+      // Restore user/shop data from cache + existing AsyncStorage tokens
+      setIsOfflineLogin(true);
+      await AsyncStorage.setItem(
+        'user',
+        JSON.stringify({
+          id: cached.user_id,
+          name: cached.name,
+          role: cached.role,
+        })
+      );
+      await AsyncStorage.setItem(
+        'shop',
+        JSON.stringify({
+          id: cached.shop_id,
+          code: cached.shop_code,
+          enabled_modules: cached.enabled_modules,
+        })
+      );
+
+      navigation.replace('Main');
+    } catch (err) {
+      console.error('Erreur login offline:', err);
+      Alert.alert('Erreur', 'Echec de la connexion hors-ligne');
+      setShopCode('');
+      setPin('');
     }
   };
 
@@ -149,6 +238,14 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
               <Text style={styles.loginButtonText}>SE CONNECTER</Text>
             )}
           </TouchableOpacity>
+
+          {/* Offline indicator */}
+          {isOfflineLogin && (
+            <View style={styles.offlineIndicator}>
+              <WifiOff size={14} color="#EA580C" />
+              <Text style={styles.offlineText}>Mode hors-ligne</Text>
+            </View>
+          )}
 
           {/* Info */}
           <Text style={styles.infoText}>Les codes sont fournis par l'administrateur</Text>
@@ -246,6 +343,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  offlineText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EA580C',
   },
   infoText: {
     fontSize: 12,

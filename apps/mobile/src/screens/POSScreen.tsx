@@ -15,10 +15,10 @@
  *
  * Permissions:
  * - EMPLOYEE : Peut créer des entrées/sorties positives
- * - OWNER : Peut créer des entrées/sorties positives ET négatives (corrections)
+ * - BOSS : Peut créer des entrées/sorties positives ET négatives (corrections)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -34,31 +34,19 @@ import { Picker } from '@react-native-picker/picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { cashApi, suppliersApi, customersApi } from '../lib/api';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import {
+  cashEntryRepo,
+  supplierRepo,
+  customerRepo,
+  LocalCashEntry,
+  LocalCustomer,
+  LocalSupplier,
+} from '../db/repositories';
+import { createCashEntryOffline } from '../db/offlineWrite';
 import { formatMoney } from '../utils/money';
 import { ENTRY_CATEGORIES, EXIT_CATEGORIES, MIN_NOTE_LENGTH, requiresNote } from '@swalo/core';
-
-// Interface représentant une entrée de caisse (opération)
-interface CashEntry {
-  id: string;
-  type: 'IN' | 'OUT' | 'OPENING' | 'CLOSING'; // Type d'opération
-  category: string; // Catégorie (Vente, Achat, etc.)
-  amount: number; // Montant en centimes
-  note?: string; // Note optionnelle
-  created_at: string; // Date de création
-  supplier?: {
-    // Fournisseur associé (pour règlements)
-    id: string;
-    name: string;
-    first_name?: string;
-  };
-  customer?: {
-    // Client associé (pour remboursements)
-    id: string;
-    name: string;
-    first_name?: string;
-  };
-}
 
 // Interface pour les statistiques de caisse du jour
 interface CashStats {
@@ -68,20 +56,6 @@ interface CashStats {
   todayNet: number; // Solde net du jour (entrées - sorties)
   entriesCount: number; // Nombre d'opérations d'entrée
   exitsCount: number; // Nombre d'opérations de sortie
-}
-
-// Interface fournisseur (version simplifiée pour les listes déroulantes)
-interface Supplier {
-  id: string;
-  name: string;
-  first_name?: string;
-}
-
-// Interface client (version simplifiée pour les listes déroulantes)
-interface Customer {
-  id: string;
-  name: string;
-  first_name?: string;
 }
 
 // Props du composant POSScreen
@@ -94,17 +68,20 @@ interface POSScreenProps {
  * Gère toutes les opérations de caisse (entrées/sorties) et affiche les statistiques du jour
  */
 export default function POSScreen({ navigation }: POSScreenProps) {
+  // Utilisateur courant (depuis AsyncStorage via hook)
+  const { shopId, userId, user } = useCurrentUser();
+  const userRole = user?.role || 'EMPLOYEE';
+
   // États pour les données de caisse
-  const [entries, setEntries] = useState<CashEntry[]>([]); // Liste des opérations du jour
+  const [entries, setEntries] = useState<LocalCashEntry[]>([]); // Liste des opérations du jour
   const [stats, setStats] = useState<CashStats | null>(null); // Statistiques de caisse
   const [isLoading, setIsLoading] = useState(false); // Indicateur de chargement
   const [showModal, setShowModal] = useState<'IN' | 'OUT' | null>(null); // Modal d'ajout d'opération
-  const [userRole, setUserRole] = useState<string>('EMPLOYEE'); // Rôle de l'utilisateur connecté
   const [showSettingsMenu, setShowSettingsMenu] = useState(false); // Menu de paramètres
 
   // Listes pour les sélecteurs (fournisseurs et clients actifs)
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [suppliers, setSuppliers] = useState<LocalSupplier[]>([]);
+  const [customers, setCustomers] = useState<LocalCustomer[]>([]);
 
   // États pour la recherche dans les dropdowns
   const [supplierSearchText, setSupplierSearchText] = useState('');
@@ -120,106 +97,92 @@ export default function POSScreen({ navigation }: POSScreenProps) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(''); // Client sélectionné
 
   /**
-   * Chargement initial au montage du composant
-   * - Récupère le rôle de l'utilisateur
-   * - Charge les données de caisse du jour
-   * - Charge les listes de fournisseurs et clients actifs
-   */
-  useEffect(() => {
-    loadUserRole();
-    loadData();
-    loadSuppliers();
-    loadCustomers();
-
-    // Rafraîchissement automatique toutes les 30 secondes
-    const interval = setInterval(() => {
-      loadData();
-    }, 30000);
-
-    // Nettoyage à la destruction du composant
-    return () => clearInterval(interval);
-  }, []);
-
-  /**
-   * Charge le rôle de l'utilisateur depuis AsyncStorage
-   * Utilisé pour déterminer les permissions (ex: corrections négatives pour OWNER)
-   */
-  const loadUserRole = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setUserRole(user.role || 'EMPLOYEE');
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement du rôle:', error);
-    }
-  };
-
-  /**
-   * Charge les données de caisse du jour
+   * Charge les données de caisse du jour depuis la base locale SQLite
    * - Liste des opérations depuis minuit
-   * - Statistiques (solde, entrées, sorties, net)
+   * - Statistiques calculées localement (solde, entrées, sorties, net)
    */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!shopId) return;
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Début de la journée
+      const todayEntries = await cashEntryRepo.getToday(shopId);
+      setEntries(todayEntries);
 
-      // Chargement parallèle des données
-      const [entriesData, statsData] = await Promise.all([
-        cashApi.getAll({
-          start_date: today.toISOString(),
-        }),
-        cashApi.getStats({
-          start_date: today.toISOString(),
-        }),
-      ]);
-
-      // Mise à jour des entrées
-      setEntries(entriesData);
-
-      // Mise à jour des statistiques
-      setStats({
-        balance: statsData.balance,
-        todayEntries: statsData.todayEntries,
-        todayExits: statsData.todayExits,
-        todayNet: (statsData.todayEntries || 0) - (statsData.todayExits || 0),
-        entriesCount: statsData.entriesCount,
-        exitsCount: statsData.exitsCount,
+      // Calcul des statistiques localement à partir des entrées du jour
+      let todayIn = 0,
+        todayOut = 0,
+        inCount = 0,
+        outCount = 0;
+      todayEntries.forEach(e => {
+        if (e.type === 'IN') {
+          todayIn += e.amount;
+          inCount++;
+        } else if (e.type === 'OUT') {
+          todayOut += e.amount;
+          outCount++;
+        }
       });
 
-      console.log('Données rechargées:', {
-        balance: statsData.balance,
-        entriesCount: entriesData.length,
+      // Récupérer le solde global depuis toutes les entrées de caisse
+      const balanceData = await cashEntryRepo.getBalance(shopId);
+      const balance = balanceData.totalIn - balanceData.totalOut;
+
+      setStats({
+        balance,
+        todayEntries: todayIn,
+        todayExits: todayOut,
+        todayNet: todayIn - todayOut,
+        entriesCount: inCount,
+        exitsCount: outCount,
       });
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données de caisse');
     }
-  };
+  }, [shopId]);
 
   /**
-   * Charge la liste des fournisseurs actifs
+   * Charge la liste des fournisseurs actifs depuis la base locale SQLite
    * Utilisé pour le sélecteur de fournisseur lors des règlements
    */
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
+    if (!shopId) return;
     try {
-      const data = await suppliersApi.getAll({ is_active: true });
+      const data = await supplierRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
+      });
       setSuppliers(data);
     } catch (error) {
       console.error('Erreur lors du chargement des fournisseurs:', error);
     }
-  };
+  }, [shopId]);
 
-  const loadCustomers = async () => {
+  /**
+   * Charge la liste des clients actifs depuis la base locale SQLite
+   * Utilisé pour le sélecteur de client lors des remboursements
+   */
+  const loadCustomers = useCallback(async () => {
+    if (!shopId) return;
     try {
-      const data = await customersApi.getAll({ is_active: true });
+      const data = await customerRepo.getAll(shopId, {
+        where: { is_active: 1 },
+        orderBy: 'name ASC',
+      });
       setCustomers(data);
     } catch (error) {
       console.error('Erreur lors du chargement des clients:', error);
     }
-  };
+  }, [shopId]);
+
+  /**
+   * Rechargement des données à chaque fois que l'écran reçoit le focus
+   */
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      loadSuppliers();
+      loadCustomers();
+    }, [loadData, loadSuppliers, loadCustomers])
+  );
 
   const handleOpenModal = (type: 'IN' | 'OUT') => {
     setShowModal(type);
@@ -274,14 +237,14 @@ export default function POSScreen({ navigation }: POSScreenProps) {
   };
 
   // Sélectionner un fournisseur
-  const handleSelectSupplier = (supplier: Supplier) => {
+  const handleSelectSupplier = (supplier: LocalSupplier) => {
     setSelectedSupplierId(supplier.id);
     setSupplierSearchText(getPersonName(supplier));
     setShowSupplierDropdown(false);
   };
 
   // Sélectionner un client
-  const handleSelectCustomer = (customer: Customer) => {
+  const handleSelectCustomer = (customer: LocalCustomer) => {
     setSelectedCustomerId(customer.id);
     setCustomerSearchText(getPersonName(customer));
     setShowCustomerDropdown(false);
@@ -323,8 +286,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         return;
       }
 
-      // Seuls les OWNER peuvent entrer des montants négatifs (corrections)
-      if (amountInCentimes < 0 && userRole !== 'OWNER') {
+      // Seuls les BOSS peuvent entrer des montants négatifs (corrections)
+      if (amountInCentimes < 0 && userRole !== 'BOSS') {
         Alert.alert(
           'Permission refusée',
           'Seuls les propriétaires peuvent effectuer des corrections avec des montants négatifs'
@@ -341,31 +304,30 @@ export default function POSScreen({ navigation }: POSScreenProps) {
       if (showModal === 'OUT' && amountInCentimes > 0) {
         const currentBalance = stats?.balance || 0;
         if (amountInCentimes > currentBalance) {
-          Alert.alert('Solde insuffisant', 'Le montant de la sortie d?passe le solde de caisse');
+          Alert.alert('Solde insuffisant', 'Le montant de la sortie dépasse le solde de caisse');
           return;
         }
       }
 
       setIsLoading(true);
 
-      const payload = {
+      await createCashEntryOffline({
+        shopId: shopId!,
+        cashierId: userId!,
         type: showModal!,
         category,
         amount: amountInCentimes,
         note: trimmedNote || undefined,
-        supplier_id: selectedSupplierId || undefined,
-        customer_id: selectedCustomerId || undefined,
-      };
-
-      await cashApi.createEntry(payload);
+        supplierId: selectedSupplierId || undefined,
+        customerId: selectedCustomerId || undefined,
+      });
 
       Alert.alert('Succès', 'Opération enregistrée avec succès');
       handleCloseModal();
       await loadData();
     } catch (error: any) {
       console.error("Erreur lors de l'enregistrement:", error);
-      const errorMessage =
-        error?.response?.data?.message || error?.message || "Erreur lors de l'enregistrement";
+      const errorMessage = error?.message || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsLoading(false);
@@ -521,12 +483,20 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                       </View>
                       <Text style={styles.entryTime}>{formatTime(entry.created_at)}</Text>
                     </View>
-                    {(entry.supplier || entry.customer) && (
-                      <Text style={styles.entryPerson}>
-                        {entry.supplier && `🏭 ${getPersonName(entry.supplier)}`}
-                        {entry.customer && `👤 ${getPersonName(entry.customer)}`}
-                      </Text>
-                    )}
+                    {(() => {
+                      const supplier = entry.supplier_id
+                        ? suppliers.find(s => s.id === entry.supplier_id)
+                        : null;
+                      const customer = entry.customer_id
+                        ? customers.find(c => c.id === entry.customer_id)
+                        : null;
+                      return supplier || customer ? (
+                        <Text style={styles.entryPerson}>
+                          {supplier && `🏭 ${getPersonName(supplier)}`}
+                          {customer && `👤 ${getPersonName(customer)}`}
+                        </Text>
+                      ) : null;
+                    })()}
                     {entry.note && <Text style={styles.entryNote}>{entry.note}</Text>}
                   </View>
                   <Text
@@ -694,7 +664,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                   />
                   <Text style={styles.amountCurrency}>FCFA</Text>
                 </View>
-                {userRole === 'OWNER' && (
+                {userRole === 'BOSS' && (
                   <Text style={styles.ownerHint}>
                     💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
                     erreurs
@@ -787,11 +757,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
               </TouchableOpacity>
             )}
 
-            {/* Administration - Pour ADMIN, OWNER, MANAGER, SUPERADMIN */}
-            {(userRole === 'ADMIN' ||
-              userRole === 'OWNER' ||
-              userRole === 'MANAGER' ||
-              userRole === 'SUPERADMIN') && (
+            {/* Administration - Pour MANAGER, BOSS, SUPERADMIN */}
+            {(userRole === 'MANAGER' || userRole === 'BOSS' || userRole === 'SUPERADMIN') && (
               <TouchableOpacity
                 style={styles.settingsMenuItem}
                 onPress={() => {

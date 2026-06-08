@@ -1,6 +1,7 @@
 **Create comprehensive plan with the following structure:**
 
 Feature description: $ARGUMENTS
+
 # ParaThinker Coordinator
 
 You need to solve a complex coding problem using the ParaThinker approach - spawning multiple independent reasoning paths to avoid tunnel vision.
@@ -34,13 +35,14 @@ You need to solve a complex coding problem using the ParaThinker approach - spaw
    - Test the solution
    - Document which strategy led to success
 
-# Implementation 
+# Implementation
 
 Whats below here is a template for you to fill for the implementation agent:
 
 ## CRITICAL REQUIREMENTS FOR PLAN CREATION
 
 **YOU MUST CREATE A PURELY FUNCTIONAL PLAN:**
+
 - ❌ **NO CODE EXAMPLES** in the plan - only functional descriptions
 - ✅ **FUNCTIONAL SPECIFICATIONS ONLY** - describe what needs to be done, not how
 - ✅ **ALL REFERENCES AND LINKS** - include every relevant documentation, API reference, and resource
@@ -112,22 +114,27 @@ So that <benefit/value>
 <Describe functional patterns and architectural approaches - NO CODE EXAMPLES>
 
 **Naming Conventions:**
+
 - Describe the naming pattern to follow
 - Reference files where these patterns are consistently applied
 
 **Error Handling:**
+
 - Describe the error handling strategy
 - Reference documentation or files demonstrating this pattern
 
 **Logging Pattern:**
+
 - Describe logging approach
 - Reference logging configuration files
 
 **Data Validation:**
+
 - Describe validation approach
 - Reference schema or validation pattern files
 
 **Other Relevant Patterns:**
+
 - Describe additional architectural patterns relevant to this feature
 - Reference where these patterns are documented or implemented
 
@@ -209,6 +216,7 @@ Use information-dense keywords for clarity:
 <Continue with all tasks in dependency order...>
 
 **REMINDER FOR EACH TASK:**
+
 - NO code examples in task descriptions - only functional specifications
 - Include ALL relevant documentation links and API references
 - Explicitly state what to verify with MCP Saleor server or for local test just build and request docker
@@ -227,12 +235,14 @@ Use information-dense keywords for clarity:
 
 **Scope**: <Define what units need testing>
 **Requirements**:
+
 - Minimum coverage percentage required
 - Testing framework to use (with documentation link)
 - Fixtures and mocking approach (reference existing test files)
 - **VALIDATION COMMAND**: `{command to run unit tests}`
 
 **Test Categories Required**:
+
 - Happy path scenarios
 - Error handling and edge cases
 - Input validation
@@ -242,6 +252,7 @@ Use information-dense keywords for clarity:
 
 **Scope**: <Define integration points to test>
 **Requirements**:
+
 - End-to-end workflow validation
 - External service integration (including Saleor API)
 - **MCP SALEOR VALIDATION**: Verify integration with Saleor using MCP server queries or for local test just build and request docker
@@ -249,6 +260,7 @@ Use information-dense keywords for clarity:
 - **VALIDATION COMMAND**: `{command to run integration tests}`
 
 **Test Scenarios Required**:
+
 - Complete user workflows
 - Cross-service communication
 - Data consistency across systems
@@ -261,6 +273,7 @@ Use information-dense keywords for clarity:
 ### Test Resources
 
 **Testing Documentation Links**:
+
 - Testing framework documentation: {URL}
 - Project testing guidelines: {file path or URL}
 - Saleor API testing guide: {URL}
@@ -280,9 +293,11 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 **Required Commands**:
 ```
+
 {Project-specific linting command}
 {Project-specific formatting command}
 {Type checking command if applicable}
+
 ```
 
 **Expected Result**: Zero errors, zero warnings
@@ -291,12 +306,14 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 **Required Commands**:
 ```
+
 {Command to run all unit tests}
 {Command to run tests for specific feature}
 {Command to generate coverage report}
+
 ```
 
-**Expected Result**: 
+**Expected Result**:
 - All unit tests pass
 - Coverage meets minimum threshold (specify %)
 - No test failures or skipped tests
@@ -305,11 +322,13 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 **Required Commands**:
 ```
+
 {Command to run all integration tests}
 {Command to run feature-specific integration tests}
+
 ```
 
-**Expected Result**: 
+**Expected Result**:
 - All integration tests pass
 - End-to-end workflows validated
 - External service integrations verified

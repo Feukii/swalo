@@ -39,6 +39,23 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Gestion des modules desactives (403)
+    if (error.response?.status === 403) {
+      const data = error.response.data as any;
+      if (data?.code === 'MODULE_DISABLED') {
+        window.dispatchEvent(
+          new CustomEvent('module-disabled', {
+            detail: {
+              module: data.module,
+              moduleName: data.moduleName,
+              message: data.message,
+            },
+          })
+        );
+      }
+      return Promise.reject(error);
+    }
+
     // Retry logic pour timeouts et erreurs réseau (cold start)
     if (!config || !config.retry) {
       config.retry = 0;
@@ -491,9 +508,214 @@ export const debtsApi = {
   },
 };
 
+// Product Batches API (Lots de stock)
+export const productBatchesApi = {
+  getProductBatches: async (productId: string) => {
+    const response = await api.get(`/inventory/products/${productId}/batches`);
+    return response.data || response;
+  },
+  getAvailablePrices: async (productId: string) => {
+    const response = await api.get(`/products/${productId}/prices`);
+    return response.data || response;
+  },
+};
+
+// Invoices API
+export const invoicesApi = {
+  getAll: async (params?: {
+    customer_id?: string;
+    status?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const response = await api.get('/invoices', { params });
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/invoices/${id}`);
+    return response.data;
+  },
+
+  createFromSale: async (saleId: string, notes?: string) => {
+    const response = await api.post(`/invoices/from-sale/${saleId}`, { notes });
+    return response.data;
+  },
+
+  cancel: async (id: string) => {
+    const response = await api.put(`/invoices/${id}/cancel`);
+    return response.data;
+  },
+
+  getPdfBase64: async (id: string) => {
+    const response = await api.get(`/invoices/${id}/pdf?format=base64`);
+    return response.data;
+  },
+
+  regeneratePdf: async (id: string) => {
+    const response = await api.post(`/invoices/${id}/regenerate-pdf`);
+    return response.data;
+  },
+};
+
+// Enterprise API
+export const enterpriseApi = {
+  getAll: async () => {
+    const response = await api.get('/enterprises');
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}`);
+    return response.data;
+  },
+
+  update: async (id: string, data: { code?: string; name?: string }) => {
+    const response = await api.put(`/enterprises/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/enterprises/${id}`);
+    return response.data;
+  },
+
+  getShops: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}/shops`);
+    return response.data;
+  },
+
+  getStats: async (id: string) => {
+    const response = await api.get(`/enterprises/${id}/stats`);
+    return response.data;
+  },
+};
+
+// Transfers API (Inter-shop)
+export const transfersApi = {
+  getAll: async () => {
+    const response = await api.get('/transfers');
+    return response.data;
+  },
+
+  getOne: async (id: string) => {
+    const response = await api.get(`/transfers/${id}`);
+    return response.data;
+  },
+
+  create: async (data: {
+    source_shop_id: string;
+    target_shop_id: string;
+    items: Array<{
+      product_sku: string;
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+      cost_price: number;
+    }>;
+    notes?: string;
+  }) => {
+    const response = await api.post('/transfers', data);
+    return response.data;
+  },
+
+  confirm: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/confirm`);
+    return response.data;
+  },
+
+  ship: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/ship`);
+    return response.data;
+  },
+
+  receive: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/receive`);
+    return response.data;
+  },
+
+  cancel: async (id: string) => {
+    const response = await api.put(`/transfers/${id}/cancel`);
+    return response.data;
+  },
+};
+
 // Admin API
 export const adminApi = {
-  // Super Admin endpoints
+  // ---- Enterprise CRUD (read-only, creation via web-admin) ----
+  getAllEnterprises: async () => {
+    const response = await api.get('/admin/enterprises');
+    return response.data;
+  },
+
+  getEnterpriseDetails: async (id: string) => {
+    const response = await api.get(`/admin/enterprises/${id}`);
+    return response.data;
+  },
+
+  updateEnterprise: async (
+    id: string,
+    data: {
+      name?: string;
+      license_tier?: string;
+      max_shops?: number;
+      max_users_per_shop?: number;
+      licensed_until?: string;
+    }
+  ) => {
+    const response = await api.put(`/admin/enterprises/${id}`, data);
+    return response.data;
+  },
+
+  deleteEnterprise: async (id: string) => {
+    const response = await api.delete(`/admin/enterprises/${id}`);
+    return response.data;
+  },
+
+  // ---- Enterprise <-> Shop ----
+  addShopToEnterprise: async (enterpriseId: string, shopId: string) => {
+    const response = await api.post(`/admin/enterprises/${enterpriseId}/shops/${shopId}`);
+    return response.data;
+  },
+
+  moveShopToEnterprise: async (shopId: string, enterpriseId: string) => {
+    const response = await api.put(`/admin/shops/${shopId}/move-to-enterprise/${enterpriseId}`);
+    return response.data;
+  },
+
+  // ---- License Management ----
+  updateLicense: async (
+    enterpriseId: string,
+    data: {
+      license_tier: string;
+      licensed_until?: string;
+      max_shops?: number;
+      max_users_per_shop?: number;
+    }
+  ) => {
+    const response = await api.put(`/admin/enterprises/${enterpriseId}/license`, data);
+    return response.data;
+  },
+
+  // ---- Shop Management ----
+  createShop: async (data: {
+    shop_name: string;
+    shop_code?: string;
+    owner_id?: string;
+    owner_name?: string;
+    owner_phone?: string;
+    enterprise_id: string;
+    shop_type?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    currency?: string;
+    enabled_modules?: string[];
+  }) => {
+    const response = await api.post('/admin/shops', data);
+    return response.data;
+  },
+
   getAllShops: async () => {
     const response = await api.get('/admin/shops');
     return response.data;
@@ -504,17 +726,77 @@ export const adminApi = {
     return response.data;
   },
 
-  getSystemStats: async () => {
-    const response = await api.get('/admin/stats/system');
-    return response.data;
-  },
-
   deleteShop: async (shopId: string) => {
     const response = await api.delete(`/admin/shops/${shopId}`);
     return response.data;
   },
 
-  // Shop Owner / Admin endpoints
+  // ---- Global Users ----
+  getGlobalUsers: async (params?: {
+    search?: string;
+    role?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get('/admin/users/global', { params });
+    return response.data;
+  },
+
+  // ---- System Stats ----
+  getSystemStats: async () => {
+    const response = await api.get('/admin/stats/system');
+    return response.data;
+  },
+
+  // ---- System Config ----
+  getSystemConfigs: async () => {
+    const response = await api.get('/admin/system-config');
+    return response.data;
+  },
+
+  getSystemConfig: async (key: string) => {
+    const response = await api.get(`/admin/system-config/${key}`);
+    return response.data;
+  },
+
+  setSystemConfig: async (key: string, data: { value: string; description?: string }) => {
+    const response = await api.put(`/admin/system-config/${key}`, data);
+    return response.data;
+  },
+
+  deleteSystemConfig: async (key: string) => {
+    const response = await api.delete(`/admin/system-config/${key}`);
+    return response.data;
+  },
+
+  // ---- Audit Logs ----
+  getAuditLogs: async (filters?: {
+    action?: string;
+    entity_type?: string;
+    admin_id?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get('/admin/audit-logs', { params: filters });
+    return response.data;
+  },
+
+  exportAuditLogs: async (filters?: {
+    action?: string;
+    entity_type?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const response = await api.get('/admin/audit-logs/export', {
+      params: filters,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  // ---- Shop Owner / Admin endpoints ----
   getShopUsers: async (shopId?: string) => {
     const url = shopId ? `/admin/shops/${shopId}/users` : '/admin/users';
     const response = await api.get(url);
@@ -553,6 +835,78 @@ export const adminApi = {
 
   deactivateUser: async (userId: string) => {
     const response = await api.delete(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  // ---- Block/Unblock ----
+  blockShop: async (shopId: string, reason: string) => {
+    const response = await api.post(`/admin/shops/${shopId}/block`, { reason });
+    return response.data;
+  },
+
+  unblockShop: async (shopId: string) => {
+    const response = await api.post(`/admin/shops/${shopId}/unblock`);
+    return response.data;
+  },
+
+  blockUser: async (userId: string, reason: string) => {
+    const response = await api.post(`/admin/users/${userId}/block`, { reason });
+    return response.data;
+  },
+
+  unblockUser: async (userId: string) => {
+    const response = await api.post(`/admin/users/${userId}/unblock`);
+    return response.data;
+  },
+
+  blockEnterprise: async (enterpriseId: string, reason: string) => {
+    const response = await api.post(`/admin/enterprises/${enterpriseId}/block`, { reason });
+    return response.data;
+  },
+
+  unblockEnterprise: async (enterpriseId: string) => {
+    const response = await api.post(`/admin/enterprises/${enterpriseId}/unblock`);
+    return response.data;
+  },
+
+  // ---- Enhanced Stats ----
+  getEnhancedSystemStats: async () => {
+    const response = await api.get('/admin/system/stats');
+    return response.data;
+  },
+
+  // ---- Module Management ----
+  getShopModules: async (shopId: string) => {
+    const response = await api.get(`/admin/shops/${shopId}/modules`);
+    return response.data;
+  },
+
+  updateShopModules: async (shopId: string, modules: string[]) => {
+    const response = await api.post(`/admin/shops/${shopId}/modules`, { modules });
+    return response.data;
+  },
+};
+
+// Packaging Types API (Conditionnements)
+export const packagingTypesApi = {
+  getAll: async () => {
+    const response = await api.get('/packaging-types');
+    return response.data;
+  },
+  create: async (data: { name: string; symbol?: string; is_default?: boolean }) => {
+    const response = await api.post('/packaging-types', data);
+    return response.data;
+  },
+  update: async (id: string, data: { name?: string; symbol?: string; is_default?: boolean }) => {
+    const response = await api.put(`/packaging-types/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/packaging-types/${id}`);
+    return response.data;
+  },
+  initDefaults: async () => {
+    const response = await api.post('/packaging-types/init-defaults', {});
     return response.data;
   },
 };

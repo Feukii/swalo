@@ -27,12 +27,14 @@ So that I can quickly fix typos or rename categories without navigating to anoth
 ### Problem 1: Amount Handling Chaos
 
 The codebase has inconsistent amount handling:
+
 - **Database**: Stores amounts as `Int` (documented as "centimes" in CLAUDE.md)
 - **Some screens multiply by 100**: CustomerDetailsScreen (lines 424, 485), SupplierDetailsScreen (lines 202, 234, 475, 535), POSScreen (line 319), SuppliersScreen (line 109)
 - **Some screens DON'T multiply**: CashScreen uses `parseFloat(amount)` directly
 - **formatMoney()**: Displays amount as-is without division
 
 This creates a situation where:
+
 - If user enters 25000 in CustomerDetailsScreen -> API receives 2500000 -> displays as "2 500 000 F"
 - If user enters 25000 in CashScreen -> API receives 25000 -> displays as "25 000 F"
 
@@ -41,10 +43,12 @@ This creates a situation where:
 ### Problem 2: Catalogue Tab is Read-Only
 
 The ProductCatalogScreen has two tabs:
+
 - **Articles tab**: Full CRUD for products (works correctly)
 - **Catalogue tab**: Read-only table view - NO editing capability
 
 The user expects to edit hierarchy directly from the Catalogue tab, but the feature is missing. Currently users must:
+
 1. Click "Hierarchie" button in header
 2. Navigate to CatalogHierarchyScreen
 3. Make changes there
@@ -53,9 +57,10 @@ This is the 5th time the user has requested this functionality.
 
 ## Solution Statement
 
-### Solution 1: Remove ALL * 100 Operations
+### Solution 1: Remove ALL \* 100 Operations
 
 Since the user explicitly wants NO conversions, we will:
+
 1. Remove all `* 100` operations from amount inputs
 2. Store amounts in FCFA (not centimes) as the user enters them
 3. Display amounts exactly as stored
@@ -64,6 +69,7 @@ Since the user explicitly wants NO conversions, we will:
 ### Solution 2: Add Hierarchy Editing to Catalogue Tab
 
 Integrate hierarchy editing directly into the Catalogue tab:
+
 1. Add edit buttons next to family names in the table view
 2. Add inline editing or modal for renaming families, article types, and brands
 3. Call `batchUpdateHierarchy` API when saving changes
@@ -74,6 +80,7 @@ Integrate hierarchy editing directly into the Catalogue tab:
 **Feature Type**: Bug Fix / Enhancement
 **Estimated Complexity**: Medium
 **Primary Systems Affected**:
+
 - All mobile screens with amount inputs
 - ProductCatalogScreen (Catalogue tab)
 - Backend DTOs and documentation
@@ -86,13 +93,13 @@ Integrate hierarchy editing directly into the Catalogue tab:
 
 ### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
 
-#### Amount Handling Files - REMOVE * 100
+#### Amount Handling Files - REMOVE \* 100
 
 - `apps/mobile/src/screens/CustomerDetailsScreen.tsx` (lines 424, 485) - Why: Contains `* 100` to remove
 - `apps/mobile/src/screens/SupplierDetailsScreen.tsx` (lines 202, 234, 475, 535) - Why: Contains `* 100` to remove
 - `apps/mobile/src/screens/POSScreen.tsx` (line 319) - Why: Contains `* 100` to remove
 - `apps/mobile/src/screens/SuppliersScreen.tsx` (line 109) - Why: Contains `* 100` to remove
-- `apps/mobile/src/screens/CashScreen.tsx` - Why: Reference for correct pattern (no * 100)
+- `apps/mobile/src/screens/CashScreen.tsx` - Why: Reference for correct pattern (no \* 100)
 - `apps/mobile/src/utils/money.ts` - Why: formatMoney displays as-is (correct)
 
 #### Catalog Hierarchy Files
@@ -117,12 +124,14 @@ Integrate hierarchy editing directly into the Catalogue tab:
 ### Patterns to Follow
 
 **Correct Amount Input Pattern (from CashScreen):**
+
 - User enters amount in TextInput
 - Parse with `parseFloat(amount)` or `parseInt(amount)`
 - Send directly to API without any `* 100`
 - API stores the value as-is
 
 **Hierarchy Editing Pattern (from CatalogHierarchyScreen):**
+
 - User clicks edit button on a family/type/brand name
 - Modal opens with current value
 - User modifies value
@@ -155,7 +164,7 @@ Verify all amount flows and hierarchy editing work correctly.
 
 IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and independently testable.
 
-### Task 1: REMOVE - * 100 from CustomerDetailsScreen refund
+### Task 1: REMOVE - \* 100 from CustomerDetailsScreen refund
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/CustomerDetailsScreen.tsx`, find line 424 and remove the `* 100` multiplication. Change `Math.round(parseFloat(customerRefundAmount) * 100)` to `Math.round(parseFloat(customerRefundAmount))`
 - **PATTERN**: Follow CashScreen pattern where amounts are parsed directly
@@ -164,7 +173,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test - create a refund of 25000, verify it displays as 25000
 - **TEST_REQUIREMENT**: Refund of 25000 shows as 25000 F (not 2500000 F or 250 F)
 
-### Task 2: REMOVE - * 100 from CustomerDetailsScreen receivable
+### Task 2: REMOVE - \* 100 from CustomerDetailsScreen receivable
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/CustomerDetailsScreen.tsx`, find line 485 and remove the `* 100` multiplication. Change `Math.round(parseFloat(receivableAmount) * 100)` to `Math.round(parseFloat(receivableAmount))`
 - **PATTERN**: Same as Task 1
@@ -173,7 +182,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test - create a receivable of 25000
 - **TEST_REQUIREMENT**: Receivable of 25000 shows as 25000 F
 
-### Task 3: REMOVE - * 100 from SupplierDetailsScreen debt (first occurrence)
+### Task 3: REMOVE - \* 100 from SupplierDetailsScreen debt (first occurrence)
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/SupplierDetailsScreen.tsx`, find line 202 and remove the `* 100` multiplication
 - **PATTERN**: Same as Task 1
@@ -182,7 +191,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test
 - **TEST_REQUIREMENT**: Debt creation works without multiplication
 
-### Task 4: REMOVE - * 100 from SupplierDetailsScreen payment
+### Task 4: REMOVE - \* 100 from SupplierDetailsScreen payment
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/SupplierDetailsScreen.tsx`, find line 234 and remove the `* 100` multiplication
 - **PATTERN**: Same as Task 1
@@ -191,7 +200,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test
 - **TEST_REQUIREMENT**: Payment works without multiplication
 
-### Task 5: REMOVE - * 100 from SupplierDetailsScreen refund
+### Task 5: REMOVE - \* 100 from SupplierDetailsScreen refund
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/SupplierDetailsScreen.tsx`, find line 475 and remove the `* 100` multiplication
 - **PATTERN**: Same as Task 1
@@ -200,7 +209,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test
 - **TEST_REQUIREMENT**: Refund works without multiplication
 
-### Task 6: REMOVE - * 100 from SupplierDetailsScreen createDebt
+### Task 6: REMOVE - \* 100 from SupplierDetailsScreen createDebt
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/SupplierDetailsScreen.tsx`, find line 535 and remove the `* 100` multiplication
 - **PATTERN**: Same as Task 1
@@ -209,7 +218,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test
 - **TEST_REQUIREMENT**: Create debt works without multiplication
 
-### Task 7: REMOVE - * 100 from POSScreen
+### Task 7: REMOVE - \* 100 from POSScreen
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/POSScreen.tsx`, find line 319 and remove the `* 100` multiplication from `Math.round(parseFloat(amount) * 100)`
 - **PATTERN**: Same as Task 1
@@ -218,7 +227,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **VALIDATE**: Manual test - create a sale
 - **TEST_REQUIREMENT**: Sale amount matches what user entered
 
-### Task 8: REMOVE - * 100 from SuppliersScreen
+### Task 8: REMOVE - \* 100 from SuppliersScreen
 
 - **IMPLEMENT**: In `apps/mobile/src/screens/SuppliersScreen.tsx`, find line 109 and remove the `* 100` multiplication from `Math.round(balance * 100)`
 - **PATTERN**: Same as Task 1
@@ -320,6 +329,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Amount parsing and display
 **Requirements**:
+
 - Verify formatMoney displays amounts correctly
 - Verify amounts are not transformed during API calls
 
@@ -329,6 +339,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 **Scope**: Full flow from user input to display
 **Requirements**:
+
 - Create a receivable of 25000 -> verify it shows as 25000 F
 - Create a debt of 50000 -> verify it shows as 50000 F
 - Create a cash entry of 10000 -> verify it shows as 10000 F
@@ -339,6 +350,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 ### Edge Cases
 
 **MANDATORY EDGE CASES TO TEST**:
+
 - Amount: 1 (smallest)
 - Amount: 1000000 (one million)
 - Amount: 0 (zero - should be rejected)
@@ -389,12 +401,14 @@ cd apps/mobile && npx expo export --platform all
 ### Level 5: Manual Validation
 
 **Amount Flow Tests**:
+
 1. CashScreen: Create entry of 25000 -> verify displays as 25000 F
 2. CustomerDetailsScreen: Create receivable of 50000 -> verify displays as 50000 F
 3. SupplierDetailsScreen: Create debt of 75000 -> verify displays as 75000 F
 4. POSScreen: Make sale of 10000 -> verify displays as 10000 F
 
 **Hierarchy Edit Tests**:
+
 1. Go to ProductCatalogScreen > Catalogue tab
 2. Click edit button on a family name
 3. Change the name and save
@@ -424,14 +438,14 @@ cd apps/mobile && npx expo export --platform all
 
 **MANDATORY - EVERY ITEM MUST BE CHECKED BEFORE COMPLETION**:
 
-- [ ] Task 1: CustomerDetailsScreen refund * 100 removed
-- [ ] Task 2: CustomerDetailsScreen receivable * 100 removed
-- [ ] Task 3: SupplierDetailsScreen debt * 100 removed (line 202)
-- [ ] Task 4: SupplierDetailsScreen payment * 100 removed (line 234)
-- [ ] Task 5: SupplierDetailsScreen refund * 100 removed (line 475)
-- [ ] Task 6: SupplierDetailsScreen createDebt * 100 removed (line 535)
-- [ ] Task 7: POSScreen * 100 removed
-- [ ] Task 8: SuppliersScreen * 100 removed
+- [ ] Task 1: CustomerDetailsScreen refund \* 100 removed
+- [ ] Task 2: CustomerDetailsScreen receivable \* 100 removed
+- [ ] Task 3: SupplierDetailsScreen debt \* 100 removed (line 202)
+- [ ] Task 4: SupplierDetailsScreen payment \* 100 removed (line 234)
+- [ ] Task 5: SupplierDetailsScreen refund \* 100 removed (line 475)
+- [ ] Task 6: SupplierDetailsScreen createDebt \* 100 removed (line 535)
+- [ ] Task 7: POSScreen \* 100 removed
+- [ ] Task 8: SuppliersScreen \* 100 removed
 - [ ] Task 9: Hierarchy modal state added to ProductCatalogScreen
 - [ ] Task 10: Hierarchy modal UI added
 - [ ] Task 11: batchUpdateHierarchy handler added
@@ -449,6 +463,7 @@ cd apps/mobile && npx expo export --platform all
 ## EXTERNAL RESOURCES AND REFERENCES
 
 ### Internal Resources
+
 - Amount utilities: `apps/mobile/src/utils/money.ts`
 - API client: `apps/mobile/src/lib/api.ts`
 - Hierarchy screen reference: `apps/mobile/src/screens/CatalogHierarchyScreen.tsx`
@@ -466,16 +481,18 @@ cd apps/mobile && npx expo export --platform all
    - Some screens don't
    - formatMoney doesn't divide by 100
 
-   The simplest fix is to remove all * 100 operations and store amounts in FCFA directly. This matches user expectations and the display logic.
+   The simplest fix is to remove all \* 100 operations and store amounts in FCFA directly. This matches user expectations and the display logic.
 
 2. **Catalogue Tab Problem**: The feature was simply never implemented. The Catalogue tab was created as a read-only view, and the editing functionality was put in a separate screen (CatalogHierarchyScreen). The user expects inline editing, which requires adding the feature.
 
 **Risk Assessment:**
+
 - Amount fix: LOW (removing code is safer than adding)
 - Catalogue editing: MEDIUM (new feature, but copying existing pattern)
 
 **Important Reminders**:
-- Do NOT add any new * 100 or / 100 operations
+
+- Do NOT add any new \* 100 or / 100 operations
 - Test ALL amount flows after changes
 - The user has asked for Catalogue editing 5 times - make sure it works
 - ALL tests must pass before feature is considered complete

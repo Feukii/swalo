@@ -3,15 +3,15 @@
 /**
  * Keep-Alive Script for Render Free Tier
  *
- * Ce script ping l'API SWALO toutes les 10 minutes pour éviter
+ * Ce script ping l'API SWALO toutes les 10 minutes pour ï¿½viter
  * que Render ne mette le service en veille (spin down) sur le plan gratuit.
  *
  * Usage:
  * 1. Configurer sur cron-job.org (gratuit)
- * 2. URL à pinger: https://swalo-api.onrender.com/api/health
+ * 2. URL ï¿½ pinger: https://swalo-api.onrender.com/api/health
  * 3. Intervalle: toutes les 10 minutes
  *
- * Alternative: Déployer ce script sur un autre service gratuit
+ * Alternative: Dï¿½ployer ce script sur un autre service gratuit
  */
 
 const API_URL = process.env.API_URL || 'https://swalo-api.onrender.com/api/health';
@@ -25,7 +25,7 @@ async function ping() {
     if (response.ok) {
       console.log(` [${timestamp}] API is alive - Status: ${response.status}`);
     } else {
-      console.warn(`   [${timestamp}] API responded with status: ${response.status}`);
+      console.warn(`ï¿½  [${timestamp}] API responded with status: ${response.status}`);
     }
   } catch (error) {
     const timestamp = new Date().toISOString();
@@ -33,10 +33,12 @@ async function ping() {
   }
 }
 
-// Ping immédiatement au démarrage
+// Ping immï¿½diatement au dï¿½marrage
 ping();
 
 // Puis ping toutes les 10 minutes
 setInterval(ping, INTERVAL);
 
-console.log(`=€ Keep-alive script started. Pinging ${API_URL} every ${INTERVAL / 1000 / 60} minutes.`);
+console.log(
+  `=ï¿½ Keep-alive script started. Pinging ${API_URL} every ${INTERVAL / 1000 / 60} minutes.`
+);

@@ -6,7 +6,7 @@ Use information from our conversation to fill in each section. Do research to fi
 
 Generate a complete prompt following this template:
 
-````
+```
 Using [documentation source] as context, set up [TOPIC] for our project.
 
 Documentation to read: FETCH:(url) OR READ: path/to/file.md
@@ -50,7 +50,7 @@ Output format:
 Summary: [what was accomplished]
 Files created/modified: [list]
 [Other relevant sections]
-````
+```
 
 ## Instructions
 

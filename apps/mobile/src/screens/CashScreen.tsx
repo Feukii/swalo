@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,28 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { DollarSign, Plus, Minus } from '../components/icons/SimpleIcons';
-import { ScreenHeader, KPICard, ListItem, SearchableSelect } from '../components/ui';
+import { ScreenHeader, ListItem, SearchableSelect } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { formatMoney, formatMoneyWithSign } from '../utils/money';
-import { customersApi, suppliersApi, cashApi, receivablesApi, debtsApi } from '../lib/api';
+import { formatMoney } from '../utils/money';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import {
+  cashEntryRepo,
+  clientReceivableRepo,
+  supplierDebtRepo,
+  customerRepo,
+  supplierRepo,
+  LocalCashEntry,
+  LocalClientReceivable,
+  LocalSupplierDebt,
+  LocalCustomer,
+  LocalSupplier,
+} from '../db/repositories';
+import {
+  createCashEntryOffline,
+  createReceivableOffline,
+  createSupplierDebtOffline,
+} from '../db/offlineWrite';
+import { checkCreditLimit } from '../utils/creditCheck';
 
 // Interface pour les transactions de caisse (cash + crédit)
 interface CashTransaction {
@@ -28,11 +46,7 @@ interface CashTransaction {
   note?: string;
   created_at: string;
   customer_id?: string;
-  customer?: { name: string; first_name?: string };
   supplier_id?: string;
-  supplier?: { name: string; first_name?: string };
-  cashier_id?: string;
-  cashier?: { id: string; display_name: string };
   isCredit?: boolean; // Pour distinguer les transactions à crédit
 }
 
@@ -66,6 +80,7 @@ const getCategoryLabel = (category: string, isCredit?: boolean): string => {
 };
 
 export default function CashScreen({ navigation }: any) {
+  const { shopId, userId } = useCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [cashStats, setCashStats] = useState({
     balance: 0,
@@ -97,153 +112,156 @@ export default function CashScreen({ navigation }: any) {
     'ventes'
   );
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [customers, setCustomers] = useState<
-    Array<{ id: string; name: string; first_name?: string }>
-  >([]);
+  const [customers, setCustomers] = useState<LocalCustomer[]>([]);
 
   // Exit categories and data
   const [exitCategory, setExitCategory] = useState<
     'achats_marchandises' | 'loyers' | 'reglement_fournisseur' | 'depenses_courantes' | 'divers'
   >('achats_marchandises');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
-  const [suppliers, setSuppliers] = useState<
-    Array<{ id: string; name: string; first_name?: string }>
-  >([]);
+  const [suppliers, setSuppliers] = useState<LocalSupplier[]>([]);
 
   // Payment mode states for sales/purchases
   const [entryPaymentMode, setEntryPaymentMode] = useState<'cash' | 'credit'>('cash');
   const [exitPaymentMode, setExitPaymentMode] = useState<'cash' | 'credit'>('cash');
 
-  const loadCashData = async () => {
+  const loadCashData = useCallback(async () => {
+    if (!shopId) return;
     try {
-      // Calculer les dates pour aujourd'hui
       const now = new Date();
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(now);
-      endOfDay.setHours(23, 59, 59, 999);
+      const startISO = startOfDay.toISOString();
 
-      // Récupérer les stats, transactions cash, créances et dettes du jour
-      const [statsData, transactionsData, receivablesData, debtsData] = await Promise.all([
-        cashApi.getStats({
-          start_date: startOfDay.toISOString(),
-          end_date: endOfDay.toISOString(),
-        }),
-        cashApi.getAll({
-          start_date: startOfDay.toISOString(),
-          end_date: endOfDay.toISOString(),
-        }),
-        receivablesApi.getAll(),
-        debtsApi.getAll(),
-      ]);
+      // Fetch today's data from local SQLite
+      const todayCashEntries = await cashEntryRepo.getToday(shopId);
+      const allReceivables = await clientReceivableRepo.getAll(shopId);
+      const todayReceivables = allReceivables.filter(r => r.created_at >= startISO);
+      const allDebts = await supplierDebtRepo.getAll(shopId);
+      const todayDebts = allDebts.filter(d => d.created_at >= startISO);
 
       const transactions: CashTransaction[] = [];
 
       // Ajouter les transactions cash
-      if (Array.isArray(transactionsData)) {
-        transactionsData.forEach((entry: any) => {
-          const entryDate = new Date(entry.created_at);
-          if (entryDate >= startOfDay && entryDate <= endOfDay) {
-            transactions.push({ ...entry, isCredit: false });
-          }
+      todayCashEntries.forEach(entry => {
+        transactions.push({
+          id: entry.id,
+          type: entry.type as 'IN' | 'OUT',
+          category: entry.category || (entry.type === 'IN' ? 'entree' : 'sortie'),
+          amount: entry.amount,
+          note: entry.note || undefined,
+          created_at: entry.created_at,
+          customer_id: entry.customer_id || undefined,
+          supplier_id: entry.supplier_id || undefined,
+          isCredit: false,
         });
-      }
+      });
 
       // Ajouter les ventes à crédit (créances créées aujourd'hui)
-      if (Array.isArray(receivablesData)) {
-        receivablesData.forEach((receivable: any) => {
-          const entryDate = new Date(receivable.created_at);
-          if (entryDate >= startOfDay && entryDate <= endOfDay) {
-            transactions.push({
-              id: `receivable_${receivable.id}`,
-              type: 'IN',
-              category: 'vente_credit',
-              amount: receivable.amount,
-              note: receivable.description || 'Vente à crédit',
-              created_at: receivable.created_at,
-              customer_id: receivable.customer_id,
-              customer: receivable.customer,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      todayReceivables.forEach(receivable => {
+        if (receivable.amount > 0) {
+          transactions.push({
+            id: `receivable_${receivable.id}`,
+            type: 'IN',
+            category: 'vente_credit',
+            amount: receivable.amount,
+            note: receivable.description || 'Vente à crédit',
+            created_at: receivable.created_at,
+            customer_id: receivable.customer_id,
+            isCredit: true,
+          });
+        }
+      });
 
       // Ajouter les achats à crédit (dettes créées aujourd'hui)
-      if (Array.isArray(debtsData)) {
-        debtsData.forEach((debt: any) => {
-          const entryDate = new Date(debt.created_at);
-          if (entryDate >= startOfDay && entryDate <= endOfDay) {
-            transactions.push({
-              id: `debt_${debt.id}`,
-              type: 'OUT',
-              category: 'achat_credit',
-              amount: debt.amount,
-              note: debt.description || 'Achat à crédit',
-              created_at: debt.created_at,
-              supplier_id: debt.supplier_id,
-              supplier: debt.supplier,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      todayDebts.forEach(debt => {
+        if (debt.amount > 0) {
+          transactions.push({
+            id: `debt_${debt.id}`,
+            type: 'OUT',
+            category: 'achat_credit',
+            amount: debt.amount,
+            note: debt.description || 'Achat à crédit',
+            created_at: debt.created_at,
+            supplier_id: debt.supplier_id,
+            isCredit: true,
+          });
+        }
+      });
 
       // Trier par date décroissante (plus récent en premier)
       transactions.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
+      // Compute stats from local data
+      const totalIn = todayCashEntries
+        .filter(e => e.type === 'IN')
+        .reduce((s, e) => s + e.amount, 0);
+      const totalOut = todayCashEntries
+        .filter(e => e.type === 'OUT')
+        .reduce((s, e) => s + e.amount, 0);
+
+      const salesCashEntries = todayCashEntries.filter(
+        e => e.type === 'IN' && (e.category === 'ventes' || e.category === 'vente')
+      );
+      const salesCash = salesCashEntries.reduce((s, e) => s + e.amount, 0);
+      const salesCredit = todayReceivables.reduce((s, r) => s + Math.max(0, r.amount), 0);
+
+      const purchaseCashEntries = todayCashEntries.filter(
+        e => e.type === 'OUT' && e.category === 'achats_marchandises'
+      );
+      const purchasesCash = purchaseCashEntries.reduce((s, e) => s + e.amount, 0);
+      const purchasesCredit = todayDebts.reduce((s, d) => s + Math.max(0, d.amount), 0);
+
       setCashStats({
-        balance: statsData?.balance || 0,
-        entries: statsData?.todayEntries || 0,
-        exits: statsData?.todayExits || 0,
-        net: statsData?.todayNet || 0,
-        // KPIs ventes par mode
-        totalSales: statsData?.totalSales || 0,
-        salesCash: statsData?.salesCash || 0,
-        salesCredit: statsData?.salesCredit || 0,
-        // KPIs achats par mode
-        totalPurchases: statsData?.totalPurchases || 0,
-        purchasesCash: statsData?.purchasesCash || 0,
-        purchasesCredit: statsData?.purchasesCredit || 0,
+        balance: totalIn - totalOut,
+        entries: totalIn,
+        exits: totalOut,
+        net: totalIn - totalOut,
+        totalSales: salesCash + salesCredit,
+        salesCash,
+        salesCredit,
+        totalPurchases: purchasesCash + purchasesCredit,
+        purchasesCash,
+        purchasesCredit,
       });
 
       setTodayTransactions(transactions);
     } catch (error) {
       console.error('Erreur chargement caisse:', error);
     }
-  };
+  }, [shopId]);
 
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
+    if (!shopId) return;
     try {
-      const data = await customersApi.getAll();
+      const data = await customerRepo.getAll(shopId);
       setCustomers(data);
     } catch (error) {
       console.error('Erreur chargement clients:', error);
       setCustomers([]);
     }
-  };
+  }, [shopId]);
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
+    if (!shopId) return;
     try {
-      const data = await suppliersApi.getAll();
+      const data = await supplierRepo.getAll(shopId);
       setSuppliers(data);
     } catch (error) {
       console.error('Erreur chargement fournisseurs:', error);
       setSuppliers([]);
     }
-  };
+  }, [shopId]);
 
-  useEffect(() => {
-    loadCashData();
-  }, []);
-
-  // Recharger les données quand l'écran est focus (ex: retour depuis l'écran de vente)
+  // Recharger les données quand l'écran est focus
   useFocusEffect(
     useCallback(() => {
       loadCashData();
-    }, [])
+      loadCustomers();
+      loadSuppliers();
+    }, [loadCashData, loadCustomers, loadSuppliers])
   );
 
   const onRefresh = async () => {
@@ -255,14 +273,6 @@ export default function CashScreen({ navigation }: any) {
   const handleTransactionClick = (transaction: CashTransaction) => {
     setSelectedTransaction(transaction);
     setShowDetailModal(true);
-  };
-
-  const getPaymentMethodLabel = (method?: string) => {
-    const labels = {
-      cash: 'Espèces',
-      credit: 'À crédit',
-    };
-    return method ? labels[method as keyof typeof labels] || method : 'N/A';
   };
 
   const handleOpenEntryModal = async () => {
@@ -291,6 +301,10 @@ export default function CashScreen({ navigation }: any) {
       Alert.alert('Erreur', 'Veuillez entrer un montant valide');
       return;
     }
+    if (!shopId || !userId) {
+      Alert.alert('Erreur', 'Session non identifiee');
+      return;
+    }
 
     // Validation pour remboursement client : client requis
     if (entryCategory === 'remboursement_client' && !selectedCustomerId) {
@@ -316,69 +330,82 @@ export default function CashScreen({ navigation }: any) {
 
       // Si vente à crédit, créer une créance client au lieu d'une entrée de caisse
       if (entryCategory === 'ventes' && entryPaymentMode === 'credit') {
-        // Créer une créance client (receivable)
-        await receivablesApi.create({
-          customer_id: selectedCustomerId,
+        // Vérifier le plafond de crédit
+        const creditCustomer = customers.find(c => c.id === selectedCustomerId);
+        const creditError = await checkCreditLimit(
+          shopId,
+          selectedCustomerId,
+          creditCustomer?.credit_limit || 0,
+          amountValue
+        );
+        if (creditError) {
+          Alert.alert('Plafond de credit atteint', creditError);
+          setIsSubmitting(false);
+          return;
+        }
+
+        await createReceivableOffline({
+          shopId,
+          customerId: selectedCustomerId,
           amount: amountValue,
           description: note || 'Vente à crédit',
         });
-        Alert.alert('Succès', 'Vente à crédit enregistrée');
+        Alert.alert('Succes', 'Vente à crédit enregistrée');
       } else if (entryCategory === 'remboursement_client') {
-        // Remboursement client : le CLIENT nous paye (nous rembourse)
-        // Impact Caisse : ENTRÉE (IN) - l'argent entre dans notre caisse
-        // Impact Solde Client : DIMINUE toujours (créance négative)
-        // Exemples:
-        //   - Solde 10000, remboursement 3000 → nouveau solde 7000
-        //   - Solde -5000, remboursement 2500 → nouveau solde -7500
         const customer = customers.find(c => c.id === selectedCustomerId);
         const customerName = customer
           ? `${customer.first_name || ''} ${customer.name}`.trim()
           : 'Client';
 
-        // Récupérer le solde actuel pour le message
-        const fullCustomer = await customersApi.getOne(selectedCustomerId);
-        const currentBalance = fullCustomer.stats?.total_balance || 0;
+        // Compute current balance from local receivables
+        const customerReceivables = await clientReceivableRepo.getByCustomer(
+          shopId,
+          selectedCustomerId
+        );
+        const currentBalance = customerReceivables.reduce((s, r) => s + r.balance, 0);
 
         // Créer une créance NÉGATIVE pour diminuer le solde client
-        await receivablesApi.create({
-          customer_id: selectedCustomerId,
-          amount: -amountValue, // Montant NÉGATIF pour diminuer le solde
+        await createReceivableOffline({
+          shopId,
+          customerId: selectedCustomerId,
+          amount: -amountValue,
           description: note || `Remboursement de ${customerName}`,
         });
 
-        // Calculer le nouveau solde : ancien - montant
         const newBalance = currentBalance - amountValue;
 
-        // Message selon le résultat
         let message: string;
         if (newBalance > 0) {
-          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le client nous doit encore ${formatMoney(newBalance)})`;
+          message = `Remboursement de ${formatMoney(amountValue)} recu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le client nous doit encore ${formatMoney(newBalance)})`;
         } else if (newBalance < 0) {
-          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons ${formatMoney(Math.abs(newBalance))} au client)`;
+          message = `Remboursement de ${formatMoney(amountValue)} recu.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons ${formatMoney(Math.abs(newBalance))} au client)`;
         } else {
-          message = `Remboursement de ${formatMoney(amountValue)} reçu.\n\n✅ Le compte client est soldé!`;
+          message = `Remboursement de ${formatMoney(amountValue)} recu.\n\nLe compte client est solde!`;
         }
 
-        Alert.alert('Succès', message);
+        Alert.alert('Succes', message);
 
         // Créer l'entrée de caisse (l'argent entre dans notre caisse)
-        await cashApi.createEntry({
+        await createCashEntryOffline({
+          shopId,
+          cashierId: userId,
           type: 'IN',
           category: entryCategory,
           amount: amountValue,
           note: note || `Remboursement de ${customerName}`,
-          customer_id: selectedCustomerId,
+          customerId: selectedCustomerId,
         });
       } else {
         // Entrée de caisse normale (cash)
-        await cashApi.createEntry({
+        await createCashEntryOffline({
+          shopId,
+          cashierId: userId,
           type: 'IN',
           category: entryCategory,
           amount: amountValue,
-          note: note || (entryCategory === 'ventes' ? 'Vente (Cash)' : 'Entrée divers'),
-          customer_id: undefined,
+          note: note || (entryCategory === 'ventes' ? 'Vente (Cash)' : 'Entree divers'),
         });
-        Alert.alert('Succès', 'Entrée enregistrée avec succès');
+        Alert.alert('Succes', 'Entree enregistree avec succes');
       }
 
       setShowEntryModal(false);
@@ -390,7 +417,7 @@ export default function CashScreen({ navigation }: any) {
       await loadCashData();
     } catch (error) {
       console.error('Erreur entrée:', error);
-      Alert.alert('Erreur', "Impossible d'enregistrer l'entrée");
+      Alert.alert('Erreur', "Impossible d'enregistrer l'entree");
     } finally {
       setIsSubmitting(false);
     }
@@ -402,15 +429,19 @@ export default function CashScreen({ navigation }: any) {
       Alert.alert('Erreur', 'Veuillez entrer un montant valide');
       return;
     }
+    if (!shopId || !userId) {
+      Alert.alert('Erreur', 'Session non identifiee');
+      return;
+    }
 
     const exitAmount = parseFloat(amount);
-    const currentBalance = cashStats.balance || 0;
+    const currentBal = cashStats.balance || 0;
 
     // Validation du solde: seulement si paiement en cash (pas pour crédit)
-    if (exitPaymentMode === 'cash' && exitAmount > currentBalance) {
+    if (exitPaymentMode === 'cash' && exitAmount > currentBal) {
       Alert.alert(
         'Solde insuffisant',
-        `Impossible de retirer ${formatMoney(exitAmount)}.\nSolde actuel de la caisse: ${formatMoney(currentBalance)}`
+        `Impossible de retirer ${formatMoney(exitAmount)}.\nSolde actuel de la caisse: ${formatMoney(currentBal)}`
       );
       return;
     }
@@ -441,69 +472,65 @@ export default function CashScreen({ navigation }: any) {
     try {
       // Si achat à crédit, créer une dette fournisseur au lieu d'une sortie de caisse
       if (exitCategory === 'achats_marchandises' && exitPaymentMode === 'credit') {
-        // Créer une dette fournisseur (debt)
-        await debtsApi.create({
-          supplier_id: selectedSupplierId,
+        await createSupplierDebtOffline({
+          shopId,
+          supplierId: selectedSupplierId,
           amount: exitAmount,
           description: note || 'Achat à crédit',
         });
-        Alert.alert('Succès', 'Achat à crédit enregistré');
+        Alert.alert('Succes', 'Achat à crédit enregistre');
       } else if (exitCategory === 'reglement_fournisseur') {
-        // Règlement fournisseur : NOUS payons le fournisseur
-        // Impact Caisse : SORTIE (OUT) - l'argent sort de notre caisse
-        // Impact Solde Fournisseur : DIMINUE toujours (dette négative)
-        // Exemples:
-        //   - Solde 3000, règlement 2000 → nouveau solde 1000
-        //   - Solde -3500, règlement 4000 → nouveau solde -7500
         const supplier = suppliers.find(s => s.id === selectedSupplierId);
         const supplierName = supplier
           ? `${supplier.first_name || ''} ${supplier.name}`.trim()
           : 'Fournisseur';
 
-        // Récupérer le solde actuel pour le message
-        const fullSupplier = await suppliersApi.getOne(selectedSupplierId);
-        const currentBalance = fullSupplier.stats?.total_balance || 0;
+        // Compute current balance from local debts
+        const supplierDebts = await supplierDebtRepo.getBySupplier(shopId, selectedSupplierId);
+        const currentDebtBalance = supplierDebts.reduce((s, d) => s + d.balance, 0);
 
         // Créer une dette NÉGATIVE pour diminuer le solde fournisseur
-        await debtsApi.create({
-          supplier_id: selectedSupplierId,
-          amount: -exitAmount, // Montant NÉGATIF pour diminuer le solde
-          description: note || `Règlement à ${supplierName}`,
+        await createSupplierDebtOffline({
+          shopId,
+          supplierId: selectedSupplierId,
+          amount: -exitAmount,
+          description: note || `Reglement a ${supplierName}`,
         });
 
-        // Calculer le nouveau solde : ancien - montant
-        const newBalance = currentBalance - exitAmount;
+        const newBalance = currentDebtBalance - exitAmount;
 
-        // Message selon le résultat
         let message: string;
         if (newBalance > 0) {
-          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons encore ${formatMoney(newBalance)} au fournisseur)`;
+          message = `Reglement de ${formatMoney(exitAmount)} effectue.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Nous devons encore ${formatMoney(newBalance)} au fournisseur)`;
         } else if (newBalance < 0) {
-          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le fournisseur nous doit ${formatMoney(Math.abs(newBalance))})`;
+          message = `Reglement de ${formatMoney(exitAmount)} effectue.\n\nNouveau solde: ${formatMoney(newBalance)}\n(Le fournisseur nous doit ${formatMoney(Math.abs(newBalance))})`;
         } else {
-          message = `Règlement de ${formatMoney(exitAmount)} effectué.\n\n✅ Le compte fournisseur est soldé!`;
+          message = `Reglement de ${formatMoney(exitAmount)} effectue.\n\nLe compte fournisseur est solde!`;
         }
 
-        Alert.alert('Succès', message);
+        Alert.alert('Succes', message);
 
         // Créer la sortie de caisse (l'argent sort de notre caisse)
-        await cashApi.createEntry({
+        await createCashEntryOffline({
+          shopId,
+          cashierId: userId,
           type: 'OUT',
           category: exitCategory,
           amount: exitAmount,
-          note: note || `Règlement à ${supplierName}`,
-          supplier_id: selectedSupplierId,
+          note: note || `Reglement a ${supplierName}`,
+          supplierId: selectedSupplierId,
         });
       } else {
         // Sortie de caisse normale (cash)
-        await cashApi.createEntry({
+        await createCashEntryOffline({
+          shopId,
+          cashierId: userId,
           type: 'OUT',
           category: exitCategory,
           amount: exitAmount,
           note: note || getCategoryExitLabel(exitCategory),
-          supplier_id: undefined,
         });
-        Alert.alert('Succès', 'Sortie enregistrée avec succès');
+        Alert.alert('Succes', 'Sortie enregistree avec succes');
       }
 
       setShowExitModal(false);
@@ -608,20 +635,20 @@ export default function CashScreen({ navigation }: any) {
               </View>
             ) : (
               todayTransactions.map(transaction => {
-                // Construire le nom du client/fournisseur
-                const personName = transaction.customer
-                  ? transaction.customer.first_name
-                    ? `${transaction.customer.first_name} ${transaction.customer.name}`
-                    : transaction.customer.name
-                  : transaction.supplier
-                    ? transaction.supplier.first_name
-                      ? `${transaction.supplier.first_name} ${transaction.supplier.name}`
-                      : transaction.supplier.name
+                // Look up customer/supplier name from local state
+                const customerMatch = transaction.customer_id
+                  ? customers.find(c => c.id === transaction.customer_id)
+                  : null;
+                const supplierMatch = transaction.supplier_id
+                  ? suppliers.find(s => s.id === transaction.supplier_id)
+                  : null;
+                const personName = customerMatch
+                  ? `${customerMatch.first_name || ''} ${customerMatch.name}`.trim()
+                  : supplierMatch
+                    ? `${supplierMatch.first_name || ''} ${supplierMatch.name}`.trim()
                     : '';
 
-                // Construire le sous-titre avec heure, personne et caissier
-                const cashierName = transaction.cashier?.display_name;
-                const subtitle = `${formatTransactionTime(transaction.created_at)}${personName ? ` - ${personName}` : ''}${cashierName ? ` (${cashierName})` : ''}${transaction.note ? ` - ${transaction.note}` : ''}`;
+                const subtitle = `${formatTransactionTime(transaction.created_at)}${personName ? ` - ${personName}` : ''}${transaction.note ? ` - ${transaction.note}` : ''}`;
 
                 // Couleur différente pour les transactions à crédit
                 const amountColor = transaction.isCredit
@@ -725,36 +752,31 @@ export default function CashScreen({ navigation }: any) {
                   </Text>
                 </View>
 
-                {selectedTransaction.customer && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Client</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.customer.first_name
-                        ? `${selectedTransaction.customer.first_name} ${selectedTransaction.customer.name}`
-                        : selectedTransaction.customer.name}
-                    </Text>
-                  </View>
-                )}
+                {selectedTransaction.customer_id &&
+                  (() => {
+                    const c = customers.find(x => x.id === selectedTransaction.customer_id);
+                    return c ? (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Client</Text>
+                        <Text style={styles.detailValue}>
+                          {c.first_name ? `${c.first_name} ${c.name}` : c.name}
+                        </Text>
+                      </View>
+                    ) : null;
+                  })()}
 
-                {selectedTransaction.supplier && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fournisseur</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.supplier.first_name
-                        ? `${selectedTransaction.supplier.first_name} ${selectedTransaction.supplier.name}`
-                        : selectedTransaction.supplier.name}
-                    </Text>
-                  </View>
-                )}
-
-                {selectedTransaction.cashier && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Enregistré par</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.cashier.display_name}
-                    </Text>
-                  </View>
-                )}
+                {selectedTransaction.supplier_id &&
+                  (() => {
+                    const s = suppliers.find(x => x.id === selectedTransaction.supplier_id);
+                    return s ? (
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Fournisseur</Text>
+                        <Text style={styles.detailValue}>
+                          {s.first_name ? `${s.first_name} ${s.name}` : s.name}
+                        </Text>
+                      </View>
+                    ) : null;
+                  })()}
 
                 {selectedTransaction.note && (
                   <View style={styles.detailRow}>

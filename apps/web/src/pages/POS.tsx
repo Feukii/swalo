@@ -68,6 +68,9 @@ export default function POS() {
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
 
+  // Detail modal
+  const [selectedEntry, setSelectedEntry] = useState<CashEntry | null>(null);
+
   useEffect(() => {
     loadData();
     loadSuppliers();
@@ -216,31 +219,31 @@ export default function POS() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(amount) * 100);
+    const amountInt = Math.round(parseFloat(amount));
 
-    if (isNaN(amountInCentimes)) {
+    if (isNaN(amountInt)) {
       alert('Montant invalide');
       return;
     }
 
-    // Seuls les OWNER peuvent entrer des montants négatifs (corrections)
-    if (amountInCentimes < 0 && userRole !== 'OWNER') {
+    // Seuls les BOSS peuvent entrer des montants négatifs (corrections)
+    if (amountInt < 0 && userRole !== 'BOSS') {
       alert(
         'Permission refusée: Seuls les propriétaires peuvent effectuer des corrections avec des montants négatifs'
       );
       return;
     }
 
-    if (amountInCentimes === 0) {
+    if (amountInt === 0) {
       alert('Le montant ne peut pas être zéro');
       return;
     }
 
     // Validation solde pour une sortie
-    if (showModal === 'OUT' && amountInCentimes > 0) {
+    if (showModal === 'OUT' && amountInt > 0) {
       const currentBalance = stats?.balance || 0;
-      if (amountInCentimes > currentBalance) {
-        alert('Solde insuffisant: le montant de la sortie d?passe le solde de caisse');
+      if (amountInt > currentBalance) {
+        alert('Solde insuffisant: le montant de la sortie depasse le solde de caisse');
         return;
       }
     }
@@ -250,7 +253,7 @@ export default function POS() {
       await cashApi.createEntry({
         type: showModal!,
         category,
-        amount: amountInCentimes,
+        amount: amountInt,
         note: note || undefined,
         supplier_id: selectedSupplierId || undefined,
         customer_id: selectedCustomerId || undefined,
@@ -283,7 +286,7 @@ export default function POS() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Balance Section - Hero Card */}
-      <div className="card bg-gradient-to-br from-primary-600 to-secondary-600 text-white">
+      <div className="card bg-gradient-to-br from-primary-900 to-primary-700 text-white">
         <div className="mb-4">
           <p className="text-primary-100 text-sm mb-2">💰 Solde de caisse</p>
           <h2 className="text-5xl font-bold tracking-tight">
@@ -352,7 +355,11 @@ export default function POS() {
         ) : (
           <div className="space-y-2">
             {entries.map(entry => (
-              <div key={entry.id} className="card-hover p-4 animate-slide-in">
+              <div
+                key={entry.id}
+                className="card-hover p-4 animate-slide-in cursor-pointer"
+                onClick={() => setSelectedEntry(entry)}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -391,7 +398,102 @@ export default function POS() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Detail Modal */}
+      {selectedEntry && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setSelectedEntry(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl shadow-medium animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className={`px-6 py-5 rounded-t-3xl ${selectedEntry.type === 'IN' ? 'bg-gradient-to-r from-success-500 to-success-600' : 'bg-gradient-to-r from-danger-500 to-danger-600'}`}
+            >
+              <div className="flex items-center justify-between text-white">
+                <div>
+                  <h2 className="text-xl font-bold">
+                    {selectedEntry.type === 'IN' ? 'Entree' : 'Sortie'}
+                  </h2>
+                  <p className="text-sm text-white/80 mt-1">{selectedEntry.category}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedEntry(null)}
+                  className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                >
+                  <svg
+                    className="w-5 h-5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="text-center">
+                <p
+                  className={`text-3xl font-bold ${selectedEntry.type === 'IN' ? 'text-success-600' : 'text-danger-600'}`}
+                >
+                  {selectedEntry.type === 'IN' ? '+' : '-'}
+                  {formatCurrency(selectedEntry.amount)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">FCFA</p>
+              </div>
+              <div className="space-y-3 pt-4 border-t border-gray-200">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Type</span>
+                  <span className="text-sm font-medium">
+                    {selectedEntry.type === 'IN' ? 'Entree' : 'Sortie'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Categorie</span>
+                  <span className="text-sm font-medium">{selectedEntry.category}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Date/Heure</span>
+                  <span className="text-sm font-medium">
+                    {new Date(selectedEntry.created_at).toLocaleString('fr-FR')}
+                  </span>
+                </div>
+                {selectedEntry.supplier && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Fournisseur</span>
+                    <span className="text-sm font-medium">
+                      {getPersonName(selectedEntry.supplier)}
+                    </span>
+                  </div>
+                )}
+                {selectedEntry.customer && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Client</span>
+                    <span className="text-sm font-medium">
+                      {getPersonName(selectedEntry.customer)}
+                    </span>
+                  </div>
+                )}
+                {selectedEntry.note && (
+                  <div>
+                    <span className="text-sm text-gray-500">Note</span>
+                    <p className="text-sm font-medium mt-1">{selectedEntry.note}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entry/Exit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
@@ -564,8 +666,8 @@ export default function POS() {
                     FCFA
                   </span>
                 </div>
-                {userRole === 'OWNER' && (
-                  <p className="text-sm text-purple-600 mt-2 italic">
+                {userRole === 'BOSS' && (
+                  <p className="text-sm text-primary-700 mt-2 italic">
                     💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
                     erreurs
                   </p>

@@ -14,10 +14,20 @@ interface Shop {
   name: string;
 }
 
+interface Enterprise {
+  id: string;
+  code: string;
+  name: string;
+  logo_url?: string | null;
+}
+
 interface AuthState {
   user: User | null;
   shop: Shop | null;
+  enterprise: Enterprise | null;
   role: string | null;
+  enabledModules: string[];
+  licenseTier: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -31,7 +41,10 @@ interface AuthState {
 export const useAuthStore = create<AuthState>(set => ({
   user: null,
   shop: null,
+  enterprise: null,
   role: null,
+  enabledModules: [],
+  licenseTier: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -47,6 +60,7 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
         isAuthenticated: true,
         isLoading: false,
@@ -69,7 +83,10 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
+        enabledModules: data.enabled_modules ?? [],
+        licenseTier: data.license_tier ?? null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -87,7 +104,10 @@ export const useAuthStore = create<AuthState>(set => ({
     set({
       user: null,
       shop: null,
+      enterprise: null,
       role: null,
+      enabledModules: [],
+      licenseTier: null,
       isAuthenticated: false,
       error: null,
     });
@@ -105,7 +125,10 @@ export const useAuthStore = create<AuthState>(set => ({
       set({
         user: data.user,
         shop: data.shop,
+        enterprise: data.enterprise || null,
         role: data.role,
+        enabledModules: data.enabled_modules ?? [],
+        licenseTier: data.license_tier ?? null,
         isAuthenticated: true,
         isLoading: false,
       });

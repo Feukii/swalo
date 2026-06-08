@@ -58,6 +58,7 @@ export class CustomersService {
           credit_limit: dto.credit_limit || 0,
           notes: dto.notes,
           is_active: true,
+          email_notifications_enabled: dto.email_notifications_enabled ?? true,
         },
       });
 
@@ -259,6 +260,9 @@ export class CustomersService {
         ...(dto.credit_limit !== undefined && { credit_limit: dto.credit_limit }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+        ...(dto.email_notifications_enabled !== undefined && {
+          email_notifications_enabled: dto.email_notifications_enabled,
+        }),
         updated_at: new Date(),
       },
     });

@@ -2,18 +2,24 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  DollarSign,
-  ShoppingCart,
-  Receipt,
-  TrendingUp,
-  TrendingDown,
-} from '../components/icons/SimpleIcons';
+import { DollarSign, Receipt } from '../components/icons/SimpleIcons';
 import { ScreenHeader, KPICard, ListItem, TransactionDetailModal } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { formatMoney, formatMoneyWithSign } from '../utils/money';
+import { formatMoney } from '../utils/money';
 import { getTodayLabel } from '../utils/date';
-import { cashApi, receivablesApi, debtsApi } from '../lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
+import { syncEngine } from '../db/sync';
+import { authApi } from '../lib/api';
+import {
+  cashEntryRepo,
+  clientReceivableRepo,
+  supplierDebtRepo,
+  LocalCashEntry,
+  LocalClientReceivable,
+  LocalSupplierDebt,
+} from '../db/repositories';
 
 // Labels des catégories
 const getCategoryLabel = (category: string): string => {
@@ -38,18 +44,24 @@ const formatTransactionTime = (isoString: string): string => {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
+const freshnessColors: Record<FreshnessLevel, string> = {
+  fresh: Colors.success.main,
+  stale: Colors.warning.main,
+  old: Colors.danger.main,
+  unknown: Colors.muted.foreground,
+};
+
 export default function HomeScreen() {
+  const { shopId, shop, enterprise } = useCurrentUser();
+  const freshness = useSyncFreshness();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
-    // Solde et transactions
     cashBalance: 0,
     transactionCount: 0,
-    // Entrées
     totalEntries: 0,
     totalSales: 0,
     salesCash: 0,
     salesCredit: 0,
-    // Sorties
     totalExits: 0,
     totalPurchases: 0,
     purchasesCash: 0,
@@ -57,130 +69,142 @@ export default function HomeScreen() {
   });
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
 
-  // Transaction detail modal state
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!shopId) return;
     try {
-      // Calculer les dates pour aujourd'hui
       const now = new Date();
       const startOfDay = new Date(now);
       startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(now);
-      endOfDay.setHours(23, 59, 59, 999);
+      const startISO = startOfDay.toISOString();
 
-      // Récupérer les stats, transactions cash, créances et dettes du jour
-      const [statsData, transactionsData, receivablesData, debtsData] = await Promise.all([
-        cashApi.getStats({
-          start_date: startOfDay.toISOString(),
-          end_date: endOfDay.toISOString(),
-        }),
-        cashApi.getAll({
-          start_date: startOfDay.toISOString(),
-          end_date: endOfDay.toISOString(),
-        }),
-        receivablesApi.getAll().catch(() => []),
-        debtsApi.getAll().catch(() => []),
-      ]);
+      // Fetch today's cash entries from local SQLite
+      const todayCashEntries = await cashEntryRepo.getToday(shopId);
 
+      // Fetch today's receivables and debts from local SQLite
+      const allReceivables = await clientReceivableRepo.getAll(shopId);
+      const todayReceivables = allReceivables.filter(r => r.created_at >= startISO);
+
+      const allDebts = await supplierDebtRepo.getAll(shopId);
+      const todayDebts = allDebts.filter(d => d.created_at >= startISO);
+
+      // Compute stats from local data
+      const totalIn = todayCashEntries
+        .filter(e => e.type === 'IN')
+        .reduce((s, e) => s + e.amount, 0);
+      const totalOut = todayCashEntries
+        .filter(e => e.type === 'OUT')
+        .reduce((s, e) => s + e.amount, 0);
+
+      const salesCashEntries = todayCashEntries.filter(
+        e => e.type === 'IN' && (e.category === 'ventes' || e.category === 'vente')
+      );
+      const salesCash = salesCashEntries.reduce((s, e) => s + e.amount, 0);
+      const salesCredit = todayReceivables.reduce((s, r) => s + Math.max(0, r.amount), 0);
+
+      const purchaseCashEntries = todayCashEntries.filter(
+        e => e.type === 'OUT' && e.category === 'achats_marchandises'
+      );
+      const purchasesCash = purchaseCashEntries.reduce((s, e) => s + e.amount, 0);
+      const purchasesCredit = todayDebts.reduce((s, d) => s + Math.max(0, d.amount), 0);
+
+      // Build recent transactions
       const todayTransactions: any[] = [];
 
-      // Ajouter les transactions cash
-      if (Array.isArray(transactionsData)) {
-        transactionsData.forEach((entry: any) => {
-          const entryDate = new Date(entry.created_at);
-          if (entryDate >= startOfDay && entryDate <= endOfDay) {
-            todayTransactions.push({
-              ...entry,
-              isCredit: false,
-            });
-          }
+      todayCashEntries.forEach(entry => {
+        todayTransactions.push({
+          id: entry.id,
+          type: entry.type,
+          category: entry.category || (entry.type === 'IN' ? 'entree' : 'sortie'),
+          amount: entry.amount,
+          note: entry.note,
+          created_at: entry.created_at,
+          isCredit: false,
         });
-      }
+      });
 
-      // Ajouter les créances (ventes à crédit) du jour
-      if (Array.isArray(receivablesData)) {
-        receivablesData.forEach((receivable: any) => {
-          const createdDate = new Date(receivable.created_at);
-          if (createdDate >= startOfDay && createdDate <= endOfDay) {
-            todayTransactions.push({
-              id: receivable.id,
-              type: 'IN',
-              category: 'ventes',
-              amount: receivable.amount,
-              note: receivable.description,
-              created_at: receivable.created_at,
-              customer: receivable.customer,
-              customer_id: receivable.customer_id,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      todayReceivables.forEach(r => {
+        if (r.amount > 0) {
+          todayTransactions.push({
+            id: r.id,
+            type: 'IN',
+            category: 'ventes',
+            amount: r.amount,
+            note: r.description,
+            created_at: r.created_at,
+            isCredit: true,
+          });
+        }
+      });
 
-      // Ajouter les dettes (achats à crédit) du jour
-      if (Array.isArray(debtsData)) {
-        debtsData.forEach((debt: any) => {
-          const createdDate = new Date(debt.created_at);
-          if (createdDate >= startOfDay && createdDate <= endOfDay) {
-            todayTransactions.push({
-              id: debt.id,
-              type: 'OUT',
-              category: 'achats_marchandises',
-              amount: debt.amount,
-              note: debt.description,
-              created_at: debt.created_at,
-              supplier: debt.supplier,
-              supplier_id: debt.supplier_id,
-              isCredit: true,
-            });
-          }
-        });
-      }
+      todayDebts.forEach(d => {
+        if (d.amount > 0) {
+          todayTransactions.push({
+            id: d.id,
+            type: 'OUT',
+            category: 'achats_marchandises',
+            amount: d.amount,
+            note: d.description,
+            created_at: d.created_at,
+            isCredit: true,
+          });
+        }
+      });
 
-      // Trier par date décroissante (plus récent en premier)
       todayTransactions.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      // Prendre les 4 dernières
-      const recent = todayTransactions.slice(0, 4);
-
       setStats({
-        cashBalance: statsData?.balance || 0,
-        transactionCount:
-          (statsData?.entriesCount || 0) +
-          (statsData?.exitsCount || 0) +
-          (statsData?.salesCreditCount || 0) +
-          (statsData?.purchasesCreditCount || 0),
-        // Entrées
-        totalEntries: statsData?.todayEntries || 0,
-        totalSales: statsData?.totalSales || 0,
-        salesCash: statsData?.salesCash || 0,
-        salesCredit: statsData?.salesCredit || 0,
-        // Sorties
-        totalExits: statsData?.todayExits || 0,
-        totalPurchases: statsData?.totalPurchases || 0,
-        purchasesCash: statsData?.purchasesCash || 0,
-        purchasesCredit: statsData?.purchasesCredit || 0,
+        cashBalance: totalIn - totalOut,
+        transactionCount: todayCashEntries.length + todayReceivables.length + todayDebts.length,
+        totalEntries: totalIn,
+        totalSales: salesCash + salesCredit,
+        salesCash,
+        salesCredit,
+        totalExits: totalOut,
+        totalPurchases: purchasesCash + purchasesCredit,
+        purchasesCash,
+        purchasesCredit,
       });
 
-      setRecentTransactions(recent);
+      setRecentTransactions(todayTransactions.slice(0, 4));
     } catch (error) {
       console.error('Error loading HomeScreen data:', error);
     }
-  };
+  }, [shopId]);
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Rafraichir les donnees utilisateur/licence depuis le serveur au focus
+  const refreshUserData = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) return;
+
+      const meData = await authApi.getMe();
+      if (meData.enabled_modules) {
+        await AsyncStorage.setItem('enabled_modules', JSON.stringify(meData.enabled_modules));
+      }
+      if (meData.license_tier) {
+        await AsyncStorage.setItem('license_tier', meData.license_tier);
+      }
+    } catch {
+      // Silently fail - offline or server unavailable
+    }
   }, []);
 
-  // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+      refreshUserData();
+      // Déclencher une sync en arrière-plan pour garder les données à jour
+      syncEngine.fullSync().catch(() => undefined);
+    }, [loadData, refreshUserData])
   );
 
   const onRefresh = async () => {
@@ -191,12 +215,26 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Swalo" />
+      <ScreenHeader
+        title={
+          enterprise?.name && shop?.name
+            ? `${enterprise.name} - ${shop.name}`
+            : shop?.name || 'Swalo'
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* Sync Freshness Badge */}
+        <View style={styles.freshnessBadge}>
+          <View
+            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+          />
+          <Text style={styles.freshnessText}>{freshness.label}</Text>
+        </View>
+
         {/* Date and Summary */}
         <View style={styles.dateRow}>
           <View>
@@ -291,21 +329,9 @@ export default function HomeScreen() {
               recentTransactions.map(transaction => {
                 const isEntry = transaction.type === 'IN';
                 const isCredit = transaction.isCredit === true;
-                const customerName = transaction.customer
-                  ? transaction.customer.first_name
-                    ? `${transaction.customer.first_name} ${transaction.customer.name}`
-                    : transaction.customer.name
-                  : '';
-                const supplierName = transaction.supplier
-                  ? transaction.supplier.first_name
-                    ? `${transaction.supplier.first_name} ${transaction.supplier.name}`
-                    : transaction.supplier.name
-                  : '';
-                const displayName = customerName || supplierName;
 
-                // Construire le titre avec indication crédit
                 const categoryLabel = getCategoryLabel(transaction.category);
-                const title = isCredit ? `${categoryLabel} (Crédit)` : categoryLabel;
+                const title = isCredit ? `${categoryLabel} (Credit)` : categoryLabel;
 
                 return (
                   <ListItem
@@ -318,7 +344,7 @@ export default function HomeScreen() {
                       )
                     }
                     title={title}
-                    subtitle={`${formatTransactionTime(transaction.created_at)}${displayName ? ` - ${displayName}` : ''}`}
+                    subtitle={formatTransactionTime(transaction.created_at)}
                     amount={
                       isEntry
                         ? `+${formatMoney(transaction.amount)}`
@@ -333,8 +359,6 @@ export default function HomeScreen() {
                         note: transaction.note,
                         isCredit: isCredit,
                         category: transaction.category,
-                        customerName: customerName || undefined,
-                        supplierName: supplierName || undefined,
                       });
                       setShowDetailModal(true);
                     }}
@@ -371,6 +395,21 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: 80,
     gap: Spacing['2xl'],
+  },
+  freshnessBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+  },
+  freshnessDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  freshnessText: {
+    fontSize: 11,
+    color: Colors.muted.foreground,
   },
   dateRow: {
     flexDirection: 'row',

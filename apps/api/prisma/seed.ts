@@ -4,6 +4,16 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Protection: empêcher l'exécution du seed en production
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ ERREUR: Le seed ne peut pas être exécuté en production!');
+    console.error('   Cette opération créerait des données de test dans la base de production.');
+    console.error(
+      '   Si vous avez vraiment besoin de seeder en production, utilisez un script dédié.'
+    );
+    process.exit(1);
+  }
+
   console.log('🌱 Début du seed...');
 
   // Nettoyer les données existantes (optionnel, commenté pour sécurité)
@@ -29,7 +39,23 @@ async function main() {
 
   console.log('✅ Utilisateur propriétaire créé:', owner.email);
 
-  // 2. Créer les boutiques
+  // 2. Créer l'entreprise test
+  const enterprise = await prisma.enterprise.upsert({
+    where: { code: 'ENT-SWALO' },
+    update: {},
+    create: {
+      code: 'ENT-SWALO',
+      name: 'SWALO Entreprise Test',
+      owner_id: owner.id,
+      license_tier: 'PROFESSIONAL',
+      max_shops: 10,
+      max_users_per_shop: 20,
+    },
+  });
+
+  console.log('✅ Entreprise créée:', enterprise.name);
+
+  // 3. Créer les boutiques rattachées à l'entreprise
   const shop1 = await prisma.shop.upsert({
     where: { code: '011225' },
     update: {},
@@ -41,6 +67,7 @@ async function main() {
       email: 'shop01@swalo.com',
       currency: 'XOF',
       owner_id: owner.id,
+      enterprise_id: enterprise.id,
     },
   });
 
@@ -57,6 +84,7 @@ async function main() {
       email: 'shop02@swalo.com',
       currency: 'XOF',
       owner_id: owner.id,
+      enterprise_id: enterprise.id,
     },
   });
 
@@ -64,7 +92,7 @@ async function main() {
 
   const shop = shop1; // Use shop1 for remaining seed data
 
-  // 3. Créer les rôles propriétaire pour les deux boutiques
+  // 4. Créer les rôles BOSS pour les deux boutiques
   await prisma.userRole.upsert({
     where: {
       user_id_shop_id: {
@@ -76,7 +104,7 @@ async function main() {
     create: {
       user_id: owner.id,
       shop_id: shop1.id,
-      role: 'OWNER',
+      role: 'BOSS',
     },
   });
 
@@ -91,11 +119,11 @@ async function main() {
     create: {
       user_id: owner.id,
       shop_id: shop2.id,
-      role: 'OWNER',
+      role: 'BOSS',
     },
   });
 
-  console.log('✅ Rôles propriétaire créés pour les deux boutiques');
+  console.log('✅ Rôles BOSS créés pour les deux boutiques');
 
   // 3.5 Créer des utilisateurs test avec PIN codes
   const employeeUser = await prisma.user.upsert({
@@ -126,6 +154,24 @@ async function main() {
 
   console.log('✅ Employé avec PIN 1234 créé');
 
+  // Ajouter role EMPLOYEE sur shop2 aussi
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: employeeUser.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: employeeUser.id,
+      shop_id: shop2.id,
+      role: 'EMPLOYEE',
+    },
+  });
+
+  console.log('✅ Employé PIN 1234 ajouté à shop2 (251225)');
+
   const adminUser = await prisma.user.upsert({
     where: { phone: '+221772222222' },
     update: {},
@@ -148,11 +194,103 @@ async function main() {
     create: {
       user_id: adminUser.id,
       shop_id: shop.id,
-      role: 'ADMIN',
+      role: 'MANAGER',
     },
   });
 
-  console.log('✅ Admin avec PIN 9999 créé');
+  // Ajouter role MANAGER sur shop2 aussi
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: adminUser.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: adminUser.id,
+      shop_id: shop2.id,
+      role: 'MANAGER',
+    },
+  });
+
+  console.log('✅ Manager avec PIN 9999 créé (shop1 + shop2)');
+
+  // Créer utilisateur Manager avec PIN 2222
+  const managerUser2 = await prisma.user.upsert({
+    where: { phone: '+221773333333' },
+    update: { pin_code: '2222' },
+    create: {
+      phone: '+221773333333',
+      pin_code: '2222',
+      display_name: 'Manager Test 2',
+      is_active: true,
+    },
+  });
+
+  // Role MANAGER sur shop1
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: managerUser2.id,
+        shop_id: shop.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: managerUser2.id,
+      shop_id: shop.id,
+      role: 'MANAGER',
+    },
+  });
+
+  // Role MANAGER sur shop2
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: managerUser2.id,
+        shop_id: shop2.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: managerUser2.id,
+      shop_id: shop2.id,
+      role: 'MANAGER',
+    },
+  });
+
+  console.log('✅ Manager avec PIN 2222 créé (shop1 + shop2)');
+
+  // 5b. Créer un SUPERADMIN (pour web-admin)
+  const superAdminPassword = await bcrypt.hash('superadmin123', 10);
+  const superAdmin = await prisma.user.upsert({
+    where: { email: 'superadmin@swalo.com' },
+    update: {},
+    create: {
+      email: 'superadmin@swalo.com',
+      password_hash: superAdminPassword,
+      display_name: 'Super Admin',
+      is_active: true,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      user_id_shop_id: {
+        user_id: superAdmin.id,
+        shop_id: shop.id,
+      },
+    },
+    update: {},
+    create: {
+      user_id: superAdmin.id,
+      shop_id: shop.id,
+      role: 'SUPERADMIN',
+    },
+  });
+
+  console.log('✅ Super Admin créé: superadmin@swalo.com / superadmin123');
 
   // Ajouter PIN au propriétaire existant
   await prisma.user.update({
@@ -193,8 +331,8 @@ async function main() {
     create: {
       pin_code: '9999',
       shop_id: shop.id,
-      role: 'ADMIN',
-      display_name: 'Admin Test',
+      role: 'MANAGER',
+      display_name: 'Manager Test',
       created_by: owner.id,
       valid_from: new Date(),
       valid_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -213,8 +351,8 @@ async function main() {
     create: {
       pin_code: '0000',
       shop_id: shop.id,
-      role: 'OWNER',
-      display_name: 'Propri?taire',
+      role: 'BOSS',
+      display_name: 'Proprietaire',
       created_by: owner.id,
       valid_from: new Date(),
       valid_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -241,6 +379,37 @@ async function main() {
     },
   });
   console.log('? Code PIN Manager cr??: 2222');
+
+  // 5.5 Initialiser les conditionnements par défaut pour les deux boutiques
+  const defaultPackagingTypes = [
+    { name: 'Pièce', symbol: 'pce', is_default: true },
+    { name: 'Carton', symbol: 'ctn', is_default: false },
+    { name: 'Douzaine', symbol: 'dz', is_default: false },
+    { name: 'Paquet', symbol: 'pqt', is_default: false },
+    { name: 'Boîte', symbol: 'bte', is_default: false },
+    { name: 'Unité', symbol: 'u', is_default: false },
+    { name: 'Kilogramme', symbol: 'kg', is_default: false },
+    { name: 'Gramme', symbol: 'g', is_default: false },
+    { name: 'Litre', symbol: 'l', is_default: false },
+  ];
+
+  for (const shopItem of [shop1, shop2]) {
+    for (const pt of defaultPackagingTypes) {
+      const existing = await prisma.packagingType.findFirst({
+        where: {
+          shop_id: shopItem.id,
+          name: { equals: pt.name, mode: 'insensitive' },
+        },
+      });
+      if (!existing) {
+        await prisma.packagingType.create({
+          data: { shop_id: shopItem.id, ...pt },
+        });
+      }
+    }
+  }
+
+  console.log('✅ Conditionnements par défaut initialisés pour les deux boutiques');
 
   // 6. Créer quelques produits de test
   const products = [
@@ -300,6 +469,7 @@ async function main() {
   console.log('   - Code Boutique 2: 251225');
   console.log('   - Code PIN Employé: 1234');
   console.log('   - Code PIN Admin: 9999');
+  console.log('   - Super Admin: superadmin@swalo.com / superadmin123');
   console.log('   - Code PIN Propriétaire: 0000');
   console.log('   - Code PIN Manager: 2222');
 }

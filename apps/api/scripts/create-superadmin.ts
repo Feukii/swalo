@@ -43,6 +43,25 @@ async function createSuperAdmin() {
       name: user.display_name,
     });
 
+    // Créer ou récupérer l'entreprise admin
+    let adminEnterprise = await prisma.enterprise.findFirst({
+      where: { code: 'ADMIN-ENT' },
+    });
+
+    if (!adminEnterprise) {
+      adminEnterprise = await prisma.enterprise.create({
+        data: {
+          code: 'ADMIN-ENT',
+          name: 'Swalo Administration',
+          owner_id: user.id,
+          license_tier: 'ENTERPRISE',
+          max_shops: 100,
+          max_users_per_shop: 100,
+        },
+      });
+      console.log('✅ Entreprise admin créée');
+    }
+
     // Créer ou récupérer la boutique "Admin"
     let adminShop = await prisma.shop.findFirst({
       where: { code: 'ADMIN001' },
@@ -58,6 +77,7 @@ async function createSuperAdmin() {
           email: 'admin@swalo.com',
           currency: 'XOF',
           owner_id: user.id,
+          enterprise_id: adminEnterprise.id,
           deleted: false,
         },
       });

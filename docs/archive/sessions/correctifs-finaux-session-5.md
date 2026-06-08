@@ -8,32 +8,36 @@
 
 ## 📋 Problèmes corrigés
 
-| # | Problème | Fichier(s) | Status |
-|---|----------|-----------|--------|
-| 1 | Erreur `current_stock should not exist` lors de la vente | SaleScreen.tsx | ✅ Corrigé |
-| 2 | Mode de paiement "Mobile" à enlever | SaleScreen.tsx | ✅ Corrigé |
-| 3 | Logique remboursement client incorrecte | CashScreen.tsx | ✅ Corrigé |
-| 4 | Logique règlement fournisseur incorrecte | CashScreen.tsx | ✅ Corrigé |
-| 5 | Gestion hiérarchique du catalogue | ProductCatalogScreen.tsx | 🔄 À implémenter |
+| #   | Problème                                                 | Fichier(s)               | Status           |
+| --- | -------------------------------------------------------- | ------------------------ | ---------------- |
+| 1   | Erreur `current_stock should not exist` lors de la vente | SaleScreen.tsx           | ✅ Corrigé       |
+| 2   | Mode de paiement "Mobile" à enlever                      | SaleScreen.tsx           | ✅ Corrigé       |
+| 3   | Logique remboursement client incorrecte                  | CashScreen.tsx           | ✅ Corrigé       |
+| 4   | Logique règlement fournisseur incorrecte                 | CashScreen.tsx           | ✅ Corrigé       |
+| 5   | Gestion hiérarchique du catalogue                        | ProductCatalogScreen.tsx | 🔄 À implémenter |
 
 ---
 
 ## 🔧 Correctif 1 : Erreur `current_stock should not exist`
 
 ### Problème
+
 ```
 ERROR Erreur lors de l'enregistrement de la vente: [Error: property current_stock should not exist]
 ```
 
 ### Cause
+
 Le champ `current_stock` est un champ **calculé** (via `InventoryMovement`), pas un champ de la table `products`. On ne peut pas le mettre à jour directement via `productsApi.update()`.
 
 ### Solution
+
 Suppression de la mise à jour manuelle du stock dans SaleScreen. Le stock sera géré ultérieurement via un système de mouvements d'inventaire.
 
 #### Fichier : [SaleScreen.tsx](apps/mobile/src/screens/SaleScreen.tsx)
 
 **Supprimé** (lignes 199-208) :
+
 ```typescript
 // 1. Mettre à jour le stock via l'API
 for (const item of cart) {
@@ -48,6 +52,7 @@ for (const item of cart) {
 ```
 
 **Résultat** :
+
 - ✅ Plus d'erreur lors de l'enregistrement de la vente
 - ⚠️ Le stock ne se met pas à jour automatiquement (nécessite implémentation service d'inventaire)
 
@@ -60,6 +65,7 @@ for (const item of cart) {
 #### Fichier : [SaleScreen.tsx](apps/mobile/src/screens/SaleScreen.tsx)
 
 **Type PaymentMethod** :
+
 ```typescript
 // Avant
 type PaymentMethod = 'cash' | 'mobile' | 'credit';
@@ -69,6 +75,7 @@ type PaymentMethod = 'cash' | 'credit';
 ```
 
 **Imports** :
+
 ```typescript
 // Avant
 import {
@@ -99,6 +106,7 @@ import {
 ```
 
 **Labels** :
+
 ```typescript
 // Avant
 const labels: Record<PaymentMethod, string> = {
@@ -115,6 +123,7 @@ const labels: Record<PaymentMethod, string> = {
 ```
 
 **Boutons de paiement** :
+
 ```typescript
 // Avant
 const paymentMethods = [
@@ -131,11 +140,13 @@ const paymentMethods = [
 ```
 
 **Messages d'alerte** :
+
 ```typescript
 // Avant
-const noteText = paymentMethod === 'mobile'
-  ? `Vente Mobile Money - ${getTotalItems()} article(s): ${itemsDescription}`
-  : `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`;
+const noteText =
+  paymentMethod === 'mobile'
+    ? `Vente Mobile Money - ${getTotalItems()} article(s): ${itemsDescription}`
+    : `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`;
 
 const modeLabel = paymentMethod === 'mobile' ? 'Mobile Money' : 'Espèces';
 
@@ -156,6 +167,7 @@ Alert.alert(
 ```
 
 **Résultat** :
+
 - ✅ Mode "Mobile" supprimé partout
 - ✅ Interface simplifiée : Cash ou Crédit uniquement
 
@@ -164,14 +176,17 @@ Alert.alert(
 ## 🔧 Correctif 3 : Logique remboursement client
 
 ### Problème
+
 Logique incorrecte : créait toujours une créance négative, même quand le client avait une dette existante.
 
 ### Logique attendue
+
 1. **Si client a une dette (solde > 0)** : Payer la dette existante (réduit le solde)
 2. **Si client n'a pas de dette (solde = 0)** : Créer créance négative (on doit rendre au client)
 3. **Si client a déjà un solde négatif** : Augmenter la créance négative
 
 ### Exemple
+
 ```
 Solde initial = 10000 FCFA (client doit 10000)
 Remboursement = 5000 FCFA
@@ -192,6 +207,7 @@ Remboursement = 5000 FCFA supplémentaires
 #### Fichier : [CashScreen.tsx](apps/mobile/src/screens/CashScreen.tsx)
 
 **Code corrigé** :
+
 ```typescript
 else if (entryCategory === 'remboursement_client') {
   // Remboursement client : le client nous paye (réduit sa dette)
@@ -250,6 +266,7 @@ else if (entryCategory === 'remboursement_client') {
 ```
 
 **Résultat** :
+
 - ✅ Logique correcte : paye d'abord les dettes existantes
 - ✅ Crée une créance négative seulement si nécessaire
 - ✅ Messages clairs selon le scénario
@@ -260,9 +277,11 @@ else if (entryCategory === 'remboursement_client') {
 ## 🔧 Correctif 4 : Logique règlement fournisseur
 
 ### Problème
+
 Même problème que pour les clients, mais pour les fournisseurs.
 
 ### Logique attendue
+
 1. **Si on doit au fournisseur (solde > 0)** : Payer la dette (réduit le solde)
 2. **Si on ne doit rien (solde = 0)** : Créer dette négative (fournisseur nous doit)
 3. **Si fournisseur nous doit déjà (solde < 0)** : Augmenter la dette négative
@@ -272,6 +291,7 @@ Même problème que pour les clients, mais pour les fournisseurs.
 #### Fichier : [CashScreen.tsx](apps/mobile/src/screens/CashScreen.tsx)
 
 **Code corrigé** :
+
 ```typescript
 else if (exitCategory === 'reglement_fournisseur') {
   // Règlement fournisseur : on paye le fournisseur (réduit notre dette)
@@ -330,6 +350,7 @@ else if (exitCategory === 'reglement_fournisseur') {
 ```
 
 **Résultat** :
+
 - ✅ Logique correcte : paye d'abord les dettes existantes
 - ✅ Crée une dette négative seulement si nécessaire
 - ✅ Messages clairs selon le scénario
@@ -340,14 +361,18 @@ else if (exitCategory === 'reglement_fournisseur') {
 ## 🔄 Fonctionnalité restante : Gestion hiérarchique du catalogue
 
 ### Besoin
+
 Pouvoir ajouter et modifier les éléments du catalogue de manière hiérarchique :
+
 - Famille
 - Article (dans une famille)
 - Marque (dans un article)
 - Référence (dans une marque)
 
 ### Approche proposée
+
 Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
+
 - Modal "Ajouter Famille"
 - Modal "Modifier Famille"
 - Modal "Ajouter Article" (sélection famille parente)
@@ -358,27 +383,30 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 - Modal "Modifier Référence" (= produit complet)
 
 ### Complexité
+
 - **Élevée** : Nécessite refonte complète de ProductCatalogScreen
 - **Durée estimée** : 2-3 heures
 - **Impact** : Très positif pour l'organisation du catalogue
 
 ### Status
+
 🔄 **À implémenter** (si vous le souhaitez)
 
 ---
 
 ## 📊 Résumé des correctifs
 
-| Fichier | Modifications | Impact |
-|---------|---------------|--------|
-| **SaleScreen.tsx** | - Suppression mise à jour manuelle stock<br>- Suppression mode "Mobile"<br>- Simplification logique paiement | ✅ Ventes fonctionnelles<br>✅ Interface simplifiée |
-| **CashScreen.tsx** | - Logique remboursement client corrigée<br>- Logique règlement fournisseur corrigée | ✅ Soldes calculés correctement<br>✅ Pas de créances négatives inutiles |
+| Fichier            | Modifications                                                                                                | Impact                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| **SaleScreen.tsx** | - Suppression mise à jour manuelle stock<br>- Suppression mode "Mobile"<br>- Simplification logique paiement | ✅ Ventes fonctionnelles<br>✅ Interface simplifiée                      |
+| **CashScreen.tsx** | - Logique remboursement client corrigée<br>- Logique règlement fournisseur corrigée                          | ✅ Soldes calculés correctement<br>✅ Pas de créances négatives inutiles |
 
 ---
 
 ## ✅ Tests recommandés
 
 ### Test 1 : Vente espèces
+
 1. Ajouter produits au panier
 2. Sélectionner "Client comptant"
 3. Choisir mode "Espèces"
@@ -387,6 +415,7 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 6. ✅ Vérifier : Pas d'erreur, entrée caisse créée
 
 ### Test 2 : Vente à crédit
+
 1. Ajouter produits au panier
 2. Sélectionner un client enregistré
 3. Choisir mode "Crédit"
@@ -395,6 +424,7 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 6. ✅ Vérifier : Créance créée, pas d'entrée caisse
 
 ### Test 3 : Remboursement client avec dette
+
 1. Client avec solde = 10000 FCFA
 2. Caisse → Entrée → Remboursement client
 3. Montant = 5000 FCFA
@@ -402,6 +432,7 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 5. ✅ Vérifier : Nouveau solde = 5000 FCFA
 
 ### Test 4 : Remboursement client sans dette
+
 1. Client avec solde = 0 FCFA
 2. Caisse → Entrée → Remboursement client
 3. Montant = 5000 FCFA
@@ -409,6 +440,7 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 5. ✅ Vérifier : Nouveau solde = -5000 FCFA (créance négative)
 
 ### Test 5 : Règlement fournisseur avec dette
+
 1. Fournisseur avec solde = 8000 FCFA
 2. Caisse → Sortie → Règlement fournisseur
 3. Montant = 3000 FCFA
@@ -416,6 +448,7 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 5. ✅ Vérifier : Nouveau solde = 5000 FCFA
 
 ### Test 6 : Règlement fournisseur sans dette
+
 1. Fournisseur avec solde = 0 FCFA
 2. Caisse → Sortie → Règlement fournisseur
 3. Montant = 2000 FCFA
@@ -427,15 +460,18 @@ Modifier ProductCatalogScreen pour afficher une vue hiérarchique avec :
 ## 🎯 Prochaines étapes
 
 ### Immédiat
+
 1. ✅ Tester les 4 correctifs appliqués
 2. 🔄 Décider si on implémente la gestion hiérarchique du catalogue
 
 ### Court terme (si catalogue hiérarchique souhaité)
+
 3. Concevoir l'interface de gestion hiérarchique
 4. Implémenter les modals d'ajout/modification
 5. Tester la gestion complète du catalogue
 
 ### Moyen terme
+
 6. Implémenter service d'inventaire (mouvements de stock)
 7. Connecter les ventes au service d'inventaire
 8. Finaliser système FIFO avec stock_batches

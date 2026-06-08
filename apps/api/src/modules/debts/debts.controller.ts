@@ -1,30 +1,18 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Put,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
+import { Controller, Get, Post, Delete, Put, Body, Param, Query, Req } from '@nestjs/common';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { DebtsService } from './debts.service';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @Controller('debts')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('debts')
 export class DebtsController {
   constructor(private readonly debtsService: DebtsService) {}
 
   @Post()
-  @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async create(@Req() req: any, @Body() dto: CreateDebtDto) {
     return this.debtsService.create(req.user.shopId, dto);
   }
@@ -57,13 +45,13 @@ export class DebtsController {
   }
 
   @Put(':id/cancel')
-  @Roles(Role.OWNER, Role.ADMIN, Role.MANAGER)
+  @Roles(Role.BOSS, Role.MANAGER)
   async cancel(@Req() req: any, @Param('id') id: string) {
     return this.debtsService.cancel(req.user.shopId, id);
   }
 
   @Delete(':id')
-  @Roles(Role.OWNER, Role.ADMIN)
+  @Roles(Role.BOSS, Role.MANAGER)
   async delete(@Req() req: any, @Param('id') id: string) {
     return this.debtsService.delete(req.user.shopId, id);
   }

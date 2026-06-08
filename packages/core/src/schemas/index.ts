@@ -15,3 +15,5 @@ export * from './invoice';
 export * from './payment';
 export * from './cash';
 export * from './sync';
+export * from './packaging-type';
+export * from './enterprise';

@@ -3,6 +3,7 @@
 ## Contexte
 
 Suite au plan 015, plusieurs fonctionnalités ne fonctionnent pas correctement dans l'application mobile:
+
 1. **Import CSV/Excel**: L'import de catalogue ne fonctionne pas
 2. **Création hiérarchie produits**: La création manuelle de familles/types/marques ne fonctionne pas
 3. **Traçabilité appareils**: Le suivi des appareils n'est pas automatique pour tous les rôles
@@ -15,12 +16,14 @@ Suite au plan 015, plusieurs fonctionnalités ne fonctionnent pas correctement d
 **Problème potentiel**: L'endpoint `/api/import/catalog/preview` et `/api/import/catalog/confirm` existent et sont correctement câblés mais peuvent échouer silencieusement.
 
 **Fichiers analysés**:
+
 - `apps/api/src/modules/import/import.service.ts` - Service fonctionnel avec mapping colonnes français
 - `apps/api/src/modules/import/import.controller.ts` - Endpoints protégés par `@Roles(Role.OWNER, Role.MANAGER)`
 - `apps/mobile/src/screens/ProductCatalogScreen.tsx` - UI d'import avec DocumentPicker
 - `apps/mobile/src/lib/api.ts:465-478` - `importApi.previewCatalog()` et `confirmCatalog()`
 
 **Causes possibles**:
+
 - Le rôle de l'utilisateur n'est pas OWNER ou MANAGER
 - Le fichier base64 n'est pas correctement encodé
 - Erreur de parsing côté API non remontée à l'utilisateur
@@ -31,6 +34,7 @@ Suite au plan 015, plusieurs fonctionnalités ne fonctionnent pas correctement d
 **Problème potentiel**: Les champs famille, type d'article, marque et référence sont bien présents dans le formulaire de création produit (`ProductCatalogScreen.tsx:1070-1205`) mais la création peut échouer.
 
 **Fichiers analysés**:
+
 - `apps/api/src/modules/products/products.controller.ts:79-100` - Endpoints `getFamilies`, `getBrands`, `getArticleTypes` existent
 - `apps/mobile/src/lib/api.ts:600-626` - API `productsApi.getFilters()` et `batchUpdateHierarchy()` existent
 - `apps/api/src/modules/products/products.service.ts:275-370` - Services de récupération hiérarchie
@@ -53,11 +57,13 @@ Les OWNER et MANAGER ne sont pas trackés, donc ils n'apparaissent pas dans l'ad
 ### 4. Connexion code boutique - Diagnostic
 
 **Problème potentiel**: L'utilisateur a créé une boutique via l'API web (`POST /api/auth/create-shop`) mais:
+
 1. Le PIN généré n'a pas été noté
 2. Le code boutique ou le PIN n'est pas correct
 3. L'utilisateur essaie le PIN avec le mauvais code boutique
 
 **Flow analysé** (`auth.service.ts:368-445`):
+
 - `createShop()` génère un code boutique 6 chiffres aléatoire
 - Génère un PIN propriétaire 4 chiffres aléatoire
 - Crée l'utilisateur propriétaire et le rôle OWNER
@@ -92,6 +98,7 @@ Les OWNER et MANAGER ne sont pas trackés, donc ils n'apparaissent pas dans l'ad
 **Fichier**: `apps/api/src/modules/auth/auth.service.ts`
 
 **Modification** (ligne 246):
+
 ```typescript
 // AVANT
 if (deviceInfo && userRole.role === 'EMPLOYEE') {
@@ -103,6 +110,7 @@ if (deviceInfo) {
 ```
 
 **Logique**:
+
 - EMPLOYEE: restriction à 1 seul appareil (comportement actuel)
 - OWNER/MANAGER: tracking sans restriction (peuvent se connecter depuis plusieurs appareils)
 
@@ -113,6 +121,7 @@ if (deviceInfo) {
 **Fichier**: `apps/api/src/modules/auth/auth.controller.ts`
 
 Ajouter un endpoint public pour vérifier si un code boutique existe:
+
 ```typescript
 @Get('verify-shop/:code')
 async verifyShop(@Param('code') code: string) {
@@ -123,6 +132,7 @@ async verifyShop(@Param('code') code: string) {
 #### Tâche 3.2: Script de diagnostic connexion
 
 Créer un script pour vérifier en base:
+
 - La boutique existe avec le code donné
 - L'utilisateur propriétaire existe
 - Le PIN est correct
@@ -241,10 +251,12 @@ pnpm run validate
 ### Pour débugger la connexion boutique
 
 L'utilisateur doit vérifier:
+
 1. Le code boutique (6 chiffres) retourné lors de la création
 2. Le PIN propriétaire (4 chiffres) retourné lors de la création
 
 Si les codes ont été perdus, il faut:
+
 1. Vérifier en base via Prisma Studio: `cd apps/api && pnpm prisma:studio`
 2. Chercher la boutique par nom dans la table `Shop`
 3. Trouver l'owner_id puis le PIN dans la table `User`
