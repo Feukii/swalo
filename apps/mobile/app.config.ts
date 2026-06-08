@@ -20,6 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     ios: {
       supportsTablet: true,
+      bundleIdentifier: 'com.swalo.mobile',
       ...config.ios,
     },
     android: {
