@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
@@ -16,12 +18,13 @@ import { PrismaService } from '../../src/common/prisma/prisma.service';
  * 6. Verify cash entry created
  * 7. Verify refund history
  */
-// TODO: Fix e2e test to work with current Prisma schema (requires owner relation for Shop, etc.)
-describe.skip('Customer Refund Workflow (E2E)', () => {
+describe('Customer Refund Workflow (E2E)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let authToken: string;
   let shopId: string;
+  let userId: string;
+  let enterpriseId: string;
   let customerId: string;
 
   beforeAll(async () => {
@@ -35,50 +38,81 @@ describe.skip('Customer Refund Workflow (E2E)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
-    // Setup: Create test shop and user, get auth token
+    // Setup: Create test user, enterprise, shop, role and a real JWT
+    const user = await prisma.user.create({
+      data: {
+        id: `test-user-${Date.now()}`,
+        email: `test-${Date.now()}@example.com`,
+        password_hash: 'hashed_password',
+        display_name: 'Test User',
+      },
+    });
+    userId = user.id;
+
+    const enterprise = await prisma.enterprise.create({
+      data: {
+        code: `TE${Math.floor(Math.random() * 1000000)}`,
+        name: 'Test Enterprise',
+        owner_id: userId,
+        license_tier: 'ENTERPRISE',
+      },
+    });
+    enterpriseId = enterprise.id;
+
     const shop = await prisma.shop.create({
       data: {
         id: `test-shop-${Date.now()}`,
         name: 'Test Shop',
         code: `TS${Math.floor(Math.random() * 1000000)}`,
         address: 'Test Address',
-        currency: 'FCFA',
+        owner_id: userId,
+        enterprise_id: enterpriseId,
+        enabled_modules: [
+          'auth',
+          'products',
+          'customers',
+          'sales',
+          'cash',
+          'inventory',
+          'suppliers',
+          'receivables',
+          'debts',
+          'payments',
+          'reports',
+        ],
       },
     });
     shopId = shop.id;
 
-    const user = await prisma.user.create({
-      data: {
-        id: `test-user-${Date.now()}`,
-        email: `test-${Date.now()}@example.com`,
-        password_hash: 'hashed_password',
-        first_name: 'Test',
-        last_name: 'User',
-      },
-    });
-
     await prisma.userRole.create({
       data: {
-        user_id: user.id,
+        user_id: userId,
         shop_id: shopId,
-        role: 'OWNER',
+        role: 'BOSS',
       },
     });
 
-    // Mock auth token (in real test, you'd call login endpoint)
-    authToken = 'Bearer test-token';
+    // Real JWT matching jwt.strategy ({ sub, shopId } signed with JWT_SECRET)
+    const config = app.get(ConfigService);
+    const token = new JwtService().sign(
+      { sub: userId, shopId },
+      { secret: config.get<string>('JWT_SECRET'), expiresIn: '24h' }
+    );
+    authToken = `Bearer ${token}`;
   });
 
   afterAll(async () => {
-    // Cleanup
-    if (customerId) {
-      await prisma.clientReceivable.deleteMany({ where: { customer_id: customerId } });
-      await prisma.cashEntry.deleteMany({ where: { customer_id: customerId } });
-      await prisma.customer.deleteMany({ where: { id: customerId } });
-    }
+    // Cleanup (FK-safe order)
+    await prisma.clientReceivablePayment.deleteMany({
+      where: { receivable: { shop_id: shopId } },
+    });
+    await prisma.clientReceivable.deleteMany({ where: { shop_id: shopId } });
+    await prisma.cashEntry.deleteMany({ where: { shop_id: shopId } });
+    await prisma.customer.deleteMany({ where: { shop_id: shopId } });
     await prisma.userRole.deleteMany({ where: { shop_id: shopId } });
-    await prisma.user.deleteMany({ where: { email: { contains: 'test-' } } });
     await prisma.shop.deleteMany({ where: { id: shopId } });
+    await prisma.enterprise.deleteMany({ where: { id: enterpriseId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
 
     await app.close();
   });
@@ -160,8 +194,9 @@ describe.skip('Customer Refund Workflow (E2E)', () => {
         .expect(200);
 
       expect(refundHistoryResponse.body).toHaveLength(1);
-      expect(refundHistoryResponse.body[0].amount).toBe(-6000);
-      expect(refundHistoryResponse.body[0].description).toContain('Remboursement');
+      // Refunds are cash OUT entries stored with a positive amount (app convention)
+      expect(refundHistoryResponse.body[0].amount).toBe(6000);
+      expect(refundHistoryResponse.body[0].category).toContain('Remboursement');
 
       // Step 8: Create second refund to fully clear balance
       const finalRefundResponse = await request(app.getHttpServer())
@@ -169,7 +204,7 @@ describe.skip('Customer Refund Workflow (E2E)', () => {
         .set('Authorization', authToken)
         .send({
           amount: 4000,
-          payment_method: 'MOBILE_MONEY',
+          payment_method: 'CASH',
           note: 'Final refund',
         })
         .expect(201);
