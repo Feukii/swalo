@@ -42,6 +42,7 @@ import {
   createReceivableOffline,
   payReceivableOffline,
 } from '../db/offlineWrite';
+import { checkCreditLimit } from '../utils/creditCheck';
 
 interface CustomerDetailsScreenProps {
   navigation: any;
@@ -517,6 +518,18 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
     if (isNaN(amountValue) || amountValue <= 0) {
       Alert.alert('Erreur', 'Montant invalide');
+      return;
+    }
+
+    // Vérifier le plafond de crédit
+    const creditError = await checkCreditLimit(
+      shopId,
+      customer.id,
+      customer.credit_limit || 0,
+      amountValue
+    );
+    if (creditError) {
+      Alert.alert('Plafond de credit atteint', creditError);
       return;
     }
 

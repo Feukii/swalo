@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
@@ -14,14 +16,14 @@ import { PrismaService } from '../../src/common/prisma/prisma.service';
  * 4. Claim refund from supplier
  * 5. Verify all balances and transactions
  */
-// TODO: Fix e2e test to work with current Prisma schema (requires owner relation for Shop, etc.)
-describe.skip('Supplier Purchase Workflow (E2E)', () => {
+describe('Supplier Purchase Workflow (E2E)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let authToken: string;
   let shopId: string;
   let supplierId: string;
   let userId: string;
+  let enterpriseId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -34,28 +36,51 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
-    // Setup test environment
+    // Setup: Create test user, enterprise, shop, role and a real JWT
+    const user = await prisma.user.create({
+      data: {
+        id: `test-user-${Date.now()}`,
+        email: `test-${Date.now()}@example.com`,
+        password_hash: 'hashed_password',
+        display_name: 'Test User',
+      },
+    });
+    userId = user.id;
+
+    const enterprise = await prisma.enterprise.create({
+      data: {
+        code: `TE${Math.floor(Math.random() * 1000000)}`,
+        name: 'Test Enterprise',
+        owner_id: userId,
+        license_tier: 'ENTERPRISE',
+      },
+    });
+    enterpriseId = enterprise.id;
+
     const shop = await prisma.shop.create({
       data: {
         id: `test-shop-${Date.now()}`,
         name: 'Test Shop',
         code: `TS${Math.floor(Math.random() * 1000000)}`,
         address: 'Test Address',
-        currency: 'FCFA',
+        owner_id: userId,
+        enterprise_id: enterpriseId,
+        enabled_modules: [
+          'auth',
+          'products',
+          'customers',
+          'sales',
+          'cash',
+          'inventory',
+          'suppliers',
+          'receivables',
+          'debts',
+          'payments',
+          'reports',
+        ],
       },
     });
     shopId = shop.id;
-
-    const user = await prisma.user.create({
-      data: {
-        id: `test-user-${Date.now()}`,
-        email: `test-${Date.now()}@example.com`,
-        password_hash: 'hashed_password',
-        first_name: 'Test',
-        last_name: 'User',
-      },
-    });
-    userId = user.id;
 
     await prisma.userRole.create({
       data: {
@@ -65,19 +90,25 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
       },
     });
 
-    authToken = 'Bearer test-token';
+    // Real JWT matching jwt.strategy ({ sub, shopId } signed with JWT_SECRET)
+    const config = app.get(ConfigService);
+    const token = new JwtService().sign(
+      { sub: userId, shopId },
+      { secret: config.get<string>('JWT_SECRET'), expiresIn: '24h' }
+    );
+    authToken = `Bearer ${token}`;
   });
 
   afterAll(async () => {
-    // Cleanup
-    if (supplierId) {
-      await prisma.supplierDebt.deleteMany({ where: { supplier_id: supplierId } });
-      await prisma.cashEntry.deleteMany({ where: { supplier_id: supplierId } });
-      await prisma.supplier.deleteMany({ where: { id: supplierId } });
-    }
+    // Cleanup (FK-safe order)
+    await prisma.supplierDebtPayment.deleteMany({ where: { debt: { shop_id: shopId } } });
+    await prisma.supplierDebt.deleteMany({ where: { shop_id: shopId } });
+    await prisma.cashEntry.deleteMany({ where: { shop_id: shopId } });
+    await prisma.supplier.deleteMany({ where: { shop_id: shopId } });
     await prisma.userRole.deleteMany({ where: { shop_id: shopId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
     await prisma.shop.deleteMany({ where: { id: shopId } });
+    await prisma.enterprise.deleteMany({ where: { id: enterpriseId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
 
     await app.close();
   });
@@ -144,9 +175,10 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
 
       expect(supplierDetailsResponse.body.stats.total_balance).toBe(50000);
 
-      // Step 5: Pay supplier 70,000 (overpayment by 20,000)
+      // Step 5: Pay the debt 70,000 (overpayment by 20,000) via the debts endpoint
+      const debtId = purchaseResponse.body.debt.id;
       const paymentResponse = await request(app.getHttpServer())
-        .post(`/suppliers/${supplierId}/payments`)
+        .post(`/debts/${debtId}/payments`)
         .set('Authorization', authToken)
         .send({
           amount: 70000,
@@ -192,28 +224,32 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
 
       expect(finalSupplierResponse.body.stats.total_balance).toBe(-5000);
 
-      // Step 9: Verify cash balance calculation
-      const cashBalance = await prisma.cashEntry.aggregate({
-        where: { shop_id: shopId, deleted: false },
-        _sum: {
-          amount: true,
-        },
-      });
+      // Step 9: Verify net cash balance (amounts are stored positive; type gives direction)
+      const [inSum, outSum] = await Promise.all([
+        prisma.cashEntry.aggregate({
+          where: { shop_id: shopId, type: 'IN', deleted: false },
+          _sum: { amount: true },
+        }),
+        prisma.cashEntry.aggregate({
+          where: { shop_id: shopId, type: 'OUT', deleted: false },
+          _sum: { amount: true },
+        }),
+      ]);
+      const netBalance = (inSum._sum.amount || 0) - (outSum._sum.amount || 0);
 
-      // Initial: +200,000
-      // Purchase: -50,000
-      // Payment: -70,000
-      // Refund claim: +15,000
-      // Expected: 95,000
-      const expectedBalance = 200000 - 50000 - 70000 + 15000;
-      expect(cashBalance._sum.amount).toBe(expectedBalance);
+      // Initial: +200,000 (IN)
+      // Purchase: -50,000 (cash OUT)
+      // Debt payment: no cash movement (recorded against the debt only)
+      // Refund claim: +15,000 (cash IN)
+      // Expected net: 165,000
+      const expectedBalance = 200000 - 50000 + 15000;
+      expect(netBalance).toBe(expectedBalance);
     });
 
     it('should prevent merchandise purchase when cash balance insufficient', async () => {
       // Create supplier
       const supplier = await prisma.supplier.create({
         data: {
-          id: `supplier-${Date.now()}`,
           shop_id: shopId,
           name: 'Test Supplier 2',
         },
@@ -248,17 +284,16 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
       await prisma.supplier.delete({ where: { id: supplier.id } });
     });
 
-    it('should allow mobile money purchase regardless of cash balance', async () => {
+    it('should reject merchandise purchase with an unsupported payment method (CASH only)', async () => {
       // Create supplier
       const supplier = await prisma.supplier.create({
         data: {
-          id: `supplier-${Date.now()}`,
           shop_id: shopId,
           name: 'Test Supplier 3',
         },
       });
 
-      // Purchase via mobile money should work even with low cash
+      // The merchandise-purchase endpoint only supports payment_method CASH
       const purchaseResponse = await request(app.getHttpServer())
         .post('/cash/merchandise-purchase')
         .set('Authorization', authToken)
@@ -269,10 +304,9 @@ describe.skip('Supplier Purchase Workflow (E2E)', () => {
           payment_method: 'MOBILE_MONEY',
           create_debt: false,
         })
-        .expect(201);
+        .expect(400);
 
-      expect(purchaseResponse.body.cash_entry).toBeDefined();
-      expect(purchaseResponse.body.message).toContain('succès');
+      expect(JSON.stringify(purchaseResponse.body.message)).toContain('CASH');
 
       // Cleanup
       await prisma.cashEntry.deleteMany({ where: { supplier_id: supplier.id } });

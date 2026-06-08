@@ -499,7 +499,7 @@ export default function ProductCatalogScreen({ navigation }: any) {
       setImportStep('success');
       Alert.alert('Import reussi', 'Le catalogue a ete mis a jour avec succes.');
       closeImportModal();
-      loadProducts();
+      loadData();
     } catch (error: any) {
       Alert.alert(
         'Erreur',

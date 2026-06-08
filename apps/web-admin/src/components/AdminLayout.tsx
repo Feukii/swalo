@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { name: 'Boutiques', path: '/shops', icon: '🏪' },
   { name: 'Utilisateurs', path: '/users', icon: '👥' },
   { name: "Logs d'audit", path: '/audit-logs', icon: '📝' },
+  { name: 'Licences', path: '/license-config', icon: '🔑' },
   { name: 'Configuration', path: '/config', icon: '⚙️' },
   { name: 'Statistiques', path: '/system', icon: '📈' },
 ];

@@ -11,7 +11,12 @@ import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
 import { CreateShopAdminDto } from './dto/create-shop-admin.dto';
 import { UpdateLicenseDto } from './dto/update-license.dto';
 import { UpdateSystemConfigDto } from './dto/system-config.dto';
-import { getAvailableModulesForLicense, type LicenseTier } from '@swalo/core/modules/registry';
+import {
+  getAvailableModulesForLicense,
+  MODULE_DEFINITIONS,
+  type LicenseTier,
+  type ModuleDefinition,
+} from '@swalo/core/modules/registry';
 
 @Injectable()
 export class AdminService {
@@ -1089,5 +1094,190 @@ export class AdminService {
       .join('\n');
 
     return header + rows;
+  }
+
+  // ============================================
+  // LICENSE CONFIG (tier ↔ module mapping)
+  // ============================================
+
+  private readonly LICENSE_TIER_ORDER: Record<string, number> = {
+    STARTER: 0,
+    PROFESSIONAL: 1,
+    ENTERPRISE: 2,
+  };
+
+  /**
+   * Get the effective module definitions with any SystemConfig overrides applied.
+   */
+  async getEffectiveModuleDefinitions(): Promise<(ModuleDefinition & { overridden: boolean })[]> {
+    const config = await this.prisma.systemConfig.findUnique({
+      where: { key: 'license_tier_overrides' },
+    });
+
+    const overrides: Record<string, LicenseTier> = {};
+    if (config) {
+      try {
+        const parsed = JSON.parse(config.value);
+        if (Array.isArray(parsed)) {
+          for (const o of parsed) {
+            overrides[o.code] = o.minimumLicenseTier;
+          }
+        }
+      } catch {
+        // ignore invalid JSON
+      }
+    }
+
+    return MODULE_DEFINITIONS.map(m => {
+      const override = overrides[m.code];
+      if (override && override !== m.minimumLicenseTier) {
+        return { ...m, minimumLicenseTier: override, overridden: true };
+      }
+      return { ...m, overridden: false };
+    });
+  }
+
+  /**
+   * Get modules available for a given license tier, using effective (overridden) definitions.
+   */
+  async getEffectiveModulesForLicense(licenseTier: LicenseTier): Promise<ModuleDefinition[]> {
+    const modules = await this.getEffectiveModuleDefinitions();
+    const tierLevel = this.LICENSE_TIER_ORDER[licenseTier];
+    return modules.filter(m => this.LICENSE_TIER_ORDER[m.minimumLicenseTier] <= tierLevel);
+  }
+
+  async getLicenseConfig() {
+    const modules = await this.getEffectiveModuleDefinitions();
+
+    const tiers: Record<string, { modules: string[]; count: number }> = {};
+    for (const tier of ['STARTER', 'PROFESSIONAL', 'ENTERPRISE'] as LicenseTier[]) {
+      const tierLevel = this.LICENSE_TIER_ORDER[tier];
+      const tierModules = modules
+        .filter(m => this.LICENSE_TIER_ORDER[m.minimumLicenseTier] <= tierLevel)
+        .map(m => m.code);
+      tiers[tier] = { modules: tierModules, count: tierModules.length };
+    }
+
+    return { modules, tiers };
+  }
+
+  async updateLicenseConfig(
+    adminId: string,
+    overrides: { code: string; minimumLicenseTier: string }[]
+  ) {
+    // Validate all module codes exist
+    const allCodes = MODULE_DEFINITIONS.map(m => m.code);
+    for (const o of overrides) {
+      if (!allCodes.includes(o.code)) {
+        throw new BadRequestException(`Module inconnu : ${o.code}`);
+      }
+      if (!(o.minimumLicenseTier in this.LICENSE_TIER_ORDER)) {
+        throw new BadRequestException(`Tier invalide : ${o.minimumLicenseTier}`);
+      }
+    }
+
+    // Validate: CORE modules must stay STARTER
+    for (const o of overrides) {
+      const def = MODULE_DEFINITIONS.find(m => m.code === o.code);
+      if (def?.tier === 'CORE' && o.minimumLicenseTier !== 'STARTER') {
+        throw new BadRequestException(`Le module CORE "${def.name}" doit rester STARTER`);
+      }
+    }
+
+    // Build effective map for dependency validation
+    const effectiveMap: Record<string, string> = {};
+    for (const m of MODULE_DEFINITIONS) {
+      effectiveMap[m.code] = m.minimumLicenseTier;
+    }
+    for (const o of overrides) {
+      effectiveMap[o.code] = o.minimumLicenseTier;
+    }
+
+    // Validate: a module's tier can't be lower than its dependencies' tiers
+    for (const o of overrides) {
+      const def = MODULE_DEFINITIONS.find(m => m.code === o.code);
+      if (!def) continue;
+      for (const dep of def.dependencies) {
+        const depTier = effectiveMap[dep];
+        if (this.LICENSE_TIER_ORDER[o.minimumLicenseTier] < this.LICENSE_TIER_ORDER[depTier]) {
+          const depDef = MODULE_DEFINITIONS.find(m => m.code === dep);
+          throw new BadRequestException(
+            `"${def.name}" (${o.minimumLicenseTier}) ne peut pas être plus bas que sa dépendance "${depDef?.name || dep}" (${depTier})`
+          );
+        }
+      }
+    }
+
+    // Only store non-default overrides
+    const nonDefaultOverrides = overrides.filter(o => {
+      const def = MODULE_DEFINITIONS.find(m => m.code === o.code);
+      return def && def.minimumLicenseTier !== o.minimumLicenseTier;
+    });
+
+    return this.prisma.$transaction(async tx => {
+      // Store in SystemConfig
+      await tx.systemConfig.upsert({
+        where: { key: 'license_tier_overrides' },
+        create: {
+          key: 'license_tier_overrides',
+          value: JSON.stringify(nonDefaultOverrides),
+          description: 'Overrides de tier minimum par module',
+        },
+        update: {
+          value: JSON.stringify(nonDefaultOverrides),
+        },
+      });
+
+      // Auto-sync: check each shop and remove modules no longer allowed
+      const shops = await tx.shop.findMany({
+        where: { deleted: false },
+        select: {
+          id: true,
+          enabled_modules: true,
+          enterprise: { select: { license_tier: true } },
+        },
+      });
+
+      let shopsUpdated = 0;
+      for (const shop of shops) {
+        if (shop.enabled_modules.length === 0) continue; // [] = all allowed
+        const licenseTier = shop.enterprise?.license_tier as LicenseTier;
+        if (!licenseTier) continue;
+
+        const tierLevel = this.LICENSE_TIER_ORDER[licenseTier];
+        const allowedCodes = MODULE_DEFINITIONS.map(m => {
+          const override = nonDefaultOverrides.find(o => o.code === m.code);
+          const minTier = override ? override.minimumLicenseTier : m.minimumLicenseTier;
+          return { code: m.code, minTier };
+        })
+          .filter(m => this.LICENSE_TIER_ORDER[m.minTier] <= tierLevel)
+          .map(m => m.code);
+
+        const filtered = shop.enabled_modules.filter(m => allowedCodes.includes(m));
+        if (filtered.length !== shop.enabled_modules.length) {
+          await tx.shop.update({
+            where: { id: shop.id },
+            data: { enabled_modules: filtered },
+          });
+          shopsUpdated++;
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          admin_id: adminId,
+          action: 'UPDATE_LICENSE_CONFIG',
+          entity_type: 'SYSTEM_CONFIG',
+          entity_id: 'license_tier_overrides',
+          new_value: { overrides: nonDefaultOverrides, shops_updated: shopsUpdated },
+        },
+      });
+
+      return {
+        success: true,
+        overrides: nonDefaultOverrides,
+        shops_updated: shopsUpdated,
+      };
+    });
   }
 }

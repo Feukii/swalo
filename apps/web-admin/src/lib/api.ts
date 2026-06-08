@@ -282,4 +282,15 @@ export const adminApi = {
     const response = await api.post(`/admin/shops/${shopId}/modules`, { modules });
     return response.data;
   },
+
+  // ---- License Config ----
+  getLicenseConfig: async () => {
+    const response = await api.get('/admin/license-config');
+    return response.data;
+  },
+
+  updateLicenseConfig: async (overrides: Array<{ code: string; minimumLicenseTier: string }>) => {
+    const response = await api.put('/admin/license-config', { overrides });
+    return response.data;
+  },
 };

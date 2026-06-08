@@ -11,6 +11,7 @@ import AdminGlobalUsers from './pages/AdminGlobalUsers';
 import AdminConfig from './pages/AdminConfig';
 import AuditLogs from './pages/AuditLogs';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import LicenseConfig from './pages/LicenseConfig';
 import './App.css';
 
 function App() {
@@ -73,6 +74,16 @@ function App() {
             <AdminRoute>
               <AdminLayout>
                 <AuditLogs />
+              </AdminLayout>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/license-config"
+          element={
+            <AdminRoute>
+              <AdminLayout>
+                <LicenseConfig />
               </AdminLayout>
             </AdminRoute>
           }

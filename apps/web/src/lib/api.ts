@@ -546,6 +546,16 @@ export const invoicesApi = {
     const response = await api.put(`/invoices/${id}/cancel`);
     return response.data;
   },
+
+  getPdfBase64: async (id: string) => {
+    const response = await api.get(`/invoices/${id}/pdf?format=base64`);
+    return response.data;
+  },
+
+  regeneratePdf: async (id: string) => {
+    const response = await api.post(`/invoices/${id}/regenerate-pdf`);
+    return response.data;
+  },
 };
 
 // Enterprise API
@@ -897,30 +907,6 @@ export const packagingTypesApi = {
   },
   initDefaults: async () => {
     const response = await api.post('/packaging-types/init-defaults', {});
-    return response.data;
-  },
-};
-
-// Invoices API (Factures)
-export const invoicesApi = {
-  getAll: async (params?: { customer_id?: string; start_date?: string; end_date?: string }) => {
-    const response = await api.get('/invoices', { params });
-    return response.data;
-  },
-  getOne: async (id: string) => {
-    const response = await api.get(`/invoices/${id}`);
-    return response.data;
-  },
-  createFromSale: async (saleId: string) => {
-    const response = await api.post(`/invoices/from-sale/${saleId}`);
-    return response.data;
-  },
-  getPdfBase64: async (id: string) => {
-    const response = await api.get(`/invoices/${id}/pdf?format=base64`);
-    return response.data;
-  },
-  regeneratePdf: async (id: string) => {
-    const response = await api.post(`/invoices/${id}/regenerate-pdf`);
     return response.data;
   },
 };

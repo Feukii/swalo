@@ -56,19 +56,27 @@ interface CreateShopData {
 }
 
 const AVAILABLE_MODULES = [
-  { value: 'auth', label: 'Authentification' },
-  { value: 'products', label: 'Produits' },
-  { value: 'customers', label: 'Clients' },
-  { value: 'sales', label: 'Ventes' },
-  { value: 'cash', label: 'Caisse' },
-  { value: 'inventory', label: 'Inventaire' },
-  { value: 'suppliers', label: 'Fournisseurs' },
-  { value: 'debts', label: 'Dettes' },
-  { value: 'receivables', label: 'Créances' },
-  { value: 'reports', label: 'Rapports' },
-  { value: 'invoices', label: 'Factures' },
-  { value: 'transfers', label: 'Transferts' },
-  { value: 'pin-invites', label: 'Invitations PIN' },
+  // CORE
+  { value: 'auth', label: 'Authentification', tier: 'CORE' },
+  { value: 'products', label: 'Produits', tier: 'CORE' },
+  { value: 'customers', label: 'Clients', tier: 'CORE' },
+  { value: 'sales', label: 'Ventes', tier: 'CORE' },
+  { value: 'cash', label: 'Caisse', tier: 'CORE' },
+  { value: 'inventory', label: 'Inventaire', tier: 'CORE' },
+  // EXTENDED
+  { value: 'suppliers', label: 'Fournisseurs', tier: 'EXTENDED' },
+  { value: 'payments', label: 'Paiements', tier: 'EXTENDED' },
+  { value: 'receivables', label: 'Creances', tier: 'EXTENDED' },
+  { value: 'debts', label: 'Dettes', tier: 'EXTENDED' },
+  { value: 'admin', label: 'Gestion Utilisateurs', tier: 'EXTENDED' },
+  { value: 'reports', label: 'Rapports', tier: 'EXTENDED' },
+  // PREMIUM
+  { value: 'enterprise', label: 'Multi-boutique', tier: 'PREMIUM' },
+  { value: 'transfers', label: 'Transferts', tier: 'PREMIUM' },
+  { value: 'invoices', label: 'Factures', tier: 'PREMIUM' },
+  { value: 'notifications', label: 'Notifications', tier: 'PREMIUM' },
+  { value: 'import', label: 'Import Bulk', tier: 'PREMIUM' },
+  { value: 'packaging-types', label: 'Conditionnements', tier: 'PREMIUM' },
 ];
 
 export default function AdminShops() {
@@ -84,6 +92,14 @@ export default function AdminShops() {
   const [shopToDelete, setShopToDelete] = useState<Shop | null>(null);
   const [shopToBlock, setShopToBlock] = useState<Shop | null>(null);
   const [blockReason, setBlockReason] = useState('');
+  const [showModulesModal, setShowModulesModal] = useState(false);
+  const [modulesTarget, setModulesTarget] = useState<Shop | null>(null);
+  const [editModules, setEditModules] = useState<string[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+  const [licenseConfig, setLicenseConfig] = useState<{
+    modules: Array<{ code: string; name: string; tier: string; minimumLicenseTier: string }>;
+    tiers: Record<string, { modules: string[] }>;
+  } | null>(null);
 
   const [formData, setFormData] = useState<CreateShopData>({
     shop_name: '',
@@ -189,6 +205,40 @@ export default function AdminShops() {
     } catch (err: any) {
       setError(err.response?.data?.message || 'Erreur lors du blocage/déblocage de la boutique');
     }
+  };
+
+  const openModulesModal = async (shop: Shop) => {
+    try {
+      const data = await adminApi.getShopModules(shop.id);
+      setModulesTarget(shop);
+      setEditModules(data.enabled_modules || []);
+      if (!licenseConfig) {
+        const config = await adminApi.getLicenseConfig();
+        setLicenseConfig(config);
+      }
+      setShowModulesModal(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors du chargement des modules');
+    }
+  };
+
+  const handleSaveModules = async () => {
+    if (!modulesTarget) return;
+    try {
+      setSavingModules(true);
+      setError(null);
+      await adminApi.updateShopModules(modulesTarget.id, editModules);
+      setShowModulesModal(false);
+      await loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors de la mise a jour des modules');
+    } finally {
+      setSavingModules(false);
+    }
+  };
+
+  const toggleEditModule = (code: string) => {
+    setEditModules(prev => (prev.includes(code) ? prev.filter(m => m !== code) : [...prev, code]));
   };
 
   const toggleModule = (moduleValue: string) => {
@@ -397,27 +447,34 @@ export default function AdminShops() {
                   <button
                     onClick={() => setExpandedShopId(expandedShopId === shop.id ? null : shop.id)}
                     className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded hover:bg-blue-50"
-                    title="Voir les détails"
+                    title="Voir les details"
                   >
-                    {expandedShopId === shop.id ? '🔼' : '🔽'}
+                    {expandedShopId === shop.id ? '[-]' : '[+]'}
+                  </button>
+                  <button
+                    onClick={() => openModulesModal(shop)}
+                    className="text-indigo-600 hover:text-indigo-800 px-3 py-1 rounded hover:bg-indigo-50 text-sm"
+                    title="Modifier les modules"
+                  >
+                    Modules
                   </button>
                   <button
                     onClick={() => setShopToBlock(shop)}
-                    className={`px-3 py-1 rounded transition ${
+                    className={`px-3 py-1 rounded transition text-sm ${
                       shop.is_blocked
                         ? 'text-green-600 hover:text-green-800 hover:bg-green-50'
                         : 'text-orange-600 hover:text-orange-800 hover:bg-orange-50'
                     }`}
-                    title={shop.is_blocked ? 'Débloquer' : 'Bloquer'}
+                    title={shop.is_blocked ? 'Debloquer' : 'Bloquer'}
                   >
-                    {shop.is_blocked ? '✅' : '🚫'}
+                    {shop.is_blocked ? 'Debloquer' : 'Bloquer'}
                   </button>
                   <button
                     onClick={() => setShopToDelete(shop)}
-                    className="text-red-600 hover:text-red-800 px-3 py-1 rounded hover:bg-red-50"
+                    className="text-red-600 hover:text-red-800 px-3 py-1 rounded hover:bg-red-50 text-sm"
                     title="Supprimer"
                   >
-                    🗑️
+                    Supprimer
                   </button>
                 </div>
               </div>
@@ -690,6 +747,92 @@ export default function AdminShops() {
               >
                 ❌ Annuler
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modules Edit Modal */}
+      {showModulesModal && modulesTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-2">Modules de "{modulesTarget.name}"</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Cochez les modules a activer. Les modules non autorises par la licence sont
+                desactives.
+              </p>
+              {licenseConfig ? (
+                (['CORE', 'EXTENDED', 'PREMIUM'] as const).map(tierGroup => {
+                  const tierLabel =
+                    tierGroup === 'CORE'
+                      ? 'Coeur'
+                      : tierGroup === 'EXTENDED'
+                        ? 'Etendu'
+                        : 'Premium';
+                  const mods = licenseConfig.modules.filter(m => m.tier === tierGroup);
+                  const licenseTier = modulesTarget.enterprise?.license_tier || 'STARTER';
+                  const allowedByLicense = licenseConfig.tiers[licenseTier]?.modules || [];
+                  return (
+                    <div key={tierGroup} className="mb-4">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-2">{tierLabel}</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {mods.map(m => {
+                          const allowed = allowedByLicense.includes(m.code);
+                          return (
+                            <label
+                              key={m.code}
+                              className={`flex items-center gap-2 p-2 rounded border text-sm ${
+                                allowed
+                                  ? 'cursor-pointer hover:bg-gray-50'
+                                  : 'opacity-50 cursor-not-allowed bg-gray-100'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editModules.includes(m.code)}
+                                disabled={!allowed}
+                                onChange={() => toggleEditModule(m.code)}
+                                className="rounded text-blue-600"
+                              />
+                              <span>{m.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                  {AVAILABLE_MODULES.map(module => (
+                    <label key={module.value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editModules.includes(module.value)}
+                        onChange={() => toggleEditModule(module.value)}
+                        className="rounded text-blue-600"
+                      />
+                      <span className="text-sm">{module.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowModulesModal(false)}
+                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSaveModules}
+                  disabled={savingModules}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {savingModules ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

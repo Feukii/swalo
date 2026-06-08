@@ -45,7 +45,19 @@ export default function AdminEnterprises() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLicenseModal, setShowLicenseModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showShopModulesModal, setShowShopModulesModal] = useState(false);
   const [enterpriseToDelete, setEnterpriseToDelete] = useState<Enterprise | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [shopModulesTarget, setShopModulesTarget] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [shopModules, setShopModules] = useState<string[]>([]);
+  const [savingModules, setSavingModules] = useState(false);
+  const [licenseConfig, setLicenseConfig] = useState<{
+    modules: Array<{ code: string; name: string; tier: string; minimumLicenseTier: string }>;
+    tiers: Record<string, { modules: string[] }>;
+  } | null>(null);
 
   const [formData, setFormData] = useState<CreateEnterpriseData>({
     name: '',
@@ -177,6 +189,65 @@ export default function AdminEnterprises() {
     } catch (err: any) {
       setError(err.response?.data?.message || 'Erreur lors de la mise à jour de la licence');
     }
+  };
+
+  const handleBlockToggle = async () => {
+    if (!selectedEnterprise) return;
+    try {
+      if (selectedEnterprise.is_blocked) {
+        await adminApi.unblockEnterprise(selectedEnterprise.id);
+        setSuccess('Entreprise debloquee avec succes');
+      } else {
+        await adminApi.blockEnterprise(
+          selectedEnterprise.id,
+          blockReason || 'Aucune raison specifiee'
+        );
+        setSuccess('Entreprise bloquee avec succes');
+      }
+      setShowBlockModal(false);
+      setBlockReason('');
+      loadEnterprises();
+      loadEnterpriseDetails(selectedEnterprise.id);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors du blocage/deblocage');
+    }
+  };
+
+  const openShopModulesModal = async (shop: { id: string; name: string }) => {
+    try {
+      const data = await adminApi.getShopModules(shop.id);
+      setShopModulesTarget(shop);
+      setShopModules(data.enabled_modules || []);
+      // Load license config for tier grouping
+      if (!licenseConfig) {
+        const config = await adminApi.getLicenseConfig();
+        setLicenseConfig(config);
+      }
+      setShowShopModulesModal(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors du chargement des modules');
+    }
+  };
+
+  const handleSaveShopModules = async () => {
+    if (!shopModulesTarget) return;
+    try {
+      setSavingModules(true);
+      await adminApi.updateShopModules(shopModulesTarget.id, shopModules);
+      setSuccess(`Modules de "${shopModulesTarget.name}" mis a jour`);
+      setShowShopModulesModal(false);
+      if (selectedEnterprise) {
+        loadEnterpriseDetails(selectedEnterprise.id);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Erreur lors de la mise a jour des modules');
+    } finally {
+      setSavingModules(false);
+    }
+  };
+
+  const toggleShopModule = (code: string) => {
+    setShopModules(prev => (prev.includes(code) ? prev.filter(m => m !== code) : [...prev, code]));
   };
 
   const resetForm = () => {
@@ -401,24 +472,34 @@ export default function AdminEnterprises() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-wrap gap-2 mt-4">
                     <button
                       onClick={() => openEditModal(selectedEnterprise)}
                       className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                     >
-                      ✏️ Modifier
+                      Modifier
                     </button>
                     <button
                       onClick={() => openLicenseModal(selectedEnterprise)}
                       className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
                     >
-                      📜 Licence
+                      Licence
+                    </button>
+                    <button
+                      onClick={() => setShowBlockModal(true)}
+                      className={`flex-1 px-3 py-2 text-white text-sm rounded transition-colors ${
+                        selectedEnterprise.is_blocked
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-orange-600 hover:bg-orange-700'
+                      }`}
+                    >
+                      {selectedEnterprise.is_blocked ? 'Debloquer' : 'Bloquer'}
                     </button>
                     <button
                       onClick={() => openDeleteModal(selectedEnterprise)}
                       className="px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
                     >
-                      🗑️
+                      Supprimer
                     </button>
                   </div>
                 </div>
@@ -427,27 +508,51 @@ export default function AdminEnterprises() {
                 {selectedEnterprise.shops && selectedEnterprise.shops.length > 0 && (
                   <div className="mb-6">
                     <h4 className="font-semibold text-gray-900 mb-3">
-                      🏪 Boutiques ({selectedEnterprise.shops.length})
+                      Boutiques ({selectedEnterprise.shops.length})
                     </h4>
                     <div className="space-y-2">
-                      {selectedEnterprise.shops.map(shop => (
+                      {selectedEnterprise.shops.map((shop: any) => (
                         <div key={shop.id} className="p-3 bg-gray-50 rounded">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between mb-2">
                             <div>
                               <p className="font-medium text-gray-900">{shop.name}</p>
                               <p className="text-xs text-gray-600">Code: {shop.code}</p>
                             </div>
-                            <div className="text-right">
+                            <div className="flex items-center gap-2">
                               <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
                                 {shop.shop_type}
                               </span>
                               {shop.is_blocked && (
-                                <span className="ml-2 text-xs px-2 py-1 bg-red-100 text-red-800 rounded">
-                                  🚫 Bloquée
+                                <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded">
+                                  Bloquee
                                 </span>
                               )}
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  openShopModulesModal({ id: shop.id, name: shop.name });
+                                }}
+                                className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200 transition-colors"
+                              >
+                                Modules
+                              </button>
                             </div>
                           </div>
+                          {/* Module badges */}
+                          {shop.enabled_modules && shop.enabled_modules.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {shop.enabled_modules.map((m: string) => (
+                                <span
+                                  key={m}
+                                  className="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded"
+                                >
+                                  {m}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-green-600">Tous les modules (par defaut)</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -826,11 +931,11 @@ export default function AdminEnterprises() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">🗑️ Supprimer l'entreprise</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Supprimer l'entreprise</h2>
               <p className="text-gray-600 mb-6">
-                Êtes-vous sûr de vouloir supprimer l'entreprise{' '}
-                <strong>{enterpriseToDelete.name}</strong> ? Cette action est irréversible et
-                supprimera également toutes les boutiques associées.
+                Etes-vous sur de vouloir supprimer l'entreprise{' '}
+                <strong>{enterpriseToDelete.name}</strong> ? Cette action est irreversible et
+                supprimera egalement toutes les boutiques associees.
               </p>
               <div className="flex gap-3">
                 <button
@@ -847,6 +952,135 @@ export default function AdminEnterprises() {
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Block/Unblock Modal */}
+      {showBlockModal && selectedEnterprise && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                {selectedEnterprise.is_blocked ? "Debloquer l'entreprise" : "Bloquer l'entreprise"}
+              </h2>
+              {!selectedEnterprise.is_blocked ? (
+                <>
+                  <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-800">
+                    Bloquer une entreprise bloque aussi toutes ses boutiques.
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Raison du blocage
+                    </label>
+                    <textarea
+                      value={blockReason}
+                      onChange={e => setBlockReason(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      rows={3}
+                      placeholder="Raison du blocage..."
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-600 mb-4">
+                  Debloquer l'entreprise <strong>{selectedEnterprise.name}</strong> et ses boutiques
+                  bloquees en cascade ?
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowBlockModal(false);
+                    setBlockReason('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleBlockToggle}
+                  className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                    selectedEnterprise.is_blocked
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-orange-600 hover:bg-orange-700'
+                  }`}
+                >
+                  {selectedEnterprise.is_blocked ? 'Debloquer' : 'Bloquer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shop Modules Edit Modal */}
+      {showShopModulesModal && shopModulesTarget && licenseConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Modules de "{shopModulesTarget.name}"
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Cochez les modules a activer. Les modules non autorises par la licence sont
+                desactives.
+              </p>
+              {/* Grouped by tier */}
+              {(['CORE', 'EXTENDED', 'PREMIUM'] as const).map(tierGroup => {
+                const tierLabel =
+                  tierGroup === 'CORE' ? 'Coeur' : tierGroup === 'EXTENDED' ? 'Etendu' : 'Premium';
+                const mods = licenseConfig.modules.filter(m => m.tier === tierGroup);
+                // Modules allowed by enterprise license
+                const allowedByLicense = selectedEnterprise
+                  ? licenseConfig.tiers[selectedEnterprise.license_tier]?.modules || []
+                  : [];
+                return (
+                  <div key={tierGroup} className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">{tierLabel}</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {mods.map(m => {
+                        const allowed = allowedByLicense.includes(m.code);
+                        return (
+                          <label
+                            key={m.code}
+                            className={`flex items-center gap-2 p-2 rounded border text-sm ${
+                              allowed
+                                ? 'cursor-pointer hover:bg-gray-50'
+                                : 'opacity-50 cursor-not-allowed bg-gray-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={shopModules.includes(m.code)}
+                              disabled={!allowed}
+                              onChange={() => toggleShopModule(m.code)}
+                              className="rounded text-blue-600"
+                            />
+                            <span>{m.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowShopModulesModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSaveShopModules}
+                  disabled={savingModules}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {savingModules ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>
             </div>

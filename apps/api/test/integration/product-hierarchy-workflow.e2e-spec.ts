@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/common/prisma/prisma.service';
@@ -13,12 +15,13 @@ import { PrismaService } from '../../src/common/prisma/prisma.service';
  * 3. Cascade filtering
  * 4. Verify all products updated correctly
  */
-// TODO: Fix e2e test to work with current Prisma schema (requires owner relation for Shop, etc.)
-describe.skip('Product Hierarchy Workflow (E2E)', () => {
+describe('Product Hierarchy Workflow (E2E)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let authToken: string;
   let shopId: string;
+  let userId: string;
+  let enterpriseId: string;
   let productIds: string[] = [];
 
   beforeAll(async () => {
@@ -32,47 +35,76 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
 
     prisma = app.get<PrismaService>(PrismaService);
 
-    // Setup
+    // Setup: Create test user, enterprise, shop, role and a real JWT
+    const user = await prisma.user.create({
+      data: {
+        id: `test-user-${Date.now()}`,
+        email: `test-${Date.now()}@example.com`,
+        password_hash: 'hashed_password',
+        display_name: 'Test User',
+      },
+    });
+    userId = user.id;
+
+    const enterprise = await prisma.enterprise.create({
+      data: {
+        code: `TE${Math.floor(Math.random() * 1000000)}`,
+        name: 'Test Enterprise',
+        owner_id: userId,
+        license_tier: 'ENTERPRISE',
+      },
+    });
+    enterpriseId = enterprise.id;
+
     const shop = await prisma.shop.create({
       data: {
         id: `test-shop-${Date.now()}`,
         name: 'Test Shop',
         code: `TS${Math.floor(Math.random() * 1000000)}`,
         address: 'Test Address',
-        currency: 'FCFA',
+        owner_id: userId,
+        enterprise_id: enterpriseId,
+        enabled_modules: [
+          'auth',
+          'products',
+          'customers',
+          'sales',
+          'cash',
+          'inventory',
+          'suppliers',
+          'receivables',
+          'debts',
+          'payments',
+          'reports',
+        ],
       },
     });
     shopId = shop.id;
 
-    const user = await prisma.user.create({
-      data: {
-        id: `test-user-${Date.now()}`,
-        email: `test-${Date.now()}@example.com`,
-        password_hash: 'hashed_password',
-        first_name: 'Test',
-        last_name: 'User',
-      },
-    });
-
     await prisma.userRole.create({
       data: {
-        user_id: user.id,
+        user_id: userId,
         shop_id: shopId,
-        role: 'OWNER',
+        role: 'BOSS',
       },
     });
 
-    authToken = 'Bearer test-token';
+    // Real JWT matching jwt.strategy ({ sub, shopId } signed with JWT_SECRET)
+    const config = app.get(ConfigService);
+    const token = new JwtService().sign(
+      { sub: userId, shopId },
+      { secret: config.get<string>('JWT_SECRET'), expiresIn: '24h' }
+    );
+    authToken = `Bearer ${token}`;
   });
 
   afterAll(async () => {
-    // Cleanup
-    if (productIds.length > 0) {
-      await prisma.product.deleteMany({ where: { id: { in: productIds } } });
-    }
+    // Cleanup (FK-safe order)
+    await prisma.product.deleteMany({ where: { shop_id: shopId } });
     await prisma.userRole.deleteMany({ where: { shop_id: shopId } });
-    await prisma.user.deleteMany({ where: { email: { contains: 'test-' } } });
     await prisma.shop.deleteMany({ where: { id: shopId } });
+    await prisma.enterprise.deleteMany({ where: { id: enterpriseId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
 
     await app.close();
   });
@@ -148,7 +180,7 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
           old_value: 'GLASSES',
           new_value: 'SCREEN_PROTECTORS',
         })
-        .expect(200);
+        .expect(201);
 
       expect(batchUpdateResponse.body.count).toBe(4);
       expect(batchUpdateResponse.body.message).toContain('4 produit(s) mis à jour');
@@ -174,7 +206,7 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
           new_value: 'Glass 3D Premium',
           family: 'SCREEN_PROTECTORS',
         })
-        .expect(200);
+        .expect(201);
 
       expect(batchUpdateResponse.body.count).toBe(3); // Only 3 products have Glass 3D
 
@@ -212,7 +244,7 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
           family: 'SCREEN_PROTECTORS',
           article_type: 'Glass 3D Premium',
         })
-        .expect(200);
+        .expect(201);
 
       expect(batchUpdateResponse.body.count).toBe(2); // 2 Samsung products with Glass 3D Premium
 
@@ -269,7 +301,11 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
         .set('Authorization', authToken)
         .expect(200);
 
-      expect(fullCascadeResponse.body.article_types).toEqual(['Glass 3D Premium']);
+      // The article_type filter narrows the next level (brands), not the
+      // article_types list itself — so all types in the family are returned.
+      expect(fullCascadeResponse.body.article_types.sort()).toEqual(
+        ['Glass 2D', 'Glass 3D Premium'].sort()
+      );
       expect(fullCascadeResponse.body.brands.sort()).toEqual(
         ['Samsung Electronics', 'Tecno'].sort()
       );
@@ -322,7 +358,7 @@ describe.skip('Product Hierarchy Workflow (E2E)', () => {
           new_value: 'A10E',
           family: 'SCREEN_PROTECTORS',
         })
-        .expect(200);
+        .expect(201);
 
       // Verify versions incremented
       const afterProducts = await prisma.product.findMany({

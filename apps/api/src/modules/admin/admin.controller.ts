@@ -102,6 +102,25 @@ export class AdminController {
   }
 
   // ============================================
+  // LICENSE CONFIG (tier ↔ module mapping)
+  // ============================================
+
+  @Get('license-config')
+  @Roles(Role.SUPERADMIN)
+  async getLicenseConfig() {
+    return this.adminService.getLicenseConfig();
+  }
+
+  @Put('license-config')
+  @Roles(Role.SUPERADMIN)
+  async updateLicenseConfig(
+    @Body() body: { overrides: { code: string; minimumLicenseTier: string }[] },
+    @Request() req: any
+  ) {
+    return this.adminService.updateLicenseConfig(req.user.userId, body.overrides);
+  }
+
+  // ============================================
   // SHOP MANAGEMENT (SUPERADMIN)
   // ============================================
 
