@@ -43,7 +43,7 @@ Build a small **shared foundation first** (notification channel abstraction + `N
 
 **Feature Type**: Mixed — New Capabilities (notifications channels, printing, web-offline, OHADA, PDG report) + Enhancement (shop code, tablet) + Doc refresh.
 **Estimated Complexity**: **High** (multi-app, multi-domain; OHADA and web-offline are each large on their own).
-**Primary Systems Affected**: `apps/api` (auth, enterprise, reports, notifications, invoices, admin-controls, + new `accounting`), `apps/mobile`, `apps/web`, `apps/web-admin`, new `apps/web-accounting`, `packages/core`.
+**Primary Systems Affected**: `apps/api` (auth, enterprise, reports, notifications, invoices, admin-controls, + new `accounting`), `apps/mobile`, `apps/web`, `apps/web-admin`, new `apps/web-accounting`, `packages/core`. Brand identity (design tokens, app icons, logos, favicons) across `apps/mobile`, `apps/web`, `apps/web-admin` (WS-11 rebranding).
 **Dependencies**: transactional email provider (SMTP — existing), WhatsApp provider (Twilio/Meta), Dexie + vite-plugin-pwa (web), an ESC/POS RN printer lib (mobile dev build), SYSCOHADA chart of accounts (OHADA, accountant validation).
 
 ---
@@ -185,7 +185,7 @@ Notification channel abstraction + `NotificationLog` + opt-in/config fields + mu
 
 ### Phase 1 — Quick, low-risk wins
 
-WS-1 Alphanumeric shop code; WS-2 PDG enterprise financial-summary; WS-6 Tablet mode; WS-3 email alerts + reminders (build on existing SMTP + scheduler).
+WS-1 Alphanumeric shop code; WS-2 PDG enterprise financial-summary; WS-6 Tablet mode; WS-3 email alerts + reminders (build on existing SMTP + scheduler); WS-11 SWALO rebranding (new brand kit: tokens, icons, logos, favicons).
 
 ### Phase 2 — Channel + device features
 
@@ -370,6 +370,39 @@ Execute in order. Each task is functional only (NO code). `VALIDATE` commands as
 
 - **IMPLEMENT**: Fix monorepo tree to 4 apps (+ `web-admin`, + future `web-accounting`); remove "(à créer)" markers. Fix roles → `BOSS, MANAGER, EMPLOYEE, SUPERADMIN`. Fix money → "entiers FCFA (pas de décimales)". Replace stacks: mobile = expo-sqlite (WAL) + Zustand; web = React+Vite+Tailwind+Zustand (+ IndexedDB/PWA offline as delivered). Add web-admin (super-admin), Notifications (channels: email + WhatsApp), and the new accounting surfaces. Update Déploiement → Neon + Render + Vercel + Expo EAS. Refresh "Prochaines étapes".
 - **VALIDATE**: `pnpm -w run format:check`; manual accuracy pass.
+
+### WS-11 — SWALO REBRANDING
+
+Source brand kit: `apps/mobile/assets/swalo_assets/` (icons, logos SVG/PNG, favicons, social, design tokens). Brand: **Marine `#102A43`** (primary/reine), **Sky Blue `#0EA5E9`** (action), **Sky Light `#38BDF8`** (accent), functional green `#10B981` / red `#EF4444` / amber `#F59E0B`, neutrals (textPrimary `#111827`, textSecondary `#6B7280`, sectionBg `#F3F4F6`, border `#E5E7EB`, surface `#FFFFFF`); radii card 12 / button 8. Replaces the legacy "Bleu pétrole" `#0F2A44` and old `#1E3A8A`.
+
+#### ADD shared brand tokens (source of truth)
+
+- **IMPLEMENT**: Add `swalo_tokens.ts` as the canonical token module (e.g. `packages/core/src/brand/tokens.ts`, re-exported via `@swalo/core`) so all apps consume one source. Keep the brand kit folder in the repo as the design source (move to e.g. `assets/brand/` or keep under mobile assets).
+- **VALIDATE**: `pnpm --filter @swalo/core run type-check`.
+
+#### UPDATE theme constants (3 apps)
+
+- **IMPLEMENT**: Point `apps/mobile/src/constants/theme-v2.ts`, `apps/web/src/constants/theme.ts`, `apps/web-admin/src/constants/theme.ts` primary → Marine `#102A43`, action/interactive → Sky Blue `#0EA5E9`, accent → Sky Light `#38BDF8`, and align functional/neutral colors + radii to the tokens. Keep the existing theme API/shape (only values change) to avoid touching every consumer.
+- **GOTCHA**: gradients referencing `#0F2A44`/`#183B5A` (web `theme.ts`, `Home.tsx`) → rebase on marine.
+
+#### REPLACE hardcoded brand hex (mobile screens)
+
+- **IMPLEMENT**: Replace literal `#0F2A44` and `#1E3A8A` occurrences with Marine `#102A43` (or the theme token) across mobile screens (POSScreen, ShopAdminScreen, CustomerDetailsScreen, SupplierDetailsScreen, SyncConflictsScreen, SyncStatusScreen, TestScreen, …). Prefer importing the theme/token over new literals.
+- **VALIDATE**: `grep -rin '0F2A44\|1E3A8A' apps/*/src` returns only intentional/none.
+
+#### REPLACE app icons, splash, favicons, logos
+
+- **IMPLEMENT**:
+  - **Mobile** (`apps/mobile`): copy `app_icons/*` + chosen logo PNGs into `assets/`; update `app.config.ts` `icon`, `android.adaptiveIcon.foregroundImage` (+ `backgroundColor` → `#102A43`), `splash.image` (+ background per brand), `web.favicon` to the new files. Use `android_maskable_512x512.png` for the adaptive foreground; `ios_icon_1024x1024.png` for `icon`.
+  - **Web** (`apps/web`): copy `favicon/*` into `public/`; update `index.html` `<link rel="icon">` (replace `/logo.png`) and paste `favicon/head_snippet.html`; add `favicon/site.webmanifest`; swap any in-app logo (`/logo.png`) for the new horizontal logo.
+  - **Web-admin** (`apps/web-admin`): same favicon/manifest/logo swap; dark-surface variant uses `swalo_horizontal_blanc.svg` / `swalo_icone_ciel.svg`.
+- **GOTCHA**: iOS icons need the full set in the EAS build; the repo currently ships Android-first (iOS credentials absent) — Android icon set is the priority. `expo-splash-screen` is already a plugin.
+- **VALIDATE**: `pnpm --filter @swalo/web run build && pnpm --filter @swalo/web-admin run build`; manual: app icon/splash on an Android dev build, favicon in browser tab.
+
+#### UPDATE docs for rebrand
+
+- **IMPLEMENT**: Note the rebrand in `features-catalog.md` §14 (Design) + changelog, and refresh any color-chart under `docs/design/`. Update [[swalo-brand-tokens]] memory if kept.
+- **VALIDATE**: `pnpm -w run format:check`.
 
 ---
 
