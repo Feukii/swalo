@@ -6,6 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { PrismaModule } from '../../common/prisma/prisma.module';
+import { ProductsModule } from '../products/products.module';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsScheduler } from './notifications.scheduler';
@@ -13,6 +14,7 @@ import { NotificationsScheduler } from './notifications.scheduler';
 @Module({
   imports: [
     PrismaModule,
+    ProductsModule,
     ScheduleModule.forRoot(),
     MailerModule.forRootAsync({
       imports: [ConfigModule],
