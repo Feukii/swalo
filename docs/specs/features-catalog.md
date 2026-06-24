@@ -1,6 +1,6 @@
 # SWALO - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-04-23
+> **Dernière mise à jour** : 2026-06-25
 > **Version application** : 1.0.0
 > **Branche** : develop
 >
@@ -71,13 +71,13 @@ Tous les montants sont stockés en **entiers FCFA** (francs CFA). Aucune décima
 
 ### 2.2 Connexion par PIN (mobile)
 
-| Propriété         | Valeur                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| **Description**   | Authentification mobile rapide : code boutique (6 chiffres) + code PIN (4 chiffres) |
-| **Plateformes**   | Mobile, Web (alternatif)                                                            |
-| **Module**        | Coeur                                                                               |
-| **Endpoint**      | `POST /api/auth/pin`                                                                |
-| **Fichiers clés** | `apps/mobile/src/screens/LoginPinScreen.tsx`, `apps/web/src/pages/LoginPin.tsx`     |
+| Propriété         | Valeur                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| **Description**   | Authentification mobile rapide : code boutique (alphanumérique, 4–10 caractères) + code PIN (4 chiffres) |
+| **Plateformes**   | Mobile, Web (alternatif)                                                                                 |
+| **Module**        | Coeur                                                                                                    |
+| **Endpoint**      | `POST /api/auth/pin`                                                                                     |
+| **Fichiers clés** | `apps/mobile/src/screens/LoginPinScreen.tsx`, `apps/web/src/pages/LoginPin.tsx`                          |
 
 - Le caissier saisit le code de sa boutique puis son PIN personnel
 - Le device est enregistré automatiquement (device_id, device_name, device_type)
@@ -162,14 +162,15 @@ Chaque rôle est attribué **par boutique** via le modèle `UserRole`. Un utilis
 
 ### 2.9 Modification du code boutique
 
-| Propriété       | Valeur                                                            |
-| --------------- | ----------------------------------------------------------------- |
-| **Description** | Le propriétaire peut modifier le code à 6 chiffres de sa boutique |
-| **Plateformes** | Mobile, Web                                                       |
-| **Module**      | Coeur                                                             |
-| **Endpoint**    | `PATCH /api/auth/shop-code`                                       |
+| Propriété       | Valeur                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| **Description** | Le propriétaire peut modifier le code alphanumérique (4–10 caractères majuscules) de sa boutique |
+| **Plateformes** | Mobile, Web                                                                                      |
+| **Module**      | Coeur                                                                                            |
+| **Endpoint**    | `PATCH /api/auth/shop-code`                                                                      |
 
 - Nécessite la confirmation par PIN du propriétaire
+- Format alphanumérique majuscule `[A-Z0-9]`, 4 à 10 caractères, normalisé en majuscules ; les anciens codes numériques restent valides (Plan 030)
 
 ### 2.10 Changement de boutique
 
@@ -1053,6 +1054,20 @@ Chaque opération :
 4. **RECEIVED** : réception + ajout du stock dans la boutique cible
 5. **CANCELLED** : annulation possible à tout moment
 
+### 10.5 Rapport financier consolidé (PDG)
+
+| Propriété         | Valeur                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| **Description**   | Vue consolidée pour le PDG : récap de la santé financière par boutique + total entreprise             |
+| **Plateformes**   | Web, API                                                                                              |
+| **Module**        | Premium (enterprise)                                                                                  |
+| **Endpoint**      | `GET /api/enterprises/:id/financial-summary?start_date&end_date`                                      |
+| **Fichiers clés** | `apps/api/src/modules/enterprise/enterprise.service.ts`, `apps/web/src/pages/EnterpriseDashboard.tsx` |
+| **Statut**        | **Implémenté** (Plan 030)                                                                             |
+
+- Par boutique : chiffre d'affaires, solde de caisse, flux net, créances en cours, dettes fournisseurs, valeur du stock, produits en stock bas, indice de santé
+- Total entreprise = somme des boutiques ; accès réservé au propriétaire (`@Roles(BOSS, SUPERADMIN)`, vérification `owner_id` à chaque requête)
+
 ---
 
 ## 11. Notifications & Communication
@@ -1079,6 +1094,36 @@ Chaque opération :
 | **Plateformes** | Mobile, Web, API                                              |
 | **Module**      | Premium (notifications)                                       |
 | **Champ**       | `Customer.email_notifications_enabled` (Boolean)              |
+
+### 11.3 Alertes de stock bas par email
+
+| Propriété         | Valeur                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| **Description**   | Email digest au gérant quand des produits passent sous leur seuil d'alerte                     |
+| **Plateformes**   | API (CRON)                                                                                     |
+| **Module**        | Premium (notifications)                                                                        |
+| **Endpoint**      | `POST /api/notifications/low-stock/trigger` (déclenchement manuel)                             |
+| **Fichiers clés** | `apps/api/src/modules/notifications/notifications.service.ts`, `templates/low-stock-alert.hbs` |
+| **Statut**        | **Implémenté** (Plan 030)                                                                      |
+
+- CRON quotidien à 07:00 UTC ; opt-in par boutique via `Shop.low_stock_alerts_enabled`
+- Destinataire : `Shop.notification_email` → email boutique → email propriétaire
+- Anti-doublon via `NotificationLog` (fenêtre 24 h par produit)
+
+### 11.4 Rappels de paiement (créances)
+
+| Propriété         | Valeur                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| **Description**   | Relance email automatique des clients pour les créances échues impayées                         |
+| **Plateformes**   | API (CRON)                                                                                      |
+| **Module**        | Premium (notifications)                                                                         |
+| **Endpoint**      | `POST /api/notifications/payment-reminders/trigger` (déclenchement manuel)                      |
+| **Fichiers clés** | `apps/api/src/modules/notifications/notifications.service.ts`, `templates/payment-reminder.hbs` |
+| **Statut**        | **Implémenté** (Plan 030)                                                                       |
+
+- CRON quotidien à 08:00 UTC ; opt-in par boutique via `Shop.payment_reminders_enabled`
+- Cible : créances `PENDING`/`PARTIAL`, `balance > 0`, `due_date` dépassée ; destinataire = email client (si `email_notifications_enabled`)
+- Cadence `Shop.payment_reminder_cadence_days`, plancher 24 h, maximum 5 relances ; suivi via `NotificationLog`
 
 ---
 
@@ -1520,17 +1565,15 @@ Erreurs Prisma mappées :
 
 > Ces fonctionnalités sont prévues dans le plan 023 ou identifiées comme besoins futurs.
 
-| Fonctionnalité                  | Description                                        | Priorité | Plan  |
-| ------------------------------- | -------------------------------------------------- | -------- | ----- |
-| **Alertes stock bas par email** | Notification quand un produit passe sous le seuil  | Basse    | Futur |
-| **Rappels de paiement**         | Relance automatique des créances impayées          | Basse    | Futur |
-| **Scan code-barres**            | Scanner pour ajouter des produits au panier        | Moyenne  | Futur |
-| **Imprimante ticket**           | Impression de tickets de caisse                    | Moyenne  | Futur |
-| **Notifications WhatsApp**      | Envoi de notifications via WhatsApp                | Basse    | Futur |
-| **Multi-devises**               | Support de plusieurs monnaies                      | Basse    | Futur |
-| **Mode tablette**               | Interface optimisée pour tablettes                 | Moyenne  | Futur |
-| **Mode offline web**            | IndexedDB pour le fonctionnement web sans internet | Basse    | Futur |
-| **Projections financières**     | Prévisions basées sur l'historique                 | Basse    | Futur |
+| Fonctionnalité              | Description                                        | Priorité | Plan  |
+| --------------------------- | -------------------------------------------------- | -------- | ----- |
+| **Scan code-barres**        | Scanner pour ajouter des produits au panier        | Moyenne  | Futur |
+| **Imprimante ticket**       | Impression de tickets de caisse                    | Moyenne  | Futur |
+| **Notifications WhatsApp**  | Envoi de notifications via WhatsApp                | Basse    | Futur |
+| **Multi-devises**           | Support de plusieurs monnaies                      | Basse    | Futur |
+| **Mode tablette**           | Interface optimisée pour tablettes                 | Moyenne  | Futur |
+| **Mode offline web**        | IndexedDB pour le fonctionnement web sans internet | Basse    | Futur |
+| **Projections financières** | Prévisions basées sur l'historique                 | Basse    | Futur |
 
 ---
 
@@ -1556,6 +1599,9 @@ Erreurs Prisma mappées :
 | Entreprise multi-shop      |   -    |  X  |  X  |    -    |
 | Transferts inter-boutiques |   X    |  X  |  X  |    -    |
 | Email notifications        |   -    |  -  |  X  |    -    |
+| Alertes stock bas (email)  |   -    |  -  |  X  |    -    |
+| Rappels de paiement        |   -    |  -  |  X  |    -    |
+| Rapport consolidé PDG      |   -    |  X  |  X  |    -    |
 | Import CSV/Excel           |   -    |  X  |  X  |    -    |
 | Admin système (SUPERADMIN) |   -    |  X  |  X  |    -    |
 | Gestion utilisateurs       |   X    |  X  |  X  |    -    |
@@ -1641,7 +1687,7 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 | -------------------------------------------------- | :--------: | :--: | :-----: | :------: |
 | Authentification (login, PIN, profil, switch-shop) |     L      |  LE  |   LE    |    LE    |
 | Inscription / création de boutique (self-serve)    |     —      |  E   |    —    |    —     |
-| Modification code boutique (6 chiffres)            |     —      |  E   |    —    |    —     |
+| Modification code boutique (alphanumérique)        |     —      |  E   |    —    |    —     |
 | PIN invites (génération, consommation)             |     L      |  LE  |   LE    |    —     |
 | Devices (liste, révocation)                        |     L      |  LE  |   LE    |    —     |
 | Horaires de travail                                |     L      |  LE  |   LE    |    L     |
@@ -1683,17 +1729,18 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 ## Historique des mises à jour
 
-| Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Auteur      |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 2026-04-23 | Ajout section 19 "Matrice des rôles" (SUPERADMIN/BOSS/MANAGER/EMPLOYEE × domaines fonctionnels). Fix erreurs compilation : ProductCatalogScreen.tsx (loadProducts → loadData, TS2552) ; LicenseConfig.tsx (suppression import React inutilisé, TS6133). Validation complète OK (lint + tests + builds web/web-admin/api)                                                                                                                                                                             | Claude Code |
-| 2026-02-19 | Web-admin : page Configuration Licences (GET/PUT /admin/license-config, overrides tier-module, auto-sync boutiques), blocage/deblocage entreprise avec cascade boutiques, edition modules par boutique (groupes par tier, filtrage licence). Mobile : fix sync freshness (timestamp garanti apres fullSync, re-lecture AsyncStorage dans intervalle 60s). API : getEffectiveModulesForLicense() avec SystemConfig overrides, updateShopModules respecte overrides                                    | Claude Code |
-| 2026-02-19 | Fix 9 bugs mobile: migration SQLite v5 (packaging_type_id, expected_total, pricing_notes), fix Text rendering stock, credit limit enforcement (PENDING+PARTIAL) sur SaleScreen/CustomerDetailsScreen/CashScreen, import CSV reel via expo-document-picker, messages conflits sync humanises, modules desactives regroupes dans MoreScreen, refresh licence au focus, auto-sync au focus HomeScreen. Correction table licences dans features-catalog (STARTER = Coeur + Etendu, pas Coeur uniquement) | Claude Code |
-| 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web                                                                                                                                | Claude Code |
-| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen                                                                                                                                        | Claude Code |
-| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                                                                                                                                                              | Claude Code |
-| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                                                                                                                                                    | Claude Code |
-| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                                                                                                                                                     | Claude Code |
-| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                                                                                                                                                   | Claude Code |
-| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                                                                                                                                                 | Claude Code |
+| Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Auteur      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-06-25 | Plan 030 (incrément 1) : code boutique alphanumérique (4–10 maj., normalisé `[A-Z0-9]`, anciens codes numériques conservés) sur api/core/mobile/web/web-admin ; rapport financier consolidé PDG (`GET /enterprises/:id/financial-summary`, récap santé par boutique + total) ; alertes stock bas par email + rappels de paiement (CRON quotidiens, `NotificationLog`, `ClientReceivable.due_date`, réglages notifications par boutique) ; fix rôle `OWNER`→`BOSS` (web). Validation OK (lint 0 warning, type-check, 134 tests API, e2e 16, builds web/web-admin) | Claude Code |
+| 2026-04-23 | Ajout section 19 "Matrice des rôles" (SUPERADMIN/BOSS/MANAGER/EMPLOYEE × domaines fonctionnels). Fix erreurs compilation : ProductCatalogScreen.tsx (loadProducts → loadData, TS2552) ; LicenseConfig.tsx (suppression import React inutilisé, TS6133). Validation complète OK (lint + tests + builds web/web-admin/api)                                                                                                                                                                                                                                         | Claude Code |
+| 2026-02-19 | Web-admin : page Configuration Licences (GET/PUT /admin/license-config, overrides tier-module, auto-sync boutiques), blocage/deblocage entreprise avec cascade boutiques, edition modules par boutique (groupes par tier, filtrage licence). Mobile : fix sync freshness (timestamp garanti apres fullSync, re-lecture AsyncStorage dans intervalle 60s). API : getEffectiveModulesForLicense() avec SystemConfig overrides, updateShopModules respecte overrides                                                                                                | Claude Code |
+| 2026-02-19 | Fix 9 bugs mobile: migration SQLite v5 (packaging_type_id, expected_total, pricing_notes), fix Text rendering stock, credit limit enforcement (PENDING+PARTIAL) sur SaleScreen/CustomerDetailsScreen/CashScreen, import CSV reel via expo-document-picker, messages conflits sync humanises, modules desactives regroupes dans MoreScreen, refresh licence au focus, auto-sync au focus HomeScreen. Correction table licences dans features-catalog (STARTER = Coeur + Etendu, pas Coeur uniquement)                                                             | Claude Code |
+| 2026-02-16 | Plan 029: Harmonisation Web/Mobile - Palette Navy (#0F2A44) sur web, logo SWALO, module gating frontend (sidebar grisée + cadenas), 6 contrôleurs API décorés @RequireModule, auth retourne enabled_modules/license_tier, erreur 403 MODULE_DISABLED structurée, fix POS.tsx bug montant FCFA (\*100 retiré), fix SQLite auth_cache NOT NULL, detail modal caisse web                                                                                                                                                                                            | Claude Code |
+| 2026-02-14 | Plan 027: Full offline autonomy - 21 entites synchees (vs 7), 22+ operations offline, auth PIN offline, rapports SQLite locaux, sync prioritaire (sales > debts > reference), intervalles adaptatifs (batterie), auto-resolution conflits (LWW reference, manuel financier), retention donnees 90j, indicateur fraicheur sur HomeScreen/BusinessReportsScreen                                                                                                                                                                                                    | Claude Code |
+| 2026-02-10 | Plan 026: Rôles simplifiés (6→4: EMPLOYEE, MANAGER, BOSS, SUPERADMIN), enterprise_id obligatoire sur Shop, validation licence dans updateShopModules, auto-sync modules au changement licence, branding "Entreprise - Boutique" dans auth + UI, logo_url sur Enterprise                                                                                                                                                                                                                                                                                          | Claude Code |
+| 2026-02-10 | Plan 025: Application web admin indépendante (`apps/web-admin`) - Séparation complète de l'admin plateforme en app dédiée port 3002, tokens séparés, login SUPERADMIN exclusif, sidebar sombre, nettoyage pages admin de apps/web                                                                                                                                                                                                                                                                                                                                | Claude Code |
+| 2026-02-10 | Plan 024: Plateforme admin ERP - Enterprise CRUD, Shop creation, License management, Global Users, SystemConfig, Audit export, 4 pages web admin                                                                                                                                                                                                                                                                                                                                                                                                                 | Claude Code |
+| 2026-02-09 | Plan 023: Credit limits enforcement, borrowing limits, auto-cart total, admin blocking/audit, modular architecture                                                                                                                                                                                                                                                                                                                                                                                                                                               | Claude Code |
+| 2026-02-09 | Création initiale - inventaire complet de toutes les fonctionnalités                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Claude Code |
 
 <!-- EOF -->
