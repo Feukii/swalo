@@ -29,7 +29,7 @@ import { getFailedCount, getTotalQueueCount } from '../db/queue';
 import { syncEngine } from '../db/sync';
 
 const Colors = {
-  primary: { 900: '#1E3A8A', 700: '#1D4ED8' },
+  primary: { 900: '#102A43', 700: '#1B3A57' },
   success: '#16A34A',
   warning: '#EA580C',
   error: '#DC2626',
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1E3A8A',
+    backgroundColor: '#102A43',
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1E3A8A',
+    backgroundColor: '#102A43',
     borderRadius: 12,
     padding: 16,
     gap: 8,

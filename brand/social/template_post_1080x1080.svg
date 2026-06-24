@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect width="1080" height="1080" fill="#102A43"/>
+  <rect x="0" y="0" width="1080" height="14" fill="#38BDF8"/>
+  <g transform="translate(70,70) scale(1.6)">
+    <rect x="0" y="0" width="64" height="64" rx="18" fill="#38BDF8"/>
+    <path d="M19 24 Q19 17 29 17 L37 17 Q47 17 47 24 Q47 31 37 31 L27 31 Q17 31 17 41 Q17 48 27 48 L37 48 Q47 48 47 41" fill="none" stroke="#102A43" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="180" y="160" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700" fill="#FFFFFF">Swalo</text>
+  <text x="540" y="560" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="400" fill="#8AA0B6">[ Zone titre du post ]</text>
+  <text x="70" y="1000" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600" fill="#38BDF8">Ne perds plus un franc sans le savoir.</text>
+</svg>

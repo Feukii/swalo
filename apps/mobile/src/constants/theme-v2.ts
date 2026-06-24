@@ -1,17 +1,20 @@
 /**
  * SWALO v2 Design System
- * Theme based on design specifications with "Bleu pétrole" (#0F2A44) primary color
+ * Theme based on design specifications with "Marine" (#102A43) primary color
  */
 
 // Nouvelle palette de couleurs (SWALO v2)
 export const Colors = {
   primary: {
-    900: '#0F2A44', // Bleu pétrole (nouveau)
-    700: '#183B5A', // Bleu accent (hover/press)
+    900: '#102A43', // Marine (couleur reine)
+    700: '#1B3A57', // Marine accent (hover/press)
     50: '#EEF5FB', // Fonds bleutés discrets
-    main: '#0F2A44', // Alias for primary.900
+    main: '#102A43', // Alias for primary.900
     foreground: '#ffffff',
   },
+  // Couleur d'action / interactive (boutons, liens) et accent logo
+  action: '#0EA5E9', // Sky Blue (action)
+  accent: '#38BDF8', // Sky Light (accent)
   background: '#F8FAFC',
   surface: '#FFFFFF',
   // Main text color (for backward compatibility)
@@ -30,19 +33,19 @@ export const Colors = {
   },
   border: '#E5E7EB',
   success: {
-    main: '#1EB980',
+    main: '#10B981', // Vert fonctionnel (brand)
     background: '#ECFDF5',
     text: '#065F46',
     foreground: '#ffffff',
   },
   warning: {
-    main: '#F59E0B',
+    main: '#F59E0B', // Ambre fonctionnel (brand)
     background: '#FFFBEB',
     text: '#92400E',
     foreground: '#ffffff',
   },
   danger: {
-    main: '#DC2626',
+    main: '#EF4444', // Rouge fonctionnel (brand)
     background: '#FEF2F2',
     text: '#991B1B',
     foreground: '#ffffff',

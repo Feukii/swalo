@@ -5,15 +5,18 @@
 
 export const Colors = {
   primary: {
-    900: '#0F2A44', // Bleu pétrole
-    700: '#183B5A', // Bleu accent (hover)
+    900: '#102A43', // Marine (couleur reine)
+    700: '#1B3A57', // Marine accent (hover)
     500: '#1E4D6E',
     300: '#6B9DBF',
     100: '#C8DFF0',
     50: '#EEF5FB', // Fonds bleutés discrets
-    main: '#0F2A44',
+    main: '#102A43',
     foreground: '#ffffff',
   },
+  // Couleur d'action / interactive (boutons, liens) et accent logo
+  action: '#0EA5E9', // Sky Blue (action)
+  accent: '#38BDF8', // Sky Light (accent)
   background: '#F8FAFC',
   surface: '#FFFFFF',
   text: '#0B1220',
@@ -30,22 +33,22 @@ export const Colors = {
   },
   border: '#E5E7EB',
   success: {
-    main: '#1EB980',
+    main: '#10B981', // Vert fonctionnel (brand)
     background: '#ECFDF5',
     text: '#065F46',
   },
   warning: {
-    main: '#F59E0B',
+    main: '#F59E0B', // Ambre fonctionnel (brand)
     background: '#FFFBEB',
     text: '#92400E',
   },
   danger: {
-    main: '#DC2626',
+    main: '#EF4444', // Rouge fonctionnel (brand)
     background: '#FEF2F2',
     text: '#991B1B',
   },
   info: {
-    main: '#2563EB',
+    main: '#0EA5E9', // Sky Blue (action)
     background: '#EFF6FF',
     text: '#1E40AF',
   },
@@ -71,16 +74,16 @@ export const Colors = {
       gradient: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
     },
     products: {
-      main: '#0F2A44', // Bleu pétrole
+      main: '#102A43', // Marine
       light: '#EEF5FB',
       dark: '#0B1220',
-      gradient: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
+      gradient: 'linear-gradient(135deg, #102A43 0%, #1B3A57 100%)',
     },
     sales: {
-      main: '#1EB980', // Green
+      main: '#10B981', // Green (brand)
       light: '#ECFDF5',
       dark: '#065F46',
-      gradient: 'linear-gradient(135deg, #1EB980 0%, #059669 100%)',
+      gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
     },
   },
 
@@ -135,7 +138,7 @@ export const Typography = {
 };
 
 export const Gradients = {
-  primary: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
+  primary: 'linear-gradient(135deg, #102A43 0%, #1B3A57 100%)',
   customers: Colors.context.customers.gradient,
   suppliers: Colors.context.suppliers.gradient,
   cash: Colors.context.cash.gradient,
