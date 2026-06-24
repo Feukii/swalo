@@ -10,9 +10,11 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { adminApi } from '../lib/api';
+import type { RootStackParamList } from '../../App';
 
 interface UserDevice {
   id: string;
@@ -41,17 +43,22 @@ interface UserRole {
   user: User;
 }
 
-export default function UserManagementScreen({ navigation }: any) {
+interface UserManagementScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'UserManagement'>;
+}
+
+export default function UserManagementScreen({ navigation }: UserManagementScreenProps) {
   const [users, setUsers] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadUsers = async () => {
     try {
-      const data = await adminApi.getShopUsers();
+      const data = await adminApi.getShopUsers<UserRole>();
       setUsers(data);
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de charger les utilisateurs');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Impossible de charger les utilisateurs');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,7 +90,7 @@ export default function UserManagementScreen({ navigation }: any) {
     ]);
   };
 
-  const handleRevokeDevice = async (deviceId: string, deviceName: string) => {
+  const _handleRevokeDevice = async (deviceId: string, deviceName: string) => {
     Alert.alert(
       "Révoquer l'appareil",
       `Êtes-vous sûr de vouloir révoquer l'accès de "${deviceName}" ?`,
@@ -97,8 +104,9 @@ export default function UserManagementScreen({ navigation }: any) {
               await adminApi.revokeDevice(deviceId);
               Alert.alert('Succès', 'Appareil révoqué avec succès');
               loadUsers();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || "Impossible de révoquer l'appareil");
+            } catch (error: unknown) {
+              const message = error instanceof Error ? error.message : '';
+              Alert.alert('Erreur', message || "Impossible de révoquer l'appareil");
             }
           },
         },

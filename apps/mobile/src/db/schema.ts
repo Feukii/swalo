@@ -6,7 +6,8 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'swalo.db';
-const DB_VERSION = 5;
+/** Current target schema version (see runMigrations). Kept for documentation. */
+const _DB_VERSION = 5;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 

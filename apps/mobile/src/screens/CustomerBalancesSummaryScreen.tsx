@@ -17,8 +17,13 @@ import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { customerRepo, clientReceivableRepo } from '../db/repositories';
 
+interface CustomerBalancesSummaryNavigation {
+  goBack: () => void;
+  navigate: (screen: 'CustomerDetails', params: { id: string }) => void;
+}
+
 interface CustomerBalancesSummaryScreenProps {
-  navigation: any;
+  navigation: CustomerBalancesSummaryNavigation;
 }
 
 interface CustomerWithBalance {

@@ -35,7 +35,7 @@ export class InventoryService {
         ref_id: data.ref_id,
         unit_cost: data.unit_cost,
         device_id: data.device_id,
-        client_op_id: `inv_${data.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        client_op_id: `inv_${data.device_id}_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
       },
     });
 
@@ -105,7 +105,7 @@ export class InventoryService {
       product_id: data.product_id,
       type: 'PURCHASE',
       qty: data.quantity,
-      reason: data.reason || 'Approvisionnement',
+      reason: data.reason && data.reason.length > 0 ? data.reason : 'Approvisionnement',
       unit_cost: data.unit_cost,
       device_id: data.device_id,
     });
@@ -124,7 +124,7 @@ export class InventoryService {
     device_id: string;
   }) {
     this.logger.log(
-      `Creating stock batch: product=${data.product_id}, qty=${data.quantity}, cost=${data.cost_price}, sell=${data.sell_price}`
+      `Creating stock batch: product=${data.product_id}, qty=${String(data.quantity)}, cost=${String(data.cost_price)}, sell=${String(data.sell_price)}`
     );
 
     // Fermer la validité du lot précédent (si existe)
@@ -175,7 +175,7 @@ export class InventoryService {
               : 0,
         };
         this.logger.log(
-          `Price change detected: cost ${previousBatch.cost_price} -> ${data.cost_price}, sell ${previousBatch.sell_price} -> ${data.sell_price}`
+          `Price change detected: cost ${String(previousBatch.cost_price)} -> ${String(data.cost_price)}, sell ${String(previousBatch.sell_price)} -> ${String(data.sell_price)}`
         );
       }
     }
@@ -211,10 +211,10 @@ export class InventoryService {
           product_id: data.product_id,
           type: 'PURCHASE',
           qty: data.quantity,
-          reason: `Nouveau lot - Prix achat: ${data.cost_price}, Prix vente: ${data.sell_price}`,
+          reason: `Nouveau lot - Prix achat: ${String(data.cost_price)}, Prix vente: ${String(data.sell_price)}`,
           unit_cost: data.cost_price,
           device_id: data.device_id,
-          client_op_id: `batch_${data.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          client_op_id: `batch_${data.device_id}_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
         },
       });
 
@@ -228,7 +228,7 @@ export class InventoryService {
       });
 
       this.logger.log(
-        `Stock batch created: batch_id=${newBatch.id}, product=${data.product_id}, qty=${data.quantity}`
+        `Stock batch created: batch_id=${newBatch.id}, product=${data.product_id}, qty=${String(data.quantity)}`
       );
       return newBatch;
     });
@@ -293,7 +293,7 @@ export class InventoryService {
     const totalAvailable = batches.reduce((sum, b) => sum + b.remaining_quantity, 0);
     if (totalAvailable < data.quantity) {
       throw new BadRequestException(
-        `Stock insuffisant. Disponible: ${totalAvailable}, Demandé: ${data.quantity}`
+        `Stock insuffisant. Disponible: ${String(totalAvailable)}, Demandé: ${String(data.quantity)}`
       );
     }
 
@@ -333,7 +333,7 @@ export class InventoryService {
           ref_type: data.sale_id ? 'SALE' : undefined,
           ref_id: data.sale_id,
           device_id: data.device_id,
-          client_op_id: `sale_${data.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          client_op_id: `sale_${data.device_id}_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
         },
       });
     });
@@ -367,7 +367,7 @@ export class InventoryService {
 
     if (batch.remaining_quantity < data.quantity) {
       throw new BadRequestException(
-        `Stock insuffisant dans ce lot. Disponible: ${batch.remaining_quantity}, Demandé: ${data.quantity}`
+        `Stock insuffisant dans ce lot. Disponible: ${String(batch.remaining_quantity)}, Demandé: ${String(data.quantity)}`
       );
     }
 
@@ -392,7 +392,7 @@ export class InventoryService {
           ref_type: data.sale_id ? 'SALE' : undefined,
           ref_id: data.sale_id,
           device_id: data.device_id,
-          client_op_id: `sale_${data.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          client_op_id: `sale_${data.device_id}_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
         },
       });
 

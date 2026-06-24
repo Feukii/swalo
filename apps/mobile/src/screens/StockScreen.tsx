@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Package, Plus, Check, Trash, Edit } from '../components/icons/SimpleIcons';
+import { Package, Plus, Check, Trash } from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { Product, ProductCategory } from '../types/stock';
@@ -29,7 +29,7 @@ interface EditableProduct {
   isEditing?: boolean;
 }
 
-export default function StockScreen({ navigation }: any) {
+export default function StockScreen() {
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

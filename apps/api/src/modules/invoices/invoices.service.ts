@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PdfGeneratorService, InvoicePdfData } from './pdf-generator.service';
 import { SearchInvoiceDto } from './dto/create-invoice.dto';
@@ -15,7 +16,10 @@ export class InvoicesService {
    * Generate the next sequential invoice number for a shop
    * Format: {SHOP_CODE}-{YYYY}-{SEQ:4} (e.g., BTQ01-2026-0001)
    */
-  private async generateInvoiceNumber(tx: any, shopId: string): Promise<string> {
+  private async generateInvoiceNumber(
+    tx: Prisma.TransactionClient,
+    shopId: string
+  ): Promise<string> {
     const shop = await tx.shop.findUnique({
       where: { id: shopId },
       select: { code: true },
@@ -26,7 +30,7 @@ export class InvoicesService {
     }
 
     const year = new Date().getFullYear();
-    const prefix = `${shop.code}-${year}-`;
+    const prefix = `${shop.code}-${String(year)}-`;
 
     // Find the highest existing invoice number for this shop and year
     const lastInvoice = await tx.invoice.findFirst({
@@ -40,7 +44,7 @@ export class InvoicesService {
 
     let seq = 1;
     if (lastInvoice) {
-      const lastSeq = parseInt(lastInvoice.number.split('-').pop() || '0', 10);
+      const lastSeq = parseInt(lastInvoice.number.split('-').pop() ?? '0', 10);
       seq = lastSeq + 1;
     }
 
@@ -101,9 +105,7 @@ export class InvoicesService {
 
       // Build invoice items from sale items
       const invoiceItems = sale.items.map(item => {
-        const description = item.product
-          ? `${item.product.name} (${item.product.sku})`
-          : item.product_name || 'Article';
+        const description = `${item.product.name} (${item.product.sku})`;
         const taxRate = item.tax_rate || 0;
         const itemSubtotal = Math.round(item.unit_price * item.qty);
         const itemDiscount = item.discount || 0;
@@ -137,14 +139,14 @@ export class InvoicesService {
         invoice_number: invoiceNumber,
         issue_date: new Date(),
         shop_name: sale.shop.name,
-        shop_address: sale.shop.address || undefined,
-        shop_phone: sale.shop.phone || undefined,
-        shop_email: sale.shop.email || undefined,
+        shop_address: sale.shop.address ?? undefined,
+        shop_phone: sale.shop.phone ?? undefined,
+        shop_email: sale.shop.email ?? undefined,
         customer_name: sale.customer?.name,
-        customer_phone: sale.customer?.phone || undefined,
-        customer_email: sale.customer?.email || undefined,
-        customer_address: sale.customer?.address || undefined,
-        cashier_name: sale.cashier?.display_name,
+        customer_phone: sale.customer?.phone ?? undefined,
+        customer_email: sale.customer?.email ?? undefined,
+        customer_address: sale.customer?.address ?? undefined,
+        cashier_name: sale.cashier.display_name,
         items: invoiceItems.map(item => ({
           description: item.description,
           qty: item.qty,
@@ -170,7 +172,7 @@ export class InvoicesService {
           id: uuidv4(),
           shop_id: shopId,
           sale_id: saleId,
-          customer_id: sale.customer_id || null,
+          customer_id: sale.customer_id ?? null,
           number: invoiceNumber,
           status: paidTotal >= grandTotal ? 'PAID' : 'ISSUED',
           issue_date: new Date(),
@@ -180,7 +182,7 @@ export class InvoicesService {
           grand_total: grandTotal,
           paid_total: paidTotal,
           balance_due: balanceDue < 0 ? 0 : balanceDue,
-          notes: notes || null,
+          notes: notes ?? null,
           pdf_data: pdfBase64,
           items: {
             create: invoiceItems,
@@ -222,7 +224,7 @@ export class InvoicesService {
   /**
    * Re-generer le PDF d'une facture existante
    */
-  async regeneratePdf(shopId: string, invoiceId: string): Promise<any> {
+  async regeneratePdf(shopId: string, invoiceId: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: {
         id: invoiceId,
@@ -248,16 +250,16 @@ export class InvoicesService {
     const pdfData: InvoicePdfData = {
       invoice_number: invoice.number,
       issue_date: invoice.issue_date,
-      due_date: invoice.due_date || undefined,
+      due_date: invoice.due_date ?? undefined,
       shop_name: invoice.shop.name,
-      shop_address: invoice.shop.address || undefined,
-      shop_phone: invoice.shop.phone || undefined,
-      shop_email: invoice.shop.email || undefined,
+      shop_address: invoice.shop.address ?? undefined,
+      shop_phone: invoice.shop.phone ?? undefined,
+      shop_email: invoice.shop.email ?? undefined,
       customer_name: invoice.customer?.name,
-      customer_phone: invoice.customer?.phone || undefined,
-      customer_email: invoice.customer?.email || undefined,
-      customer_address: invoice.customer?.address || undefined,
-      cashier_name: invoice.sale?.cashier?.display_name,
+      customer_phone: invoice.customer?.phone ?? undefined,
+      customer_email: invoice.customer?.email ?? undefined,
+      customer_address: invoice.customer?.address ?? undefined,
+      cashier_name: invoice.sale?.cashier.display_name,
       items: invoice.items.map(item => ({
         description: item.description,
         qty: item.qty,
@@ -323,7 +325,7 @@ export class InvoicesService {
    * List all invoices for a shop with filters
    */
   async findAll(shopId: string, query: SearchInvoiceDto) {
-    const where: any = {
+    const where: Prisma.InvoiceWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -333,17 +335,18 @@ export class InvoicesService {
     }
 
     if (query.status) {
-      where.status = query.status;
+      where.status = query.status as InvoiceStatus;
     }
 
     if (query.start_date || query.end_date) {
-      where.issue_date = {};
+      const issueDate: Prisma.DateTimeFilter = {};
       if (query.start_date) {
-        where.issue_date.gte = new Date(query.start_date);
+        issueDate.gte = new Date(query.start_date);
       }
       if (query.end_date) {
-        where.issue_date.lte = new Date(query.end_date);
+        issueDate.lte = new Date(query.end_date);
       }
+      where.issue_date = issueDate;
     }
 
     return this.prisma.invoice.findMany({

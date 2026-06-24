@@ -9,6 +9,12 @@ import {
   UpdateShopCodeDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import type { Request as ExpressRequest } from 'express';
+import { Role } from '@prisma/client';
+
+type AuthenticatedRequest = ExpressRequest & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('auth')
 export class AuthController {
@@ -90,7 +96,7 @@ export class AuthController {
    * Récupère les infos de l'utilisateur connecté
    */
   @Get('me')
-  async getProfile(@Request() req: any) {
+  async getProfile(@Request() req: AuthenticatedRequest) {
     return this.authService.getUserWithRoles(req.user.userId);
   }
 
@@ -100,7 +106,7 @@ export class AuthController {
    * Requiert confirmation du PIN
    */
   @Patch('shop-code')
-  async updateShopCode(@Request() req: any, @Body() dto: UpdateShopCodeDto) {
+  async updateShopCode(@Request() req: AuthenticatedRequest, @Body() dto: UpdateShopCodeDto) {
     return this.authService.updateShopCode(req.user.shopId, req.user.userId, dto);
   }
 
@@ -109,7 +115,7 @@ export class AuthController {
    * Switch to a different shop (multi-shop users)
    */
   @Post('switch-shop')
-  async switchShop(@Request() req: any, @Body() body: { shop_id: string }) {
+  async switchShop(@Request() req: AuthenticatedRequest, @Body() body: { shop_id: string }) {
     return this.authService.switchShop(req.user.userId, body.shop_id);
   }
 
@@ -118,7 +124,7 @@ export class AuthController {
    * Get all shops accessible to the current user
    */
   @Get('accessible-shops')
-  async getAccessibleShops(@Request() req: any) {
+  async getAccessibleShops(@Request() req: AuthenticatedRequest) {
     return this.authService.getAccessibleShops(req.user.userId);
   }
 }

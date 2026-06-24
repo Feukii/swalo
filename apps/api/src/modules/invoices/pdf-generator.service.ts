@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import * as path from 'path';
 import { existsSync } from 'fs';
+import type {
+  Column,
+  Content,
+  ContentTable,
+  TableCell,
+  TDocumentDefinitions,
+} from 'pdfmake/interfaces';
 
 /**
  * Donnees necessaires pour generer une facture PDF
@@ -48,12 +55,12 @@ export interface InvoicePdfData {
 
 @Injectable()
 export class PdfGeneratorService {
-  private pdfmake: any;
+  private pdfmake: typeof import('pdfmake');
 
   constructor() {
     // pdfmake 0.3.3 exports a singleton for server-side usage
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    this.pdfmake = require('pdfmake');
+    this.pdfmake = require('pdfmake') as typeof import('pdfmake');
 
     // Resolve font paths from pdfmake package
     // In webpack mode, require.resolve may point to dist/ instead of node_modules
@@ -112,7 +119,7 @@ export class PdfGeneratorService {
   /**
    * Generer le PDF d'une facture et retourner le buffer
    */
-  async generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
+  generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     const docDefinition = this.buildDocDefinition(data);
     const pdfDoc = this.pdfmake.createPdf(docDefinition);
     return pdfDoc.getBuffer();
@@ -121,13 +128,13 @@ export class PdfGeneratorService {
   /**
    * Generer le PDF et retourner en base64
    */
-  async generateInvoicePdfBase64(data: InvoicePdfData): Promise<string> {
+  generateInvoicePdfBase64(data: InvoicePdfData): Promise<string> {
     const docDefinition = this.buildDocDefinition(data);
     const pdfDoc = this.pdfmake.createPdf(docDefinition);
     return pdfDoc.getBase64();
   }
 
-  private buildDocDefinition(data: InvoicePdfData): any {
+  private buildDocDefinition(data: InvoicePdfData): TDocumentDefinitions {
     return {
       pageSize: 'A4',
       pageMargins: [40, 40, 40, 60],
@@ -196,48 +203,42 @@ export class PdfGeneratorService {
     };
   }
 
-  private buildShopHeader(data: InvoicePdfData): any {
+  private buildShopHeader(data: InvoicePdfData): Content {
     const shopInfoLines: string[] = [];
     if (data.shop_address) shopInfoLines.push(data.shop_address);
     if (data.shop_phone) shopInfoLines.push(`Tél: ${data.shop_phone}`);
     if (data.shop_email) shopInfoLines.push(data.shop_email);
 
-    return {
-      columns: [
-        {
-          width: '*',
-          stack: [
-            { text: data.shop_name, style: 'shopName' },
-            ...(shopInfoLines.length > 0
-              ? [{ text: shopInfoLines.join(' | '), style: 'shopInfo' }]
-              : []),
-          ],
-        },
-        {
-          width: 'auto',
-          stack: [
-            {
-              text: `Date: ${this.formatDate(data.issue_date)}`,
-              alignment: 'right',
-              fontSize: 9,
-            },
-            ...(data.due_date
-              ? [
-                  {
-                    text: `Échéance: ${this.formatDate(data.due_date)}`,
-                    alignment: 'right',
-                    fontSize: 9,
-                  },
-                ]
-              : []),
-          ],
-        },
-      ],
-    };
+    const shopStack: Content[] = [{ text: data.shop_name, style: 'shopName' }];
+    if (shopInfoLines.length > 0) {
+      shopStack.push({ text: shopInfoLines.join(' | '), style: 'shopInfo' });
+    }
+
+    const dateStack: Content[] = [
+      {
+        text: `Date: ${this.formatDate(data.issue_date)}`,
+        alignment: 'right',
+        fontSize: 9,
+      },
+    ];
+    if (data.due_date) {
+      dateStack.push({
+        text: `Échéance: ${this.formatDate(data.due_date)}`,
+        alignment: 'right',
+        fontSize: 9,
+      });
+    }
+
+    const columns: Column[] = [
+      { width: '*', stack: shopStack },
+      { width: 'auto', stack: dateStack },
+    ];
+
+    return { columns };
   }
 
-  private buildInfoSection(data: InvoicePdfData): any {
-    const columns: any[] = [];
+  private buildInfoSection(data: InvoicePdfData): Content {
+    const columns: Column[] = [];
 
     if (data.customer_name) {
       const customerLines: string[] = [data.customer_name];
@@ -245,12 +246,14 @@ export class PdfGeneratorService {
       if (data.customer_email) customerLines.push(data.customer_email);
       if (data.customer_address) customerLines.push(data.customer_address);
 
+      const customerStack: Content[] = [{ text: 'CLIENT', style: 'sectionTitle' }];
+      for (const line of customerLines) {
+        customerStack.push({ text: line, fontSize: 9 });
+      }
+
       columns.push({
         width: '*',
-        stack: [
-          { text: 'CLIENT', style: 'sectionTitle' },
-          ...customerLines.map(line => ({ text: line, fontSize: 9 })),
-        ],
+        stack: customerStack,
         margin: [0, 10, 0, 15],
       });
     }
@@ -273,8 +276,8 @@ export class PdfGeneratorService {
     return { columns, margin: [0, 0, 0, 0] };
   }
 
-  private buildItemsTable(data: InvoicePdfData): any {
-    const tableBody: any[][] = [
+  private buildItemsTable(data: InvoicePdfData): Content {
+    const tableBody: TableCell[][] = [
       [
         { text: '#', style: 'tableHeader', alignment: 'center' },
         { text: 'Description', style: 'tableHeader' },
@@ -307,7 +310,7 @@ export class PdfGeneratorService {
         body: tableBody,
       },
       layout: {
-        hLineWidth: (i: number, node: any) => {
+        hLineWidth: (i: number, node: ContentTable) => {
           if (i === 0 || i === 1 || i === node.table.body.length) return 1;
           return 0.5;
         },
@@ -322,8 +325,8 @@ export class PdfGeneratorService {
     };
   }
 
-  private buildTotals(data: InvoicePdfData): any {
-    const totals: any[] = [];
+  private buildTotals(data: InvoicePdfData): Content {
+    const totals: Content[] = [];
 
     totals.push({
       columns: [
@@ -406,7 +409,7 @@ export class PdfGeneratorService {
     return { stack: totals };
   }
 
-  private buildFooter(_data: InvoicePdfData): any {
+  private buildFooter(_data: InvoicePdfData): Content {
     return {
       stack: [
         {

@@ -35,9 +35,25 @@ interface FormData {
   symbol: string;
 }
 
+interface PackagingTypesScreenProps {
+  navigation: {
+    goBack: () => void;
+  };
+}
+
 const INITIAL_FORM: FormData = { name: '', symbol: '' };
 
-export default function PackagingTypesScreen({ navigation }: any) {
+/**
+ * Extract a user-facing message from an unknown error, falling back to a default.
+ * An empty message string falls back to the default (matches the original `|| ` behaviour).
+ */
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return fallback;
+}
+
+export default function PackagingTypesScreen({ navigation }: PackagingTypesScreenProps) {
   const [packagingTypes, setPackagingTypes] = useState<PackagingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,11 +65,15 @@ export default function PackagingTypesScreen({ navigation }: any) {
 
   const loadData = useCallback(async () => {
     try {
-      const response = await packagingTypesApi.getAll();
-      const data = (response as any).data ?? response;
-      setPackagingTypes(Array.isArray(data) ? data : []);
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de charger les conditionnements');
+      const response: unknown = await packagingTypesApi.getAll();
+      // The API may return the array directly or wrapped as { data: [...] }.
+      const data =
+        response && typeof response === 'object' && 'data' in response
+          ? (response as { data: unknown }).data
+          : response;
+      setPackagingTypes(Array.isArray(data) ? (data as PackagingType[]) : []);
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error, 'Impossible de charger les conditionnements'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -118,8 +138,8 @@ export default function PackagingTypesScreen({ navigation }: any) {
 
       closeModal();
       loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le conditionnement');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error, 'Impossible de sauvegarder le conditionnement'));
     } finally {
       setSaving(false);
     }
@@ -147,8 +167,11 @@ export default function PackagingTypesScreen({ navigation }: any) {
               await packagingTypesApi.delete(item.id);
               Alert.alert('Succes', 'Conditionnement supprime avec succes');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Impossible de supprimer le conditionnement');
+            } catch (error: unknown) {
+              Alert.alert(
+                'Erreur',
+                getErrorMessage(error, 'Impossible de supprimer le conditionnement')
+              );
             }
           },
         },
@@ -170,10 +193,10 @@ export default function PackagingTypesScreen({ navigation }: any) {
               await packagingTypesApi.initDefaults();
               Alert.alert('Succes', 'Les conditionnements par defaut ont ete crees');
               loadData();
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert(
                 'Erreur',
-                error.message || "Impossible d'initialiser les conditionnements"
+                getErrorMessage(error, "Impossible d'initialiser les conditionnements")
               );
             } finally {
               setInitializing(false);

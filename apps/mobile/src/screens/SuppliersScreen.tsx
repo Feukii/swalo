@@ -19,8 +19,16 @@ import { useLocalSuppliers } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { createSupplierOffline, createSupplierDebtOffline } from '../db/offlineWrite';
 
+interface SuppliersScreenNavigation {
+  goBack: () => void;
+  navigate: {
+    (screen: 'SupplierBalancesSummary'): void;
+    (screen: 'SupplierDetails', params: { id: string }): void;
+  };
+}
+
 interface SuppliersScreenProps {
-  navigation: any;
+  navigation: SuppliersScreenNavigation;
 }
 
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
@@ -113,9 +121,10 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       Alert.alert('Succes', 'Fournisseur cree avec succes');
       handleCloseModal();
       await refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la creation');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Erreur lors de la creation');
     } finally {
       setIsSaving(false);
     }

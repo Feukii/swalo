@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -47,7 +46,7 @@ SplashScreen.preventAutoHideAsync()
   .then(() => console.log('✅ Splash screen prevented from auto-hiding'))
   .catch(e => console.error('❌ Error preventing splash screen:', e));
 
-type RootStackParamList = {
+export type RootStackParamList = {
   Test: undefined;
   LoginPin: undefined;
   Main: undefined;
@@ -126,11 +125,12 @@ export default function App() {
         setAppReady(true);
 
         console.log('✅ Step 4: App preparation completed successfully');
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const err = e instanceof Error ? e : undefined;
         console.error('❌ ERROR during app preparation:', {
-          message: e?.message,
-          stack: e?.stack,
-          name: e?.name,
+          message: err?.message,
+          stack: err?.stack,
+          name: err?.name,
         });
         console.log('🔄 Falling back to LoginPin screen');
         setInitialRoute('LoginPin');
@@ -140,8 +140,9 @@ export default function App() {
           console.log('🎬 Step 5: Hiding splash screen');
           await SplashScreen.hideAsync();
           console.log('✅ Splash screen hidden successfully');
-        } catch (splashError: any) {
-          console.error('❌ Error hiding splash screen:', splashError?.message);
+        } catch (splashError: unknown) {
+          const err = splashError instanceof Error ? splashError : undefined;
+          console.error('❌ Error hiding splash screen:', err?.message);
         }
       }
     };

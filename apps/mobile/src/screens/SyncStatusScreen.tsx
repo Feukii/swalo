@@ -37,7 +37,14 @@ const Colors = {
   border: '#E2E8F0',
 };
 
-export default function SyncStatusScreen({ navigation }: any) {
+interface SyncStatusScreenProps {
+  navigation: {
+    goBack: () => void;
+    navigate: (screen: 'SyncConflicts') => void;
+  };
+}
+
+export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) {
   const { isOnline, isSyncing, pendingCount, lastError, triggerSync } = useOfflineStatus();
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [failedCount, setFailedCount] = useState(0);

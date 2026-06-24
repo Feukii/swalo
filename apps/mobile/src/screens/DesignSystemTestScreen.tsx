@@ -5,7 +5,11 @@ import { ScreenHeader, KPICard, ListItem, ProductCard, StatusBadge } from '../co
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney, formatMoneyWithSign } from '../utils/money';
 
-export default function DesignSystemTestScreen({ navigation }: any) {
+interface DesignSystemTestScreenProps {
+  navigation: { goBack: () => void };
+}
+
+export default function DesignSystemTestScreen({ navigation }: DesignSystemTestScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <ScreenHeader title="Test Design System" showBack={true} onBack={() => navigation.goBack()} />

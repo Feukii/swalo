@@ -1,7 +1,71 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SyncPullDto } from './dto/sync-pull.dto';
 import { SyncPushDto, SyncMutationDto } from './dto/sync-push.dto';
+
+/**
+ * A generic synced record. All synced models share these mutable fields;
+ * any other column is accessed dynamically.
+ */
+type SyncRecord = Record<string, unknown> & {
+  id?: string;
+  version?: number;
+};
+
+/**
+ * Minimal subset of a Prisma model delegate used by the sync engine.
+ * Args are loosely typed because the sync engine operates generically over
+ * many models; the data has already been validated/sanitized before use.
+ */
+interface SyncModelDelegate {
+  findMany(args: {
+    where: Record<string, unknown>;
+    take?: number;
+    orderBy?: Record<string, unknown>;
+  }): Promise<SyncRecord[]>;
+  findUnique(args: { where: Record<string, unknown> }): Promise<SyncRecord | null>;
+  findFirst(args: { where: Record<string, unknown> }): Promise<SyncRecord | null>;
+  create(args: { data: Record<string, unknown> }): Promise<SyncRecord>;
+  update(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<SyncRecord>;
+}
+
+/**
+ * The Prisma delegate property names for every syncable entity.
+ */
+type PrismaModelName = (typeof SYNC_ENTITIES)[SyncEntityKey];
+
+/**
+ * A Prisma client (or transaction client) restricted to the model delegates
+ * the sync engine touches. Indexing by a known model name yields the concrete
+ * Prisma delegate, which we then view through {@link SyncModelDelegate}.
+ */
+type SyncClient = Pick<Prisma.TransactionClient, PrismaModelName>;
+
+/**
+ * Resolve a delegate from a Prisma client or transaction client by model name.
+ *
+ * Prisma generates a distinctly-typed (generic) delegate per model, so a value
+ * selected dynamically by model name is a union of 21 incompatible delegate
+ * types that TypeScript cannot reconcile with a single static interface. This
+ * is the one unavoidable dynamic-dispatch boundary in the sync engine: we view
+ * the concrete delegate through the narrow {@link SyncModelDelegate} surface it
+ * actually calls. Everything downstream of this function is fully typed, and
+ * the data has already been validated/sanitized before reaching the delegate.
+ */
+function getDelegate(client: SyncClient, prismaModel: PrismaModelName): SyncModelDelegate {
+  return client[prismaModel] as unknown as SyncModelDelegate;
+}
+
+/**
+ * Coerce an unknown version field to a number (defaults to 0).
+ */
+function toVersion(value: unknown): number {
+  return typeof value === 'number' ? value : Number(value) || 0;
+}
 
 const MAX_RECORDS_PER_ENTITY = 500;
 
@@ -34,6 +98,13 @@ const SYNC_ENTITIES = {
 
 type SyncEntityKey = keyof typeof SYNC_ENTITIES;
 
+/**
+ * Runtime guard: is the given string a known syncable entity key?
+ */
+function isSyncEntityKey(key: string): key is SyncEntityKey {
+  return Object.prototype.hasOwnProperty.call(SYNC_ENTITIES, key);
+}
+
 export interface SyncConflict {
   entity: string;
   id: string;
@@ -54,15 +125,17 @@ export class SyncService {
     const changes: Record<string, unknown[]> = {};
     const serverTime = new Date().toISOString();
 
-    for (const [entityKey, prismaModel] of Object.entries(SYNC_ENTITIES)) {
-      const model = (this.prisma as any)[prismaModel];
-      if (!model) continue;
+    for (const [entityKey, prismaModel] of Object.entries(SYNC_ENTITIES) as [
+      SyncEntityKey,
+      PrismaModelName,
+    ][]) {
+      const model = getDelegate(this.prisma, prismaModel);
 
       // Build where clause: filter by shop_id and optionally by updated_at
-      const where: any = {};
+      const where: Record<string, unknown> = {};
 
       // shop_id filtering (some child entities don't have direct shop_id)
-      const parentRelationEntities: Record<string, Record<string, unknown>> = {
+      const parentRelationEntities: Partial<Record<SyncEntityKey, Record<string, unknown>>> = {
         sale_items: { sale: { shop_id: shopId } },
         invoice_items: { invoice: { shop_id: shopId } },
         supplier_invoice_items: { invoice: { shop_id: shopId } },
@@ -71,8 +144,9 @@ export class SyncService {
         inventory_counts: { session: { shop_id: shopId } },
       };
 
-      if (parentRelationEntities[entityKey]) {
-        Object.assign(where, parentRelationEntities[entityKey]);
+      const parentRelation = parentRelationEntities[entityKey];
+      if (parentRelation) {
+        Object.assign(where, parentRelation);
       } else {
         where.shop_id = shopId;
       }
@@ -100,14 +174,14 @@ export class SyncService {
       update: {
         last_sync_at: new Date(),
         cursor: serverTime,
-        entity_versions: dto.entity_versions || {},
+        entity_versions: dto.entity_versions ?? {},
       },
       create: {
         device_id: dto.device_id,
         shop_id: shopId,
         last_sync_at: new Date(),
         cursor: serverTime,
-        entity_versions: dto.entity_versions || {},
+        entity_versions: dto.entity_versions ?? {},
       },
     });
 
@@ -128,32 +202,28 @@ export class SyncService {
 
     await this.prisma.$transaction(async tx => {
       for (const [entityKey, mutations] of Object.entries(dto.changes)) {
-        if (!SYNC_ENTITIES[entityKey as SyncEntityKey]) {
+        if (!isSyncEntityKey(entityKey)) {
           continue; // Skip unknown entities
         }
 
-        applied[entityKey] = [];
+        const appliedIds: string[] = [];
+        applied[entityKey] = appliedIds;
 
         for (const mutation of mutations) {
           try {
-            const result = await this.applyMutation(
-              tx,
-              shopId,
-              userId,
-              entityKey as SyncEntityKey,
-              mutation
-            );
+            const result = await this.applyMutation(tx, shopId, userId, entityKey, mutation);
 
             if (result.applied) {
-              applied[entityKey].push(mutation.id);
+              appliedIds.push(mutation.id);
             } else if (result.conflict) {
               conflicts.push(result.conflict);
             }
-          } catch (error: any) {
+          } catch (error) {
+            const rawReason = error instanceof Error ? error.message : String(error);
             conflicts.push({
               entity: entityKey,
               id: mutation.id,
-              reason: error.message || 'Unknown error',
+              reason: rawReason.length > 0 ? rawReason : 'Unknown error',
               clientVersion: mutation.data,
             });
           }
@@ -188,14 +258,14 @@ export class SyncService {
    * Apply a single mutation within a transaction
    */
   private async applyMutation(
-    tx: any,
+    tx: Prisma.TransactionClient,
     shopId: string,
     userId: string,
     entityKey: SyncEntityKey,
     mutation: SyncMutationDto
   ): Promise<{ applied: boolean; conflict?: SyncConflict }> {
     const prismaModel = SYNC_ENTITIES[entityKey];
-    const model = tx[prismaModel];
+    const model = getDelegate(tx, prismaModel);
 
     // Check idempotency: skip if client_op_id already exists
     if (mutation.client_op_id && entityKey !== 'sale_items') {
@@ -220,7 +290,7 @@ export class SyncService {
           conflict: {
             entity: entityKey,
             id: mutation.id,
-            reason: `Unknown operation: ${mutation.op}`,
+            reason: `Unknown operation: ${String(mutation.op)}`,
           },
         };
     }
@@ -230,8 +300,8 @@ export class SyncService {
    * Apply insert or upsert mutation
    */
   private async applyInsertOrUpsert(
-    tx: any,
-    model: any,
+    _tx: Prisma.TransactionClient,
+    model: SyncModelDelegate,
     shopId: string,
     userId: string,
     entityKey: SyncEntityKey,
@@ -246,11 +316,12 @@ export class SyncService {
 
     if (existing) {
       // Upsert: check version for conflict
+      const clientVersion = data.version;
       if (
         mutation.op === 'upsert' &&
         existing.version !== undefined &&
-        data.version != null &&
-        existing.version > data.version
+        clientVersion != null &&
+        existing.version > toVersion(clientVersion)
       ) {
         // Server has newer version — conflict
         return {
@@ -270,7 +341,7 @@ export class SyncService {
         where: { id: mutation.id },
         data: {
           ...data,
-          version: (Number(existing.version) || 0) + 1,
+          version: toVersion(existing.version) + 1,
         },
       });
     } else {
@@ -290,8 +361,8 @@ export class SyncService {
    * Apply update mutation
    */
   private async applyUpdate(
-    tx: any,
-    model: any,
+    _tx: Prisma.TransactionClient,
+    model: SyncModelDelegate,
     shopId: string,
     entityKey: SyncEntityKey,
     mutation: SyncMutationDto
@@ -316,7 +387,7 @@ export class SyncService {
     if (
       existing.version !== undefined &&
       mutation.data.version !== undefined &&
-      existing.version > (mutation.data.version as number)
+      existing.version > toVersion(mutation.data.version)
     ) {
       return {
         applied: false,
@@ -336,7 +407,7 @@ export class SyncService {
       where: { id: mutation.id },
       data: {
         ...data,
-        version: (Number(existing.version) || 0) + 1,
+        version: toVersion(existing.version) + 1,
       },
     });
 
@@ -347,8 +418,8 @@ export class SyncService {
    * Apply soft delete mutation
    */
   private async applySoftDelete(
-    tx: any,
-    model: any,
+    _tx: Prisma.TransactionClient,
+    model: SyncModelDelegate,
     shopId: string,
     entityKey: SyncEntityKey,
     mutation: SyncMutationDto
@@ -367,7 +438,7 @@ export class SyncService {
       data: {
         deleted: true,
         deleted_at: new Date(),
-        version: (Number(existing.version) || 0) + 1,
+        version: toVersion(existing.version) + 1,
       },
     });
 
@@ -378,12 +449,12 @@ export class SyncService {
    * Find a record by client_op_id for idempotency check
    */
   private async findByClientOpId(
-    tx: any,
+    tx: Prisma.TransactionClient,
     entityKey: SyncEntityKey,
     clientOpId: string
-  ): Promise<any> {
+  ): Promise<SyncRecord | null> {
     const prismaModel = SYNC_ENTITIES[entityKey];
-    const model = tx[prismaModel];
+    const model = getDelegate(tx, prismaModel);
 
     // Only some entities have client_op_id
     const entitiesWithClientOpId = [

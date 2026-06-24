@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,10 @@ import { pinInvitesApi, adminApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../utils/date';
 
 interface ShopAdminScreenProps {
-  navigation: any;
+  navigation: {
+    navigate: (screen: string) => void;
+    goBack: () => void;
+  };
 }
 
 interface PinInvite {
@@ -28,7 +31,7 @@ interface PinInvite {
   expires_at: string;
   is_used: boolean;
   used_at?: string;
-  used_by?: any;
+  used_by?: { id: string; name: string } | null;
   created_at: string;
 }
 
@@ -54,6 +57,28 @@ interface PinStats {
   expired: number;
 }
 
+// Appareil brut tel que renvoyé dans le payload /admin/users
+interface RawDevice {
+  id: string;
+  device_id: string;
+  device_name: string;
+  device_type: string;
+  last_used_at: string;
+  created_at: string;
+}
+
+// Élément user-role brut renvoyé par adminApi.getShopUsers()
+interface RawUserRole {
+  role: string;
+  user?: {
+    id: string;
+    name?: string;
+    display_name?: string;
+    first_name?: string;
+    devices?: RawDevice[];
+  };
+}
+
 export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   const [pinInvites, setPinInvites] = useState<PinInvite[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -69,11 +94,58 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
     { value: 'MANAGER', label: 'Manager' },
   ];
 
-  useEffect(() => {
-    checkAccess();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [invitesData, statsData, usersData] = await Promise.all([
+        pinInvitesApi.getAll(),
+        pinInvitesApi.getStats(),
+        adminApi.getShopUsers(),
+      ]);
+
+      const invites: PinInvite[] = invitesData.map(raw => {
+        const invite = raw as Partial<PinInvite>;
+        return {
+          id: String(invite.id ?? ''),
+          pin_code: String(invite.pin_code ?? ''),
+          invited_name: String(invite.invited_name ?? ''),
+          role: String(invite.role ?? ''),
+          expires_at: String(invite.expires_at ?? ''),
+          is_used: Boolean(invite.is_used),
+          used_at: invite.used_at,
+          used_by: invite.used_by ?? null,
+          created_at: String(invite.created_at ?? ''),
+        };
+      });
+      setPinInvites(invites);
+      setPinStats(statsData);
+
+      // Get all devices from the payload
+      const allDevices: Device[] = usersData.flatMap(raw => {
+        const userRole = raw as Partial<RawUserRole>;
+        const user = userRole.user;
+        if (!user) return [];
+        const userDevices = user.devices ?? [];
+        return userDevices.map(device => ({
+          ...device,
+          user: {
+            id: user.id,
+            name: user.display_name || user.name || 'Utilisateur',
+            first_name: user.first_name,
+            role: userRole.role,
+          },
+        }));
+      });
+      setDevices(allDevices);
+    } catch (error) {
+      console.error('Erreur lors du chargement:', error);
+      Alert.alert('Erreur', 'Impossible de charger les données');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const checkAccess = async () => {
+  const checkAccess = useCallback(async () => {
     try {
       const userStr = await AsyncStorage.getItem('user');
       if (userStr) {
@@ -91,43 +163,11 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       console.error('Erreur lors de la vérification:', error);
       navigation.goBack();
     }
-  };
+  }, [navigation, loadData]);
 
-  // Empty useEffect placeholder - TODO: implement initialization logic if needed
-
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const [invitesData, statsData, usersData] = await Promise.all([
-        pinInvitesApi.getAll(),
-        pinInvitesApi.getStats(),
-        adminApi.getShopUsers(),
-      ]);
-
-      setPinInvites(invitesData);
-      setPinStats(statsData);
-
-      // Get all devices from the payload
-      const allDevices: Device[] = usersData.flatMap((userRole: any) => {
-        const userDevices = userRole.user?.devices || [];
-        return userDevices.map((device: any) => ({
-          ...device,
-          user: {
-            id: userRole.user.id,
-            name: userRole.user.display_name || userRole.user.name || 'Utilisateur',
-            first_name: userRole.user.first_name,
-            role: userRole.role,
-          },
-        }));
-      });
-      setDevices(allDevices);
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    checkAccess();
+  }, [checkAccess]);
 
   const handleCreatePinInvite = async () => {
     if (!displayName.trim()) {
@@ -162,9 +202,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       setDisplayName('');
       setSelectedRole('EMPLOYEE');
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la création:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la création');
+      const message = error instanceof Error ? error.message : 'Erreur lors de la création';
+      Alert.alert('Erreur', message);
     } finally {
       setIsCreating(false);
     }
@@ -184,8 +225,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               await pinInvitesApi.revoke(invite.id);
               Alert.alert('Succès', 'Code PIN révoqué');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la révocation');
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : 'Erreur lors de la révocation';
+              Alert.alert('Erreur', message);
             }
           },
         },
@@ -207,8 +250,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               await adminApi.revokeDevice(device.id);
               Alert.alert('Succès', 'Appareil révoqué');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la révocation');
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : 'Erreur lors de la révocation';
+              Alert.alert('Erreur', message);
             }
           },
         },

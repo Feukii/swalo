@@ -17,8 +17,13 @@ import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { supplierRepo, supplierDebtRepo } from '../db/repositories';
 
+interface SupplierBalancesSummaryNavigation {
+  goBack: () => void;
+  navigate: (screen: 'SupplierDetails', params: { id: string }) => void;
+}
+
 interface SupplierBalancesSummaryScreenProps {
-  navigation: any;
+  navigation: SupplierBalancesSummaryNavigation;
 }
 
 interface SupplierWithBalance {

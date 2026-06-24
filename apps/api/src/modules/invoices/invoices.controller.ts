@@ -7,6 +7,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
 
+interface AuthUser {
+  userId: string;
+  shopId: string;
+  role: Role;
+}
+
 @Controller('invoices')
 @RequireModule('invoices')
 export class InvoicesController {
@@ -14,13 +20,13 @@ export class InvoicesController {
 
   @Get()
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
-  findAll(@CurrentUser() user: any, @Query() query: SearchInvoiceDto) {
+  findAll(@CurrentUser() user: AuthUser, @Query() query: SearchInvoiceDto) {
     return this.invoicesService.findAll(user.shopId, query);
   }
 
   @Get(':id')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
-  findOne(@CurrentUser() user: any, @Param('id') id: string) {
+  findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.invoicesService.findOne(user.shopId, id);
   }
 
@@ -31,7 +37,7 @@ export class InvoicesController {
   @Get(':id/pdf')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   async getPdf(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Query('format') format: string | undefined,
     @Res() res: Response
@@ -55,7 +61,7 @@ export class InvoicesController {
   @Post('from-sale/:saleId')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
   createFromSale(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Param('saleId') saleId: string,
     @Body() dto: CreateInvoiceFromSaleDto
   ) {
@@ -68,13 +74,13 @@ export class InvoicesController {
    */
   @Post(':id/regenerate-pdf')
   @Roles(Role.BOSS, Role.MANAGER)
-  regeneratePdf(@CurrentUser() user: any, @Param('id') id: string) {
+  regeneratePdf(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.invoicesService.regeneratePdf(user.shopId, id);
   }
 
   @Put(':id/cancel')
   @Roles(Role.BOSS, Role.MANAGER)
-  cancel(@CurrentUser() user: any, @Param('id') id: string) {
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.invoicesService.cancel(user.shopId, id);
   }
 }

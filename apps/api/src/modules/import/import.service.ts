@@ -82,7 +82,7 @@ export class ImportService {
     }
 
     // Verifier les colonnes et appliquer le mapping
-    const firstRow = jsonData[0] as Record<string, any>;
+    const firstRow = jsonData[0] as Record<string, unknown>;
     const originalColumns = Object.keys(firstRow);
     const columnMapping: Record<string, string> = {};
 
@@ -118,19 +118,19 @@ export class ImportService {
     const seenSKUs = new Set<string>();
 
     for (let i = 0; i < jsonData.length; i++) {
-      const row = jsonData[i] as Record<string, any>;
+      const row = jsonData[i] as Record<string, unknown>;
       const rowNumber = i + 2; // +2 car ligne 1 = headers, index commence a 0
 
       // Normaliser les cles avec le mapping de colonnes
-      const normalizedRow: Record<string, any> = {};
+      const normalizedRow: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(row)) {
         const mappedKey = mapColumnName(key);
         normalizedRow[mappedKey] = value;
       }
 
       // Extraire les valeurs
-      const sku = String(normalizedRow.sku || '').trim();
-      const name = String(normalizedRow.name || '').trim();
+      const sku = this.toTrimmedString(normalizedRow.sku);
+      const name = this.toTrimmedString(normalizedRow.name);
 
       // Appliquer les valeurs par defaut pour les prix si non specifies
       const costPriceRaw = normalizedRow.cost_price;
@@ -195,14 +195,14 @@ export class ImportService {
         validRows.push({
           sku,
           name,
-          family: normalizedRow.family?.toString().trim() || undefined,
-          article_type: normalizedRow.article_type?.toString().trim() || undefined,
-          brand: normalizedRow.brand?.toString().trim() || undefined,
-          reference: normalizedRow.reference?.toString().trim() || undefined,
+          family: this.toOptionalString(normalizedRow.family),
+          article_type: this.toOptionalString(normalizedRow.article_type),
+          brand: this.toOptionalString(normalizedRow.brand),
+          reference: this.toOptionalString(normalizedRow.reference),
           cost_price: costPrice,
           sell_price: sellPrice,
-          unit: normalizedRow.unit?.toString().trim() || 'unit',
-          alert_threshold: this.parseNumber(normalizedRow.alert_threshold) || 5,
+          unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
+          alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
         });
       }
     }
@@ -262,14 +262,14 @@ export class ImportService {
 
     for (const row of jsonData) {
       // Normaliser les cles avec le mapping de colonnes
-      const normalizedRow: Record<string, any> = {};
-      for (const [key, value] of Object.entries(row as Record<string, any>)) {
+      const normalizedRow: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
         const mappedKey = mapColumnName(key);
         normalizedRow[mappedKey] = value;
       }
 
-      const sku = String(normalizedRow.sku || '').trim();
-      const name = String(normalizedRow.name || '').trim();
+      const sku = this.toTrimmedString(normalizedRow.sku);
+      const name = this.toTrimmedString(normalizedRow.name);
 
       // Appliquer les valeurs par defaut pour les prix
       const costPriceRaw = normalizedRow.cost_price;
@@ -304,30 +304,37 @@ export class ImportService {
             shop_id: shopId,
             sku,
             name,
-            family: normalizedRow.family?.toString().trim() || null,
-            article_type: normalizedRow.article_type?.toString().trim() || null,
-            brand: normalizedRow.brand?.toString().trim() || null,
-            reference: normalizedRow.reference?.toString().trim() || null,
+            family: this.toNullableString(normalizedRow.family),
+            article_type: this.toNullableString(normalizedRow.article_type),
+            brand: this.toNullableString(normalizedRow.brand),
+            reference: this.toNullableString(normalizedRow.reference),
             cost_price: costPrice,
             sell_price: sellPrice,
-            unit: normalizedRow.unit?.toString().trim() || 'unit',
-            alert_threshold: this.parseNumber(normalizedRow.alert_threshold) || 5,
+            unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
+            alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
             is_active: true,
           },
         });
         imported++;
-      } catch (error: any) {
+      } catch (error) {
         // Log l'erreur avec le détail du produit concerné
+        const errorMessage = error instanceof Error ? error.message : '';
+        const errorCode =
+          typeof error === 'object' && error !== null && 'code' in error
+            ? String((error as { code: unknown }).code)
+            : '';
+        const detail = errorMessage || errorCode || 'Unknown';
+        const stack = error instanceof Error ? error.stack : undefined;
         this.logger.error(
-          `Failed to import product: sku=${sku}, name=${name}, error=${error.message || error.code || 'Unknown'}`,
-          error.stack
+          `Failed to import product: sku=${sku}, name=${name}, error=${detail}`,
+          stack
         );
         skipped++;
       }
     }
 
     return {
-      message: `Import terminé: ${imported} produit(s) importé(s)`,
+      message: `Import terminé: ${String(imported)} produit(s) importé(s)`,
       imported,
       skipped,
       total: jsonData.length,
@@ -338,9 +345,52 @@ export class ImportService {
   }
 
   /**
+   * Convertit une valeur quelconque en chaine nettoyee (trim)
+   */
+  private toTrimmedString(value: unknown): string {
+    return this.coerceToString(value).trim();
+  }
+
+  /**
+   * Convertit une valeur de cellule (string, number, boolean, Date) en chaine.
+   * Les valeurs nullish ou objets non supportes renvoient une chaine vide.
+   */
+  private coerceToString(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return value.toString();
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return '';
+  }
+
+  /**
+   * Comme toTrimmedString mais retourne undefined si la chaine est vide
+   */
+  private toOptionalString(value: unknown): string | undefined {
+    const str = this.toTrimmedString(value);
+    return str ? str : undefined;
+  }
+
+  /**
+   * Comme toTrimmedString mais retourne null si la chaine est vide
+   */
+  private toNullableString(value: unknown): string | null {
+    const str = this.toTrimmedString(value);
+    return str ? str : null;
+  }
+
+  /**
    * Parse un nombre depuis une valeur quelconque
    */
-  private parseNumber(value: any): number | null {
+  private parseNumber(value: unknown): number | null {
     if (value === null || value === undefined || value === '') {
       return null;
     }
@@ -351,7 +401,7 @@ export class ImportService {
     }
 
     // Convertir en string et nettoyer
-    const str = String(value)
+    const str = this.coerceToString(value)
       .replace(/\s/g, '') // Supprimer espaces
       .replace(/,/g, '.') // Remplacer virgule par point
       .replace(/[^0-9.-]/g, ''); // Garder que chiffres, point, tiret

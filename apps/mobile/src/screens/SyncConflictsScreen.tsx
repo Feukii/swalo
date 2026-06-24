@@ -62,7 +62,11 @@ const getReasonLabel = (reason: string): string => {
   return 'Une modification a eu lieu sur un autre appareil.';
 };
 
-export default function SyncConflictsScreen({ navigation }: any) {
+interface SyncConflictsScreenProps {
+  navigation: { goBack: () => void };
+}
+
+export default function SyncConflictsScreen({ navigation }: SyncConflictsScreenProps) {
   const [conflicts, setConflicts] = useState<ConflictRecord[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 

@@ -4,6 +4,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 
+interface AuthenticatedUser {
+  userId: string;
+  shopId: string;
+  role: Role;
+}
+
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
@@ -15,7 +21,7 @@ export class ReportsController {
   @Get('sales')
   @Roles(Role.BOSS, Role.MANAGER)
   getSalesReport(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string
   ) {
@@ -31,7 +37,7 @@ export class ReportsController {
    */
   @Get('stock')
   @Roles(Role.BOSS, Role.MANAGER)
-  getStockReport(@CurrentUser() user: any) {
+  getStockReport(@CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.getStockReport(user.shopId);
   }
 
@@ -42,7 +48,7 @@ export class ReportsController {
   @Get('cash')
   @Roles(Role.BOSS, Role.MANAGER)
   getCashReport(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string
   ) {
@@ -59,7 +65,7 @@ export class ReportsController {
   @Get('overview')
   @Roles(Role.BOSS, Role.MANAGER)
   getOverview(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string
   ) {

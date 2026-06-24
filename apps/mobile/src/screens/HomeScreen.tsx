@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { DollarSign, Receipt } from '../components/icons/SimpleIcons';
-import { ScreenHeader, KPICard, ListItem, TransactionDetailModal } from '../components/ui';
+import { ScreenHeader, ListItem, TransactionDetailModal } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { getTodayLabel } from '../utils/date';
@@ -12,14 +12,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
 import { syncEngine } from '../db/sync';
 import { authApi } from '../lib/api';
-import {
-  cashEntryRepo,
-  clientReceivableRepo,
-  supplierDebtRepo,
-  LocalCashEntry,
-  LocalClientReceivable,
-  LocalSupplierDebt,
-} from '../db/repositories';
+import { cashEntryRepo, clientReceivableRepo, supplierDebtRepo } from '../db/repositories';
 
 // Labels des catégories
 const getCategoryLabel = (category: string): string => {
@@ -51,6 +44,27 @@ const freshnessColors: Record<FreshnessLevel, string> = {
   unknown: Colors.muted.foreground,
 };
 
+// Transaction agrégée du jour (entrées caisse + créances/dettes à crédit)
+interface RecentTransaction {
+  id: string;
+  type: 'IN' | 'OUT';
+  category: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+  isCredit: boolean;
+}
+
+// Transaction sélectionnée pour le modal de détail
+interface SelectedTransaction {
+  type: 'entry' | 'exit';
+  date: string;
+  amount: number;
+  note?: string;
+  isCredit: boolean;
+  category: string;
+}
+
 export default function HomeScreen() {
   const { shopId, shop, enterprise } = useCurrentUser();
   const freshness = useSyncFreshness();
@@ -67,9 +81,9 @@ export default function HomeScreen() {
     purchasesCash: 0,
     purchasesCredit: 0,
   });
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
 
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -111,13 +125,14 @@ export default function HomeScreen() {
       const purchasesCredit = todayDebts.reduce((s, d) => s + Math.max(0, d.amount), 0);
 
       // Build recent transactions
-      const todayTransactions: any[] = [];
+      const todayTransactions: RecentTransaction[] = [];
 
       todayCashEntries.forEach(entry => {
+        const entryType: 'IN' | 'OUT' = entry.type === 'IN' ? 'IN' : 'OUT';
         todayTransactions.push({
           id: entry.id,
-          type: entry.type,
-          category: entry.category || (entry.type === 'IN' ? 'entree' : 'sortie'),
+          type: entryType,
+          category: entry.category || (entryType === 'IN' ? 'entree' : 'sortie'),
           amount: entry.amount,
           note: entry.note,
           created_at: entry.created_at,
@@ -186,7 +201,10 @@ export default function HomeScreen() {
       const token = await AsyncStorage.getItem('access_token');
       if (!token) return;
 
-      const meData = await authApi.getMe();
+      const meData = (await authApi.getMe()) as {
+        enabled_modules?: string[];
+        license_tier?: string;
+      };
       if (meData.enabled_modules) {
         await AsyncStorage.setItem('enabled_modules', JSON.stringify(meData.enabled_modules));
       }
@@ -356,7 +374,7 @@ export default function HomeScreen() {
                         type: isEntry ? 'entry' : 'exit',
                         date: transaction.created_at,
                         amount: isEntry ? transaction.amount : -transaction.amount,
-                        note: transaction.note,
+                        note: transaction.note ?? undefined,
                         isCredit: isCredit,
                         category: transaction.category,
                       });

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   MODULE_DEFINITIONS,
@@ -282,16 +283,17 @@ export class AdminControlsService {
     const limit = filters?.limit ?? 50;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
 
     if (filters?.action) where.action = filters.action;
     if (filters?.entity_type) where.entity_type = filters.entity_type;
     if (filters?.admin_id) where.admin_id = filters.admin_id;
 
     if (filters?.start_date || filters?.end_date) {
-      where.created_at = {};
-      if (filters?.start_date) where.created_at.gte = new Date(filters.start_date);
-      if (filters?.end_date) where.created_at.lte = new Date(filters.end_date);
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (filters.start_date) createdAt.gte = new Date(filters.start_date);
+      if (filters.end_date) createdAt.lte = new Date(filters.end_date);
+      where.created_at = createdAt;
     }
 
     const [logs, total] = await Promise.all([

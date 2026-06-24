@@ -57,6 +57,20 @@ interface CatalogNode {
   };
 }
 
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return undefined;
+}
+
+interface ScreenNavigation {
+  goBack: () => void;
+}
+
+interface CatalogHierarchyScreenProps {
+  navigation: ScreenNavigation;
+}
+
 type ModalType = 'family' | 'article' | 'brand' | 'reference' | null;
 
 interface FormData {
@@ -68,7 +82,7 @@ interface FormData {
   name?: string;
 }
 
-export default function CatalogHierarchyScreen({ navigation }: any) {
+export default function CatalogHierarchyScreen({ navigation }: CatalogHierarchyScreenProps) {
   const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,7 +124,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
       setProducts(enriched);
       console.log('Catalog loaded from local DB:', enriched.length, 'products');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading catalog:', error);
       Alert.alert('Erreur', 'Impossible de charger le catalogue');
     } finally {
@@ -256,7 +270,12 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
         if (modalType === 'reference') {
           // For reference, update single product
-          await updateProductOffline(formData.id!, { reference: value });
+          if (!formData.id) {
+            Alert.alert('Erreur', 'Produit introuvable');
+            setIsSaving(false);
+            return;
+          }
+          await updateProductOffline(formData.id, { reference: value });
           Alert.alert('Succes', 'Reference mise a jour');
         } else {
           // For family, article, brand: batch update locally
@@ -341,9 +360,9 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
       setShowModal(false);
       loadData(); // Recharger les donnees
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la sauvegarde:', error);
-      const errorMessage = error.message || 'Impossible de sauvegarder';
+      const errorMessage = getErrorMessage(error) ?? 'Impossible de sauvegarder';
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsSaving(false);
@@ -371,8 +390,8 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
             await deleteProductOffline(product.id);
             Alert.alert('Succes', 'Produit supprime');
             loadData();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer');
+          } catch (error: unknown) {
+            Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de supprimer');
           }
         },
       },

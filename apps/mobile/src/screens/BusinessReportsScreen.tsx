@@ -24,8 +24,12 @@ import {
   supplierRepo,
 } from '../db/repositories';
 
+interface BusinessReportsScreenNavigation {
+  goBack: () => void;
+}
+
 interface BusinessReportsScreenProps {
-  navigation: any;
+  navigation: BusinessReportsScreenNavigation;
 }
 
 interface SalesStats {
@@ -114,25 +118,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   const [customerStats, setCustomerStats] = useState<CustomerStats | null>(null);
   const [supplierStats, setSupplierStats] = useState<SupplierStats | null>(null);
 
-  const loadAllStats = useCallback(async () => {
-    if (!shopId) return;
-    setIsLoading(true);
-    try {
-      await Promise.all([loadSalesStats(), loadCustomerStats(), loadSupplierStats()]);
-    } catch (error) {
-      console.error('Erreur lors du chargement des stats:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [shopId, selectedPeriod, startDate, endDate]);
-
-  useEffect(() => {
-    if (userRole !== 'EMPLOYEE' && shopId) {
-      loadAllStats();
-    }
-  }, [userRole, shopId, loadAllStats]);
-
-  const getPeriodDates = (): { start: Date; end: Date; start_date: string; end_date: string } => {
+  const getPeriodDates = useCallback((): {
+    start: Date;
+    end: Date;
+    start_date: string;
+    end_date: string;
+  } => {
     // Si des dates personnalisées sont sélectionnées, les utiliser
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -177,13 +168,13 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       start_date: start.toISOString(),
       end_date: end.toISOString(),
     };
-  };
+  }, [startDate, endDate, selectedPeriod]);
 
   // Fonction utilitaire pour vérifier si une date est dans la plage
-  const isInPeriod = (dateStr: string, start: Date, end: Date): boolean => {
+  const isInPeriod = useCallback((dateStr: string, start: Date, end: Date): boolean => {
     const date = new Date(dateStr);
     return date >= start && date <= end;
-  };
+  }, []);
 
   const getPeriodLabel = () => {
     switch (selectedPeriod) {
@@ -213,7 +204,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
     return labels[category] || category;
   };
 
-  const loadSalesStats = async () => {
+  const loadSalesStats = useCallback(async () => {
     if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
@@ -355,9 +346,9 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         exitsByCategory: [],
       });
     }
-  };
+  }, [shopId, getPeriodDates, isInPeriod]);
 
-  const loadCustomerStats = async () => {
+  const loadCustomerStats = useCallback(async () => {
     if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
@@ -520,9 +511,9 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         top3ToRefund: [],
       });
     }
-  };
+  }, [shopId, getPeriodDates, isInPeriod]);
 
-  const loadSupplierStats = async () => {
+  const loadSupplierStats = useCallback(async () => {
     if (!shopId) return;
     try {
       const periodDates = getPeriodDates();
@@ -677,7 +668,25 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         top3ToRefund: [],
       });
     }
-  };
+  }, [shopId, getPeriodDates, isInPeriod]);
+
+  const loadAllStats = useCallback(async () => {
+    if (!shopId) return;
+    setIsLoading(true);
+    try {
+      await Promise.all([loadSalesStats(), loadCustomerStats(), loadSupplierStats()]);
+    } catch (error) {
+      console.error('Erreur lors du chargement des stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [shopId, loadSalesStats, loadCustomerStats, loadSupplierStats]);
+
+  useEffect(() => {
+    if (userRole !== 'EMPLOYEE' && shopId) {
+      loadAllStats();
+    }
+  }, [userRole, shopId, loadAllStats]);
 
   if (userRole === 'EMPLOYEE') {
     return null;

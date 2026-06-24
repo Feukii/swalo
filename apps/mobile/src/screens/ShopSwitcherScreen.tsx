@@ -10,11 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Store, CheckCircle, Building } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { shopSwitchApi } from '../lib/api';
+import type { RootStackParamList } from '../../App';
 
 interface AccessibleShop {
   shop: {
@@ -28,7 +30,11 @@ interface AccessibleShop {
   role: string;
 }
 
-export default function ShopSwitcherScreen({ navigation }: any) {
+interface ShopSwitcherScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'ShopSwitcher'>;
+}
+
+export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenProps) {
   const [shops, setShops] = useState<AccessibleShop[]>([]);
   const [currentShopId, setCurrentShopId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,9 +50,9 @@ export default function ShopSwitcherScreen({ navigation }: any) {
 
       const data = await shopSwitchApi.getAccessibleShops();
       setShops(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement boutiques:', error);
-      if (error.message === 'Unauthorized') {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         Alert.alert('Session expiree', 'Veuillez vous reconnecter.', [
           { text: 'OK', onPress: () => navigation.replace('LoginPin') },
         ]);
@@ -89,8 +95,9 @@ export default function ShopSwitcherScreen({ navigation }: any) {
                 onPress: () => navigation.goBack(),
               },
             ]);
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de changer de boutique');
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || 'Impossible de changer de boutique');
           } finally {
             setIsSwitching(false);
           }

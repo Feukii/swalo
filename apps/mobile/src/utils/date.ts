@@ -30,7 +30,7 @@ export function formatDate(
   }
   try {
     return new Date(isoDate).toLocaleDateString(locale, options);
-  } catch (error) {
+  } catch {
     return 'Date invalide';
   }
 }

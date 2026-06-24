@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SearchSaleDto } from './dto/search-sale.dto';
@@ -12,7 +13,7 @@ export class SalesService {
    * Liste toutes les ventes d'une boutique avec filtres
    */
   async findAll(shopId: string, query: SearchSaleDto) {
-    const where: any = {
+    const where: Prisma.SaleWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -26,13 +27,14 @@ export class SalesService {
     }
 
     if (query.start_date || query.end_date) {
-      where.created_at = {};
+      const createdAt: Prisma.DateTimeFilter = {};
       if (query.start_date) {
-        where.created_at.gte = new Date(query.start_date);
+        createdAt.gte = new Date(query.start_date);
       }
       if (query.end_date) {
-        where.created_at.lte = new Date(query.end_date);
+        createdAt.lte = new Date(query.end_date);
       }
+      where.created_at = createdAt;
     }
 
     const sales = await this.prisma.sale.findMany({
@@ -106,7 +108,7 @@ export class SalesService {
     return {
       total_sales: totalSales,
       today_sales: todaySales,
-      total_revenue: completedSales._sum.grand_total || 0,
+      total_revenue: completedSales._sum.grand_total ?? 0,
     };
   }
 
@@ -186,7 +188,7 @@ export class SalesService {
 
         if (totalAvailable < item.qty) {
           throw new BadRequestException(
-            `Stock insuffisant pour ${product.name}. Disponible: ${totalAvailable}, Demandé: ${item.qty}`
+            `Stock insuffisant pour ${product.name}. Disponible: ${String(totalAvailable)}, Demandé: ${String(item.qty)}`
           );
         }
       }
@@ -197,8 +199,8 @@ export class SalesService {
     const saleItems = dto.items.map(item => {
       const product = productMap.get(item.product_id);
       const itemSubtotal = Math.round(item.unit_price * item.qty);
-      const itemDiscount = item.discount || 0;
-      const itemTaxRate = product?.tax_rate || 0;
+      const itemDiscount = item.discount ?? 0;
+      const itemTaxRate = product?.tax_rate ?? 0;
       const itemNetAmount = itemSubtotal - itemDiscount;
       const itemTaxTotal = Math.round(itemNetAmount * itemTaxRate);
       const itemTotal = itemNetAmount + itemTaxTotal;
@@ -208,8 +210,8 @@ export class SalesService {
       return {
         id: uuidv4(),
         product_id: item.product_id,
-        product_name: product?.name || '',
-        sku: product?.sku || '',
+        product_name: product?.name ?? '',
+        sku: product?.sku ?? '',
         qty: item.qty,
         unit_price: item.unit_price,
         discount: itemDiscount,
@@ -220,7 +222,7 @@ export class SalesService {
       };
     });
 
-    const globalDiscount = dto.discount || 0;
+    const globalDiscount = dto.discount ?? 0;
     const netTotal = subtotal - globalDiscount;
 
     // Calculer le total des taxes de tous les items
@@ -229,7 +231,7 @@ export class SalesService {
     const grandTotal = netTotal + taxTotal;
 
     // Déterminer la méthode de paiement
-    const paymentMethod = dto.payment_method || 'CASH';
+    const paymentMethod = dto.payment_method ?? 'CASH';
 
     // Si vente à crédit, vérifier la limite de crédit du client
     if (paymentMethod === 'CREDIT') {
@@ -258,9 +260,9 @@ export class SalesService {
 
         if (currentBalance + grandTotal > customer.credit_limit) {
           throw new BadRequestException(
-            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
-              `montant vente : ${grandTotal} FCFA, ` +
-              `limite : ${customer.credit_limit} FCFA`
+            `Limite de crédit dépassée. Solde actuel : ${String(currentBalance)} FCFA, ` +
+              `montant vente : ${String(grandTotal)} FCFA, ` +
+              `limite : ${String(customer.credit_limit)} FCFA`
           );
         }
       }
@@ -292,7 +294,7 @@ export class SalesService {
 
             if (batch.remaining_quantity < item.qty) {
               throw new BadRequestException(
-                `Stock insuffisant dans le lot sélectionné. Disponible: ${batch.remaining_quantity}, Demandé: ${item.qty}`
+                `Stock insuffisant dans le lot sélectionné. Disponible: ${String(batch.remaining_quantity)}, Demandé: ${String(item.qty)}`
               );
             }
 
@@ -329,9 +331,7 @@ export class SalesService {
                 data: { remaining_quantity: batch.remaining_quantity - toDeduct },
               });
 
-              if (!primaryBatchId) {
-                primaryBatchId = batch.id;
-              }
+              primaryBatchId ??= batch.id;
 
               remainingToDeduct -= toDeduct;
             }
@@ -346,7 +346,7 @@ export class SalesService {
       // Ajouter batch_id aux items si disponible
       const saleItemsWithBatch = saleItems.map(item => ({
         ...item,
-        batch_id: batchAssignments.get(item.product_id) || null,
+        batch_id: batchAssignments.get(item.product_id) ?? null,
       }));
 
       // Créer la vente
@@ -355,8 +355,8 @@ export class SalesService {
           id: uuidv4(),
           shop_id: shopId,
           cashier_id: cashierId,
-          customer_id: dto.customer_id || null,
-          status: dto.status || 'DRAFT',
+          customer_id: dto.customer_id ?? null,
+          status: dto.status ?? 'DRAFT',
           payment_method: paymentMethod,
           subtotal,
           discount: globalDiscount,
@@ -365,10 +365,10 @@ export class SalesService {
           grand_total: grandTotal,
           paid_total: paymentMethod === 'CREDIT' ? 0 : dto.status === 'COMPLETED' ? grandTotal : 0,
           change: 0,
-          notes: dto.notes || null,
-          expected_total: dto.expected_total || null,
-          pricing_notes: dto.pricing_notes || null,
-          device_id: dto.device_id || '',
+          notes: dto.notes ?? null,
+          expected_total: dto.expected_total ?? null,
+          pricing_notes: dto.pricing_notes ?? null,
+          device_id: dto.device_id ?? '',
           items: {
             create: saleItemsWithBatch,
           },
@@ -402,6 +402,8 @@ export class SalesService {
 
       // Si COMPLETED, créer les mouvements de stock avec ref_id = sale ID
       if (dto.status === 'COMPLETED') {
+        // 'web' utilisé comme marqueur lorsque device_id est absent ou vide
+        const deviceIdForOp = dto.device_id && dto.device_id.length > 0 ? dto.device_id : 'web';
         for (const item of dto.items) {
           await tx.inventoryMovement.create({
             data: {
@@ -413,8 +415,8 @@ export class SalesService {
               reason: 'Vente (FIFO)',
               ref_type: 'SALE',
               ref_id: newSale.id,
-              device_id: dto.device_id || '',
-              client_op_id: `sale_${dto.device_id || 'web'}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              device_id: dto.device_id ?? '',
+              client_op_id: `sale_${deviceIdForOp}_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
             },
           });
         }
@@ -484,7 +486,7 @@ export class SalesService {
               ref_type: 'CANCEL',
               ref_id: id,
               device_id: '',
-              client_op_id: `cancel_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              client_op_id: `cancel_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
             },
           });
 

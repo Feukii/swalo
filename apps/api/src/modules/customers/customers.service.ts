@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateRefundDto } from './dto/create-refund.dto';
 
 @Injectable()
 export class CustomersService {
@@ -55,7 +57,7 @@ export class CustomersService {
           phone: dto.phone,
           email: dto.email,
           address: dto.address,
-          credit_limit: dto.credit_limit || 0,
+          credit_limit: dto.credit_limit ?? 0,
           notes: dto.notes,
           is_active: true,
           email_notifications_enabled: dto.email_notifications_enabled ?? true,
@@ -91,7 +93,7 @@ export class CustomersService {
       is_active?: boolean;
     }
   ) {
-    const where: any = {
+    const where: Prisma.CustomerWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -341,12 +343,12 @@ export class CustomersService {
    * Créer un remboursement client
    * Crée une sortie de caisse et une créance négative pour tracer le remboursement
    */
-  async createRefund(shopId: string, customerId: string, userId: string, dto: any) {
+  async createRefund(shopId: string, customerId: string, userId: string, dto: CreateRefundDto) {
     // Vérifier que le client existe
     const customer = await this.getOne(shopId, customerId);
 
     // Valider que le montant ne dépasse pas le remboursement dû (solde négatif)
-    const currentBalance = customer.stats?.total_balance || 0;
+    const currentBalance = customer.stats.total_balance;
     if (currentBalance >= 0) {
       throw new BadRequestException("Ce client n'a pas de remboursement dû");
     }
@@ -354,7 +356,7 @@ export class CustomersService {
     const refundOwed = Math.abs(currentBalance);
     if (dto.amount > refundOwed) {
       throw new BadRequestException(
-        `Le montant du remboursement (${dto.amount}) dépasse le montant dû (${refundOwed})`
+        `Le montant du remboursement (${String(dto.amount)}) dépasse le montant dû (${String(refundOwed)})`
       );
     }
 
@@ -367,7 +369,7 @@ export class CustomersService {
           type: 'OUT',
           category: 'Remboursement client',
           amount: dto.amount,
-          note: dto.note || `Remboursement à ${customer.name}`,
+          note: dto.note && dto.note.length > 0 ? dto.note : `Remboursement à ${customer.name}`,
           customer_id: customerId,
           cashier_id: userId,
         },
@@ -445,18 +447,20 @@ export class CustomersService {
     });
 
     // Grouper par nom (case-insensitive)
-    const grouped: Record<string, typeof customers> = {};
+    const grouped = new Map<string, typeof customers>();
     for (const customer of customers) {
       const normalizedName = customer.name.toLowerCase().trim();
-      if (!grouped[normalizedName]) {
-        grouped[normalizedName] = [];
+      const group = grouped.get(normalizedName);
+      if (group) {
+        group.push(customer);
+      } else {
+        grouped.set(normalizedName, [customer]);
       }
-      grouped[normalizedName].push(customer);
     }
 
     // Filtrer pour ne garder que les groupes avec plus d'un client
-    const duplicates = Object.entries(grouped)
-      .filter(([_, group]) => group.length > 1)
+    const duplicates = Array.from(grouped.entries())
+      .filter(([, group]) => group.length > 1)
       .map(([name, group]) => ({
         name,
         count: group.length,

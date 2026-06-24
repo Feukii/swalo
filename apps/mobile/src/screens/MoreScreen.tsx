@@ -55,7 +55,18 @@ const MENU_ITEMS = [
   { icon: Settings, title: 'Administration', screen: 'ShopAdmin' },
 ];
 
-export default function MoreScreen({ navigation }: any) {
+interface ParentNavigator {
+  reset: (state: { index: number; routes: { name: string }[] }) => void;
+  navigate: (screen: string) => void;
+}
+
+interface MoreScreenProps {
+  navigation: {
+    getParent: () => ParentNavigator | undefined;
+  };
+}
+
+export default function MoreScreen({ navigation }: MoreScreenProps) {
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [licenseTier, setLicenseTier] = useState<string>('STARTER');
 

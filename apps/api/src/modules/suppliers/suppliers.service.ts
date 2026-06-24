@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { ClaimRefundDto } from './dto/claim-refund.dto';
 
 @Injectable()
 export class SuppliersService {
@@ -55,7 +57,7 @@ export class SuppliersService {
           phone: dto.phone,
           email: dto.email,
           address: dto.address,
-          borrowing_limit: dto.borrowing_limit || 0,
+          borrowing_limit: dto.borrowing_limit ?? 0,
           notes: dto.notes,
           is_active: true,
         },
@@ -90,7 +92,7 @@ export class SuppliersService {
       is_active?: boolean;
     }
   ) {
-    const where: any = {
+    const where: Prisma.SupplierWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -339,12 +341,19 @@ export class SuppliersService {
    * Réclamer un remboursement au fournisseur (quand solde négatif)
    * Crée une entrée de caisse pour enregistrer le remboursement reçu
    */
-  async claimRefund(shopId: string, supplierId: string, userId: string, dto: any) {
+  async claimRefund(
+    shopId: string,
+    supplierId: string,
+    userId: string,
+    dto: Omit<ClaimRefundDto, 'payment_method'> & {
+      payment_method: 'CASH' | 'MOBILE_MONEY';
+    }
+  ) {
     // Vérifier que le fournisseur existe
     const supplier = await this.getOne(shopId, supplierId);
 
     // Valider que le solde est négatif (fournisseur nous doit de l'argent)
-    const currentBalance = supplier.stats?.total_balance || 0;
+    const currentBalance = supplier.stats.total_balance;
     if (currentBalance >= 0) {
       throw new BadRequestException('Ce fournisseur ne vous doit pas de remboursement');
     }
@@ -352,7 +361,7 @@ export class SuppliersService {
     const refundOwed = Math.abs(currentBalance);
     if (dto.amount > refundOwed) {
       throw new BadRequestException(
-        `Le montant réclamé (${dto.amount}) dépasse le montant dû (${refundOwed})`
+        `Le montant réclamé (${String(dto.amount)}) dépasse le montant dû (${String(refundOwed)})`
       );
     }
 
@@ -365,7 +374,8 @@ export class SuppliersService {
           type: 'IN',
           category: 'Remboursement fournisseur',
           amount: dto.amount,
-          note: dto.note || `Remboursement reçu de ${supplier.name}`,
+          note:
+            dto.note && dto.note.length > 0 ? dto.note : `Remboursement reçu de ${supplier.name}`,
           supplier_id: supplierId,
           cashier_id: userId,
         },
@@ -419,18 +429,20 @@ export class SuppliersService {
     });
 
     // Grouper par nom (case-insensitive)
-    const grouped: Record<string, typeof suppliers> = {};
+    const grouped = new Map<string, typeof suppliers>();
     for (const supplier of suppliers) {
       const normalizedName = supplier.name.toLowerCase().trim();
-      if (!grouped[normalizedName]) {
-        grouped[normalizedName] = [];
+      const group = grouped.get(normalizedName);
+      if (group) {
+        group.push(supplier);
+      } else {
+        grouped.set(normalizedName, [supplier]);
       }
-      grouped[normalizedName].push(supplier);
     }
 
     // Filtrer pour ne garder que les groupes avec plus d'un fournisseur
-    const duplicates = Object.entries(grouped)
-      .filter(([_, group]) => group.length > 1)
+    const duplicates = Array.from(grouped.entries())
+      .filter(([, group]) => group.length > 1)
       .map(([name, group]) => ({
         name,
         count: group.length,
