@@ -27,6 +27,7 @@ import { ScreenHeader, SearchableSelect } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { useResponsive } from '../hooks/useResponsive';
 import { productRepo, customerRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
 import { checkCreditLimit } from '../utils/creditCheck';
 import {
@@ -72,6 +73,7 @@ type PaymentMethod = 'cash' | 'credit';
 
 export default function SaleScreen() {
   const { shopId, userId, shop } = useCurrentUser();
+  const { isTablet, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -529,13 +531,20 @@ export default function SaleScreen() {
     },
   ];
 
+  // Mode tablette (largeur >= 768) : master-detail côte à côte (produits | panier).
+  // Sur téléphone, isTablet est faux et tous ces overrides valent undefined,
+  // donc le rendu/les styles restent strictement identiques à aujourd'hui.
+  // Largeur de carte produit : téléphone '23%' (4 col), tablette ~'18%' (5 col),
+  // grande tablette ~'15%' (6 col) — dérivée de `columns` avec un peu de gouttière.
+  const tabletCardWidth = `${Math.floor(100 / columns) - 2}%` as const;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader title="Point de vente" />
 
-      <View style={styles.mainContent}>
-        {/* Products Section - 2/3 of height */}
-        <View style={styles.productsSection}>
+      <View style={[styles.mainContent, isTablet && styles.mainContentTablet]}>
+        {/* Products Section - 2/3 of height (phone) / left pane 60% (tablet) */}
+        <View style={[styles.productsSection, isTablet && styles.productsSectionTablet]}>
           {/* Search Bar */}
           <View style={styles.searchContainer}>
             <Search size={20} color={Colors.muted.foreground} />
@@ -555,7 +564,11 @@ export default function SaleScreen() {
               return (
                 <TouchableOpacity
                   key={product.id}
-                  style={[styles.productCard, inCart && styles.productCardInCart]}
+                  style={[
+                    styles.productCard,
+                    isTablet && { width: tabletCardWidth },
+                    inCart && styles.productCardInCart,
+                  ]}
                   onPress={() => addToCart(product)}
                 >
                   <View style={styles.productIconContainer}>
@@ -592,8 +605,8 @@ export default function SaleScreen() {
           </ScrollView>
         </View>
 
-        {/* Cart Section - 1/3 of height */}
-        <View style={styles.cartSection}>
+        {/* Cart Section - 1/3 of height (phone) / right pane 40% (tablet) */}
+        <View style={[styles.cartSection, isTablet && styles.cartSectionTablet]}>
           <View style={styles.cartHeader}>
             <View style={styles.cartHeaderLeft}>
               <ShoppingCart size={20} color={Colors.primary.foreground} />
@@ -901,10 +914,21 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
   },
+  // Tablette : master-detail horizontal (produits à gauche, panier à droite).
+  mainContentTablet: {
+    flexDirection: 'row',
+  },
   productsSection: {
     flex: 2,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  // Tablette : volet gauche ~60%, séparateur vertical au lieu d'horizontal.
+  productsSectionTablet: {
+    flex: 3,
+    borderBottomWidth: 0,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -1006,6 +1030,10 @@ const styles = StyleSheet.create({
   cartSection: {
     flex: 1,
     backgroundColor: Colors.primary[900],
+  },
+  // Tablette : volet droit ~40% pleine hauteur.
+  cartSectionTablet: {
+    flex: 2,
   },
   cartHeader: {
     flexDirection: 'row',

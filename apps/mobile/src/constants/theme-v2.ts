@@ -146,3 +146,10 @@ export const TouchTargets = {
   button: 48,
   listItem: 56,
 };
+
+// Points de rupture responsive (largeur en px logiques)
+// Téléphone < 768 ; tablette >= 768 ; grande tablette >= 1024
+export const Breakpoints = {
+  tablet: 768,
+  large: 1024,
+} as const;
