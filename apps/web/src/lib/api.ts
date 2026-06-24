@@ -589,6 +589,14 @@ export const enterpriseApi = {
     const response = await api.get(`/enterprises/${id}/stats`);
     return response.data;
   },
+
+  getFinancialSummary: async (id: string, filters?: { start_date?: string; end_date?: string }) => {
+    const params: Record<string, string> = {};
+    if (filters?.start_date) params.start_date = filters.start_date;
+    if (filters?.end_date) params.end_date = filters.end_date;
+    const response = await api.get(`/enterprises/${id}/financial-summary`, { params });
+    return response.data;
+  },
 };
 
 // Transfers API (Inter-shop)

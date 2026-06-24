@@ -28,6 +28,35 @@ interface EnterpriseStats {
   total_pending_transfers: number;
 }
 
+interface ShopFinancialHealth {
+  shop_id: string;
+  shop_name: string;
+  revenue: number;
+  cash_balance: number;
+  net_cash_flow: number;
+  receivables_outstanding: number;
+  supplier_debts: number;
+  stock_value: number;
+  low_stock_count: number;
+  health_score: number;
+}
+
+interface FinancialSummary {
+  enterprise: {
+    total_shops: number;
+    revenue: number;
+    cash_balance: number;
+    net_cash_flow: number;
+    receivables_outstanding: number;
+    supplier_debts: number;
+    stock_value: number;
+    low_stock_count: number;
+    health_score: number;
+  };
+  per_shop: ShopFinancialHealth[];
+  period: { start_date: string | null; end_date: string | null };
+}
+
 interface Transfer {
   id: string;
   status: string;
@@ -61,6 +90,9 @@ export default function EnterpriseDashboard() {
   const [stats, setStats] = useState<EnterpriseStats | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -73,6 +105,7 @@ export default function EnterpriseDashboard() {
   useEffect(() => {
     if (selectedEnterprise) {
       loadEnterpriseDetails(selectedEnterprise.id);
+      loadFinancialSummary(selectedEnterprise.id);
     }
   }, [selectedEnterprise]);
 
@@ -101,6 +134,24 @@ export default function EnterpriseDashboard() {
       setShops(shopsData);
     } catch (err: any) {
       console.error('Erreur chargement details entreprise:', err);
+    }
+  };
+
+  const loadFinancialSummary = async (id: string) => {
+    try {
+      const filters: { start_date?: string; end_date?: string } = {};
+      if (startDate) filters.start_date = new Date(startDate).toISOString();
+      if (endDate) filters.end_date = new Date(endDate).toISOString();
+      const data = await enterpriseApi.getFinancialSummary(id, filters);
+      setFinancialSummary(data);
+    } catch (err: any) {
+      console.error('Erreur chargement recapitulatif financier:', err);
+    }
+  };
+
+  const handleApplyFilter = () => {
+    if (selectedEnterprise) {
+      loadFinancialSummary(selectedEnterprise.id);
     }
   };
 
@@ -247,6 +298,123 @@ export default function EnterpriseDashboard() {
           </div>
         </div>
       )}
+
+      {/* Sante financiere par boutique */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Sante financiere par boutique</h2>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 mb-0.5">Du</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 mb-0.5">Au</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <button
+              onClick={handleApplyFilter}
+              className="px-3 py-1.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Appliquer
+            </button>
+          </div>
+        </div>
+        <p className="px-6 pt-3 text-xs text-gray-400">
+          Le chiffre d'affaires est filtre par la periode. La tresorerie (solde de caisse), les
+          creances, dettes et la valeur du stock sont calcules en cumul (tous temps confondus).
+        </p>
+        <div className="overflow-x-auto p-2">
+          {!financialSummary || financialSummary.per_shop.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-500">
+              Aucune donnee financiere disponible
+            </div>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b border-gray-100">
+                  <th className="px-4 py-2 font-medium">Boutique</th>
+                  <th className="px-4 py-2 font-medium text-right">CA (periode)</th>
+                  <th className="px-4 py-2 font-medium text-right">Solde caisse</th>
+                  <th className="px-4 py-2 font-medium text-right">Creances</th>
+                  <th className="px-4 py-2 font-medium text-right">Dettes fourn.</th>
+                  <th className="px-4 py-2 font-medium text-right">Valeur stock</th>
+                  <th className="px-4 py-2 font-medium text-right">Alertes stock</th>
+                  <th className="px-4 py-2 font-medium text-right">Score sante</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {financialSummary.per_shop.map(shop => (
+                  <tr key={shop.shop_id} className="text-gray-700">
+                    <td className="px-4 py-2 font-medium text-gray-900">{shop.shop_name}</td>
+                    <td className="px-4 py-2 text-right">{formatCurrency(shop.revenue)}</td>
+                    <td className="px-4 py-2 text-right">{formatCurrency(shop.cash_balance)}</td>
+                    <td className="px-4 py-2 text-right">
+                      {formatCurrency(shop.receivables_outstanding)}
+                    </td>
+                    <td className="px-4 py-2 text-right text-red-600">
+                      {formatCurrency(shop.supplier_debts)}
+                    </td>
+                    <td className="px-4 py-2 text-right">{formatCurrency(shop.stock_value)}</td>
+                    <td className="px-4 py-2 text-right">
+                      {shop.low_stock_count > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                          {shop.low_stock_count}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right font-semibold ${
+                        shop.health_score >= 0 ? 'text-green-700' : 'text-red-700'
+                      }`}
+                    >
+                      {formatCurrency(shop.health_score)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-200 font-semibold text-gray-900 bg-gray-50">
+                  <td className="px-4 py-2">Total entreprise</td>
+                  <td className="px-4 py-2 text-right">
+                    {formatCurrency(financialSummary.enterprise.revenue)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {formatCurrency(financialSummary.enterprise.cash_balance)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {formatCurrency(financialSummary.enterprise.receivables_outstanding)}
+                  </td>
+                  <td className="px-4 py-2 text-right text-red-600">
+                    {formatCurrency(financialSummary.enterprise.supplier_debts)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {formatCurrency(financialSummary.enterprise.stock_value)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {financialSummary.enterprise.low_stock_count}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {formatCurrency(financialSummary.enterprise.health_score)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      </div>
 
       {/* Shops List */}
       <div className="bg-white rounded-xl border border-gray-200">
