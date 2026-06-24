@@ -513,16 +513,24 @@ export default function AdminShops() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-1">
-                      Code boutique (6 chiffres)
+                      Code boutique (4-10 caractères, A-Z et 0-9)
                     </label>
                     <input
                       type="text"
                       value={formData.shop_code}
-                      onChange={e => setFormData({ ...formData, shop_code: e.target.value })}
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          shop_code: e.target.value
+                            .replace(/[^A-Za-z0-9]/g, '')
+                            .toUpperCase()
+                            .slice(0, 10),
+                        })
+                      }
                       className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                       placeholder="Auto-généré si vide"
-                      maxLength={6}
-                      pattern="[0-9]{6}"
+                      maxLength={10}
+                      pattern="[A-Z0-9]{4,10}"
                     />
                   </div>
 

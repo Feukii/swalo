@@ -256,8 +256,7 @@ export default function ShopSettings() {
                   />
                 </svg>
                 <p className="text-sm text-blue-800">
-                  Un nouveau code à 6 chiffres sera généré automatiquement. Confirmez avec votre
-                  PIN.
+                  Un nouveau code boutique sera généré automatiquement. Confirmez avec votre PIN.
                 </p>
               </div>
             </div>

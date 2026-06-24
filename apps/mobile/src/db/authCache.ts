@@ -5,6 +5,7 @@
  */
 
 import { getDatabase } from './schema';
+import { normalizeShopCode } from '@swalo/core/schemas';
 
 const AUTH_CACHE_TTL_DAYS = 7;
 
@@ -65,7 +66,10 @@ export async function cacheAuthCredentials(params: {
   const db = await getDatabase();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + AUTH_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const pinHash = await hashPin(params.pin, params.shopCode);
+  // Normaliser le code (majuscules) : il sert de SEL au hash et de clé de lookup.
+  // La casse doit être identique au cache et à la vérification hors-ligne.
+  const shopCode = normalizeShopCode(params.shopCode);
+  const pinHash = await hashPin(params.pin, shopCode);
 
   await db.runAsync(
     `INSERT OR REPLACE INTO auth_cache
@@ -73,7 +77,7 @@ export async function cacheAuthCredentials(params: {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     params.userId,
     params.shopId,
-    params.shopCode,
+    shopCode,
     pinHash,
     params.name,
     params.role,
@@ -93,6 +97,9 @@ export async function verifyOfflinePin(
 ): Promise<AuthCacheEntry | null> {
   const db = await getDatabase();
 
+  // Normaliser identiquement au cache (clé de lookup + sel du hash).
+  const normalizedShopCode = normalizeShopCode(shopCode);
+
   const row = await db.getFirstAsync<{
     user_id: string;
     shop_id: string;
@@ -103,7 +110,7 @@ export async function verifyOfflinePin(
     enabled_modules: string;
     cached_at: string;
     expires_at: string;
-  }>('SELECT * FROM auth_cache WHERE shop_code = ? LIMIT 1', shopCode);
+  }>('SELECT * FROM auth_cache WHERE shop_code = ? LIMIT 1', normalizedShopCode);
 
   if (!row) return null;
 
@@ -115,7 +122,7 @@ export async function verifyOfflinePin(
   }
 
   // Verify PIN hash
-  const inputHash = await hashPin(pin, shopCode);
+  const inputHash = await hashPin(pin, normalizedShopCode);
   if (inputHash !== row.pin_hash) return null;
 
   return {
@@ -141,7 +148,7 @@ export async function getCachedAuth(shopCode: string): Promise<AuthCacheEntry | 
     enabled_modules: string;
     cached_at: string;
     expires_at: string;
-  }>('SELECT * FROM auth_cache WHERE shop_code = ? LIMIT 1', shopCode);
+  }>('SELECT * FROM auth_cache WHERE shop_code = ? LIMIT 1', normalizeShopCode(shopCode));
 
   if (!row) return null;
   if (new Date(row.expires_at) < new Date()) return null;

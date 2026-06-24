@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -19,10 +18,22 @@ import { cacheAuthCredentials, verifyOfflinePin } from '../db/authCache';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { WifiOff } from '../components/icons/SimpleIcons';
 
-const { width } = Dimensions.get('window');
-
 interface LoginPinScreenProps {
-  navigation: any;
+  navigation: {
+    replace: (screen: string) => void;
+  };
+}
+
+// Champs supplémentaires de la réponse de connexion (licence/modules) qui ne
+// sont pas déclarés dans le type de retour de authApi.loginWithPin.
+interface PinLoginExtras {
+  enabled_modules?: string[];
+  license_tier?: string;
+}
+
+// Erreur réseau/HTTP avec message optionnel
+interface ApiError {
+  message?: string;
 }
 
 export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
@@ -34,102 +45,10 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
   // Ref to prevent multiple auto-submit attempts
   const hasAutoSubmittedRef = useRef(false);
 
-  // Auto-submit when PIN reaches 4 digits and shop code is complete
-  useEffect(() => {
-    if (pin.length === 4 && shopCode.length === 6 && !isLoading && !hasAutoSubmittedRef.current) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit();
-    }
-  }, [pin, shopCode, isLoading]);
-
-  // Reset auto-submit flag when PIN is cleared (e.g., after error)
-  useEffect(() => {
-    if (pin.length === 0) {
-      hasAutoSubmittedRef.current = false;
-    }
-  }, [pin]);
-
-  /**
-   * Try online login first. On network error, fallback to offline PIN verification.
-   */
-  const handleSubmit = async () => {
-    if (shopCode.length !== 6) {
-      Alert.alert('Erreur', 'Le code boutique doit contenir 6 chiffres');
-      return;
-    }
-
-    if (pin.length !== 4) {
-      Alert.alert('Erreur', 'Le code PIN doit contenir 4 chiffres');
-      return;
-    }
-
-    setIsLoading(true);
-    setIsOfflineLogin(false);
-
-    try {
-      // 1. Try online login
-      const response = await authApi.loginWithPin(shopCode, pin);
-
-      // Save tokens and user info
-      await AsyncStorage.setItem('access_token', response.access_token);
-      await AsyncStorage.setItem('refresh_token', response.refresh_token);
-      await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
-      await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
-      if (response.enterprise) {
-        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
-      }
-      if ((response as any).enabled_modules) {
-        await AsyncStorage.setItem(
-          'enabled_modules',
-          JSON.stringify((response as any).enabled_modules)
-        );
-      }
-      if ((response as any).license_tier) {
-        await AsyncStorage.setItem('license_tier', (response as any).license_tier);
-      }
-
-      // 2. Cache credentials for future offline login (non-blocking)
-      try {
-        await cacheAuthCredentials({
-          userId: response.user.id,
-          shopId: response.shop.id,
-          shopCode,
-          pin,
-          name: response.user.name,
-          role: response.role,
-          enabledModules: response.shop.enabled_modules ?? [],
-        });
-      } catch (cacheErr) {
-        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
-      }
-
-      navigation.replace('Main');
-    } catch (error: any) {
-      // 3. On network error, try offline login
-      const isNetworkError =
-        error?.message?.includes('Network') ||
-        error?.message?.includes('fetch') ||
-        error?.message?.includes('timeout') ||
-        error?.message?.includes('réseau');
-
-      if (isNetworkError) {
-        await handleOfflineLogin();
-      } else {
-        console.error('Erreur de connexion:', error);
-        const errorMessage = error?.message || 'Code boutique ou PIN invalide';
-        Alert.alert('Erreur', errorMessage);
-        setShopCode('');
-        setPin('');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   /**
    * Verify PIN against local cache for offline login.
    */
-  const handleOfflineLogin = async () => {
+  const handleOfflineLogin = useCallback(async () => {
     try {
       const cached = await verifyOfflinePin(shopCode, pin);
 
@@ -169,7 +88,102 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
       setShopCode('');
       setPin('');
     }
-  };
+  }, [shopCode, pin, navigation]);
+
+  /**
+   * Try online login first. On network error, fallback to offline PIN verification.
+   */
+  const handleSubmit = useCallback(async () => {
+    if (shopCode.length < 4 || shopCode.length > 10) {
+      Alert.alert('Erreur', 'Le code boutique doit contenir entre 4 et 10 caractères');
+      return;
+    }
+
+    if (pin.length !== 4) {
+      Alert.alert('Erreur', 'Le code PIN doit contenir 4 chiffres');
+      return;
+    }
+
+    setIsLoading(true);
+    setIsOfflineLogin(false);
+
+    try {
+      // 1. Try online login
+      const response = await authApi.loginWithPin(shopCode, pin);
+      const user = response.user as { id: string; name: string };
+      const shop = response.shop as { id: string; enabled_modules?: string[] };
+      const extras = response as PinLoginExtras;
+
+      // Save tokens and user info
+      await AsyncStorage.setItem('access_token', response.access_token);
+      await AsyncStorage.setItem('refresh_token', response.refresh_token);
+      await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
+      await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
+      if (response.enterprise) {
+        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
+      }
+      if (extras.enabled_modules) {
+        await AsyncStorage.setItem('enabled_modules', JSON.stringify(extras.enabled_modules));
+      }
+      if (extras.license_tier) {
+        await AsyncStorage.setItem('license_tier', extras.license_tier);
+      }
+
+      // 2. Cache credentials for future offline login (non-blocking)
+      try {
+        await cacheAuthCredentials({
+          userId: user.id,
+          shopId: shop.id,
+          shopCode,
+          pin,
+          name: user.name,
+          role: response.role,
+          enabledModules: shop.enabled_modules ?? [],
+        });
+      } catch (cacheErr) {
+        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
+      }
+
+      navigation.replace('Main');
+    } catch (error: unknown) {
+      // 3. On network error, try offline login
+      const message = error instanceof Error ? error.message : (error as ApiError)?.message;
+      const isNetworkError =
+        !!message &&
+        (message.includes('Network') ||
+          message.includes('fetch') ||
+          message.includes('timeout') ||
+          message.includes('réseau'));
+
+      if (isNetworkError) {
+        await handleOfflineLogin();
+      } else {
+        console.error('Erreur de connexion:', error);
+        const errorMessage = message || 'Code boutique ou PIN invalide';
+        Alert.alert('Erreur', errorMessage);
+        setShopCode('');
+        setPin('');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [shopCode, pin, navigation, handleOfflineLogin]);
+
+  // Auto-submit when PIN is complete and the shop code respects the policy length
+  useEffect(() => {
+    const isShopCodeValid = shopCode.length >= 4 && shopCode.length <= 10;
+    if (pin.length === 4 && isShopCodeValid && !isLoading && !hasAutoSubmittedRef.current) {
+      hasAutoSubmittedRef.current = true;
+      handleSubmit();
+    }
+  }, [pin, shopCode, isLoading, handleSubmit]);
+
+  // Reset auto-submit flag when PIN is cleared (e.g., after error)
+  useEffect(() => {
+    if (pin.length === 0) {
+      hasAutoSubmittedRef.current = false;
+    }
+  }, [pin]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -194,15 +208,24 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
 
           {/* Code Boutique */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Code Boutique (6 chiffres)</Text>
+            <Text style={styles.inputLabel}>Code Boutique</Text>
             <TextInput
               style={styles.input}
-              placeholder="123456"
+              placeholder="BTQ01"
               placeholderTextColor={Colors.textColors.tertiary}
               value={shopCode}
-              onChangeText={text => setShopCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
-              keyboardType="numeric"
-              maxLength={6}
+              onChangeText={text =>
+                setShopCode(
+                  text
+                    .replace(/[^A-Za-z0-9]/g, '')
+                    .toUpperCase()
+                    .slice(0, 10)
+                )
+              }
+              keyboardType="default"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={10}
               autoFocus
               editable={!isLoading}
             />
@@ -230,7 +253,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
             onPress={handleSubmit}
-            disabled={isLoading || shopCode.length !== 6 || pin.length !== 4}
+            disabled={isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
