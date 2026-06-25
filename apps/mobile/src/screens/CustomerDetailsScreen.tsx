@@ -654,7 +654,12 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const canEditOrDelete = () => {
-    return userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
+    return (
+      userRole === 'OWNER' ||
+      userRole === 'BOSS' ||
+      userRole === 'MANAGER' ||
+      userRole === 'SUPERADMIN'
+    );
   };
 
   if (isLoading) {
@@ -769,7 +774,10 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
+        {(userRole === 'OWNER' ||
+          userRole === 'BOSS' ||
+          userRole === 'MANAGER' ||
+          userRole === 'EMPLOYEE') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}

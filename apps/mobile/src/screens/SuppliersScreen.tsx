@@ -44,6 +44,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const [name, setName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
+  const [borrowingLimit, setBorrowingLimit] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,6 +52,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setBorrowingLimit('');
     setInitialBalance('');
     setShowModal(true);
   };
@@ -60,6 +62,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setBorrowingLimit('');
     setInitialBalance('');
   };
 
@@ -88,12 +91,23 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       return;
     }
 
-    // Valider le solde initial si fourni
+    // Valider la limite d'endettement si fournie (0 ou vide = illimité)
+    let borrowingLimitFCFA: number | undefined;
+    if (borrowingLimit.trim()) {
+      const limit = parseFloat(borrowingLimit);
+      if (isNaN(limit) || limit < 0) {
+        Alert.alert('Erreur', "La limite d'endettement doit être un nombre positif");
+        return;
+      }
+      borrowingLimitFCFA = Math.round(limit);
+    }
+
+    // Valider la dette de départ si fournie
     let initialBalanceFCFA: number | undefined;
     if (initialBalance.trim()) {
       const balance = parseFloat(initialBalance);
       if (isNaN(balance) || balance < 0) {
-        Alert.alert('Erreur', 'Le solde initial doit être un nombre positif');
+        Alert.alert('Erreur', 'La dette de départ doit être un nombre positif');
         return;
       }
       initialBalanceFCFA = Math.round(balance);
@@ -106,6 +120,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
         name: name.trim(),
         firstName: firstName.trim() || undefined,
         phone: phone.trim() || undefined,
+        borrowingLimit: borrowingLimitFCFA,
       });
 
       // If initial balance provided, create a supplier debt
@@ -277,7 +292,20 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Solde initial (FCFA)</Text>
+              <Text style={styles.label}>Limite d'endettement (FCFA)</Text>
+              <TextInput
+                style={styles.input}
+                value={borrowingLimit}
+                onChangeText={setBorrowingLimit}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+              />
+              <Text style={styles.hint}>0 ou vide = illimité</Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Dette de départ (optionnel)</Text>
               <TextInput
                 style={styles.input}
                 value={initialBalance}
@@ -286,9 +314,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                 placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
               />
-              <Text style={styles.hint}>
-                Montant de la dette initiale envers le fournisseur (optionnel)
-              </Text>
+              <Text style={styles.hint}>Crée une dette de départ — laisser vide si aucune</Text>
             </View>
 
             <View style={styles.modalButtons}>

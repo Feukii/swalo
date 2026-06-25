@@ -630,7 +630,12 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   };
 
   const canEditOrDelete = () => {
-    return userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
+    return (
+      userRole === 'BOSS' ||
+      userRole === 'OWNER' ||
+      userRole === 'MANAGER' ||
+      userRole === 'SUPERADMIN'
+    );
   };
 
   const getAllTransactions = () => {
@@ -809,7 +814,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         />
 
         {/* Action Buttons */}
-        {(userRole === 'OWNER' || userRole === 'MANAGER') && (
+        {(userRole === 'BOSS' || userRole === 'OWNER' || userRole === 'MANAGER') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
