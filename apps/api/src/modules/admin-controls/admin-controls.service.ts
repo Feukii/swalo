@@ -321,6 +321,12 @@ export class AdminControlsService {
   // ==================== SYSTEM STATS ====================
 
   async getEnhancedSystemStats() {
+    const now = new Date();
+    const last15min = new Date(Date.now() - 15 * 60 * 1000);
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const next7d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
     const [
       totalUsers,
       activeUsers,
@@ -329,6 +335,11 @@ export class AdminControlsService {
       blockedShops,
       totalEnterprises,
       blockedEnterprises,
+      devicesLast15min,
+      devicesLast24h,
+      devicesLast7d,
+      expiredLicenses,
+      expiringSoonLicenses,
       recentAuditLogs,
     ] = await Promise.all([
       this.prisma.user.count({ where: { deleted: false } }),
@@ -338,6 +349,29 @@ export class AdminControlsService {
       this.prisma.shop.count({ where: { deleted: false, is_blocked: true } }),
       this.prisma.enterprise.count({ where: { deleted: false } }),
       this.prisma.enterprise.count({ where: { deleted: false, is_blocked: true } }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last15min } },
+      }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last24h } },
+      }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last7d } },
+      }),
+      this.prisma.enterprise.count({
+        where: {
+          deleted: false,
+          is_blocked: false,
+          licensed_until: { not: null, lt: now },
+        },
+      }),
+      this.prisma.enterprise.count({
+        where: {
+          deleted: false,
+          is_blocked: false,
+          licensed_until: { gte: now, lt: next7d },
+        },
+      }),
       this.prisma.auditLog.findMany({
         include: {
           admin: { select: { id: true, display_name: true } },
@@ -354,6 +388,15 @@ export class AdminControlsService {
         total: totalEnterprises,
         blocked: blockedEnterprises,
         active: totalEnterprises - blockedEnterprises,
+      },
+      connectedDevices: {
+        last15min: devicesLast15min,
+        last24h: devicesLast24h,
+        last7d: devicesLast7d,
+      },
+      licenses: {
+        expired: expiredLicenses,
+        expiringSoon: expiringSoonLicenses,
       },
       recentAuditLogs,
     };
