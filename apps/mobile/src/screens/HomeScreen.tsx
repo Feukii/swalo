@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   DollarSign,
@@ -273,8 +274,13 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* HERO marine */}
-        <View style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}>
+        {/* HERO dégradé bleu clair */}
+        <LinearGradient
+          colors={['#5CC8F5', '#0EA5E9', '#0284C7']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}
+        >
           <View style={styles.heroTop}>
             <View style={styles.heroBrand}>
               <Text style={styles.heroShop} numberOfLines={1}>
@@ -298,7 +304,7 @@ export default function HomeScreen() {
               {stats.transactionCount} transaction{stats.transactionCount > 1 ? 's' : ''}
             </Text>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Carte de stats flottante */}
         <View style={styles.floatingCard}>
@@ -482,7 +488,6 @@ const styles = StyleSheet.create({
   },
   // HERO
   hero: {
-    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing['3xl'] + Spacing.lg,
