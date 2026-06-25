@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import Logo from '../components/ui/Logo';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -19,23 +20,26 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4 animate-fade-in">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-secondary-500 to-primary-500 rounded-2xl shadow-lg mb-4">
-            <span className="text-3xl font-bold text-white">S</span>
+        {/* Card principale */}
+        <div className="bg-white rounded-3xl shadow-2xl p-8 animate-scale-in">
+          {/* Logo et titre */}
+          <div className="text-center mb-8">
+            <div className="mx-auto mb-4 flex items-center justify-center">
+              <Logo variant="icon" size="lg" />
+            </div>
+            <h1 className="text-3xl font-bold text-primary-900 mb-1">Swalo Admin</h1>
+            <p className="text-gray-600 text-sm">Plateforme d'administration</p>
           </div>
-          <h1 className="text-3xl font-bold text-white">Swalo Admin</h1>
-          <p className="text-gray-400 mt-1">Plateforme d'administration</p>
-        </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Connexion</h2>
+          <h2 className="text-xl font-bold text-gray-900 text-center mb-2">Connexion</h2>
+          <p className="text-sm text-gray-600 text-center mb-6">
+            Accedez a la plateforme d'administration
+          </p>
 
           {error && (
-            <div className="mb-4 p-3 bg-danger-50 border border-danger-200 text-danger-700 rounded-lg text-sm">
+            <div className="mb-4 p-3 bg-danger-50 border border-danger-200 text-danger-700 rounded-xl text-sm text-center animate-slide-in">
               {error}
             </div>
           )}
@@ -89,9 +93,11 @@ export default function AdminLogin() {
           </form>
         </div>
 
-        <p className="text-center text-gray-500 text-sm mt-6">
-          Acces reserve aux administrateurs Swalo
-        </p>
+        <div className="mt-6 text-center animate-slide-in">
+          <p className="text-sm text-white font-medium opacity-90">
+            Acces reserve aux administrateurs Swalo
+          </p>
+        </div>
       </div>
     </div>
   );

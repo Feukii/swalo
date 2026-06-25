@@ -229,7 +229,7 @@ export default function LicenseConfig() {
             disabled={!hasChanges || saving}
             className={`px-6 py-2 rounded-lg font-medium transition-colors ${
               hasChanges && !saving
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                ? 'bg-action-500 text-white hover:bg-action-600'
                 : 'bg-gray-200 text-gray-500 cursor-not-allowed'
             }`}
           >
@@ -306,7 +306,7 @@ export default function LicenseConfig() {
                               <select
                                 value={currentTier}
                                 onChange={e => handleTierChange(m.code, e.target.value)}
-                                className={`px-3 py-1 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                                className={`px-3 py-1 text-sm border rounded-lg focus:ring-2 focus:ring-action-500 ${
                                   isChanged ? 'border-orange-400 bg-orange-50' : 'border-gray-300'
                                 }`}
                               >
