@@ -9,10 +9,9 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Receipt } from '../../components/icons/SimpleIcons';
-import { ScreenHeader } from '../../components/ui';
-import { Colors, Spacing, BorderRadius, Shadows } from '../../constants/theme-v2';
+import { FileText, Eye } from '../../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge } from '../../components/ui';
+import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { invoicesApi } from '../../lib/api';
 
 interface Invoice {
@@ -37,34 +36,13 @@ interface InvoiceListScreenProps {
   navigation: InvoiceListScreenNavigation;
 }
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; backgroundColor: string; textColor: string; borderColor: string }
-> = {
-  ISSUED: {
-    label: 'Emise',
-    backgroundColor: Colors.info.background,
-    textColor: Colors.info.text,
-    borderColor: Colors.info.main,
-  },
-  PAID: {
-    label: 'Payee',
-    backgroundColor: Colors.success.background,
-    textColor: Colors.success.text,
-    borderColor: Colors.success.main,
-  },
-  DRAFT: {
-    label: 'Brouillon',
-    backgroundColor: Colors.muted.main + '1A',
-    textColor: Colors.muted.foreground,
-    borderColor: Colors.muted.main,
-  },
-  CANCELLED: {
-    label: 'Annulee',
-    backgroundColor: Colors.danger.background,
-    textColor: Colors.danger.text,
-    borderColor: Colors.danger.main,
-  },
+type BadgeVariant = 'success' | 'danger' | 'warning' | 'info' | 'default';
+
+const STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
+  ISSUED: { label: 'Émise', variant: 'info' },
+  PAID: { label: 'Payée', variant: 'success' },
+  DRAFT: { label: 'Brouillon', variant: 'default' },
+  CANCELLED: { label: 'Annulée', variant: 'danger' },
 };
 
 function formatFCFA(amount: number): string {
@@ -128,21 +106,14 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
     Alert.alert('Facture', `Facture ${invoice.number}`);
   };
 
+  // Total facturé (hors annulées) — métrique de la carte hero
+  const totalInvoiced = invoices
+    .filter(inv => inv.status !== 'CANCELLED')
+    .reduce((sum, inv) => sum + inv.grand_total, 0);
+
   const renderStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.DRAFT;
-    return (
-      <View
-        style={[
-          styles.statusBadge,
-          {
-            backgroundColor: config.backgroundColor,
-            borderColor: config.borderColor,
-          },
-        ]}
-      >
-        <Text style={[styles.statusText, { color: config.textColor }]}>{config.label}</Text>
-      </View>
-    );
+    return <StatusBadge text={config.label} variant={config.variant} />;
   };
 
   const renderInvoiceItem = ({ item }: { item: Invoice }) => (
@@ -152,7 +123,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
       activeOpacity={0.7}
     >
       <View style={styles.invoiceIconContainer}>
-        <Receipt size={20} color={Colors.action} />
+        <FileText size={20} color={Colors.action} />
       </View>
       <View style={styles.invoiceContent}>
         <View style={styles.invoiceTopRow}>
@@ -169,20 +140,40 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
           <Text style={styles.invoiceAmount}>{formatFCFA(item.grand_total)}</Text>
         </View>
       </View>
+      <View style={styles.invoiceAction}>
+        <Eye size={20} color={Colors.action} />
+      </View>
     </TouchableOpacity>
+  );
+
+  const renderHero = () => (
+    <View style={styles.hero}>
+      <Text style={styles.heroLabel}>Total facturé</Text>
+      <Text style={styles.heroAmount}>{formatFCFA(totalInvoiced)}</Text>
+      <Text style={styles.heroMeta}>
+        {invoices.length} {invoices.length > 1 ? 'factures' : 'facture'}
+      </Text>
+    </View>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Receipt size={48} color={Colors.action} />
+      <View style={styles.emptyIconCircle}>
+        <FileText size={32} color={Colors.action} />
+      </View>
       <Text style={styles.emptyText}>Aucune facture</Text>
       <Text style={styles.emptySubtext}>Les factures apparaitront ici une fois creees.</Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Factures" showBack={true} onBack={() => navigation.goBack()} />
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Factures"
+        subtitle="Documents de vente"
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -194,6 +185,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
           data={invoices}
           keyExtractor={item => item.id}
           renderItem={renderInvoiceItem}
+          ListHeaderComponent={invoices.length > 0 ? renderHero : null}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={
             invoices.length === 0 ? styles.emptyListContent : styles.listContent
@@ -210,7 +202,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -236,6 +228,32 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
+  // HERO MARINE
+  hero: {
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  heroLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  heroAmount: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroMeta: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: Spacing.xs,
+  },
   invoiceItem: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
@@ -248,7 +266,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary[50],
+    backgroundColor: Colors.info.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -287,16 +305,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: Colors.primary[900],
+    fontVariant: ['tabular-nums'],
   },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '500',
+  invoiceAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.info.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
   },
   separator: {
     height: Spacing.md,
@@ -307,6 +325,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     paddingVertical: Spacing['3xl'],
+  },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.info.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
   },
   emptyText: {
     fontSize: 18,

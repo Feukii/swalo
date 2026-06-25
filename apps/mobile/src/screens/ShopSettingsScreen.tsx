@@ -66,6 +66,9 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
   const [categoryName, setCategoryName] = useState('');
   const [isCategoryNew, setIsCategoryNew] = useState(false);
 
+  // Champ de saisie actuellement focalisé (rendu uniquement — bordure sky).
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -351,7 +354,12 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <ScreenHeader title="Paramètres Boutique" showBack onBack={() => navigation.goBack()} />
+        <ScreenHeader
+          title="Paramètres"
+          subtitle="Boutique & préférences"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
@@ -362,7 +370,8 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
-        title="Paramètres Boutique"
+        title="Paramètres"
+        subtitle="Boutique & préférences"
         showBack
         onBack={() => navigation.goBack()}
         rightAction={
@@ -421,7 +430,10 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
               <Text style={styles.emptySubtext}>Ajoutez des produits à votre catalogue</Text>
             </View>
           ) : (
-            products.map(renderProductItem)
+            <>
+              <Text style={styles.sectionTitle}>Catalogue</Text>
+              {products.map(renderProductItem)}
+            </>
           )}
         </ScrollView>
       ) : (
@@ -433,13 +445,21 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
           </TouchableOpacity>
 
           {/* Categories list */}
+          <Text style={styles.sectionTitle}>Catégories disponibles</Text>
           <View style={styles.categoriesCard}>
-            <Text style={styles.categoriesTitle}>Catégories disponibles</Text>
-            <Text style={styles.categoriesSubtitle}>Organisez vos produits par catégories</Text>
-            {categories.map(cat => {
+            {categories.map((cat, index) => {
               const count = products.filter(p => p.category === cat.key).length;
               return (
-                <View key={cat.id} style={styles.categoryItem}>
+                <View
+                  key={cat.id}
+                  style={[
+                    styles.categoryItem,
+                    index === categories.length - 1 && styles.categoryItemLast,
+                  ]}
+                >
+                  <View style={styles.categoryIconSquare}>
+                    <Package size={20} color={Colors.action} />
+                  </View>
                   <View style={styles.categoryInfo}>
                     <Text style={styles.categoryName}>{cat.label}</Text>
                     <Text style={styles.categoryCount}>
@@ -479,6 +499,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {editingProduct?.isNew ? 'Nouveau produit' : 'Modifier le produit'}
             </Text>
@@ -488,11 +509,13 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Nom du produit *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'name' && styles.inputFocused]}
                   value={editingProduct?.name || ''}
                   onChangeText={text =>
                     setEditingProduct(prev => (prev ? { ...prev, name: text } : null))
                   }
+                  onFocus={() => setFocusedInput('name')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="Ex: Riz 25kg"
                   placeholderTextColor={Colors.muted.foreground}
                 />
@@ -530,13 +553,15 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Prix de vente (FCFA)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'price' && styles.inputFocused]}
                   value={editingProduct?.price || ''}
                   onChangeText={text =>
                     setEditingProduct(prev =>
                       prev ? { ...prev, price: text.replace(/[^0-9]/g, '') } : null
                     )
                   }
+                  onFocus={() => setFocusedInput('price')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="0"
                   placeholderTextColor={Colors.muted.foreground}
                   keyboardType="numeric"
@@ -548,13 +573,15 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <Text style={styles.formLabel}>Stock actuel</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, focusedInput === 'stockQuantity' && styles.inputFocused]}
                     value={editingProduct?.stockQuantity || ''}
                     onChangeText={text =>
                       setEditingProduct(prev =>
                         prev ? { ...prev, stockQuantity: text.replace(/[^0-9]/g, '') } : null
                       )
                     }
+                    onFocus={() => setFocusedInput('stockQuantity')}
+                    onBlur={() => setFocusedInput(null)}
                     placeholder="0"
                     placeholderTextColor={Colors.muted.foreground}
                     keyboardType="numeric"
@@ -563,13 +590,15 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <Text style={styles.formLabel}>Seuil d'alerte</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, focusedInput === 'stockThreshold' && styles.inputFocused]}
                     value={editingProduct?.stockThreshold || ''}
                     onChangeText={text =>
                       setEditingProduct(prev =>
                         prev ? { ...prev, stockThreshold: text.replace(/[^0-9]/g, '') } : null
                       )
                     }
+                    onFocus={() => setFocusedInput('stockThreshold')}
+                    onBlur={() => setFocusedInput(null)}
                     placeholder="10"
                     placeholderTextColor={Colors.muted.foreground}
                     keyboardType="numeric"
@@ -610,6 +639,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                 onPress={() => {
                   setShowProductModal(false);
                   setEditingProduct(null);
+                  setFocusedInput(null);
                 }}
               >
                 <Text style={styles.modalCancelButtonText}>Annuler</Text>
@@ -633,6 +663,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {isCategoryNew ? 'Nouvelle catégorie' : 'Modifier la catégorie'}
             </Text>
@@ -641,9 +672,11 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Nom de la catégorie *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'categoryName' && styles.inputFocused]}
                   value={categoryName}
                   onChangeText={setCategoryName}
+                  onFocus={() => setFocusedInput('categoryName')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="Ex: Cosmétiques"
                   placeholderTextColor={Colors.muted.foreground}
                   autoFocus
@@ -658,6 +691,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                   setShowCategoryModal(false);
                   setCategoryName('');
                   setEditingCategory(null);
+                  setFocusedInput(null);
                 }}
               >
                 <Text style={styles.modalCancelButtonText}>Annuler</Text>
@@ -735,6 +769,15 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
     paddingBottom: 100,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   addButton: {
     flexDirection: 'row',
@@ -879,27 +922,29 @@ const styles = StyleSheet.create({
   categoriesCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: Spacing.lg,
+    overflow: 'hidden',
     ...Shadows.sm,
-  },
-  categoriesTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  categoriesSubtitle: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.lg,
   },
   categoryItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.md,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    minHeight: 60,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
+  },
+  categoryItemLast: {
+    borderBottomWidth: 0,
+  },
+  categoryIconSquare: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: `${Colors.action}1A`,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryInfo: {
     flex: 1,
@@ -938,6 +983,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '90%',
   },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.muted.main,
+    marginTop: Spacing.md,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -975,6 +1028,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.text,
+  },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   categoryButtons: {
     flexDirection: 'row',

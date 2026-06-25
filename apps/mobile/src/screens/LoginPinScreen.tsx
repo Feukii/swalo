@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../lib/api';
 import { cacheAuthCredentials, verifyOfflinePin } from '../db/authCache';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { WifiOff } from '../components/icons/SimpleIcons';
 
 interface LoginPinScreenProps {
@@ -41,6 +41,8 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOfflineLogin, setIsOfflineLogin] = useState(false);
+  // Visuel uniquement : champ actuellement focus (bordure sky)
+  const [focusedField, setFocusedField] = useState<'shopCode' | 'pin' | null>(null);
 
   // Ref to prevent multiple auto-submit attempts
   const hasAutoSubmittedRef = useRef(false);
@@ -211,7 +213,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Code Boutique</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, focusedField === 'shopCode' && styles.inputFocused]}
               placeholder="BTQ01"
               placeholderTextColor={Colors.textColors.tertiary}
               value={shopCode}
@@ -223,6 +225,8 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
                     .slice(0, 10)
                 )
               }
+              onFocus={() => setFocusedField('shopCode')}
+              onBlur={() => setFocusedField(null)}
               keyboardType="default"
               autoCapitalize="characters"
               autoCorrect={false}
@@ -236,11 +240,13 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Code PIN (4 chiffres)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, focusedField === 'pin' && styles.inputFocused]}
               placeholder="••••"
               placeholderTextColor={Colors.textColors.tertiary}
               value={pin}
               onChangeText={text => setPin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+              onFocus={() => setFocusedField('pin')}
+              onBlur={() => setFocusedField(null)}
               keyboardType="numeric"
               maxLength={4}
               secureTextEntry
@@ -257,7 +263,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
             disabled={isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={Colors.primary.foreground} />
             ) : (
               <Text style={styles.loginButtonText}>SE CONNECTER</Text>
             )}
@@ -266,7 +272,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           {/* Offline indicator */}
           {isOfflineLogin && (
             <View style={styles.offlineIndicator}>
-              <WifiOff size={14} color="#EA580C" />
+              <WifiOff size={14} color={Colors.warning.text} />
               <Text style={styles.offlineText}>Mode hors-ligne</Text>
             </View>
           )}
@@ -292,35 +298,32 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: Spacing['3xl'] + Spacing.lg,
   },
   logoImage: {
     width: 88,
     height: 88,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   brandWordmark: {
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: '800',
     color: Colors.onMarine,
     letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: Spacing.sm,
   },
   appSubtitle: {
     fontSize: 14,
     color: Colors.primary[200],
+    letterSpacing: 0.3,
   },
   formContainer: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: BorderRadius.sheet,
     padding: Spacing['2xl'],
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
+    ...Shadows.lg,
   },
   welcomeText: {
     fontSize: 24,
@@ -346,24 +349,29 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
+    paddingVertical: Spacing.lg,
     fontSize: 18,
     color: Colors.text,
     letterSpacing: 2,
     textAlign: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
+  },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   loginButton: {
     backgroundColor: Colors.action,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
     minHeight: 56,
+    ...Shadows.sm,
   },
   loginButtonDisabled: {
     backgroundColor: Colors.muted.main,
@@ -379,24 +387,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: Spacing.xs + 2,
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    backgroundColor: '#FFF7ED',
-    borderRadius: 8,
+    backgroundColor: Colors.warning.background,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: Colors.warning.main,
   },
   offlineText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#EA580C',
+    color: Colors.warning.text,
   },
   infoText: {
     fontSize: 12,
     color: Colors.muted.foreground,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: Spacing.lg,
   },
 });

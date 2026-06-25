@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Users, Smartphone, Clock } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { adminApi } from '../lib/api';
@@ -45,6 +46,21 @@ interface UserRole {
 
 interface UserManagementScreenProps {
   navigation: NativeStackNavigationProp<RootStackParamList, 'UserManagement'>;
+}
+
+// Teintes d'avatar stables dérivées du rôle (tokens uniquement)
+const AVATAR_BY_ROLE: Record<string, { bg: string; fg: string }> = {
+  SUPERADMIN: { bg: Colors.info.background, fg: Colors.info.text },
+  BOSS: { bg: Colors.danger.background, fg: Colors.danger.text },
+  MANAGER: { bg: Colors.warning.background, fg: Colors.warning.text },
+  EMPLOYEE: { bg: Colors.primary[100], fg: Colors.primary[700] },
+};
+
+function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export default function UserManagementScreen({ navigation }: UserManagementScreenProps) {
@@ -114,20 +130,7 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
     );
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'SUPERADMIN':
-        return Colors.info.main;
-      case 'BOSS':
-        return Colors.danger.main;
-      case 'MANAGER':
-        return Colors.warning.main;
-      case 'EMPLOYEE':
-        return Colors.action;
-      default:
-        return Colors.muted.foreground;
-    }
-  };
+  const getRoleAvatar = (role: string) => AVATAR_BY_ROLE[role] ?? AVATAR_BY_ROLE.EMPLOYEE;
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
@@ -142,32 +145,46 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
   const renderUser = ({ item }: { item: UserRole }) => {
     const { user, role, work_start_time, work_end_time } = item;
     const activeDevices = user.devices.filter(d => d.is_active).length;
+    const avatar = getRoleAvatar(role);
 
     return (
       <View style={styles.userCard}>
         <View style={styles.userHeader}>
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>{user.display_name.charAt(0).toUpperCase()}</Text>
+          <View style={[styles.userAvatar, { backgroundColor: avatar.bg }]}>
+            <Text style={[styles.userAvatarText, { color: avatar.fg }]}>
+              {getInitials(user.display_name)}
+            </Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user.display_name}</Text>
-            <Text style={styles.userContact}>{user.phone || user.email}</Text>
-            {work_start_time && work_end_time && (
-              <Text style={styles.userSchedule}>
-                Horaires: {work_start_time} - {work_end_time}
+            <Text style={styles.userName} numberOfLines={1}>
+              {user.display_name}
+            </Text>
+            {user.phone || user.email ? (
+              <Text style={styles.userContact} numberOfLines={1}>
+                {user.phone || user.email}
               </Text>
-            )}
+            ) : null}
+            {work_start_time && work_end_time ? (
+              <View style={styles.scheduleRow}>
+                <Clock size={12} color={Colors.textColors.tertiary} />
+                <Text style={styles.userSchedule}>
+                  {work_start_time} - {work_end_time}
+                </Text>
+              </View>
+            ) : null}
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeColor(role) }]}>
-            <Text style={styles.roleBadgeText}>{getRoleLabel(role)}</Text>
+          <View style={[styles.roleChip, { backgroundColor: avatar.bg }]}>
+            <Text style={[styles.roleChipText, { color: avatar.fg }]}>{getRoleLabel(role)}</Text>
           </View>
         </View>
 
         <View style={styles.userActions}>
           <TouchableOpacity
             style={styles.actionButton}
+            activeOpacity={0.7}
             onPress={() => handleViewDevices(user.id, user.display_name)}
           >
+            <Smartphone size={16} color={Colors.action} />
             <Text style={styles.actionButtonText}>
               Appareils ({activeDevices}/{user.devices.length})
             </Text>
@@ -180,7 +197,12 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <ScreenHeader title="Utilisateurs" showBack={true} onBack={() => navigation.goBack()} />
+        <ScreenHeader
+          title="Utilisateurs"
+          subtitle="Équipe & accès"
+          showBack={true}
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
@@ -190,21 +212,30 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Utilisateurs" showBack={true} onBack={() => navigation.goBack()} />
-
-      {/* Stats summary */}
-      <View style={styles.statsContainer}>
-        <Text style={styles.statsText}>{users.length} utilisateur(s)</Text>
-      </View>
+      <ScreenHeader
+        title="Utilisateurs"
+        subtitle="Équipe & accès"
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       <FlatList
         data={users}
         renderItem={renderUser}
         keyExtractor={item => item.user.id}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryCount}>{users.length}</Text>
+            <Text style={styles.summaryLabel}>
+              {users.length > 1 ? 'membres de l’équipe' : 'membre de l’équipe'}
+            </Text>
+          </View>
+        }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
+          <View style={styles.emptyState}>
+            <Users size={48} color={Colors.muted.foreground} />
             <Text style={styles.emptyText}>Aucun utilisateur trouvé</Text>
           </View>
         }
@@ -218,17 +249,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  statsContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  statsText: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -237,88 +257,107 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Spacing.lg,
   },
+  summaryCard: {
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
+  },
+  summaryCount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: -0.5,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: Colors.primary[300],
+    marginTop: Spacing.xs,
+  },
   userCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
     ...Shadows.sm,
   },
   userHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.md,
     marginBottom: Spacing.md,
   },
   userAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.action,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
   },
   userAvatarText: {
-    color: Colors.primary.foreground,
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.text,
-    marginBottom: 2,
   },
   userContact: {
     fontSize: 13,
-    color: Colors.muted.foreground,
-    marginBottom: 2,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   userSchedule: {
     fontSize: 12,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
-  roleBadge: {
+  roleChip: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 12,
   },
-  roleBadgeText: {
-    color: '#ffffff',
+  roleChipText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   userActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
     backgroundColor: Colors.primary[50],
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: 12,
     flex: 1,
-    marginHorizontal: 2,
     minHeight: 44,
-    justifyContent: 'center',
   },
   actionButtonText: {
     fontSize: 13,
     color: Colors.action,
-    textAlign: 'center',
     fontWeight: '600',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: Spacing['3xl'],
+    gap: Spacing.md,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: Colors.muted.foreground,
   },
 });
