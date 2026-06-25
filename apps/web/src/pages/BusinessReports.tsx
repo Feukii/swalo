@@ -233,14 +233,14 @@ export default function BusinessReports() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Bilans & Rapports</h1>
-              <p className="text-sm text-gray-500 mt-1">Analyse de l'activité</p>
+              <h1 className="text-2xl font-bold text-slate-900">Bilans & Rapports</h1>
+              <p className="text-sm text-slate-500 mt-1">Analyse de l'activité</p>
             </div>
             <button onClick={() => navigate(-1)} className="btn-secondary">
               ← Retour
@@ -257,8 +257,8 @@ export default function BusinessReports() {
               key={period.value}
               className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                 selectedPeriod === period.value
-                  ? 'bg-sky-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  ? 'bg-action-500 text-white'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-action-50 hover:text-action-600'
               }`}
               onClick={() => setSelectedPeriod(period.value as any)}
             >
@@ -269,43 +269,43 @@ export default function BusinessReports() {
 
         {isLoading ? (
           <div className="text-center py-16">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-action-500"></div>
           </div>
         ) : stats ? (
           <div className="space-y-6">
             {/* Financial Summary */}
-            <div className="card border-2 border-sky-500">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">📊 Sommaire Financier</h2>
+            <div className="card">
+              <h2 className="text-xl font-bold text-slate-900 mb-6">📊 Sommaire Financier</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 font-medium mb-2">Total Créances Clients</p>
-                  <p className="text-2xl font-bold text-green-600 mb-1">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 font-medium mb-2">Total Créances Clients</p>
+                  <p className="text-2xl font-bold text-success-600 mb-1">
                     {formatCurrency(financialSummary.totalReceivables, 'XOF', 'fr-FR')}
                   </p>
-                  <p className="text-xs text-gray-400">À recevoir</p>
+                  <p className="text-xs text-slate-400">À recevoir</p>
                 </div>
 
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                  <p className="text-xs text-gray-500 font-medium mb-2">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 font-medium mb-2">
                     Total Dettes Fournisseurs
                   </p>
-                  <p className="text-2xl font-bold text-red-600 mb-1">
+                  <p className="text-2xl font-bold text-danger-600 mb-1">
                     {formatCurrency(financialSummary.totalDebts, 'XOF', 'fr-FR')}
                   </p>
-                  <p className="text-xs text-gray-400">À payer</p>
+                  <p className="text-xs text-slate-400">À payer</p>
                 </div>
               </div>
 
-              <div className="bg-blue-50 border-2 border-sky-500 rounded-xl p-4 text-center">
-                <p className="text-sm text-sky-700 font-semibold mb-2">
+              <div className="bg-action-50 rounded-xl p-4 text-center">
+                <p className="text-sm text-action-700 font-semibold mb-2">
                   Solde Net (Créances - Dettes)
                 </p>
                 <p
                   className={`text-3xl font-bold ${
                     financialSummary.totalReceivables - financialSummary.totalDebts >= 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
+                      ? 'text-success-600'
+                      : 'text-danger-600'
                   }`}
                 >
                   {formatCurrency(
@@ -319,33 +319,33 @@ export default function BusinessReports() {
 
             {/* Period Stats */}
             <div className="card">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">
+              <h2 className="text-xl font-bold text-slate-900 mb-6">
                 Chiffre d'affaires - {getPeriodLabel()}
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="bg-slate-50 rounded-xl p-4 text-center">
+                  <div className="w-12 h-12 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-2xl">↗️</span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Entrées</p>
-                  <p className="text-2xl font-bold text-gray-900 mb-1">
+                  <p className="text-sm text-slate-600 mb-2">Entrées</p>
+                  <p className="text-2xl font-bold text-slate-900 mb-1">
                     {formatCurrency(stats.totalEntries, 'XOF', 'fr-FR')}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-slate-400">
                     {stats.entriesCount} opération{stats.entriesCount > 1 ? 's' : ''}
                   </p>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="bg-slate-50 rounded-xl p-4 text-center">
+                  <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-2xl">↙️</span>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">Sorties</p>
-                  <p className="text-2xl font-bold text-gray-900 mb-1">
+                  <p className="text-sm text-slate-600 mb-2">Sorties</p>
+                  <p className="text-2xl font-bold text-slate-900 mb-1">
                     {formatCurrency(stats.totalExits, 'XOF', 'fr-FR')}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-slate-400">
                     {stats.exitsCount} opération{stats.exitsCount > 1 ? 's' : ''}
                   </p>
                 </div>
@@ -353,13 +353,13 @@ export default function BusinessReports() {
 
               <div
                 className={`rounded-xl p-4 text-center ${
-                  stats.net >= 0 ? 'bg-green-100' : 'bg-red-100'
+                  stats.net >= 0 ? 'bg-success-100' : 'bg-danger-100'
                 }`}
               >
-                <p className="text-sm text-gray-700 mb-2">Résultat net</p>
+                <p className="text-sm text-slate-700 mb-2">Résultat net</p>
                 <p
                   className={`text-3xl font-bold ${
-                    stats.net >= 0 ? 'text-green-700' : 'text-red-700'
+                    stats.net >= 0 ? 'text-success-700' : 'text-danger-700'
                   }`}
                 >
                   {stats.net >= 0 ? '+' : ''}
@@ -370,19 +370,19 @@ export default function BusinessReports() {
 
             {/* Visual Bar Chart */}
             <div className="card">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Comparaison Entrées/Sorties</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-6">Comparaison Entrées/Sorties</h2>
 
               <div className="space-y-6">
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-semibold text-gray-700">Entrées</p>
-                    <p className="text-base font-semibold text-gray-900">
+                    <p className="text-sm font-semibold text-slate-700">Entrées</p>
+                    <p className="text-base font-semibold text-slate-900">
                       {formatCurrency(stats.totalEntries, 'XOF', 'fr-FR')}
                     </p>
                   </div>
-                  <div className="h-8 bg-gray-200 rounded-lg overflow-hidden">
+                  <div className="h-8 bg-slate-200 rounded-lg overflow-hidden">
                     <div
-                      className="h-full bg-green-500 rounded-lg transition-all duration-500"
+                      className="h-full bg-success-500 rounded-lg transition-all duration-500"
                       style={{
                         width:
                           stats.totalEntries > 0
@@ -395,14 +395,14 @@ export default function BusinessReports() {
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-semibold text-gray-700">Sorties</p>
-                    <p className="text-base font-semibold text-gray-900">
+                    <p className="text-sm font-semibold text-slate-700">Sorties</p>
+                    <p className="text-base font-semibold text-slate-900">
                       {formatCurrency(stats.totalExits, 'XOF', 'fr-FR')}
                     </p>
                   </div>
-                  <div className="h-8 bg-gray-200 rounded-lg overflow-hidden">
+                  <div className="h-8 bg-slate-200 rounded-lg overflow-hidden">
                     <div
-                      className="h-full bg-red-500 rounded-lg transition-all duration-500"
+                      className="h-full bg-danger-500 rounded-lg transition-all duration-500"
                       style={{
                         width:
                           stats.totalExits > 0
@@ -418,7 +418,7 @@ export default function BusinessReports() {
             {/* Entries Distribution */}
             {getEntriesDistribution().length > 0 && (
               <div className="card">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">📈 Répartition des Entrées</h2>
+                <h2 className="text-xl font-bold text-slate-900 mb-6">📈 Répartition des Entrées</h2>
                 <div className="space-y-4">
                   {getEntriesDistribution().map((item, index) => (
                     <div key={index}>
@@ -428,15 +428,15 @@ export default function BusinessReports() {
                             className="w-4 h-4 rounded"
                             style={{ backgroundColor: item.color }}
                           />
-                          <span className="text-sm font-semibold text-gray-700">
+                          <span className="text-sm font-semibold text-slate-700">
                             {item.category}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-sm font-bold text-slate-900">
                           {item.percentage.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="h-6 bg-gray-200 rounded-md overflow-hidden mb-1">
+                      <div className="h-6 bg-slate-200 rounded-md overflow-hidden mb-1">
                         <div
                           className="h-full rounded-md transition-all duration-500"
                           style={{
@@ -445,7 +445,7 @@ export default function BusinessReports() {
                           }}
                         />
                       </div>
-                      <p className="text-sm text-gray-600 font-semibold">
+                      <p className="text-sm text-slate-600 font-semibold">
                         {formatCurrency(item.amount, 'XOF', 'fr-FR')}
                       </p>
                     </div>
@@ -457,7 +457,7 @@ export default function BusinessReports() {
             {/* Exits Distribution */}
             {getExitsDistribution().length > 0 && (
               <div className="card">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">📉 Répartition des Sorties</h2>
+                <h2 className="text-xl font-bold text-slate-900 mb-6">📉 Répartition des Sorties</h2>
                 <div className="space-y-4">
                   {getExitsDistribution().map((item, index) => (
                     <div key={index}>
@@ -467,15 +467,15 @@ export default function BusinessReports() {
                             className="w-4 h-4 rounded"
                             style={{ backgroundColor: item.color }}
                           />
-                          <span className="text-sm font-semibold text-gray-700">
+                          <span className="text-sm font-semibold text-slate-700">
                             {item.category}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-sm font-bold text-slate-900">
                           {item.percentage.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="h-6 bg-gray-200 rounded-md overflow-hidden mb-1">
+                      <div className="h-6 bg-slate-200 rounded-md overflow-hidden mb-1">
                         <div
                           className="h-full rounded-md transition-all duration-500"
                           style={{
@@ -484,7 +484,7 @@ export default function BusinessReports() {
                           }}
                         />
                       </div>
-                      <p className="text-sm text-gray-600 font-semibold">
+                      <p className="text-sm text-slate-600 font-semibold">
                         {formatCurrency(item.amount, 'XOF', 'fr-FR')}
                       </p>
                     </div>
@@ -496,10 +496,10 @@ export default function BusinessReports() {
             {/* History Section */}
             <div className="card">
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-xl font-bold text-slate-900">
                   Historique des opérations - {getPeriodLabel()}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   {entries.length} opération{entries.length > 1 ? 's' : ''}
                 </p>
               </div>
@@ -507,7 +507,7 @@ export default function BusinessReports() {
               {entries.length === 0 ? (
                 <div className="text-center py-12">
                   <span className="text-6xl mb-4 block">📋</span>
-                  <p className="text-gray-500">Aucune opération sur cette période</p>
+                  <p className="text-slate-500">Aucune opération sur cette période</p>
                 </div>
               ) : (
                 <>
@@ -515,36 +515,36 @@ export default function BusinessReports() {
                     {(showAllEntries ? entries : entries.slice(0, 5)).map(entry => (
                       <div
                         key={entry.id}
-                        className="flex justify-between items-start p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+                        className="flex justify-between items-start p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors"
                       >
                         <div className="flex-1">
                           <div className="mb-2">
                             <span
                               className={`inline-block px-3 py-1 rounded-lg text-xs font-semibold ${
                                 entry.type === 'IN'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
+                                  ? 'bg-success-100 text-success-800'
+                                  : 'bg-danger-100 text-danger-800'
                               }`}
                             >
                               {entry.type === 'IN' ? '↗️' : '↙️'} {entry.category}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-400 mb-1">
+                          <p className="text-xs text-slate-400 mb-1">
                             {formatDate(entry.created_at)}
                           </p>
                           {(entry.supplier || entry.customer) && (
-                            <p className="text-sm font-medium text-gray-700 mb-1">
+                            <p className="text-sm font-medium text-slate-700 mb-1">
                               {entry.supplier &&
                                 `🏭 ${entry.supplier.first_name ? `${entry.supplier.first_name} ${entry.supplier.name}` : entry.supplier.name}`}
                               {entry.customer &&
                                 `👤 ${entry.customer.first_name ? `${entry.customer.first_name} ${entry.customer.name}` : entry.customer.name}`}
                             </p>
                           )}
-                          {entry.note && <p className="text-xs text-gray-600 mt-1">{entry.note}</p>}
+                          {entry.note && <p className="text-xs text-slate-600 mt-1">{entry.note}</p>}
                         </div>
                         <p
                           className={`text-lg font-bold ml-4 ${
-                            entry.type === 'IN' ? 'text-green-600' : 'text-red-600'
+                            entry.type === 'IN' ? 'text-success-600' : 'text-danger-600'
                           }`}
                         >
                           {entry.type === 'IN' ? '+' : '-'}
@@ -556,7 +556,7 @@ export default function BusinessReports() {
 
                   {entries.length > 5 && (
                     <button
-                      className="w-full mt-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-sky-600 transition-colors"
+                      className="w-full mt-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-lg font-semibold text-action-600 transition-colors"
                       onClick={() => setShowAllEntries(!showAllEntries)}
                     >
                       {showAllEntries
@@ -569,13 +569,13 @@ export default function BusinessReports() {
             </div>
 
             {/* Info Box */}
-            <div className="flex gap-3 bg-blue-50 rounded-xl p-4">
+            <div className="flex gap-3 bg-action-50 rounded-xl p-4">
               <span className="text-2xl">ℹ️</span>
               <div>
-                <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                <h3 className="text-sm font-semibold text-action-700 mb-2">
                   Fonctionnalités à venir
                 </h3>
-                <p className="text-sm text-blue-700 leading-relaxed">
+                <p className="text-sm text-action-600 leading-relaxed">
                   • Graphiques détaillés par catégorie
                   <br />
                   • Suivi des créances clients

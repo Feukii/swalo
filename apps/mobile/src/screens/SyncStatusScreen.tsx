@@ -27,15 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { getFailedCount, getTotalQueueCount } from '../db/queue';
 import { syncEngine } from '../db/sync';
-
-const Colors = {
-  primary: { 900: '#102A43', 700: '#1B3A57' },
-  success: '#16A34A',
-  warning: '#EA580C',
-  error: '#DC2626',
-  muted: { foreground: '#64748B', background: '#F1F5F9' },
-  border: '#E2E8F0',
-};
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 
 interface SyncStatusScreenProps {
   navigation: {
@@ -92,11 +84,11 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <ArrowLeft size={24} color="#fff" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
+          <ArrowLeft size={24} color={Colors.action} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Synchronisation</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView
@@ -107,14 +99,17 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
             {isOnline ? (
-              <Wifi size={24} color={Colors.success} />
+              <Wifi size={24} color={Colors.success.main} />
             ) : (
-              <WifiOff size={24} color={Colors.warning} />
+              <WifiOff size={24} color={Colors.warning.main} />
             )}
             <View style={styles.statusInfo}>
               <Text style={styles.statusLabel}>Connexion</Text>
               <Text
-                style={[styles.statusValue, { color: isOnline ? Colors.success : Colors.warning }]}
+                style={[
+                  styles.statusValue,
+                  { color: isOnline ? Colors.success.main : Colors.warning.main },
+                ]}
               >
                 {isOnline ? 'En ligne' : 'Hors-ligne'}
               </Text>
@@ -125,7 +120,7 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
         {/* Last Sync */}
         <View style={styles.statusCard}>
           <View style={styles.statusRow}>
-            <Clock size={24} color={Colors.primary[700]} />
+            <Clock size={24} color={Colors.action} />
             <View style={styles.statusInfo}>
               <Text style={styles.statusLabel}>Derniere synchronisation</Text>
               <Text style={styles.statusValue}>{formatDate(lastSyncAt)}</Text>
@@ -143,7 +138,7 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
               <Text style={styles.statLabel}>En attente</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, failedCount > 0 && { color: Colors.error }]}>
+              <Text style={[styles.statNumber, failedCount > 0 && { color: Colors.danger.main }]}>
                 {failedCount}
               </Text>
               <Text style={styles.statLabel}>Echouees</Text>
@@ -161,7 +156,7 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
             style={styles.conflictCard}
             onPress={() => navigation.navigate('SyncConflicts')}
           >
-            <AlertTriangle size={20} color={Colors.warning} />
+            <AlertTriangle size={20} color={Colors.warning.main} />
             <View style={styles.conflictInfo}>
               <Text style={styles.conflictTitle}>
                 {conflictCount} conflit{conflictCount > 1 ? 's' : ''} a resoudre
@@ -176,7 +171,7 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
         {/* Error */}
         {lastError && (
           <View style={styles.errorCard}>
-            <CloudOff size={20} color={Colors.error} />
+            <CloudOff size={20} color={Colors.danger.main} />
             <Text style={styles.errorText}>{lastError}</Text>
           </View>
         )}
@@ -202,88 +197,93 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#102A43',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  content: { flex: 1, padding: 16 },
+  headerBack: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  headerTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
+  content: { flex: 1, padding: Spacing.lg },
   statusCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   statusInfo: { flex: 1 },
-  statusLabel: { fontSize: 13, color: '#64748B' },
-  statusValue: { fontSize: 16, fontWeight: '600', color: '#1E293B' },
-  section: { marginTop: 8, marginBottom: 16 },
+  statusLabel: { fontSize: 13, color: Colors.textColors.tertiary },
+  statusValue: { fontSize: 16, fontWeight: '600', color: Colors.text },
+  section: { marginTop: Spacing.xs, marginBottom: Spacing.lg },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 12,
+    color: Colors.text,
+    marginBottom: Spacing.md,
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    ...Shadows.sm,
   },
-  statNumber: { fontSize: 24, fontWeight: '700', color: '#1E293B' },
-  statLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  statNumber: { fontSize: 24, fontWeight: '700', color: Colors.text },
+  statLabel: { fontSize: 12, color: Colors.textColors.tertiary, marginTop: 4 },
   conflictCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FDBA74',
-    gap: 12,
+    backgroundColor: Colors.warning.background,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
   },
   conflictInfo: { flex: 1 },
-  conflictTitle: { fontSize: 15, fontWeight: '600', color: '#9A3412' },
-  conflictDescription: { fontSize: 13, color: '#C2410C', marginTop: 2 },
+  conflictTitle: { fontSize: 15, fontWeight: '600', color: Colors.warning.text },
+  conflictDescription: { fontSize: 13, color: Colors.warning.text, marginTop: 2 },
   errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    gap: 12,
+    backgroundColor: Colors.danger.background,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
   },
-  errorText: { flex: 1, fontSize: 13, color: '#DC2626' },
+  errorText: { flex: 1, fontSize: 13, color: Colors.danger.text },
   syncButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#102A43',
+    backgroundColor: Colors.action,
     borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 32,
+    padding: Spacing.lg,
+    minHeight: 48,
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing['3xl'],
   },
   syncButtonDisabled: { opacity: 0.5 },
-  syncButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  syncButtonText: { color: Colors.surface, fontSize: 16, fontWeight: '600' },
 });

@@ -32,12 +32,12 @@ export function ScreenHeader({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
           >
-            {backIcon || <ArrowLeft size={24} color={Colors.primary[900]} />}
+            {backIcon || <ArrowLeft size={24} color={Colors.action} />}
           </Pressable>
         ) : (
           <View style={styles.logoContainer}>
             <Image
-              source={require('../../../assets/logo.png')}
+              source={require('../../../assets/swalo_mark.png')}
               style={styles.logo}
               resizeMode="contain"
             />

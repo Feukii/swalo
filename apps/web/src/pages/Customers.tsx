@@ -152,10 +152,10 @@ export default function Customers() {
     <div className="space-y-6 animate-fade-in">
       {/* Header avec stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+        <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-primary-100 text-sm">Total Clients</p>
+              <p className="text-white/80 text-sm">Total Clients</p>
               <p className="text-3xl font-bold mt-1">{stats.total}</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -167,8 +167,8 @@ export default function Customers() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Actifs</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.active}</p>
+              <p className="text-slate-500 text-sm">Actifs</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.active}</p>
             </div>
             <div className="w-12 h-12 bg-success-50 rounded-xl flex items-center justify-center">
               <span className="text-2xl">✓</span>
@@ -179,8 +179,8 @@ export default function Customers() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Avec créances</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.withBalance}</p>
+              <p className="text-slate-500 text-sm">Avec créances</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.withBalance}</p>
             </div>
             <div className="w-12 h-12 bg-warning-50 rounded-xl flex items-center justify-center">
               <span className="text-2xl">💳</span>
@@ -191,8 +191,8 @@ export default function Customers() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Total créances</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-slate-500 text-sm">Total créances</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">
                 {formatCurrency(stats.totalBalance)}
               </p>
             </div>
@@ -216,7 +216,7 @@ export default function Customers() {
                 className="input pl-10"
               />
               <svg
-                className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+                className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -242,7 +242,7 @@ export default function Customers() {
 
       {/* Liste des clients */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Liste des clients</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Liste des clients</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -250,10 +250,10 @@ export default function Customers() {
           </div>
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <span className="text-3xl">👥</span>
             </div>
-            <p className="text-gray-500">
+            <p className="text-slate-500">
               {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
             </p>
             {!searchQuery && (
@@ -266,52 +266,52 @@ export default function Customers() {
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Client
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Contact
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Limite crédit
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Créance actuelle
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Statut
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filteredCustomers.map(customer => (
-                  <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={customer.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-slate-900">
                           {customer.first_name} {customer.name}
                         </p>
                         {customer.email && (
-                          <p className="text-sm text-gray-500">{customer.email}</p>
+                          <p className="text-sm text-slate-500">{customer.email}</p>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{customer.phone || '-'}</p>
+                      <p className="text-sm text-slate-900">{customer.phone || '-'}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-slate-900">
                         {customer.credit_limit ? formatCurrency(customer.credit_limit) : '-'}
                       </p>
                     </td>
                     <td className="px-6 py-4">
                       <p
                         className={`text-sm font-medium ${
-                          (customer.current_balance || 0) > 0 ? 'text-danger-600' : 'text-gray-400'
+                          (customer.current_balance || 0) > 0 ? 'text-danger-600' : 'text-slate-400'
                         }`}
                       >
                         {formatCurrency(customer.current_balance || 0)}
@@ -328,13 +328,13 @@ export default function Customers() {
                       <div className="flex items-center justify-end gap-3">
                         <button
                           onClick={() => navigate(`/customers/${customer.id}`)}
-                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                          className="text-action-600 hover:text-action-700 font-medium text-sm"
                         >
                           Voir détails
                         </button>
                         <button
                           onClick={() => handleOpenModal(customer)}
-                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                          className="text-action-600 hover:text-action-700 font-medium text-sm"
                         >
                           Modifier
                         </button>
@@ -353,13 +353,13 @@ export default function Customers() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-t-3xl">
+            <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-sky-400 via-action-500 to-action-600 text-white rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold">
                     {selectedCustomer ? '✏️ Modifier le client' : '➕ Nouveau client'}
                   </h2>
-                  <p className="text-sm text-primary-100 mt-1">
+                  <p className="text-sm text-white/80 mt-1">
                     {selectedCustomer
                       ? 'Mettre à jour les informations'
                       : 'Ajouter un nouveau client'}
@@ -385,7 +385,7 @@ export default function Customers() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
                     Nom <span className="text-danger-500">*</span>
                   </label>
                   <input
@@ -398,7 +398,7 @@ export default function Customers() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Prénom</label>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Prénom</label>
                   <input
                     type="text"
                     value={formData.first_name}
@@ -408,7 +408,7 @@ export default function Customers() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Téléphone</label>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Téléphone</label>
                   <input
                     type="tel"
                     value={formData.phone}
@@ -419,7 +419,7 @@ export default function Customers() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Email</label>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Email</label>
                   <input
                     type="email"
                     value={formData.email}
@@ -431,7 +431,7 @@ export default function Customers() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Adresse</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Adresse</label>
                 <textarea
                   value={formData.address}
                   onChange={e => setFormData({ ...formData, address: e.target.value })}
@@ -442,7 +442,7 @@ export default function Customers() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Limite de crédit (FCFA)
                 </label>
                 <input
@@ -454,13 +454,13 @@ export default function Customers() {
                   step="1000"
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Montant maximum que le client peut devoir
                 </p>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={handleCloseModal} className="btn-secondary flex-1">
                   Annuler
                 </button>

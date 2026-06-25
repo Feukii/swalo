@@ -194,10 +194,11 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
         {/* Logo Swalo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/full_icon.png')}
+            source={require('../../assets/swalo_mark_light.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
+          <Text style={styles.brandWordmark}>Swalo</Text>
           <Text style={styles.appSubtitle}>Gérez, Vendez, Prospérez</Text>
         </View>
 
@@ -281,26 +282,33 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   logoContainer: {
     alignItems: 'center',
     marginBottom: 48,
   },
   logoImage: {
-    width: 200,
-    height: 80,
-    marginBottom: Spacing.lg,
+    width: 88,
+    height: 88,
+    marginBottom: Spacing.md,
+  },
+  brandWordmark: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   appSubtitle: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.primary[200],
   },
   formContainer: {
     backgroundColor: Colors.surface,
@@ -349,7 +357,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   loginButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     paddingVertical: Spacing.lg,
     alignItems: 'center',

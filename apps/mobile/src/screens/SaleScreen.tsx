@@ -24,7 +24,7 @@ import {
   IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useResponsive } from '../hooks/useResponsive';
@@ -572,7 +572,7 @@ export default function SaleScreen() {
                   onPress={() => addToCart(product)}
                 >
                   <View style={styles.productIconContainer}>
-                    <Package size={20} color={Colors.primary[900]} />
+                    <Package size={20} color={Colors.action} />
                   </View>
                   <Text style={styles.productName} numberOfLines={2}>
                     {product.family}
@@ -609,7 +609,7 @@ export default function SaleScreen() {
         <View style={[styles.cartSection, isTablet && styles.cartSectionTablet]}>
           <View style={styles.cartHeader}>
             <View style={styles.cartHeaderLeft}>
-              <ShoppingCart size={20} color={Colors.primary.foreground} />
+              <ShoppingCart size={20} color={Colors.action} />
               <Text style={styles.cartTitle}>Panier</Text>
             </View>
             <View style={styles.cartCount}>
@@ -786,7 +786,7 @@ export default function SaleScreen() {
                             isDisabled
                               ? Colors.muted.foreground
                               : isActive
-                                ? Colors.primary[900]
+                                ? Colors.action
                                 : Colors.text
                           }
                         />
@@ -954,15 +954,15 @@ const styles = StyleSheet.create({
   productCard: {
     width: '23%',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.sm,
     alignItems: 'center',
     position: 'relative',
+    ...Shadows.sm,
   },
   productCardInCart: {
-    borderColor: Colors.primary[900],
+    borderWidth: 2,
+    borderColor: Colors.action,
     backgroundColor: Colors.primary[50],
   },
   productIconContainer: {
@@ -1003,7 +1003,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     right: 4,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -1029,11 +1029,14 @@ const styles = StyleSheet.create({
   },
   cartSection: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   // Tablette : volet droit ~40% pleine hauteur.
   cartSectionTablet: {
     flex: 2,
+    borderTopWidth: 0,
   },
   cartHeader: {
     flexDirection: 'row',
@@ -1042,7 +1045,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: Colors.border,
   },
   cartHeaderLeft: {
     flexDirection: 'row',
@@ -1051,11 +1054,11 @@ const styles = StyleSheet.create({
   },
   cartTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
+    fontWeight: '700',
+    color: Colors.text,
   },
   cartCount: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: Colors.primary[50],
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: 12,
@@ -1063,7 +1066,7 @@ const styles = StyleSheet.create({
   cartCountText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary.foreground,
+    color: Colors.action,
   },
   emptyCart: {
     flex: 1,
@@ -1072,7 +1075,7 @@ const styles = StyleSheet.create({
   },
   emptyCartText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
+    color: Colors.muted.foreground,
   },
   cartContent: {
     flex: 1,
@@ -1084,7 +1087,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   cartItem: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: Colors.surfaceAlt,
     borderRadius: 12,
     padding: Spacing.md,
     minWidth: 140,
@@ -1092,7 +1095,7 @@ const styles = StyleSheet.create({
   cartItemName: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.primary.foreground,
+    color: Colors.text,
     marginBottom: Spacing.sm,
   },
   cartItemActions: {
@@ -1104,14 +1107,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: Colors.muted.main,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantity: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary.foreground,
+    color: Colors.text,
     minWidth: 20,
     textAlign: 'center',
   },
@@ -1212,7 +1215,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   paymentMethodActive: {
-    borderColor: Colors.primary[900],
+    borderColor: Colors.action,
     backgroundColor: Colors.primary[50],
   },
   paymentMethodDisabled: {
@@ -1225,7 +1228,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   paymentMethodTextActive: {
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   paymentMethodTextDisabled: {
     color: Colors.muted.foreground,
@@ -1267,7 +1270,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: 12,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   modalConfirmButtonDisabled: {
     opacity: 0.6,
@@ -1323,7 +1326,7 @@ const styles = StyleSheet.create({
   priceOptionBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   // Auto-total and override styles
   calculatedTotalContainer: {
@@ -1353,11 +1356,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   overrideCheckboxActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   overrideCheckmark: {
-    color: '#fff',
+    color: Colors.surface,
     fontSize: 14,
     fontWeight: '700',
   },

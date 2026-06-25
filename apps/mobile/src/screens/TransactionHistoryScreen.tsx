@@ -14,7 +14,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { DollarSign, Receipt, Filter } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, TransactionDetailModal } from '../components/ui';
 import DateRangePicker from '../components/ui/DateRangePicker';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
@@ -458,7 +458,7 @@ export default function TransactionHistoryScreen({ navigation }: TransactionHist
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
-            <Filter size={20} color={Colors.primary[900]} />
+            <Filter size={20} color={Colors.action} />
           </TouchableOpacity>
         </View>
 
@@ -649,8 +649,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   periodButtonText: {
     fontSize: 12,
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   periodButtonTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.onMarine,
   },
   quickFilters: {
     flexDirection: 'row',
@@ -675,8 +675,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   typeButtonActiveGreen: {
     backgroundColor: Colors.success.main,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   typeButtonTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.onMarine,
   },
   filterButton: {
     width: 48,
@@ -707,11 +707,10 @@ const styles = StyleSheet.create({
   statsCard: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
+    ...Shadows.sm,
   },
   statItem: {
     flex: 1,
@@ -737,7 +736,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.primary[50],
+    backgroundColor: Colors.info.background,
     borderRadius: 10,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -745,30 +744,27 @@ const styles = StyleSheet.create({
   },
   activeFilterText: {
     fontSize: 13,
-    color: Colors.primary[900],
-    fontWeight: '500',
+    color: Colors.action,
+    fontWeight: '600',
   },
   clearFilterText: {
     fontSize: 16,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '600',
     paddingLeft: Spacing.md,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   emptyState: {
@@ -787,14 +783,15 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
     width: '90%',
     maxWidth: 400,
+    ...Shadows.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.lg,
   },
@@ -804,14 +801,14 @@ const styles = StyleSheet.create({
   categoryOption: {
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
   },
   categoryOptionActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   categoryOptionText: {
     fontSize: 14,
@@ -820,7 +817,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryOptionTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.onMarine,
   },
   modalCloseButton: {
     marginTop: Spacing.lg,

@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Building } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { supplierRepo, supplierDebtRepo } from '../db/repositories';
@@ -191,7 +191,7 @@ export default function SupplierBalancesSummaryScreen({
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
           ) : filteredSuppliers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -236,10 +236,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     marginTop: Spacing.md,
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   searchInput: {
     fontSize: 16,
@@ -247,23 +249,20 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   cardSubtitle: {

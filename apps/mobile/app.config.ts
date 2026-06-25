@@ -26,7 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png', // Icône adaptative Android (brand: android_maskable_512)
-        backgroundColor: '#102A43', // Marine Swalo
+        backgroundColor: '#0B2A45', // Marine Swalo
       },
       package: 'com.swalo.mobile',
       versionCode: config.android?.versionCode ?? 1,

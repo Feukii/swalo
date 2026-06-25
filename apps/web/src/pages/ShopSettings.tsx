@@ -15,11 +15,11 @@ export default function ShopSettings() {
   // Vérifier que l'utilisateur est propriétaire
   if (role !== 'BOSS') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+      <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-card p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-danger-100 rounded-full flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-red-600"
+              className="w-8 h-8 text-danger-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -32,13 +32,13 @@ export default function ShopSettings() {
               />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Accès Refusé</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Accès Refusé</h2>
+          <p className="text-slate-600 mb-6">
             Seul le propriétaire de la boutique peut accéder aux paramètres.
           </p>
           <button
             onClick={() => navigate('/pos')}
-            className="px-6 py-2 bg-primary-900 hover:bg-primary-700 text-white font-medium rounded-xl transition-colors"
+            className="px-6 py-2 bg-action-500 hover:bg-action-600 text-white font-medium rounded-xl transition-colors"
           >
             Retour au POS
           </button>
@@ -106,28 +106,28 @@ export default function ShopSettings() {
                   />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-green-600 mb-2">Code Modifié !</h1>
-              <p className="text-gray-600 text-sm">Votre nouveau code boutique a été généré</p>
+              <h1 className="text-3xl font-bold text-success-600 mb-2">Code Modifié !</h1>
+              <p className="text-slate-600 text-sm">Votre nouveau code boutique a été généré</p>
             </div>
 
             {/* Nouveau code */}
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 mb-6">
-              <h2 className="text-lg font-bold text-blue-900 mb-4 text-center">
+            <div className="bg-action-50 border-2 border-action-200 rounded-2xl p-6 mb-6">
+              <h2 className="text-lg font-bold text-action-700 mb-4 text-center">
                 🔑 Nouveau Code Boutique
               </h2>
-              <div className="flex items-center justify-between bg-white rounded-xl p-4 border-2 border-blue-300">
+              <div className="flex items-center justify-between bg-white rounded-xl p-4 border-2 border-action-300">
                 <div className="flex-1">
-                  <p className="text-4xl font-bold font-mono tracking-widest text-blue-600 text-center">
+                  <p className="text-4xl font-bold font-mono tracking-widest text-action-600 text-center">
                     {newShopCode}
                   </p>
                 </div>
                 <button
                   onClick={() => handleCopy(newShopCode)}
-                  className="ml-4 p-3 bg-blue-100 hover:bg-blue-200 rounded-xl transition-colors"
+                  className="ml-4 p-3 bg-action-100 hover:bg-action-200 rounded-xl transition-colors"
                   title="Copier"
                 >
                   <svg
-                    className="w-5 h-5 text-blue-600"
+                    className="w-5 h-5 text-action-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -144,10 +144,10 @@ export default function ShopSettings() {
             </div>
 
             {/* Avertissement */}
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
+            <div className="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-6">
               <div className="flex items-start">
                 <svg
-                  className="w-5 h-5 text-amber-600 mr-2 mt-0.5 flex-shrink-0"
+                  className="w-5 h-5 text-warning-600 mr-2 mt-0.5 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -159,7 +159,7 @@ export default function ShopSettings() {
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                   />
                 </svg>
-                <div className="text-sm text-amber-800">
+                <div className="text-sm text-warning-800">
                   <p className="font-semibold mb-1">Important :</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>Conservez ce code en lieu sûr</li>
@@ -174,13 +174,13 @@ export default function ShopSettings() {
             <div className="flex gap-3">
               <button
                 onClick={handleReset}
-                className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl transition-colors"
+                className="flex-1 py-3 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-xl transition-colors"
               >
                 Modifier à nouveau
               </button>
               <button
                 onClick={() => navigate('/pos')}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors"
+                className="flex-1 py-3 bg-success-600 hover:bg-success-700 text-white font-bold rounded-xl transition-colors"
               >
                 ✓ Terminer
               </button>
@@ -192,12 +192,12 @@ export default function ShopSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
+        <div className="bg-white rounded-3xl shadow-elevated p-8">
           {/* En-tête */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-900 to-primary-700 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-sky-400 to-action-600 rounded-2xl flex items-center justify-center shadow-lg">
               <svg
                 className="w-10 h-10 text-white"
                 fill="none"
@@ -218,32 +218,32 @@ export default function ShopSettings() {
                 />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-900 to-primary-700 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-sky-400 to-action-600 bg-clip-text text-transparent mb-2">
               Paramètres Boutique
             </h1>
-            <p className="text-gray-600 text-sm">Modifier le code d'accès</p>
+            <p className="text-slate-600 text-sm">Modifier le code d'accès</p>
           </div>
 
           {/* Info boutique actuelle */}
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6">
+          <div className="bg-slate-50 rounded-2xl p-4 mb-6">
             <div className="space-y-2">
               <div>
-                <label className="text-xs font-semibold text-gray-500">Boutique</label>
-                <p className="text-lg font-bold text-gray-900">{shop?.name}</p>
+                <label className="text-xs font-semibold text-slate-500">Boutique</label>
+                <p className="text-lg font-bold text-slate-900">{shop?.name}</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-500">Code actuel</label>
-                <p className="text-2xl font-mono font-bold text-primary-700">{shop?.code}</p>
+                <label className="text-xs font-semibold text-slate-500">Code actuel</label>
+                <p className="text-2xl font-mono font-bold text-action-700">{shop?.code}</p>
               </div>
             </div>
           </div>
 
           {/* Formulaire */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <div className="bg-action-50 border border-action-200 rounded-xl p-4 mb-4">
               <div className="flex items-start">
                 <svg
-                  className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0"
+                  className="w-5 h-5 text-action-600 mr-2 mt-0.5 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -255,14 +255,14 @@ export default function ShopSettings() {
                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <p className="text-sm text-blue-800">
+                <p className="text-sm text-action-700">
                   Un nouveau code boutique sera généré automatiquement. Confirmez avec votre PIN.
                 </p>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Votre Code PIN (confirmation)
               </label>
               <input
@@ -275,20 +275,20 @@ export default function ShopSettings() {
                 maxLength={4}
                 autoFocus
                 disabled={isLoading}
-                className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-action-500 focus:ring-2 focus:ring-action-200 outline-none transition-all disabled:opacity-50"
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-700 text-sm text-center">{error}</p>
+              <div className="p-3 bg-danger-50 border border-danger-200 rounded-xl">
+                <p className="text-danger-700 text-sm text-center">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoading || pin.length !== 4}
-              className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full py-3 bg-gradient-to-r from-sky-400 to-action-600 hover:from-sky-500 hover:to-action-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -305,7 +305,7 @@ export default function ShopSettings() {
           <div className="mt-6 text-center">
             <button
               onClick={() => navigate('/pos')}
-              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
+              className="text-action-600 text-sm font-medium hover:text-action-700 hover:underline transition-colors"
             >
               ← Retour au POS
             </button>

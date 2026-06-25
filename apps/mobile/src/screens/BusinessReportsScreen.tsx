@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatMoney } from '../utils/money';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
 import DateRangePicker from '../components/ui/DateRangePicker';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -697,7 +697,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       <SafeAreaView style={styles.container}>
         <ScreenHeader title="Bilans & Rapports" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement des données...</Text>
         </View>
       </SafeAreaView>
@@ -1297,8 +1297,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   periodButtonText: {
     fontSize: 13,
@@ -1306,15 +1306,14 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   periodButtonTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.surface,
   },
   sectionCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 18,
-    padding: Spacing['2xl'],
+    borderRadius: 16,
+    padding: Spacing.lg,
     marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Shadows.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1322,14 +1321,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '700',
     color: Colors.text,
     flex: 1,
   },
   accordionIcon: {
     fontSize: 18,
-    color: Colors.primary[900],
+    color: Colors.action,
     marginLeft: Spacing.md,
   },
   sectionSubtitle: {
@@ -1345,7 +1344,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   kpiBoxPrimary: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   kpiBoxSuccess: {
     backgroundColor: Colors.success.main,
@@ -1499,7 +1498,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -1507,7 +1506,7 @@ const styles = StyleSheet.create({
   topRankText: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary.foreground,
+    color: Colors.surface,
   },
   topName: {
     flex: 1,
@@ -1533,8 +1532,8 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
   },
   summaryCard: {
-    borderWidth: 2,
-    borderColor: Colors.primary[900],
+    borderWidth: 1,
+    borderColor: Colors.action,
   },
   summaryRow: {
     flexDirection: 'row',

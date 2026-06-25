@@ -14,7 +14,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Store, CheckCircle, Building } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { shopSwitchApi } from '../lib/api';
 import type { RootStackParamList } from '../../App';
 
@@ -142,7 +142,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary[900]} />
+            <ActivityIndicator size="large" color={Colors.action} />
           </View>
         ) : shops.length <= 1 ? (
           <View style={styles.emptyState}>
@@ -155,7 +155,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
             {Object.entries(groupedShops).map(([enterpriseId, group]) => (
               <View key={enterpriseId} style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Building size={18} color={Colors.primary[900]} />
+                  <Building size={18} color={Colors.action} />
                   <Text style={styles.sectionTitle}>{group.name}</Text>
                 </View>
                 {group.shops.map(item => (
@@ -172,9 +172,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
                       <Store
                         size={24}
                         color={
-                          item.shop.id === currentShopId
-                            ? Colors.primary[900]
-                            : Colors.muted.foreground
+                          item.shop.id === currentShopId ? Colors.action : Colors.muted.foreground
                         }
                       />
                     </View>
@@ -186,7 +184,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
                       </Text>
                     </View>
                     {item.shop.id === currentShopId && (
-                      <CheckCircle size={20} color={Colors.primary[900]} />
+                      <CheckCircle size={20} color={Colors.action} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -210,9 +208,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
                       <Store
                         size={24}
                         color={
-                          item.shop.id === currentShopId
-                            ? Colors.primary[900]
-                            : Colors.muted.foreground
+                          item.shop.id === currentShopId ? Colors.action : Colors.muted.foreground
                         }
                       />
                     </View>
@@ -223,7 +219,7 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
                       </Text>
                     </View>
                     {item.shop.id === currentShopId && (
-                      <CheckCircle size={20} color={Colors.primary[900]} />
+                      <CheckCircle size={20} color={Colors.action} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -281,30 +277,29 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   shopCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
   },
   shopCardActive: {
-    borderColor: Colors.primary[900],
+    borderColor: Colors.action,
     borderWidth: 2,
-    backgroundColor: `${Colors.primary[900]}08`,
+    backgroundColor: `${Colors.action}0F`,
   },
   shopIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,

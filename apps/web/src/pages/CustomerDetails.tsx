@@ -364,7 +364,7 @@ export default function CustomerDetails() {
   if (!customer) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Client non trouvé</p>
+        <p className="text-slate-500">Client non trouvé</p>
       </div>
     );
   }
@@ -394,8 +394,8 @@ export default function CustomerDetails() {
           </svg>
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{getPersonName()}</h1>
-          <p className="text-sm text-gray-500">Détails du client</p>
+          <h1 className="text-2xl font-bold text-slate-900">{getPersonName()}</h1>
+          <p className="text-sm text-slate-500">Détails du client</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleOpenEditModal} className="btn-secondary" title="Modifier">
@@ -409,41 +409,41 @@ export default function CustomerDetails() {
 
       {/* Informations du client */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">📋 Informations</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">📋 Informations</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {customer.phone && (
             <div>
-              <p className="text-sm text-gray-500">Téléphone</p>
-              <p className="font-medium text-gray-900">{customer.phone}</p>
+              <p className="text-sm text-slate-500">Téléphone</p>
+              <p className="font-medium text-slate-900">{customer.phone}</p>
             </div>
           )}
           {customer.email && (
             <div>
-              <p className="text-sm text-gray-500">Email</p>
-              <p className="font-medium text-gray-900">{customer.email}</p>
+              <p className="text-sm text-slate-500">Email</p>
+              <p className="font-medium text-slate-900">{customer.email}</p>
             </div>
           )}
           <div>
-            <p className="text-sm text-gray-500">Limite de crédit</p>
-            <p className="font-medium text-gray-900">
+            <p className="text-sm text-slate-500">Limite de crédit</p>
+            <p className="font-medium text-slate-900">
               {customer.credit_limit > 0 ? formatCurrency(customer.credit_limit) : 'Illimitée'}
             </p>
             {customer.credit_limit > 0 && (
               <div className="mt-2">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <div className="flex justify-between text-xs text-slate-500 mb-1">
                   <span>{formatCurrency(customer.stats.total_balance)} utilisés</span>
                   <span>
                     {Math.round((customer.stats.total_balance / customer.credit_limit) * 100)}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-slate-200 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${
                       customer.stats.total_balance / customer.credit_limit > 0.9
-                        ? 'bg-red-500'
+                        ? 'bg-danger-500'
                         : customer.stats.total_balance / customer.credit_limit > 0.7
-                          ? 'bg-amber-500'
-                          : 'bg-green-500'
+                          ? 'bg-warning-500'
+                          : 'bg-success-500'
                     }`}
                     style={{
                       width: `${Math.min(100, (customer.stats.total_balance / customer.credit_limit) * 100)}%`,
@@ -455,14 +455,14 @@ export default function CustomerDetails() {
           </div>
           {customer.address && (
             <div className="md:col-span-2">
-              <p className="text-sm text-gray-500">Adresse</p>
-              <p className="font-medium text-gray-900">{customer.address}</p>
+              <p className="text-sm text-slate-500">Adresse</p>
+              <p className="font-medium text-slate-900">{customer.address}</p>
             </div>
           )}
           {customer.notes && (
             <div className="md:col-span-2">
-              <p className="text-sm text-gray-500">Notes</p>
-              <p className="font-medium text-gray-900">{customer.notes}</p>
+              <p className="text-sm text-slate-500">Notes</p>
+              <p className="font-medium text-slate-900">{customer.notes}</p>
             </div>
           )}
         </div>
@@ -470,7 +470,7 @@ export default function CustomerDetails() {
 
       {/* Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card bg-gradient-to-br from-warning-50 to-warning-100 border-warning-200">
+        <div className="card bg-gradient-to-br from-warning-50 to-warning-100">
           <p className="text-sm text-warning-700 mb-1">Créances totales</p>
           <p className="text-2xl font-bold text-warning-900">
             {formatCurrency(customer.stats.total_receivables)}
@@ -480,23 +480,23 @@ export default function CustomerDetails() {
           </p>
         </div>
 
-        <div className="card bg-gradient-to-br from-danger-50 to-danger-100 border-danger-200">
+        <div className="card bg-gradient-to-br from-danger-50 to-danger-100">
           <p className="text-sm text-danger-700 mb-1">Solde restant</p>
           <p className="text-2xl font-bold text-danger-900">
             {formatCurrency(customer.stats.total_balance)}
           </p>
         </div>
 
-        <div className="card bg-gradient-to-br from-success-50 to-success-100 border-success-200">
+        <div className="card bg-gradient-to-br from-success-50 to-success-100">
           <p className="text-sm text-success-700 mb-1">Total payé</p>
           <p className="text-2xl font-bold text-success-900">
             {formatCurrency(customer.stats.total_paid)}
           </p>
         </div>
 
-        <div className="card bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
-          <p className="text-sm text-primary-700 mb-1">Ventes</p>
-          <p className="text-2xl font-bold text-primary-900">{customer.stats.sales_count}</p>
+        <div className="card bg-gradient-to-br from-action-50 to-action-100">
+          <p className="text-sm text-action-700 mb-1">Ventes</p>
+          <p className="text-2xl font-bold text-action-700">{customer.stats.sales_count}</p>
         </div>
       </div>
 
@@ -513,14 +513,14 @@ export default function CustomerDetails() {
       {/* Timeline des transactions */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">📊 Historique des transactions</h2>
+          <h2 className="text-lg font-semibold text-slate-900">📊 Historique des transactions</h2>
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('all')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                 activeTab === 'all'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               Tout
@@ -529,8 +529,8 @@ export default function CustomerDetails() {
               onClick={() => setActiveTab('receivables')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                 activeTab === 'receivables'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               Créances
@@ -539,8 +539,8 @@ export default function CustomerDetails() {
               onClick={() => setActiveTab('sales')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                 activeTab === 'sales'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               Ventes
@@ -549,8 +549,8 @@ export default function CustomerDetails() {
               onClick={() => setActiveTab('cash')}
               className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                 activeTab === 'cash'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               Caisse
@@ -560,10 +560,10 @@ export default function CustomerDetails() {
 
         {filteredTransactions.length === 0 ? (
           <div className="py-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <span className="text-3xl">📝</span>
             </div>
-            <p className="text-sm text-gray-500">Aucune transaction</p>
+            <p className="text-sm text-slate-500">Aucune transaction</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -597,9 +597,9 @@ export default function CustomerDetails() {
                     {transaction.type === 'cash' && (
                       <span className="badge badge-success">🏦 Remboursement</span>
                     )}
-                    <span className="text-xs text-gray-400">{formatDate(transaction.date)}</span>
+                    <span className="text-xs text-slate-400">{formatDate(transaction.date)}</span>
                   </div>
-                  <p className="text-sm text-gray-700">{transaction.description}</p>
+                  <p className="text-sm text-slate-700">{transaction.description}</p>
                 </div>
                 <div className="ml-4 text-right">
                   <p
@@ -638,27 +638,27 @@ export default function CustomerDetails() {
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Montant (FCFA)
                 </label>
                 <input
                   type="number"
                   value={paymentAmount}
                   onChange={e => setPaymentAmount(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent text-lg"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent text-lg"
                   placeholder="0"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Note (optionnelle)
                 </label>
                 <textarea
                   value={paymentNote}
                   onChange={e => setPaymentNote(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent"
                   placeholder="Ajouter une note..."
                   rows={3}
                 />
@@ -689,7 +689,7 @@ export default function CustomerDetails() {
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full animate-scale-in my-8">
-            <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-6 rounded-t-xl">
+            <div className="bg-gradient-to-r from-sky-400 via-action-500 to-action-600 text-white p-6 rounded-t-xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold">✏️ Modifier le client</h3>
@@ -707,65 +707,65 @@ export default function CustomerDetails() {
             <div className="p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nom *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Nom *</label>
                   <input
                     type="text"
                     value={editForm.name}
                     onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Prénom</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Prénom</label>
                   <input
                     type="text"
                     value={editForm.first_name}
                     onChange={e => setEditForm({ ...editForm, first_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Téléphone</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Téléphone</label>
                   <input
                     type="tel"
                     value={editForm.phone}
                     onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
                   <input
                     type="email"
                     value={editForm.email}
                     onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Adresse</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Adresse</label>
                   <input
                     type="text"
                     value={editForm.address}
                     onChange={e => setEditForm({ ...editForm, address: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
                     Limite de crédit (FCFA)
                   </label>
                   <input
                     type="number"
                     value={editForm.credit_limit}
                     onChange={e => setEditForm({ ...editForm, credit_limit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                     placeholder="0"
                   />
                 </div>

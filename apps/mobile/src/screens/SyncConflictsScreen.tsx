@@ -23,6 +23,7 @@ import {
 } from '../components/icons/SimpleIcons';
 import { syncEngine } from '../db/sync';
 import { retryMutation } from '../db/queue';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 
 interface ConflictRecord {
   id: string;
@@ -156,7 +157,7 @@ export default function SyncConflictsScreen({ navigation }: SyncConflictsScreenP
   const renderConflict = ({ item }: { item: ConflictRecord }) => (
     <View style={styles.conflictCard}>
       <View style={styles.conflictHeader}>
-        <AlertTriangle size={18} color="#EA580C" />
+        <AlertTriangle size={18} color={Colors.warning.main} />
         <Text style={styles.conflictEntity}>{ENTITY_LABELS[item.entity] || item.entity}</Text>
         <Text style={styles.conflictDate}>{formatDate(item.created_at)}</Text>
       </View>
@@ -187,16 +188,16 @@ export default function SyncConflictsScreen({ navigation }: SyncConflictsScreenP
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <ArrowLeft size={24} color="#fff" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
+          <ArrowLeft size={24} color={Colors.action} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Conflits de synchronisation</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
       {conflicts.length === 0 ? (
         <View style={styles.emptyState}>
-          <CheckCircle size={48} color="#16A34A" />
+          <CheckCircle size={48} color={Colors.success.main} />
           <Text style={styles.emptyTitle}>Aucun conflit</Text>
           <Text style={styles.emptyDescription}>Toutes vos donnees sont synchronisees.</Text>
         </View>
@@ -214,56 +215,64 @@ export default function SyncConflictsScreen({ navigation }: SyncConflictsScreenP
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#102A43',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  list: { padding: 16 },
+  headerBack: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  headerTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
+  list: { padding: Spacing.lg },
   conflictCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#FDBA74',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   conflictHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  conflictEntity: { fontSize: 15, fontWeight: '600', color: '#1E293B', flex: 1 },
-  conflictDate: { fontSize: 12, color: '#64748B' },
-  conflictReason: { fontSize: 14, color: '#9A3412', marginBottom: 12 },
+  conflictEntity: { fontSize: 15, fontWeight: '600', color: Colors.text, flex: 1 },
+  conflictDate: { fontSize: 12, color: Colors.textColors.tertiary },
+  conflictReason: { fontSize: 14, color: Colors.textColors.secondary, marginBottom: Spacing.md },
   conflictActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
+    minHeight: 48,
     gap: 6,
   },
-  acceptButton: { backgroundColor: '#2563EB' },
-  forceButton: { backgroundColor: '#EA580C' },
-  actionButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  acceptButton: { backgroundColor: Colors.action },
+  forceButton: { backgroundColor: Colors.warning.main },
+  actionButtonText: { color: Colors.surface, fontSize: 12, fontWeight: '600' },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    padding: Spacing['3xl'],
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginTop: 16 },
-  emptyDescription: { fontSize: 14, color: '#64748B', marginTop: 4 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: Spacing.lg },
+  emptyDescription: { fontSize: 14, color: Colors.textColors.tertiary, marginTop: 4 },
 });

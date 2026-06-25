@@ -21,8 +21,8 @@ export default function MainTabNavigator() {
       id={undefined}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary[900],
-        tabBarInactiveTintColor: Colors.muted.foreground,
+        tabBarActiveTintColor: Colors.action,
+        tabBarInactiveTintColor: Colors.textColors.tertiary,
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: Colors.border,

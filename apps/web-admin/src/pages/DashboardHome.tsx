@@ -76,10 +76,10 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
-        <p className="text-gray-500 mt-1">Vue d'ensemble de la plateforme Swalo</p>
+      {/* Hero */}
+      <div className="rounded-2xl bg-gradient-to-br from-action-500 to-action-600 p-6 text-white shadow-card">
+        <h1 className="text-2xl font-bold">Tableau de bord</h1>
+        <p className="text-action-50 mt-1">Vue d'ensemble de la plateforme Swalo</p>
       </div>
 
       {/* KPIs */}
@@ -87,41 +87,41 @@ export default function DashboardHome() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="card animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded w-16"></div>
+              <div className="h-4 bg-slate-200 rounded w-24 mb-2"></div>
+              <div className="h-8 bg-slate-200 rounded w-16"></div>
             </div>
           ))}
         </div>
       ) : stats ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="card">
-            <p className="text-sm text-gray-500">Boutiques</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalShops}</p>
+            <p className="text-sm text-slate-500">Boutiques</p>
+            <p className="text-3xl font-bold text-primary-900">{stats.totalShops}</p>
             <p className="text-xs text-success-600 mt-1">{stats.activeShops} actives</p>
           </div>
           <div className="card">
-            <p className="text-sm text-gray-500">Utilisateurs</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalUsers}</p>
+            <p className="text-sm text-slate-500">Utilisateurs</p>
+            <p className="text-3xl font-bold text-primary-900">{stats.totalUsers}</p>
           </div>
           <div className="card">
-            <p className="text-sm text-gray-500">Produits</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalProducts}</p>
+            <p className="text-sm text-slate-500">Produits</p>
+            <p className="text-3xl font-bold text-primary-900">{stats.totalProducts}</p>
           </div>
           <div className="card">
-            <p className="text-sm text-gray-500">Ventes totales</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalSales}</p>
+            <p className="text-sm text-slate-500">Ventes totales</p>
+            <p className="text-3xl font-bold text-primary-900">{stats.totalSales}</p>
           </div>
           <div className="card">
-            <p className="text-sm text-gray-500">Plateforme</p>
+            <p className="text-sm text-slate-500">Plateforme</p>
             <p className="text-lg font-bold text-success-600">En ligne</p>
-            <p className="text-xs text-gray-500 mt-1">Tous les services actifs</p>
+            <p className="text-xs text-slate-500 mt-1">Tous les services actifs</p>
           </div>
         </div>
       ) : null}
 
       {/* Quick Actions */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Acces rapide</h2>
+        <h2 className="text-lg font-semibold text-primary-900 mb-4">Acces rapide</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {quickActions.map(action => (
             <button
@@ -136,12 +136,12 @@ export default function DashboardHome() {
                   {action.icon}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-primary-700 transition-colors">
+                  <h3 className="font-semibold text-primary-900 group-hover:text-action-600 transition-colors">
                     {action.name}
                   </h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{action.description}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">{action.description}</p>
                 </div>
-                <span className="text-gray-300 group-hover:text-gray-500 transition-colors text-xl">
+                <span className="text-slate-300 group-hover:text-action-500 transition-colors text-xl">
                   →
                 </span>
               </div>

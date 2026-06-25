@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScreenHeader } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { Plus, Edit, Trash, Package } from '../../components/icons/SimpleIcons';
 import { packagingTypesApi } from '../../lib/api';
 
@@ -210,7 +210,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
   const renderItem = ({ item }: { item: PackagingType }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemIconBox}>
-        <Package size={20} color={Colors.primary[900]} />
+        <Package size={20} color={Colors.action} />
       </View>
 
       <View style={styles.itemContent}>
@@ -235,7 +235,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
           onPress={() => openEditModal(item)}
           activeOpacity={0.7}
         >
-          <Edit size={18} color={Colors.primary[900]} />
+          <Edit size={18} color={Colors.action} />
         </TouchableOpacity>
 
         {!item.is_default && (
@@ -253,7 +253,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Package size={48} color={Colors.muted.foreground} />
+      <Package size={48} color={Colors.action} />
       <Text style={styles.emptyTitle}>Aucun conditionnement</Text>
       <Text style={styles.emptySubtitle}>
         Commencez par initialiser les types par defaut ou creez-en un nouveau.
@@ -291,7 +291,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Conditionnements" showBack={true} onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </SafeAreaView>
@@ -310,7 +310,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
             style={styles.headerAddButton}
             activeOpacity={0.7}
           >
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.headerAddText}>Ajouter</Text>
           </TouchableOpacity>
         }
@@ -327,8 +327,8 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary[900]]}
-            tintColor={Colors.primary[900]}
+            colors={[Colors.action]}
+            tintColor={Colors.action}
           />
         }
       />
@@ -437,24 +437,23 @@ const styles = StyleSheet.create({
   headerAddText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   // Item card
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   itemIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 8,
-    backgroundColor: Colors.muted.main,
+    borderRadius: 10,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -499,10 +498,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: Colors.muted.main,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -527,12 +526,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   initButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: 12,
     minWidth: 200,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   initButtonText: {
     fontSize: 14,
@@ -549,8 +550,9 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
+    ...Shadows.sm,
   },
   modalTitle: {
     fontSize: 20,
@@ -593,10 +595,10 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     paddingVertical: Spacing.md,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 48,
   },
   cancelButton: {
     backgroundColor: Colors.muted.main,
@@ -607,7 +609,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   submitButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
     fontSize: 16,

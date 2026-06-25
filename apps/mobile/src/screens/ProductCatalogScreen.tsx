@@ -27,7 +27,7 @@ import {
   ChevronDown,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import * as DocumentPicker from 'expo-document-picker';
@@ -647,7 +647,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
           </View>
           <View style={styles.productActions}>
             <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
-              <Edit size={16} color={Colors.primary[900]} />
+              <Edit size={16} color={Colors.action} />
               <Text style={styles.editButtonText}>Modifier</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.deleteButton} onPress={() => deleteProduct(item)}>
@@ -683,7 +683,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
           >
             <Filter
               size={20}
-              color={activeFiltersCount > 0 ? Colors.primary.foreground : Colors.primary[900]}
+              color={activeFiltersCount > 0 ? Colors.primary.foreground : Colors.action}
             />
             {activeFiltersCount > 0 && (
               <View style={styles.filterBadge}>
@@ -702,7 +702,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                 onPress={() => setSelectedFamily('')}
               >
                 <Text style={styles.activeFilterText}>Famille: {selectedFamily}</Text>
-                <X size={14} color={Colors.primary[900]} />
+                <X size={14} color={Colors.action} />
               </TouchableOpacity>
             )}
             {selectedBrand && (
@@ -711,13 +711,13 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                 onPress={() => setSelectedBrand('')}
               >
                 <Text style={styles.activeFilterText}>Marque: {selectedBrand}</Text>
-                <X size={14} color={Colors.primary[900]} />
+                <X size={14} color={Colors.action} />
               </TouchableOpacity>
             )}
             {selectedType && (
               <TouchableOpacity style={styles.activeFilterChip} onPress={() => setSelectedType('')}>
                 <Text style={styles.activeFilterText}>Type: {selectedType}</Text>
-                <X size={14} color={Colors.primary[900]} />
+                <X size={14} color={Colors.action} />
               </TouchableOpacity>
             )}
           </View>
@@ -729,9 +729,9 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
             {products.length} article{products.length > 1 ? 's' : ''}
           </Text>
           <View style={styles.statsBarActions}>
-            {isLoading && <ActivityIndicator size="small" color={Colors.primary[900]} />}
+            {isLoading && <ActivityIndicator size="small" color={Colors.action} />}
             <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
-              <Upload size={16} color={Colors.primary[900]} />
+              <Upload size={16} color={Colors.action} />
               <Text style={styles.importButtonText}>Importer</Text>
             </TouchableOpacity>
           </View>
@@ -807,7 +807,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                   style={styles.hierarchyEditButton}
                   onPress={() => openHierarchyEditModal('family', family)}
                 >
-                  <Edit size={14} color={Colors.primary[900]} />
+                  <Edit size={14} color={Colors.action} />
                 </TouchableOpacity>
               )}
             </View>
@@ -826,7 +826,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                       }
                     >
                       <Text style={styles.hierarchyTagText}>{articleType}</Text>
-                      <Edit size={10} color={Colors.primary[900]} />
+                      <Edit size={10} color={Colors.action} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -886,7 +886,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                       <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
                         {product.reference}
                       </Text>
-                      <Edit size={10} color={Colors.primary[900]} />
+                      <Edit size={10} color={Colors.action} />
                     </TouchableOpacity>
                   ) : (
                     <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
@@ -914,7 +914,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Catalogue" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -931,7 +931,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
             onPress={() => navigation.navigate('CatalogHierarchy')}
             style={styles.hierarchyButton}
           >
-            <Package size={20} color={Colors.primary[900]} />
+            <Package size={20} color={Colors.action} />
             <Text style={styles.hierarchyButtonText}>Hiérarchie</Text>
           </TouchableOpacity>
         }
@@ -1513,7 +1513,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
               {importStep === 'select' && (
                 <View style={styles.importSelectContainer}>
                   <View style={styles.importIconContainer}>
-                    <FileSpreadsheet size={64} color={Colors.primary[900]} />
+                    <FileSpreadsheet size={64} color={Colors.action} />
                   </View>
                   <Text style={styles.importTitle}>Sélectionnez un fichier</Text>
                   <Text style={styles.importSubtitle}>
@@ -1558,7 +1558,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
 
                   {importFile && (
                     <View style={styles.importFileInfo}>
-                      <FileSpreadsheet size={20} color={Colors.primary[900]} />
+                      <FileSpreadsheet size={20} color={Colors.action} />
                       <Text style={styles.importFileName}>{importFile.name}</Text>
                     </View>
                   )}
@@ -1667,7 +1667,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                     {type.name}
                   </Text>
                   <Text style={styles.unitPickerOptionSymbol}>({type.symbol})</Text>
-                  {formData.unit === type.name && <Check size={18} color={Colors.primary[900]} />}
+                  {formData.unit === type.name && <Check size={18} color={Colors.action} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1678,7 +1678,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                 style={styles.addUnitButton}
                 onPress={() => setShowNewUnitInput(true)}
               >
-                <Plus size={16} color={Colors.primary[900]} />
+                <Plus size={16} color={Colors.action} />
                 <Text style={styles.addUnitButtonText}>Ajouter une unité</Text>
               </TouchableOpacity>
             ) : (
@@ -1775,7 +1775,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: Colors.primary[900],
+    borderBottomColor: Colors.action,
   },
   tabText: {
     fontSize: 14,
@@ -1783,7 +1783,7 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
   },
   tabTextActive: {
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '600',
   },
   searchContainer: {
@@ -1798,7 +1798,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
   },
@@ -1812,14 +1812,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     width: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   filterBadge: {
     position: 'absolute',
@@ -1833,7 +1833,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterBadgeText: {
-    color: '#FFF',
+    color: Colors.surface,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -1855,7 +1855,7 @@ const styles = StyleSheet.create({
   },
   activeFilterText: {
     fontSize: 13,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '500',
   },
   statsBar: {
@@ -1886,7 +1886,7 @@ const styles = StyleSheet.create({
   importButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   listContent: {
     padding: Spacing.md,
@@ -1894,11 +1894,10 @@ const styles = StyleSheet.create({
   },
   productCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    marginBottom: Spacing.md,
+    borderRadius: 16,
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   productHeader: {
     flexDirection: 'row',
@@ -1911,7 +1910,7 @@ const styles = StyleSheet.create({
   productSku: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
     marginBottom: 2,
   },
   productName: {
@@ -1934,7 +1933,7 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 11,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '500',
   },
   tagBrand: {
@@ -2013,7 +2012,7 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   deleteButton: {
     width: 50,
@@ -2044,7 +2043,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -2059,12 +2058,11 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   familySection: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   familyTitleRow: {
     flexDirection: 'row',
@@ -2120,7 +2118,7 @@ const styles = StyleSheet.create({
   hierarchyTagText: {
     fontSize: 11,
     fontWeight: '500',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   hierarchyTagBrandText: {
     color: Colors.success.main,
@@ -2213,8 +2211,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   filterOptionActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   filterOptionText: {
     fontSize: 13,
@@ -2245,10 +2243,12 @@ const styles = StyleSheet.create({
   },
   modalApplyButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: Spacing.lg,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   modalApplyButtonText: {
     fontSize: 15,
@@ -2269,10 +2269,12 @@ const styles = StyleSheet.create({
   },
   modalSaveButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: Spacing.lg,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   modalSaveButtonText: {
     fontSize: 15,
@@ -2301,14 +2303,14 @@ const styles = StyleSheet.create({
   },
   generateLink: {
     fontSize: 13,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '500',
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 15,
@@ -2350,10 +2352,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
@@ -2380,7 +2382,7 @@ const styles = StyleSheet.create({
   },
   unitPickerOptionTextActive: {
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   unitPickerOptionSymbol: {
     fontSize: 13,
@@ -2394,14 +2396,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     marginTop: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.primary[900],
+    borderColor: Colors.action,
     borderRadius: 12,
     borderStyle: 'dashed',
   },
   addUnitButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   newUnitForm: {
     marginTop: Spacing.md,
@@ -2438,7 +2440,7 @@ const styles = StyleSheet.create({
   hierarchyButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   // Import Modal Styles
   importSelectContainer: {
@@ -2475,11 +2477,13 @@ const styles = StyleSheet.create({
   importPickButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
     borderRadius: 12,
+    minHeight: 48,
   },
   importPickButtonText: {
     fontSize: 15,
@@ -2519,7 +2523,7 @@ const styles = StyleSheet.create({
   },
   importFileName: {
     fontSize: 14,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '500',
   },
   importErrors: {
@@ -2581,7 +2585,7 @@ const styles = StyleSheet.create({
   importPreviewRowPrice: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.text,
   },
   modalButtonDisabled: {
     opacity: 0.5,

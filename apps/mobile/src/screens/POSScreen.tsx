@@ -32,9 +32,22 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import {
+  RefreshCw,
+  Settings,
+  TrendingUp,
+  TrendingDown,
+  Building,
+  Users,
+  ClipboardList,
+  BarChart3,
+  LogOut,
+  X,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader } from '../components/ui';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
   cashEntryRepo,
@@ -372,27 +385,26 @@ export default function POSScreen({ navigation }: POSScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <LinearGradient
-        colors={['#102A43', '#a855f7']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>💰 Caisse</Text>
+      <ScreenHeader
+        title="Caisse"
+        rightElement={
           <View style={styles.headerButtons}>
             {/* Bouton de rafraîchissement manuel des données */}
             <TouchableOpacity onPress={loadData} style={styles.menuButton}>
-              <Text style={styles.menuButtonText}>🔄</Text>
+              <RefreshCw size={22} color={Colors.action} />
             </TouchableOpacity>
             {/* Bouton d'accès au menu de paramètres */}
             <TouchableOpacity onPress={() => setShowSettingsMenu(true)} style={styles.menuButton}>
-              <Text style={styles.menuButtonText}>⚙️</Text>
+              <Settings size={22} color={Colors.action} />
             </TouchableOpacity>
           </View>
-        </View>
+        }
+      />
+
+      {/* Carte solde + stats */}
+      <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Solde de caisse</Text>
         <Text style={styles.balanceAmount}>{formatMoney(stats?.balance || 0)}</Text>
 
@@ -400,24 +412,33 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Entrées</Text>
-            <Text style={styles.statValue}>{formatMoney(stats?.todayEntries || 0)}</Text>
+            <Text style={[styles.statValue, { color: Colors.success.main }]}>
+              {formatMoney(stats?.todayEntries || 0)}
+            </Text>
             <Text style={styles.statSubtext}>{stats?.entriesCount || 0} op.</Text>
           </View>
+          <View style={styles.statDivider} />
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Sorties</Text>
-            <Text style={styles.statValue}>{formatMoney(stats?.todayExits || 0)}</Text>
+            <Text style={[styles.statValue, { color: Colors.danger.main }]}>
+              {formatMoney(stats?.todayExits || 0)}
+            </Text>
             <Text style={styles.statSubtext}>{stats?.exitsCount || 0} op.</Text>
           </View>
+          <View style={styles.statDivider} />
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Net</Text>
             <Text
-              style={[styles.statValue, (stats?.todayNet || 0) < 0 && styles.statValueNegative]}
+              style={[
+                styles.statValue,
+                { color: (stats?.todayNet || 0) < 0 ? Colors.danger.main : Colors.primary[900] },
+              ]}
             >
               {formatMoney(stats?.todayNet || 0)}
             </Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
@@ -425,14 +446,14 @@ export default function POSScreen({ navigation }: POSScreenProps) {
           style={[styles.actionButton, styles.actionButtonSuccess]}
           onPress={() => handleOpenModal('IN')}
         >
-          <Text style={styles.actionButtonIcon}>↗️</Text>
+          <TrendingUp size={22} color={Colors.surface} />
           <Text style={styles.actionButtonText}>Entrée</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.actionButtonDanger]}
           onPress={() => handleOpenModal('OUT')}
         >
-          <Text style={styles.actionButtonIcon}>↙️</Text>
+          <TrendingDown size={22} color={Colors.surface} />
           <Text style={styles.actionButtonText}>Sortie</Text>
         </TouchableOpacity>
       </View>
@@ -444,14 +465,18 @@ export default function POSScreen({ navigation }: POSScreenProps) {
           style={styles.quickNavButton}
           onPress={() => navigation.navigate('Suppliers')}
         >
-          <Text style={styles.quickNavIcon}>🏭</Text>
+          <View style={styles.quickNavIcon}>
+            <Building size={24} color={Colors.action} />
+          </View>
           <Text style={styles.quickNavText}>Fournisseurs</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.quickNavButton}
           onPress={() => navigation.navigate('Customers')}
         >
-          <Text style={styles.quickNavIcon}>👥</Text>
+          <View style={styles.quickNavIcon}>
+            <Users size={24} color={Colors.action} />
+          </View>
           <Text style={styles.quickNavText}>Clients</Text>
         </TouchableOpacity>
       </View>
@@ -459,7 +484,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
       {/* Operations List */}
       <View style={styles.listCard}>
         <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>📊 Opérations du jour</Text>
+          <Text style={styles.listTitle}>Opérations du jour</Text>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{entries.length}</Text>
           </View>
@@ -468,7 +493,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         <ScrollView style={styles.listContent} showsVerticalScrollIndicator={false}>
           {entries.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📝</Text>
+              <ClipboardList size={48} color={Colors.textColors.disabled} />
               <Text style={styles.emptyText}>Aucune opération aujourd'hui</Text>
               <Text style={styles.emptySubtext}>
                 Commencez par enregistrer une entrée ou sortie
@@ -486,9 +511,12 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                           entry.type === 'IN' ? styles.entryBadgeSuccess : styles.entryBadgeDanger,
                         ]}
                       >
-                        <Text style={styles.entryBadgeText}>
-                          {entry.type === 'IN' ? '↗️' : '↙️'} {entry.category}
-                        </Text>
+                        {entry.type === 'IN' ? (
+                          <TrendingUp size={14} color={Colors.success.main} />
+                        ) : (
+                          <TrendingDown size={14} color={Colors.danger.main} />
+                        )}
+                        <Text style={styles.entryBadgeText}>{entry.category}</Text>
                       </View>
                       <Text style={styles.entryTime}>{formatTime(entry.created_at)}</Text>
                     </View>
@@ -501,8 +529,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                         : null;
                       return supplier || customer ? (
                         <Text style={styles.entryPerson}>
-                          {supplier && `🏭 ${getPersonName(supplier)}`}
-                          {customer && `👤 ${getPersonName(customer)}`}
+                          {supplier && getPersonName(supplier)}
+                          {customer && getPersonName(customer)}
                         </Text>
                       ) : null;
                     })()}
@@ -534,24 +562,33 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             {/* Modal Header */}
-            <LinearGradient
-              colors={showModal === 'IN' ? ['#10b981', '#059669'] : ['#ef4444', '#dc2626']}
-              style={styles.modalHeader}
+            <View
+              style={[
+                styles.modalHeader,
+                { backgroundColor: showModal === 'IN' ? Colors.success.main : Colors.danger.main },
+              ]}
             >
-              <View>
-                <Text style={styles.modalHeaderTitle}>
-                  {showModal === 'IN' ? '↗️ Nouvelle entrée' : '↙️ Nouvelle sortie'}
-                </Text>
-                <Text style={styles.modalHeaderSubtitle}>
-                  {showModal === 'IN'
-                    ? "Ajouter de l'argent en caisse"
-                    : "Retirer de l'argent de la caisse"}
-                </Text>
+              <View style={styles.modalHeaderTitleRow}>
+                {showModal === 'IN' ? (
+                  <TrendingUp size={22} color={Colors.surface} />
+                ) : (
+                  <TrendingDown size={22} color={Colors.surface} />
+                )}
+                <View>
+                  <Text style={styles.modalHeaderTitle}>
+                    {showModal === 'IN' ? 'Nouvelle entrée' : 'Nouvelle sortie'}
+                  </Text>
+                  <Text style={styles.modalHeaderSubtitle}>
+                    {showModal === 'IN'
+                      ? "Ajouter de l'argent en caisse"
+                      : "Retirer de l'argent de la caisse"}
+                  </Text>
+                </View>
               </View>
               <TouchableOpacity onPress={handleCloseModal} style={styles.modalCloseButton}>
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={20} color={Colors.surface} />
               </TouchableOpacity>
-            </LinearGradient>
+            </View>
 
             {/* Modal Form */}
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -588,7 +625,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                     onChangeText={setSupplierSearchText}
                     onFocus={() => setShowSupplierDropdown(true)}
                     placeholder="Rechercher un fournisseur..."
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={Colors.textColors.disabled}
                   />
                   {showSupplierDropdown && suppliers.length > 0 && (
                     <View style={styles.dropdownList}>
@@ -630,7 +667,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                     onChangeText={setCustomerSearchText}
                     onFocus={() => setShowCustomerDropdown(true)}
                     placeholder="Rechercher un client..."
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={Colors.textColors.disabled}
                   />
                   {showCustomerDropdown && customers.length > 0 && (
                     <View style={styles.dropdownList}>
@@ -757,7 +794,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                 }}
               >
                 <View style={styles.settingsMenuItemIcon}>
-                  <Text style={styles.settingsMenuItemIconText}>📊</Text>
+                  <BarChart3 size={20} color={Colors.action} />
                 </View>
                 <View style={styles.settingsMenuItemContent}>
                   <Text style={styles.settingsMenuItemTitle}>Bilans</Text>
@@ -776,7 +813,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                 }}
               >
                 <View style={styles.settingsMenuItemIcon}>
-                  <Text style={styles.settingsMenuItemIconText}>⚙️</Text>
+                  <Settings size={20} color={Colors.action} />
                 </View>
                 <View style={styles.settingsMenuItemContent}>
                   <Text style={styles.settingsMenuItemTitle}>Administration</Text>
@@ -796,8 +833,8 @@ export default function POSScreen({ navigation }: POSScreenProps) {
                 handleLogout();
               }}
             >
-              <View style={styles.settingsMenuItemIcon}>
-                <Text style={styles.settingsMenuItemIconText}>🚪</Text>
+              <View style={[styles.settingsMenuItemIcon, styles.settingsMenuItemIconDanger]}>
+                <LogOut size={20} color={Colors.danger.main} />
               </View>
               <View style={styles.settingsMenuItemContent}>
                 <Text style={[styles.settingsMenuItemTitle, styles.settingsMenuItemTitleDanger]}>
@@ -816,162 +853,152 @@ export default function POSScreen({ navigation }: POSScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  header: {
-    padding: 20,
-    paddingTop: 10,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    backgroundColor: Colors.background,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   menuButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuButtonText: {
-    fontSize: 20,
+  balanceCard: {
+    backgroundColor: Colors.surface,
+    margin: Spacing.lg,
+    marginBottom: 0,
+    borderRadius: 16,
+    padding: Spacing.xl,
+    ...Shadows.sm,
   },
   balanceLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.xs,
   },
   balanceAmount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 24,
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.primary[900],
+    marginBottom: Spacing.xl,
+    fontVariant: ['tabular-nums'],
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
   },
   statCard: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.xs,
   },
   statLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.xs,
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  statValueNegative: {
-    color: '#fbbf24',
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
   },
   statSubtext: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 4,
+    fontSize: 11,
+    color: Colors.textColors.tertiary,
+    marginTop: 2,
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
-    padding: 16,
+    gap: Spacing.md,
+    padding: Spacing.lg,
   },
   actionButton: {
     flex: 1,
-    height: 64,
-    borderRadius: 16,
+    height: 56,
+    flexDirection: 'row',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: Spacing.sm,
+    ...Shadows.sm,
   },
   actionButtonSuccess: {
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.success.main,
   },
   actionButtonDanger: {
-    backgroundColor: '#ef4444',
-  },
-  actionButtonIcon: {
-    fontSize: 24,
+    backgroundColor: Colors.danger.main,
   },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.surface,
   },
   quickNav: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   quickNavButton: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    gap: Spacing.sm,
+    ...Shadows.sm,
   },
   quickNavIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quickNavText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.text,
   },
   listCard: {
     flex: 1,
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 16,
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
     borderRadius: 16,
-    padding: 16,
+    padding: Spacing.lg,
+    ...Shadows.sm,
   },
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   listTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
   },
   badge: {
-    backgroundColor: '#102A43',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    backgroundColor: Colors.action,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderRadius: 12,
   },
   badgeText: {
-    color: '#fff',
+    color: Colors.surface,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -980,30 +1007,26 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 12,
+    paddingVertical: Spacing['3xl'],
+    gap: Spacing.md,
   },
   emptyText: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
+    color: Colors.textColors.secondary,
   },
   emptySubtext: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: Colors.textColors.tertiary,
   },
   entriesList: {
-    gap: 12,
+    gap: Spacing.md,
   },
   entryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.surfaceAlt,
     borderRadius: 12,
-    padding: 12,
+    padding: Spacing.md,
   },
   entryLeft: {
     flex: 1,
@@ -1011,48 +1034,52 @@ const styles = StyleSheet.create({
   entryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
   },
   entryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     borderRadius: 8,
   },
   entryBadgeSuccess: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: Colors.success.background,
   },
   entryBadgeDanger: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: Colors.danger.background,
   },
   entryBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
   },
   entryTime: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: Colors.textColors.tertiary,
   },
   entryPerson: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#374151',
-    marginBottom: 4,
+    color: Colors.textColors.secondary,
+    marginBottom: Spacing.xs,
   },
   entryNote: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textColors.secondary,
   },
   entryAmount: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   entryAmountSuccess: {
-    color: '#10b981',
+    color: Colors.success.main,
   },
   entryAmountDanger: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   modalOverlay: {
     flex: 1,
@@ -1060,7 +1087,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
@@ -1069,15 +1096,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 20,
+    padding: Spacing.xl,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
+  modalHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
   modalHeaderTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: Colors.surface,
+    marginBottom: 2,
   },
   modalHeaderSubtitle: {
     fontSize: 14,
@@ -1091,148 +1124,142 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCloseButtonText: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
   modalBody: {
-    padding: 20,
+    padding: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    color: Colors.text,
+    marginBottom: Spacing.sm,
   },
   required: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     overflow: 'hidden',
+    backgroundColor: Colors.surface,
   },
   picker: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
   },
   formHint: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
+    color: Colors.textColors.secondary,
+    marginTop: Spacing.xs,
   },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
     fontWeight: '600',
-    color: '#111827',
-    paddingVertical: 12,
+    color: Colors.text,
+    paddingVertical: Spacing.md,
   },
   amountCurrency: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   noteInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: Spacing.md,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
     height: 80,
     textAlignVertical: 'top',
+    backgroundColor: Colors.surface,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: Spacing.md,
     fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#fff',
+    color: Colors.text,
+    backgroundColor: Colors.surface,
   },
   dropdownList: {
-    marginTop: 4,
-    backgroundColor: '#fff',
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     maxHeight: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Shadows.sm,
   },
   dropdownScroll: {
     maxHeight: 200,
   },
   dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: Colors.border,
   },
   dropdownItemText: {
     fontSize: 16,
-    color: '#111827',
+    color: Colors.text,
   },
   dropdownItemTextEmpty: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: Colors.textColors.tertiary,
     fontStyle: 'italic',
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
   },
   modalCancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.text,
   },
   modalSubmitButton: {
     flex: 1,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
   },
   modalSubmitButtonSuccess: {
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.success.main,
   },
   modalSubmitButtonDanger: {
-    backgroundColor: '#ef4444',
+    backgroundColor: Colors.danger.main,
   },
   modalSubmitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.surface,
   },
   ownerHint: {
     fontSize: 12,
-    color: '#7c3aed',
-    marginTop: 4,
+    color: Colors.action,
+    marginTop: Spacing.xs,
     fontStyle: 'italic',
   },
   settingsOverlay: {
@@ -1241,25 +1268,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
     paddingTop: 60,
-    paddingRight: 16,
+    paddingRight: Spacing.lg,
   },
   settingsMenu: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
     width: 280,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    ...Shadows.lg,
     overflow: 'hidden',
   },
   settingsMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: Colors.border,
   },
   settingsMenuItemDanger: {
     borderBottomWidth: 0,
@@ -1267,14 +1290,14 @@ const styles = StyleSheet.create({
   settingsMenuItemIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    backgroundColor: Colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.md,
   },
-  settingsMenuItemIconText: {
-    fontSize: 20,
+  settingsMenuItemIconDanger: {
+    backgroundColor: Colors.danger.background,
   },
   settingsMenuItemContent: {
     flex: 1,
@@ -1282,22 +1305,22 @@ const styles = StyleSheet.create({
   settingsMenuItemTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
     marginBottom: 2,
   },
   settingsMenuItemTitleDanger: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   settingsMenuItemSubtitle: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textColors.secondary,
   },
   settingsMenuItemSubtitleDanger: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   settingsMenuDivider: {
     height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 4,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.xs,
   },
 });

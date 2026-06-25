@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { DollarSign, Plus, Minus } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, SearchableSelect } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
@@ -660,7 +660,7 @@ export default function CashScreen() {
                     icon={
                       <DollarSign
                         size={20}
-                        color={transaction.isCredit ? Colors.warning.main : Colors.primary[900]}
+                        color={transaction.isCredit ? Colors.warning.main : Colors.action}
                       />
                     }
                     title={getCategoryLabel(transaction.category, transaction.isCredit)}
@@ -1255,29 +1255,28 @@ const styles = StyleSheet.create({
     gap: Spacing['2xl'],
   },
   balanceHeader: {
-    backgroundColor: Colors.primary[900],
-    padding: Spacing['3xl'],
-    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    padding: Spacing['2xl'],
+    borderRadius: 16,
     alignItems: 'center',
+    ...Shadows.sm,
   },
   balanceLabel: {
     fontSize: 14,
-    color: Colors.primary.foreground,
+    color: Colors.textColors.tertiary,
     marginBottom: Spacing.sm,
-    opacity: 0.9,
   },
   balanceAmount: {
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.primary.foreground,
+    color: Colors.primary[900],
     fontVariant: ['tabular-nums'],
   },
   dailySummaryCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   dailySummaryRow: {
     flexDirection: 'row',
@@ -1381,10 +1380,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -1420,10 +1419,9 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
@@ -1539,7 +1537,7 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     marginTop: Spacing.lg,
     padding: Spacing.lg,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -1561,14 +1559,14 @@ const styles = StyleSheet.create({
   categoryButton: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
   },
   categoryButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   categoryButtonText: {
     fontSize: 14,
@@ -1594,8 +1592,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentMethodButtonActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   paymentMethodButtonText: {
     fontSize: 14,
@@ -1621,8 +1619,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   checkboxCheck: {
     color: Colors.primary.foreground,

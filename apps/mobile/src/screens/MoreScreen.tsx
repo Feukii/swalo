@@ -19,7 +19,7 @@ import {
   Lock,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem } from '../components/ui';
-import { Colors } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 
 const MENU_ITEMS = [
   { icon: Users, title: 'Clients', screen: 'Customers', module: 'customers' },
@@ -145,7 +145,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
             return (
               <ListItem
                 key={item.screen}
-                icon={<IconComponent size={20} color={Colors.primary[900]} />}
+                icon={<IconComponent size={20} color={Colors.action} />}
                 title={item.title}
                 onClick={() => navigateToScreen(item.screen)}
               />
@@ -171,7 +171,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
           </View>
         )}
 
-        <View style={[styles.card, { marginTop: 24 }]}>
+        <View style={[styles.card, styles.cardSpaced]}>
           <ListItem
             icon={<LogOut size={20} color={Colors.danger.main} />}
             title="Déconnexion"
@@ -189,25 +189,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    padding: 16,
+    padding: Spacing.lg,
     paddingBottom: 80,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  cardSpaced: {
+    marginTop: Spacing.lg,
   },
   disabledSection: {
-    marginTop: 24,
+    marginTop: Spacing.lg,
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '600',
     color: Colors.muted.foreground,
-    marginBottom: 8,
-    marginLeft: 4,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

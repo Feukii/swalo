@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { pinInvitesApi, adminApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../utils/date';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 
 interface ShopAdminScreenProps {
   navigation: {
@@ -312,7 +313,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#102A43" />
+            <ActivityIndicator size="large" color={Colors.action} />
           </View>
         ) : (
           <>
@@ -433,7 +434,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
                 value={displayName}
                 onChangeText={setDisplayName}
                 placeholder="Ex: Jean Dupont"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={Colors.textColors.disabled}
               />
             </View>
 
@@ -496,122 +497,121 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: Colors.border,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '700',
+    color: Colors.text,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
     marginTop: 2,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#102A43',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.action,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonText: {
     fontSize: 28,
-    color: '#fff',
+    color: Colors.onMarine,
     lineHeight: 32,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
   },
   backText: {
     fontSize: 24,
-    color: '#374151',
+    color: Colors.action,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: Spacing.lg,
   },
   loadingContainer: {
-    paddingVertical: 32,
+    paddingVertical: Spacing['3xl'],
     alignItems: 'center',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    padding: Spacing.lg,
+    ...Shadows.sm,
   },
   statCardPrimary: {
-    backgroundColor: '#102A43',
-    borderColor: '#102A43',
+    backgroundColor: Colors.primary[50],
   },
   statLabel: {
     fontSize: 11,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '700',
+    color: Colors.text,
   },
   sectionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.lg,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: Spacing['3xl'],
   },
   emptyIcon: {
     fontSize: 48,
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   emptyText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   listItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: Colors.border,
   },
   listItemLeft: {
     flex: 1,
@@ -619,17 +619,17 @@ const styles = StyleSheet.create({
   listItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
     marginBottom: 4,
   },
   listItemSubtitle: {
     fontSize: 13,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
     marginTop: 2,
   },
   listItemRight: {
     alignItems: 'flex-end',
-    gap: 8,
+    gap: Spacing.sm,
   },
   badge: {
     paddingHorizontal: 10,
@@ -637,35 +637,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   badgeEmployee: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: Colors.info.background,
   },
   badgeAdmin: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: Colors.warning.background,
   },
   badgeManager: {
-    backgroundColor: '#e9d5ff',
+    backgroundColor: Colors.warning.background,
   },
   badgeOwner: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: Colors.success.background,
   },
   badgeUsed: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textColors.secondary,
   },
   revokeButton: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: '#fee2e2',
+    backgroundColor: Colors.danger.background,
   },
   revokeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#dc2626',
+    color: Colors.danger.main,
   },
   // Modal styles
   modalOverlay: {
@@ -676,87 +676,91 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 24,
+    padding: Spacing['2xl'],
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    color: Colors.textColors.secondary,
+    marginBottom: Spacing.sm,
   },
   required: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   input: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: Spacing.md,
     fontSize: 16,
-    color: '#111827',
+    color: Colors.text,
   },
   roleButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   roleButton: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Spacing.md,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   roleButtonActive: {
-    backgroundColor: '#102A43',
-    borderColor: '#102A43',
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   roleButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   roleButtonTextActive: {
-    color: '#fff',
+    color: Colors.onMarine,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
+    padding: Spacing.md,
+    borderRadius: 12,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   cancelButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
   },
   cancelButtonText: {
-    color: '#374151',
+    color: Colors.textColors.secondary,
     fontSize: 16,
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: '#102A43',
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
-    color: '#fff',
+    color: Colors.onMarine,
     fontSize: 16,
     fontWeight: '600',
   },

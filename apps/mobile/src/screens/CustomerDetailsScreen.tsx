@@ -20,7 +20,7 @@ import {
   IconButton,
 } from '../components/ui';
 import { BalanceIndicator } from '../components/ui/BalanceIndicator';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
@@ -661,7 +661,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#102A43" />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -682,7 +682,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             {canEditOrDelete() && (
               <>
                 <IconButton onPress={handleOpenEditModal}>
-                  <Edit size={20} color={Colors.primary[900]} />
+                  <Edit size={20} color={Colors.action} />
                 </IconButton>
                 <IconButton onPress={handleDelete}>
                   <Trash size={20} color={Colors.danger.main} />
@@ -824,11 +824,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   }
                   switch (transaction.type) {
                     case 'receivable':
-                      return <Receipt size={20} color={Colors.primary[900]} />;
+                      return <Receipt size={20} color={Colors.action} />;
                     case 'payment':
-                      return <DollarSign size={20} color={Colors.primary[900]} />;
+                      return <DollarSign size={20} color={Colors.action} />;
                     default:
-                      return <Receipt size={20} color={Colors.primary[900]} />;
+                      return <Receipt size={20} color={Colors.action} />;
                   }
                 };
 
@@ -1328,19 +1328,16 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   loadingContainer: {
@@ -1429,11 +1426,10 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   infoText: {
     fontSize: 14,
@@ -1625,29 +1621,31 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   modalHeaderTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.primary.foreground,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
     marginBottom: 4,
   },
   modalHeaderSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: Colors.textColors.tertiary,
   },
   modalCloseButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCloseButtonText: {
     fontSize: 20,
-    color: '#fff',
+    color: Colors.action,
     fontWeight: 'bold',
   },
   modalBody: {
@@ -1659,46 +1657,49 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textColors.secondary,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
+    backgroundColor: Colors.surfaceAlt,
   },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     paddingHorizontal: 16,
+    backgroundColor: Colors.surfaceAlt,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
     paddingVertical: 12,
   },
   amountCurrency: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   noteInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
     height: 80,
     textAlignVertical: 'top',
+    backgroundColor: Colors.surfaceAlt,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1707,22 +1708,26 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   modalCancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textColors.secondary,
   },
   modalSubmitButton: {
     flex: 1,
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   modalSubmitButtonText: {
     fontSize: 16,
@@ -1836,13 +1841,14 @@ const styles = StyleSheet.create({
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
     height: 60,
     textAlignVertical: 'top',
+    backgroundColor: Colors.surfaceAlt,
   },
   paymentMethodContainer: {
     flexDirection: 'row',
@@ -1860,8 +1866,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   paymentMethodButtonActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   paymentMethodButtonText: {
     fontSize: 14,

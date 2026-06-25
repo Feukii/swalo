@@ -4,33 +4,33 @@
 
 export const Colors = {
   primary: {
-    900: '#102A43', // Marine (couleur reine)
-    700: '#1B3A57', // Marine accent (hover)
-    500: '#1E4D6E',
-    300: '#6B9DBF',
-    100: '#C8DFF0',
-    50: '#EEF5FB',
-    main: '#102A43',
+    900: '#0B2A45', // Marine (couleur reine)
+    700: '#154B75', // Marine accent (hover)
+    500: '#2474AD',
+    300: '#8FBEDD',
+    100: '#DCE9F4',
+    50: '#EFF5FA',
+    main: '#0B2A45',
     foreground: '#ffffff',
   },
   // Couleur d'action / interactive (boutons, liens) et accent logo
   action: '#0EA5E9', // Sky Blue (action)
   accent: '#38BDF8', // Sky Light (accent)
-  background: '#F8FAFC',
+  background: '#F5F8FC',
   surface: '#FFFFFF',
-  text: '#0B1220',
+  text: '#0F172A',
   textColors: {
-    primary: '#0B1220',
-    secondary: '#374151',
-    tertiary: '#6B7280',
-    disabled: '#9CA3AF',
+    primary: '#0F172A',
+    secondary: '#475569',
+    tertiary: '#64748B',
+    disabled: '#94A3B8',
     inverse: '#FFFFFF',
   },
   muted: {
-    main: '#E5E7EB',
-    foreground: '#6B7280',
+    main: '#E2E8F0',
+    foreground: '#64748B',
   },
-  border: '#E5E7EB',
+  border: '#E2E8F0',
   success: {
     main: '#10B981', // Vert fonctionnel (brand)
     background: '#ECFDF5',
@@ -48,8 +48,8 @@ export const Colors = {
   },
   info: {
     main: '#0EA5E9', // Sky Blue (action)
-    background: '#EFF6FF',
-    text: '#1E40AF',
+    background: '#F0F9FF',
+    text: '#075985',
   },
   roles: {
     SUPERADMIN: { bg: '#F5F3FF', text: '#5B21B6', badge: '#7C3AED' },

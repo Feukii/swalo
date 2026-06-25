@@ -126,34 +126,34 @@ export default function AdminGlobalUsers() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">👥 Gestion Globale des Utilisateurs</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-primary-900">👥 Gestion Globale des Utilisateurs</h1>
+          <p className="text-slate-600 mt-2">
             Vue d'ensemble de tous les utilisateurs sur toutes les boutiques
           </p>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="bg-white rounded-2xl shadow-card p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Search */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">🔍 Rechercher</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">🔍 Rechercher</label>
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Nom, email ou téléphone..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
               />
             </div>
 
             {/* Role Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 🎭 Filtrer par rôle
               </label>
               <select
@@ -162,7 +162,7 @@ export default function AdminGlobalUsers() {
                   setRoleFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
               >
                 <option value="">Tous les rôles</option>
                 {ROLES.map(role => (
@@ -184,42 +184,42 @@ export default function AdminGlobalUsers() {
 
         {/* Loading State */}
         {loading ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
+          <div className="bg-white rounded-2xl shadow-card p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-action-500"></div>
-            <p className="mt-4 text-gray-600">Chargement des utilisateurs...</p>
+            <p className="mt-4 text-slate-600">Chargement des utilisateurs...</p>
           </div>
         ) : (
           <>
             {/* Users Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Utilisateur
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Contact
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Rôles & Boutiques
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Statut
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Date création
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-slate-200">
                     {users.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                           😔 Aucun utilisateur trouvé
                         </td>
                       </tr>
@@ -229,17 +229,17 @@ export default function AdminGlobalUsers() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div>
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className="text-sm font-medium text-primary-900">
                                   {user.display_name}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-slate-500">
                                   ID: {user.id.slice(0, 8)}...
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
+                            <div className="text-sm text-primary-900">
                               {user.email && (
                                 <div className="flex items-center">📧 {user.email}</div>
                               )}
@@ -247,14 +247,14 @@ export default function AdminGlobalUsers() {
                                 <div className="flex items-center mt-1">📱 {user.phone}</div>
                               )}
                               {!user.email && !user.phone && (
-                                <span className="text-gray-400">—</span>
+                                <span className="text-slate-400">—</span>
                               )}
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap gap-2">
                               {user.user_roles.length === 0 ? (
-                                <span className="text-sm text-gray-400">Aucun rôle</span>
+                                <span className="text-sm text-slate-400">Aucun rôle</span>
                               ) : (
                                 user.user_roles.map((ur, idx) => (
                                   <div
@@ -292,7 +292,7 @@ export default function AdminGlobalUsers() {
                               </div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                             {new Date(user.created_at).toLocaleDateString('fr-FR')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -303,7 +303,7 @@ export default function AdminGlobalUsers() {
                                   value={blockReason}
                                   onChange={e => setBlockReason(e.target.value)}
                                   placeholder="Raison du blocage..."
-                                  className="px-2 py-1 text-xs border border-gray-300 rounded"
+                                  className="px-2 py-1 text-xs border border-slate-300 rounded"
                                 />
                                 <div className="flex gap-1">
                                   <button
@@ -318,7 +318,7 @@ export default function AdminGlobalUsers() {
                                       setBlockingUserId(null);
                                       setBlockReason('');
                                     }}
-                                    className="px-2 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
+                                    className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded hover:bg-slate-200"
                                   >
                                     Annuler
                                   </button>
@@ -352,9 +352,9 @@ export default function AdminGlobalUsers() {
 
             {/* Pagination */}
             {pagination.total_pages > 1 && (
-              <div className="bg-white rounded-lg shadow mt-6 px-6 py-4">
+              <div className="bg-white rounded-2xl shadow-card mt-6 px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-700">
+                  <div className="text-sm text-slate-700">
                     Page <span className="font-medium">{page}</span> sur{' '}
                     <span className="font-medium">{pagination.total_pages}</span> •{' '}
                     <span className="font-medium">{pagination.total}</span> utilisateur(s) au total
@@ -363,14 +363,14 @@ export default function AdminGlobalUsers() {
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ← Précédent
                     </button>
                     <button
                       onClick={() => setPage(p => Math.min(pagination.total_pages, p + 1))}
                       disabled={page === pagination.total_pages}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Suivant →
                     </button>

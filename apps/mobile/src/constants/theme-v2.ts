@@ -3,35 +3,47 @@
  * Theme based on design specifications with "Marine" (#102A43) primary color
  */
 
-// Nouvelle palette de couleurs (Swalo v2)
+// Palette "Marine + Sky vif" — source: @swalo/core/brand/tokens (échelles alignées)
 export const Colors = {
   primary: {
-    900: '#102A43', // Marine (couleur reine)
-    700: '#1B3A57', // Marine accent (hover/press)
-    50: '#EEF5FB', // Fonds bleutés discrets
-    main: '#102A43', // Alias for primary.900
-    foreground: '#ffffff',
+    950: '#07203A',
+    900: '#0B2A45', // Marine (couleur reine)
+    800: '#103A5C',
+    700: '#154B75', // Marine accent (hover/press)
+    600: '#1B5E8F',
+    500: '#2474AD',
+    400: '#4E94C7',
+    300: '#8FBEDD',
+    200: '#C2DBEC',
+    100: '#DCE9F4',
+    50: '#EFF5FA', // Fonds bleutés discrets
+    main: '#0B2A45', // Alias for primary.900
+    foreground: '#FFFFFF',
   },
   // Couleur d'action / interactive (boutons, liens) et accent logo
   action: '#0EA5E9', // Sky Blue (action)
   accent: '#38BDF8', // Sky Light (accent)
-  background: '#F8FAFC',
+  background: '#F5F8FC',
   surface: '#FFFFFF',
+  surfaceAlt: '#F8FAFC',
   // Main text color (for backward compatibility)
-  text: '#0B1220',
-  // Text color hierarchy (for detailed usage)
+  text: '#0F172A',
+  // Text color hierarchy (slate — s'accorde au bleu)
   textColors: {
-    primary: '#0B1220',
-    secondary: '#374151',
-    tertiary: '#6B7280',
-    disabled: '#9CA3AF',
+    primary: '#0F172A',
+    secondary: '#475569',
+    tertiary: '#64748B',
+    disabled: '#94A3B8',
     inverse: '#FFFFFF',
   },
   muted: {
-    main: '#E5E7EB',
-    foreground: '#6B7280',
+    main: '#E2E8F0',
+    foreground: '#64748B',
   },
-  border: '#E5E7EB',
+  border: '#E2E8F0',
+  borderStrong: '#CBD5E1',
+  // Texte/icône sur fond marine
+  onMarine: '#FFFFFF',
   success: {
     main: '#10B981', // Vert fonctionnel (brand)
     background: '#ECFDF5',
@@ -51,13 +63,13 @@ export const Colors = {
     foreground: '#ffffff',
   },
   info: {
-    main: '#2563EB',
-    background: '#EFF6FF',
-    text: '#1E40AF',
+    main: '#0EA5E9', // Sky (harmonisé avec l'action)
+    background: '#F0F9FF',
+    text: '#075985',
     foreground: '#ffffff',
   },
   // Additional color tokens
-  tertiary: '#6B7280',
+  tertiary: '#64748B',
 };
 
 // Système d'espacement (design tokens)

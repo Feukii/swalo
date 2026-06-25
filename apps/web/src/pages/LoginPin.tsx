@@ -103,7 +103,7 @@ export default function LoginPin() {
                   maxLength={10}
                   autoFocus
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-action-500 focus:ring-2 focus:ring-action-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -121,7 +121,7 @@ export default function LoginPin() {
                   placeholder="••••"
                   maxLength={4}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-action-500 focus:ring-2 focus:ring-action-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -138,7 +138,7 @@ export default function LoginPin() {
                 disabled={
                   isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4
                 }
-                className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="w-full py-3 bg-action-500 hover:bg-action-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -171,7 +171,7 @@ export default function LoginPin() {
           <div className="text-center">
             <Link
               to="/create-shop"
-              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
+              className="text-action-600 text-sm font-medium hover:text-action-700 hover:underline transition-colors"
             >
               Créer une nouvelle boutique (Admin)
             </Link>

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Building, Plus, Eye } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useLocalSuppliers } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -158,10 +158,10 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
         rightAction={
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <IconButton onPress={() => navigation.navigate('SupplierBalancesSummary')}>
-              <Eye size={24} color={Colors.primary[900]} />
+              <Eye size={24} color={Colors.action} />
             </IconButton>
             <IconButton onPress={handleOpenModal}>
-              <Plus size={24} color={Colors.primary[900]} />
+              <Plus size={24} color={Colors.action} />
             </IconButton>
           </View>
         }
@@ -174,7 +174,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             <KPICard
               label="Total fournisseurs"
               value={String(stats.total)}
-              icon={<Building size={20} color={Colors.muted.foreground} />}
+              icon={<Building size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -201,7 +201,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
           ) : filteredSuppliers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -214,7 +214,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             filteredSuppliers.map(supplier => (
               <ListItem
                 key={supplier.id}
-                icon={<Building size={20} color={Colors.primary[900]} />}
+                icon={<Building size={20} color={Colors.action} />}
                 title={getPersonName(supplier)}
                 subtitle={
                   supplier.phone
@@ -336,9 +336,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    marginBottom: Spacing['2xl'],
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   searchInput: {
     fontSize: 16,
@@ -346,20 +348,17 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   loadingContainer: {
@@ -385,12 +384,13 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
+    ...Shadows.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.lg,
   },
@@ -407,10 +407,10 @@ const styles = StyleSheet.create({
     color: Colors.danger.main,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -429,9 +429,11 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: Spacing.lg,
+    paddingVertical: Spacing.lg,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   cancelButton: {
     backgroundColor: Colors.muted.main,
@@ -442,7 +444,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
     color: Colors.primary.foreground,

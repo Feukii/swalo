@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Receipt } from '../../components/icons/SimpleIcons';
 import { ScreenHeader } from '../../components/ui';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme-v2';
+import { Colors, Spacing, BorderRadius, Shadows } from '../../constants/theme-v2';
 import { invoicesApi } from '../../lib/api';
 
 interface Invoice {
@@ -152,7 +152,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
       activeOpacity={0.7}
     >
       <View style={styles.invoiceIconContainer}>
-        <Receipt size={20} color={Colors.primary[900]} />
+        <Receipt size={20} color={Colors.action} />
       </View>
       <View style={styles.invoiceContent}>
         <View style={styles.invoiceTopRow}>
@@ -174,7 +174,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Receipt size={48} color={Colors.muted.foreground} />
+      <Receipt size={48} color={Colors.action} />
       <Text style={styles.emptyText}>Aucune facture</Text>
       <Text style={styles.emptySubtext}>Les factures apparaitront ici une fois creees.</Text>
     </View>
@@ -186,7 +186,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement des factures...</Text>
         </View>
       ) : (
@@ -202,8 +202,8 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={[Colors.primary[900]]}
-              tintColor={Colors.primary[900]}
+              colors={[Colors.action]}
+              tintColor={Colors.action}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -239,11 +239,10 @@ const styles = StyleSheet.create({
   invoiceItem: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
+    borderRadius: 16,
     padding: Spacing.lg,
     alignItems: 'flex-start',
+    ...Shadows.sm,
   },
   invoiceIconContainer: {
     width: 40,
