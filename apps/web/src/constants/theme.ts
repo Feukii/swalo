@@ -1,5 +1,5 @@
 /**
- * SWALO Web Design System
+ * Swalo Web Design System
  * Miroir du thème mobile (theme-v2.ts) pour cohérence cross-platform
  */
 

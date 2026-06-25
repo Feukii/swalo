@@ -1,9 +1,9 @@
 /**
- * SWALO v2 Design System
+ * Swalo v2 Design System
  * Theme based on design specifications with "Marine" (#102A43) primary color
  */
 
-// Nouvelle palette de couleurs (SWALO v2)
+// Nouvelle palette de couleurs (Swalo v2)
 export const Colors = {
   primary: {
     900: '#102A43', // Marine (couleur reine)

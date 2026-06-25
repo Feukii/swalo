@@ -1,5 +1,5 @@
 /**
- * SWALO Mobile App - Theme & Color Palette
+ * Swalo Mobile App - Theme & Color Palette
  *
  * Centralized color definitions for consistent UI across the application.
  * All colors follow the Tailwind CSS color palette for maintainability.

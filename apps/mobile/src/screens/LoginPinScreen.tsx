@@ -191,7 +191,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        {/* Logo SWALO */}
+        {/* Logo Swalo */}
         <View style={styles.logoContainer}>
           <Image
             source={require('../../assets/full_icon.png')}

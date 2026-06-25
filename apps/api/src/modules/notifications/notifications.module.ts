@@ -30,7 +30,7 @@ import { NotificationsScheduler } from './notifications.scheduler';
           },
         },
         defaults: {
-          from: config.get<string>('SMTP_FROM', '"SWALO" <noreply@swalo.app>'),
+          from: config.get<string>('SMTP_FROM', '"Swalo" <noreply@swalo.app>'),
         },
         template: {
           // In webpack mode __dirname resolves to dist root; fallback to full path

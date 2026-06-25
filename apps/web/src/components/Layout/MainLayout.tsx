@@ -184,7 +184,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
-              {navItems.find(item => isActive(item.path))?.name || 'SWALO'}
+              {navItems.find(item => isActive(item.path))?.name || 'Swalo'}
             </h1>
             <p className="text-xs text-gray-500">
               {new Date().toLocaleDateString('fr-FR', {

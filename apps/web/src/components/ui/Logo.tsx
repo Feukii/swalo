@@ -16,13 +16,13 @@ const Logo: React.FC<LogoProps> = ({ size = 'md', variant = 'full', className = 
   const s = sizeMap[size];
 
   if (variant === 'icon') {
-    return <img src="/logo.png" alt="SWALO" className={`${s.img} object-contain ${className}`} />;
+    return <img src="/logo.png" alt="Swalo" className={`${s.img} object-contain ${className}`} />;
   }
 
   return (
     <div className={`flex items-center space-x-2 ${className}`}>
-      <img src="/logo.png" alt="SWALO" className={`${s.img} object-contain`} />
-      <span className={`${s.text} font-bold text-primary-900`}>SWALO</span>
+      <img src="/logo.png" alt="Swalo" className={`${s.img} object-contain`} />
+      <span className={`${s.text} font-bold text-primary-900`}>Swalo</span>
     </div>
   );
 };

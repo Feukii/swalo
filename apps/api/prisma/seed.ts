@@ -41,11 +41,11 @@ async function main() {
 
   // 2. Créer l'entreprise test
   const enterprise = await prisma.enterprise.upsert({
-    where: { code: 'ENT-SWALO' },
+    where: { code: 'ENT-Swalo' },
     update: {},
     create: {
-      code: 'ENT-SWALO',
-      name: 'SWALO Entreprise Test',
+      code: 'ENT-Swalo',
+      name: 'Swalo Entreprise Test',
       owner_id: owner.id,
       license_tier: 'PROFESSIONAL',
       max_shops: 10,
@@ -61,7 +61,7 @@ async function main() {
     update: {},
     create: {
       code: '011225',
-      name: 'SWALO Boutique 01',
+      name: 'Swalo Boutique 01',
       address: 'Dakar, Sénégal',
       phone: '+221771234567',
       email: 'shop01@swalo.com',
@@ -78,7 +78,7 @@ async function main() {
     update: {},
     create: {
       code: '251225',
-      name: 'SWALO Boutique 02',
+      name: 'Swalo Boutique 02',
       address: 'Dakar, Sénégal',
       phone: '+221771234568',
       email: 'shop02@swalo.com',

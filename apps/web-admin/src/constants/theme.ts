@@ -1,5 +1,5 @@
 /**
- * SWALO Admin Design System
+ * Swalo Admin Design System
  */
 
 export const Colors = {

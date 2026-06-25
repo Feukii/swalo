@@ -15,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'logo.svg', 'vite.svg'],
       manifest: {
-        name: 'SWALO - Gestion de Boutique',
-        short_name: 'SWALO',
-        description: 'SWALO — mini-ERP de gestion de boutique',
+        name: 'Swalo - Gestion de Boutique',
+        short_name: 'Swalo',
+        description: 'Swalo — mini-ERP de gestion de boutique',
         theme_color: '#102A43',
         background_color: '#ffffff',
         display: 'standalone',

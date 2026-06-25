@@ -52,7 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   S
                 </div>
                 <div>
-                  <span className="text-lg font-bold text-white">SWALO</span>
+                  <span className="text-lg font-bold text-white">Swalo</span>
                   <span className="text-xs text-secondary-400 block -mt-1">Admin</span>
                 </div>
               </div>
@@ -141,7 +141,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
-              {navItems.find(item => isActive(item.path))?.name || 'SWALO Admin'}
+              {navItems.find(item => isActive(item.path))?.name || 'Swalo Admin'}
             </h1>
             <p className="text-xs text-gray-500">
               {new Date().toLocaleDateString('fr-FR', {

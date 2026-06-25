@@ -43,7 +43,7 @@ export class AuthController {
   /**
    * POST /api/auth/pin
    * Authentification par code Boutique + PIN (6 chiffres + 4 chiffres)
-   * Conforme au CDC SWALO - Section 2
+   * Conforme au CDC Swalo - Section 2
    */
   @Public()
   @Post('pin')

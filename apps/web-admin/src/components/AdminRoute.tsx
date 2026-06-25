@@ -30,7 +30,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
           <div className="text-6xl mb-4">🔒</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Acces Reserve</h1>
           <p className="text-gray-600 mb-6">
-            Cette plateforme est reservee aux administrateurs SWALO.
+            Cette plateforme est reservee aux administrateurs Swalo.
           </p>
           <button onClick={() => useAuthStore.getState().logout()} className="btn-primary">
             Se deconnecter
