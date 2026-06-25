@@ -9,7 +9,8 @@
     "./types": { "types": "./src/types/index.ts", "import": "./src/types/index.ts", "require": "./dist/types/index.js" },
     "./utils": { "types": "./src/utils/index.ts", "import": "./src/utils/index.ts", "require": "./dist/utils/index.js" },
     "./brand/tokens": { "types": "./src/brand/tokens.ts", "import": "./src/brand/tokens.ts", "require": "./dist/brand/tokens.js" },
-    "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" }
+    "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" },
+    "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

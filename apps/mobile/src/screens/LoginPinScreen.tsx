@@ -198,6 +198,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
             style={styles.logoImage}
             resizeMode="contain"
           />
+          <Text style={styles.brandWordmark}>Swalo</Text>
           <Text style={styles.appSubtitle}>Gérez, Vendez, Prospérez</Text>
         </View>
 
@@ -294,9 +295,16 @@ const styles = StyleSheet.create({
     marginBottom: 48,
   },
   logoImage: {
-    width: 200,
-    height: 80,
-    marginBottom: Spacing.lg,
+    width: 88,
+    height: 88,
+    marginBottom: Spacing.md,
+  },
+  brandWordmark: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.primary[900],
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   appSubtitle: {
     fontSize: 14,
@@ -349,7 +357,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   loginButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
