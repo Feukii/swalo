@@ -33,6 +33,7 @@ import {
   createSupplierDebtOffline,
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
+import { checkBorrowingLimit } from '../utils/borrowingCheck';
 
 // Interface pour les transactions de caisse (cash + crédit)
 interface CashTransaction {
@@ -469,6 +470,20 @@ export default function CashScreen() {
     try {
       // Si achat à crédit, créer une dette fournisseur au lieu d'une sortie de caisse
       if (exitCategory === 'achats_marchandises' && exitPaymentMode === 'credit') {
+        // Vérifier le plafond d'endettement du fournisseur
+        const creditSupplier = suppliers.find(s => s.id === selectedSupplierId);
+        const borrowingError = await checkBorrowingLimit(
+          shopId,
+          selectedSupplierId,
+          creditSupplier?.borrowing_limit || 0,
+          exitAmount
+        );
+        if (borrowingError) {
+          Alert.alert('Plafond d endettement atteint', borrowingError);
+          setIsSubmitting(false);
+          return;
+        }
+
         await createSupplierDebtOffline({
           shopId,
           supplierId: selectedSupplierId,

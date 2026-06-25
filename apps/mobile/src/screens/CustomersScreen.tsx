@@ -44,6 +44,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const [name, setName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,6 +52,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setCreditLimit('');
     setInitialBalance('');
     setShowModal(true);
   };
@@ -60,6 +62,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setCreditLimit('');
     setInitialBalance('');
   };
 
@@ -84,12 +87,23 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       return;
     }
 
-    // Valider le solde initial si fourni
+    // Valider la limite de crédit si fournie (0 ou vide = illimité)
+    let creditLimitValue: number | undefined;
+    if (creditLimit.trim()) {
+      const limit = parseFloat(creditLimit);
+      if (isNaN(limit) || limit < 0) {
+        Alert.alert('Erreur', 'La limite de crédit doit être un nombre positif');
+        return;
+      }
+      creditLimitValue = Math.round(limit);
+    }
+
+    // Valider la dette de départ si fournie
     let initialBalanceValue: number | undefined;
     if (initialBalance.trim()) {
       const balance = parseFloat(initialBalance);
       if (isNaN(balance) || balance < 0) {
-        Alert.alert('Erreur', 'Le solde initial doit être un nombre positif');
+        Alert.alert('Erreur', 'La dette de départ doit être un nombre positif');
         return;
       }
       initialBalanceValue = Math.round(balance);
@@ -107,6 +121,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         name: name.trim(),
         firstName: firstName.trim() || undefined,
         phone: phone.trim() || undefined,
+        creditLimit: creditLimitValue,
       });
 
       // If initial balance provided, create a receivable
@@ -278,7 +293,23 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Solde initial (FCFA)</Text>
+              <Text style={styles.label}>Limite de crédit (FCFA)</Text>
+              <TextInput
+                style={styles.input}
+                value={creditLimit}
+                onChangeText={setCreditLimit}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+              />
+              <Text style={styles.hint}>
+                Plafond de crédit autorisé pour ce client. 0 ou vide = illimité. Ne crée aucune
+                créance.
+              </Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Dette de départ (optionnel)</Text>
               <TextInput
                 style={styles.input}
                 value={initialBalance}
@@ -287,7 +318,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
                 placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
               />
-              <Text style={styles.hint}>Montant de la créance initiale du client (optionnel)</Text>
+              <Text style={styles.hint}>Crée une créance de départ — laisser vide si aucune.</Text>
             </View>
 
             <View style={styles.modalButtons}>
