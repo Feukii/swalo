@@ -31,6 +31,8 @@ interface EnhancedStats {
   users: { total: number; active: number; blocked: number };
   shops: { total: number; blocked: number; active: number };
   enterprises: { total: number; blocked: number; active: number };
+  connectedDevices: { last15min: number; last24h: number; last7d: number };
+  licenses: { expired: number; expiringSoon: number };
   recentAuditLogs: Array<{
     id: string;
     action: string;
@@ -194,6 +196,35 @@ export default function SuperAdminDashboard() {
             <div className="text-sm text-gray-500">Entites bloquees</div>
             <div className="text-2xl font-bold text-red-600 mt-1">
               {stats.users.blocked + stats.shops.blocked + stats.enterprises.blocked}
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <div className="text-sm text-gray-500">Appareils connectes</div>
+            <div className="text-2xl font-bold text-gray-900 mt-1">
+              {stats.connectedDevices.last15min}{' '}
+              <span className="text-sm font-medium text-green-600">en ligne</span>
+            </div>
+            <div className="flex gap-2 mt-1">
+              <span className="text-xs text-gray-500">{stats.connectedDevices.last24h} / 24h</span>
+              <span className="text-xs text-gray-500">{stats.connectedDevices.last7d} / 7j</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <div className="text-sm text-gray-500">Licences</div>
+            <div
+              className={`text-2xl font-bold mt-1 ${
+                stats.licenses.expired > 0 ? 'text-red-600' : 'text-gray-900'
+              }`}
+            >
+              {stats.licenses.expired} expiree{stats.licenses.expired > 1 ? 's' : ''}
+            </div>
+            <div className="flex gap-2 mt-1">
+              {stats.licenses.expiringSoon > 0 && (
+                <span className="text-xs text-amber-600">
+                  {stats.licenses.expiringSoon} bientot expiree
+                  {stats.licenses.expiringSoon > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
