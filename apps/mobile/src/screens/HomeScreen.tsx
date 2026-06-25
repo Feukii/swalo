@@ -247,10 +247,10 @@ export default function HomeScreen() {
     enterprise?.name && shop?.name ? `${enterprise.name} · ${shop.name}` : shop?.name || 'Swalo';
 
   const quickActions: { label: string; route: string; icon: React.ReactNode }[] = [
-    { label: 'Vente', route: 'Sale', icon: <ShoppingCart size={24} color={Colors.primary[700]} /> },
-    { label: 'Caisse', route: 'Cash', icon: <Wallet size={24} color={Colors.primary[700]} /> },
-    { label: 'Stock', route: 'Stock', icon: <Package size={24} color={Colors.primary[700]} /> },
-    { label: 'Plus', route: 'More', icon: <Ellipsis size={24} color={Colors.primary[700]} /> },
+    { label: 'Vente', route: 'Sale', icon: <ShoppingCart size={24} color={Colors.action} /> },
+    { label: 'Caisse', route: 'Cash', icon: <Wallet size={24} color={Colors.action} /> },
+    { label: 'Stock', route: 'Stock', icon: <Package size={24} color={Colors.action} /> },
+    { label: 'Plus', route: 'More', icon: <Ellipsis size={24} color={Colors.action} /> },
   ];
 
   return (
@@ -400,9 +400,9 @@ export default function HomeScreen() {
                     key={transaction.id}
                     icon={
                       isEntry ? (
-                        <Receipt size={20} color={Colors.primary[700]} />
+                        <Receipt size={20} color={Colors.action} />
                       ) : (
-                        <DollarSign size={20} color={Colors.primary[700]} />
+                        <DollarSign size={20} color={Colors.action} />
                       )
                     }
                     title={title}
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     zIndex: 10,
