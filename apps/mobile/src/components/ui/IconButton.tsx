@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { Colors } from '../../constants/theme-v2';
+import { Colors, BorderRadius, TouchTargets } from '../../constants/theme-v2';
 
 interface IconButtonProps {
   onPress: () => void;
@@ -15,7 +15,7 @@ export function IconButton({
   children,
   style,
   disabled = false,
-  hoverColor: _hoverColor = Colors.primary[900],
+  hoverColor: _hoverColor = Colors.action,
 }: IconButtonProps) {
   return (
     <Pressable
@@ -24,7 +24,7 @@ export function IconButton({
       style={({ pressed }) => [
         styles.button,
         style,
-        pressed && !disabled && { opacity: 0.7 },
+        pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
       ]}
     >
@@ -35,8 +35,14 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   button: {
+    minWidth: TouchTargets.minimum,
+    minHeight: TouchTargets.minimum,
+    borderRadius: BorderRadius.sm,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pressed: {
+    backgroundColor: Colors.primary[50],
   },
   disabled: {
     opacity: 0.4,

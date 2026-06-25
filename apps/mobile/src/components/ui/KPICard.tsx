@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, BorderRadius, Spacing } from '../../constants/theme-v2';
+import { Colors, BorderRadius, Spacing, Shadows } from '../../constants/theme-v2';
 
 interface KPICardProps {
   label: string;
@@ -39,23 +39,28 @@ export function KPICard({ label, value, change, icon }: KPICardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 16,
     padding: Spacing.lg,
+    ...Shadows.sm,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: Spacing.sm,
   },
   label: {
     fontSize: 13,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
     flex: 1,
   },
   iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: Spacing.sm,
   },
   value: {

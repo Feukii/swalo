@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Package, Edit, Trash, Plus, Minus } from '../components/icons/SimpleIcons';
 import { ScreenHeader, KPICard, StatusBadge, IconButton } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { Product } from '../types/stock';
 import { getProducts, saveProducts } from '../utils/stockManager';
 
@@ -192,7 +192,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -211,7 +211,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         rightAction={
           <View style={styles.headerActions}>
             <IconButton onPress={() => setShowEditModal(true)}>
-              <Edit size={20} color={Colors.primary[900]} />
+              <Edit size={20} color={Colors.action} />
             </IconButton>
             <IconButton onPress={handleDelete}>
               <Trash size={20} color={Colors.danger.main} />
@@ -250,14 +250,14 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <KPICard
               label="Stock actuel"
               value={`${product.stockQuantity} ${product.unit}`}
-              icon={<Package size={20} color={Colors.muted.foreground} />}
+              icon={<Package size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
             <KPICard
               label="Seuil d'alerte"
               value={`${product.stockThreshold} ${product.unit}`}
-              icon={<Package size={20} color={Colors.muted.foreground} />}
+              icon={<Package size={20} color={Colors.action} />}
             />
           </View>
         </View>
@@ -356,7 +356,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={Colors.surface} />
                     ) : (
                       <Text style={styles.modalSubmitButtonText}>Enregistrer</Text>
                     )}
@@ -456,11 +456,10 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   infoText: {
     fontSize: 14,
@@ -492,7 +491,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   actionButtonText: {
-    color: '#ffffff',
+    color: Colors.surface,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -583,8 +582,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: 12,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   modalSubmitButtonText: {
     fontSize: 16,

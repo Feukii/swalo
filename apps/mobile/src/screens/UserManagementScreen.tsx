@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { adminApi } from '../lib/api';
 import type { RootStackParamList } from '../../App';
 
@@ -123,7 +123,7 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
       case 'MANAGER':
         return Colors.warning.main;
       case 'EMPLOYEE':
-        return Colors.primary[700];
+        return Colors.action;
       default:
         return Colors.muted.foreground;
     }
@@ -182,7 +182,7 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Utilisateurs" showBack={true} onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -239,11 +239,10 @@ const styles = StyleSheet.create({
   },
   userCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   userHeader: {
     flexDirection: 'row',
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -303,12 +302,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flex: 1,
     marginHorizontal: 2,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   actionButtonText: {
     fontSize: 13,
-    color: Colors.primary[900],
+    color: Colors.action,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

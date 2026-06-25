@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Users, Plus, Eye } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useLocalCustomers } from '../hooks/useLocalData';
@@ -159,10 +159,10 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         rightAction={
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <IconButton onPress={() => navigation.navigate('CustomerBalancesSummary')}>
-              <Eye size={24} color={Colors.primary[900]} />
+              <Eye size={24} color={Colors.action} />
             </IconButton>
             <IconButton onPress={handleOpenModal}>
-              <Plus size={24} color={Colors.primary[900]} />
+              <Plus size={24} color={Colors.action} />
             </IconButton>
           </View>
         }
@@ -175,7 +175,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             <KPICard
               label="Total clients"
               value={String(stats.total)}
-              icon={<Users size={20} color={Colors.muted.foreground} />}
+              icon={<Users size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -202,7 +202,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
           ) : filteredCustomers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -215,7 +215,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             filteredCustomers.map(customer => (
               <ListItem
                 key={customer.id}
-                icon={<Users size={20} color={Colors.primary[900]} />}
+                icon={<Users size={20} color={Colors.action} />}
                 title={getPersonName(customer)}
                 subtitle={
                   customer.phone
@@ -335,9 +335,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    marginBottom: Spacing['2xl'],
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   searchInput: {
     fontSize: 16,
@@ -345,20 +347,17 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   loadingContainer: {
@@ -384,12 +383,13 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
+    ...Shadows.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.lg,
   },
@@ -406,10 +406,10 @@ const styles = StyleSheet.create({
     color: Colors.danger.main,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -428,9 +428,11 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: Spacing.lg,
+    paddingVertical: Spacing.lg,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   cancelButton: {
     backgroundColor: Colors.muted.main,
@@ -441,7 +443,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
     color: Colors.primary.foreground,

@@ -22,31 +22,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
-    borderWidth: 1,
   },
   success: {
-    backgroundColor: Colors.success.main + '1A', // 10% opacity
-    borderColor: Colors.success.main,
+    backgroundColor: Colors.success.background,
   },
   danger: {
-    backgroundColor: Colors.danger.main + '1A',
-    borderColor: Colors.danger.main,
+    backgroundColor: Colors.danger.background,
   },
   warning: {
-    backgroundColor: Colors.warning.main + '1A',
-    borderColor: Colors.warning.main,
+    backgroundColor: Colors.warning.background,
   },
   info: {
-    backgroundColor: Colors.info.main + '1A',
-    borderColor: Colors.info.main,
+    backgroundColor: Colors.info.background,
   },
   default: {
-    backgroundColor: Colors.muted.main + '1A',
-    borderColor: Colors.muted.main,
+    backgroundColor: Colors.info.background,
   },
   text: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   successText: {
     color: Colors.success.main,
@@ -58,9 +52,9 @@ const styles = StyleSheet.create({
     color: Colors.warning.main,
   },
   infoText: {
-    color: Colors.info.main,
+    color: Colors.action,
   },
   defaultText: {
-    color: Colors.muted.foreground,
+    color: Colors.action,
   },
 });

@@ -20,7 +20,7 @@ import {
   Clock,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, KPICard, StatusBadge } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { transfersApi } from '../lib/api';
 import type { RootStackParamList } from '../../App';
@@ -168,7 +168,7 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
         <View style={styles.transferHeader}>
           <View style={styles.transferDirection}>
             <Text style={styles.shopName}>{transfer.source_shop.name}</Text>
-            <ArrowLeftRight size={16} color={Colors.muted.foreground} />
+            <ArrowLeftRight size={16} color={Colors.action} />
             <Text style={styles.shopName}>{transfer.target_shop.name}</Text>
           </View>
           <StatusBadge text={statusConfig.label} variant={statusConfig.variant} />
@@ -255,21 +255,21 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
             <KPICard
               label="Total"
               value={String(stats.total)}
-              icon={<ArrowLeftRight size={20} color={Colors.muted.foreground} />}
+              icon={<ArrowLeftRight size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
             <KPICard
               label="En cours"
               value={String(stats.pending)}
-              icon={<Clock size={20} color={Colors.muted.foreground} />}
+              icon={<Clock size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
             <KPICard
               label="Termines"
               value={String(stats.completed)}
-              icon={<CheckCircle size={20} color={Colors.muted.foreground} />}
+              icon={<CheckCircle size={20} color={Colors.action} />}
             />
           </View>
         </View>
@@ -280,11 +280,11 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
           ) : transfers.length === 0 ? (
             <View style={styles.emptyState}>
-              <ArrowLeftRight size={48} color={Colors.muted.foreground} />
+              <ArrowLeftRight size={48} color={Colors.action} />
               <Text style={styles.emptyText}>Aucun transfert</Text>
               <Text style={styles.emptySubtext}>
                 Les transferts inter-boutiques apparaitront ici
@@ -317,8 +317,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.lg,
   },
@@ -343,11 +343,10 @@ const styles = StyleSheet.create({
   },
   transferCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   transferHeader: {
     flexDirection: 'row',
@@ -402,8 +401,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
+    minHeight: 44,
+    paddingVertical: Spacing.sm,
+    borderRadius: 12,
     gap: 4,
   },
   actionBtnText: {
@@ -412,13 +412,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   confirmBtn: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   shipBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Colors.action,
   },
   receiveBtn: {
-    backgroundColor: '#16A34A',
+    backgroundColor: Colors.success.main,
   },
   cancelBtn: {
     backgroundColor: Colors.danger.main,

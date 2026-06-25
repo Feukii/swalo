@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Colors, BorderRadius, Spacing } from '../../constants/theme-v2';
+import { Colors, BorderRadius, Spacing, Shadows } from '../../constants/theme-v2';
 
 interface ProductCardProps {
   name: string;
@@ -55,22 +55,21 @@ export function ProductCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 16,
     padding: Spacing.lg,
+    ...Shadows.sm,
   },
   disabled: {
     opacity: 0.5,
   },
   pressed: {
-    backgroundColor: Colors.muted.main + '33', // 20% opacity
+    backgroundColor: Colors.primary[50],
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.muted.main,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,

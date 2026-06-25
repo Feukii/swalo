@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Package, Plus, Edit, Trash, Check, ChevronDown } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { Product, Category } from '../types/stock';
 import type { RootStackParamList } from '../../App';
 import {
@@ -331,7 +331,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                 style={styles.editButton}
                 onPress={() => openEditProductModal(product)}
               >
-                <Edit size={16} color={Colors.primary[900]} />
+                <Edit size={16} color={Colors.action} />
                 <Text style={styles.editButtonText}>Modifier</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -353,7 +353,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Paramètres Boutique" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -409,7 +409,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
         <ScrollView contentContainerStyle={styles.content}>
           {/* Add product button */}
           <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.addButtonText}>Ajouter un produit</Text>
           </TouchableOpacity>
 
@@ -428,7 +428,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
         <ScrollView contentContainerStyle={styles.content}>
           {/* Add category button */}
           <TouchableOpacity style={styles.addButton} onPress={openAddCategoryModal}>
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.addButtonText}>Ajouter une catégorie</Text>
           </TouchableOpacity>
 
@@ -453,7 +453,7 @@ export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenPro
                         style={styles.categoryActionButton}
                         onPress={() => openEditCategoryModal(cat)}
                       >
-                        <Edit size={16} color={Colors.primary[900]} />
+                        <Edit size={16} color={Colors.action} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.categoryActionButton}
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.success.main,
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 8,
@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: Colors.primary[900],
+    borderBottomColor: Colors.action,
   },
   tabText: {
     fontSize: 14,
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
   },
   tabTextActive: {
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '600',
   },
   content: {
@@ -744,23 +744,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary[50],
     padding: Spacing.lg,
     borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.primary[200],
     marginBottom: Spacing.lg,
+    minHeight: 48,
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   productCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    marginBottom: Spacing.md,
+    borderRadius: 16,
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   productHeader: {
     flexDirection: 'row',
@@ -847,7 +844,7 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   deleteButton: {
     flex: 1,
@@ -881,14 +878,13 @@ const styles = StyleSheet.create({
   // Categories tab
   categoriesCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
+    ...Shadows.sm,
   },
   categoriesTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.xs,
   },
@@ -974,7 +970,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -994,8 +990,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   categoryButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   categoryButtonText: {
     fontSize: 13,
@@ -1019,8 +1015,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   unitButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   unitButtonText: {
     fontSize: 13,
@@ -1051,10 +1047,12 @@ const styles = StyleSheet.create({
   },
   modalSaveButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: Spacing.lg,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   modalSaveButtonText: {
     fontSize: 16,

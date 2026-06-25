@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { StatusBadge } from './StatusBadge';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, BorderRadius } from '../../constants/theme-v2';
 
 interface ListItemProps {
   icon?: React.ReactNode;
@@ -67,11 +67,11 @@ export function ListItem({
 
 const styles = StyleSheet.create({
   pressable: {
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   pressed: {
-    backgroundColor: Colors.muted.main + '80', // 50% opacity
+    backgroundColor: Colors.primary[50],
   },
   container: {
     flexDirection: 'row',
@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 40,
     height: 40,
-    borderRadius: 8,
-    backgroundColor: Colors.muted.main,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   trailing: {
     flexDirection: 'row',

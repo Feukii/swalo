@@ -23,7 +23,7 @@ import {
   DollarSign,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import type { RootStackParamList } from '../../App';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -244,7 +244,7 @@ export default function StockManagementScreen({ navigation }: StockManagementScr
       <SafeAreaView style={styles.container}>
         <ScreenHeader title="Gestion du stock" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </SafeAreaView>
@@ -296,7 +296,7 @@ export default function StockManagementScreen({ navigation }: StockManagementScr
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={() => loadProducts(true)}
-              tintColor={Colors.primary[900]}
+              tintColor={Colors.action}
             />
           }
         >
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     gap: Spacing.sm,
@@ -557,11 +557,10 @@ const styles = StyleSheet.create({
   },
   productCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   productHeader: {
     flexDirection: 'row',
@@ -574,7 +573,7 @@ const styles = StyleSheet.create({
   productReference: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
     marginBottom: 2,
   },
   productName: {
@@ -629,10 +628,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.primary[900],
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
+    backgroundColor: Colors.action,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
     marginTop: Spacing.xs,
+    minHeight: 48,
   },
   addStockButtonText: {
     fontSize: 14,
@@ -699,10 +699,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -757,7 +757,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: 12,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   modalConfirmButtonDisabled: {
     opacity: 0.6,
