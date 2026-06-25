@@ -1,18 +1,18 @@
 {
   "name": "@swalo/core",
   "version": "1.0.0",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./schemas": "./src/schemas/index.ts",
-    "./types": "./src/types/index.ts",
-    "./utils": "./src/utils/index.ts",
-    "./brand/tokens": "./src/brand/tokens.ts",
-    "./modules/registry": "./src/modules/registry.ts"
+    ".": { "types": "./src/index.ts", "import": "./src/index.ts", "require": "./dist/index.js" },
+    "./schemas": { "types": "./src/schemas/index.ts", "import": "./src/schemas/index.ts", "require": "./dist/schemas/index.js" },
+    "./types": { "types": "./src/types/index.ts", "import": "./src/types/index.ts", "require": "./dist/types/index.js" },
+    "./utils": { "types": "./src/utils/index.ts", "import": "./src/utils/index.ts", "require": "./dist/utils/index.js" },
+    "./brand/tokens": { "types": "./src/brand/tokens.ts", "import": "./src/brand/tokens.ts", "require": "./dist/brand/tokens.js" },
+    "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "type-check": "tsc --noEmit",
