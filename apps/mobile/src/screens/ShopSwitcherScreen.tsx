@@ -87,12 +87,21 @@ export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenPro
             await AsyncStorage.setItem('user', JSON.stringify(result.user));
             await AsyncStorage.setItem('role', result.role);
 
+            // Mettre à jour l'entreprise active (sinon le nom d'entreprise reste périmé)
+            if (shop.shop.enterprise) {
+              await AsyncStorage.setItem('enterprise', JSON.stringify(shop.shop.enterprise));
+            } else {
+              await AsyncStorage.removeItem('enterprise');
+            }
+
             setCurrentShopId(shop.shop.id);
 
             Alert.alert('Succes', `Vous etes maintenant sur "${shop.shop.name}"`, [
               {
                 text: 'OK',
-                onPress: () => navigation.goBack(),
+                // Réinitialiser vers l'app principale: tous les écrans (qui lisent le
+                // contexte boutique au montage) rechargent ainsi la nouvelle boutique.
+                onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }),
               },
             ]);
           } catch (error: unknown) {
