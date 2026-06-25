@@ -3,6 +3,26 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CashService } from '../src/modules/cash/cash.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 
+interface CapturedCashEntry {
+  shop_id: string;
+  type: string;
+  category: string;
+  amount: number;
+  note: string;
+  supplier_id: string;
+  cashier_id: string;
+}
+
+interface CapturedDebt {
+  shop_id: string;
+  supplier_id: string;
+  amount: number;
+  balance: number;
+  paid_amount: number;
+  status: string;
+  description: string;
+}
+
 describe('CashService - Merchandise Purchase Functionality', () => {
   let service: CashService;
   let _prismaService: PrismaService;
@@ -57,7 +77,9 @@ describe('CashService - Merchandise Purchase Functionality', () => {
 
     it('should create merchandise purchase with cash payment (no debt)', async () => {
       // Mock sufficient cash balance
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 100000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 100000, totalIn: 100000, totalOut: 0 });
 
       const mockCashEntry = {
         id: 'cash-123',
@@ -67,12 +89,12 @@ describe('CashService - Merchandise Purchase Functionality', () => {
         amount: 50000,
       };
 
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue(mockCashEntry) },
           supplierDebt: { create: jest.fn() },
-        });
-      });
+        })
+      );
 
       const purchaseDto = {
         supplier_id: supplierId,
@@ -90,7 +112,9 @@ describe('CashService - Merchandise Purchase Functionality', () => {
     });
 
     it('should create merchandise purchase with debt creation', async () => {
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 100000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 100000, totalIn: 100000, totalOut: 0 });
 
       const mockCashEntry = {
         id: 'cash-123',
@@ -105,12 +129,12 @@ describe('CashService - Merchandise Purchase Functionality', () => {
         balance: 50000,
       };
 
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue(mockCashEntry) },
           supplierDebt: { create: jest.fn().mockResolvedValue(mockDebt) },
-        });
-      });
+        })
+      );
 
       const purchaseDto = {
         supplier_id: supplierId,
@@ -146,7 +170,9 @@ describe('CashService - Merchandise Purchase Functionality', () => {
 
     it('should throw BadRequestException when cash balance is insufficient', async () => {
       // Mock insufficient cash balance
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 10000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 10000, totalIn: 10000, totalOut: 0 });
 
       const purchaseDto = {
         supplier_id: supplierId,
@@ -165,15 +191,17 @@ describe('CashService - Merchandise Purchase Functionality', () => {
 
     it('should not check cash balance for MOBILE_MONEY payment', async () => {
       // Mock low cash balance
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 1000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 1000, totalIn: 1000, totalOut: 0 });
 
       const mockCashEntry = { id: 'cash-123', amount: 50000 };
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue(mockCashEntry) },
           supplierDebt: { create: jest.fn() },
-        });
-      });
+        })
+      );
 
       const purchaseDto = {
         supplier_id: supplierId,
@@ -189,20 +217,22 @@ describe('CashService - Merchandise Purchase Functionality', () => {
     });
 
     it('should create cash entry with correct fields', async () => {
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 100000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 100000, totalIn: 100000, totalOut: 0 });
 
-      let capturedCashEntry: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedCashEntry!: CapturedCashEntry;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedCashEntry }) => {
               capturedCashEntry = data.data;
               return Promise.resolve({ id: 'cash-123', ...data.data });
             }),
           },
           supplierDebt: { create: jest.fn() },
-        });
-      });
+        })
+      );
 
       await service.createMerchandisePurchase(userId, shopId, {
         supplier_id: supplierId,
@@ -222,20 +252,22 @@ describe('CashService - Merchandise Purchase Functionality', () => {
     });
 
     it('should use default description when none provided', async () => {
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 100000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 100000, totalIn: 100000, totalOut: 0 });
 
-      let capturedCashEntry: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedCashEntry!: CapturedCashEntry;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedCashEntry }) => {
               capturedCashEntry = data.data;
               return Promise.resolve({ id: 'cash-123', ...data.data });
             }),
           },
           supplierDebt: { create: jest.fn() },
-        });
-      });
+        })
+      );
 
       await service.createMerchandisePurchase(userId, shopId, {
         supplier_id: supplierId,
@@ -249,20 +281,22 @@ describe('CashService - Merchandise Purchase Functionality', () => {
     });
 
     it('should create debt with correct fields when create_debt is true', async () => {
-      jest.spyOn(service, 'getBalance').mockResolvedValue({ balance: 100000 } as any);
+      jest
+        .spyOn(service, 'getBalance')
+        .mockResolvedValue({ balance: 100000, totalIn: 100000, totalOut: 0 });
 
-      let capturedDebt: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedDebt!: CapturedDebt;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue({ id: 'cash-123' }) },
           supplierDebt: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedDebt }) => {
               capturedDebt = data.data;
               return Promise.resolve({ id: 'debt-123', ...data.data });
             }),
           },
-        });
-      });
+        })
+      );
 
       await service.createMerchandisePurchase(userId, shopId, {
         supplier_id: supplierId,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,7 @@ import {
   createProductOffline,
   updateProductOffline,
   deleteProductOffline,
+  OfflineProductInput,
 } from '../db/offlineWrite';
 
 interface Product {
@@ -84,6 +85,21 @@ interface ProductFormData {
   is_active: boolean;
 }
 
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return undefined;
+}
+
+interface ScreenNavigation {
+  goBack: () => void;
+  navigate: (screen: string) => void;
+}
+
+interface ProductCatalogScreenProps {
+  navigation: ScreenNavigation;
+}
+
 // Fallback units si l'API n'est pas disponible
 const FALLBACK_UNITS = ['unit', 'pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack'];
 
@@ -103,10 +119,17 @@ const DEFAULT_FORM: ProductFormData = {
   is_active: true,
 };
 
-export default function ProductCatalogScreen({ navigation }: any) {
+export default function ProductCatalogScreen({ navigation }: ProductCatalogScreenProps) {
   const { shopId } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<'articles' | 'catalogue'>('articles');
   const [products, setProducts] = useState<Product[]>([]);
+  // Mirror the current product count in a ref so loadData can read it without
+  // listing `products` as a dependency (which would recreate loadData on every
+  // data change and trigger a re-fetch loop).
+  const productsCountRef = useRef(0);
+  useEffect(() => {
+    productsCountRef.current = products.length;
+  }, [products]);
   const [filters, setFilters] = useState<Filters>({ families: [], brands: [], article_types: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -149,7 +172,14 @@ export default function ProductCatalogScreen({ navigation }: any) {
     valid_count: number;
     invalid_count: number;
     errors: Array<{ row: number; field: string; message: string }>;
-    preview_rows: Array<any>;
+    preview_rows: Array<{
+      name?: string;
+      family?: string;
+      article_type?: string;
+      brand?: string;
+      sell_price?: number;
+      [key: string]: unknown;
+    }>;
   } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importStep, setImportStep] = useState<'select' | 'preview' | 'success'>('select');
@@ -185,18 +215,30 @@ export default function ProductCatalogScreen({ navigation }: any) {
       }
 
       // Enrich with stock data
-      const enriched = await Promise.all(
-        localProducts.map(async p => {
+      const enriched: Product[] = await Promise.all(
+        localProducts.map(async (p): Promise<Product> => {
           const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
           return {
-            ...p,
+            id: p.id,
+            sku: p.sku,
+            barcode: p.barcode ?? undefined,
+            name: p.name,
+            description: p.description ?? undefined,
+            family: p.family ?? undefined,
+            article_type: p.article_type ?? undefined,
+            brand: p.brand ?? undefined,
+            reference: p.reference ?? undefined,
+            unit: p.unit,
+            cost_price: p.cost_price,
+            sell_price: p.sell_price,
             is_active: p.is_active === 1,
+            alert_threshold: p.alert_threshold,
             current_stock: totalStock,
             is_low_stock: totalStock <= p.alert_threshold,
           };
         })
       );
-      setProducts(enriched as any);
+      setProducts(enriched);
 
       // Compute filters locally from ALL products (not just filtered ones)
       const allProducts = await productRepo.getAll(shopId, {
@@ -209,9 +251,9 @@ export default function ProductCatalogScreen({ navigation }: any) {
         ...new Set(allProducts.map(p => p.article_type).filter(Boolean)),
       ] as string[];
       setFilters({ families, brands, article_types });
-    } catch (error: any) {
-      if (products.length === 0) {
-        Alert.alert('Erreur', error.message || 'Impossible de charger les produits');
+    } catch (error: unknown) {
+      if (productsCountRef.current === 0) {
+        Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de charger les produits');
       }
     } finally {
       setIsLoading(false);
@@ -293,12 +335,16 @@ export default function ProductCatalogScreen({ navigation }: any) {
       Alert.alert('Erreur', 'La famille est requise');
       return;
     }
+    if (!shopId) {
+      Alert.alert('Erreur', 'Boutique introuvable');
+      return;
+    }
 
     setIsSaving(true);
     try {
       if (isEditing && formData.id) {
         await updateProductOffline(formData.id, {
-          shopId: shopId!,
+          shopId: shopId,
           name: formData.name.trim(),
           sku: formData.sku.trim(),
           barcode: formData.barcode?.trim() || undefined,
@@ -315,7 +361,7 @@ export default function ProductCatalogScreen({ navigation }: any) {
         Alert.alert('Succes', 'Article modifie avec succes');
       } else {
         await createProductOffline({
-          shopId: shopId!,
+          shopId: shopId,
           name: formData.name.trim(),
           sku: formData.sku.trim(),
           barcode: formData.barcode?.trim() || undefined,
@@ -335,8 +381,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
       setShowProductModal(false);
       setFormData(DEFAULT_FORM);
       loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de sauvegarder');
     } finally {
       setIsSaving(false);
     }
@@ -354,8 +400,8 @@ export default function ProductCatalogScreen({ navigation }: any) {
             await deleteProductOffline(product.id);
             Alert.alert('Succes', 'Article supprime');
             loadData();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer');
+          } catch (error: unknown) {
+            Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de supprimer');
           }
         },
       },
@@ -426,19 +472,22 @@ export default function ProductCatalogScreen({ navigation }: any) {
       });
 
       // Update each matching product
+      const newValue = hierarchyEditNewValue.trim();
+      const updateData: Partial<OfflineProductInput> = {};
+      if (hierarchyEditType === 'family') updateData.family = newValue;
+      else if (hierarchyEditType === 'article_type') updateData.articleType = newValue;
+      else if (hierarchyEditType === 'brand') updateData.brand = newValue;
+      else updateData.reference = newValue;
       for (const p of matchingProducts) {
-        await updateProductOffline(p.id, {
-          [hierarchyEditType === 'article_type' ? 'articleType' : hierarchyEditType]:
-            hierarchyEditNewValue.trim(),
-        } as any);
+        await updateProductOffline(p.id, updateData);
       }
 
       Alert.alert('Succes', `${matchingProducts.length} produit(s) mis a jour`);
       setShowHierarchyEditModal(false);
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la mise a jour:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de mettre a jour');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de mettre a jour');
     } finally {
       setIsHierarchySaving(false);
     }
@@ -476,15 +525,28 @@ export default function ProductCatalogScreen({ navigation }: any) {
       const response = await fetch(asset.uri);
       const content = await response.text();
 
-      const preview = await importApi.previewCatalog(content, asset.name);
+      const preview = await importApi.previewCatalog<{
+        valid_count: number;
+        invalid_count: number;
+        errors: Array<{ row: number; field: string; message: string }>;
+        preview_rows: Array<{
+          name?: string;
+          family?: string;
+          article_type?: string;
+          brand?: string;
+          sell_price?: number;
+          [key: string]: unknown;
+        }>;
+      }>(content, asset.name);
 
       setImportFile({ name: asset.name, content });
       setImportPreview(preview);
       setImportStep('preview');
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Erreur',
-        error.message || 'Impossible de lire le fichier. Verifiez votre connexion internet.'
+        getErrorMessage(error) ??
+          'Impossible de lire le fichier. Verifiez votre connexion internet.'
       );
     } finally {
       setIsImporting(false);
@@ -500,10 +562,11 @@ export default function ProductCatalogScreen({ navigation }: any) {
       Alert.alert('Import reussi', 'Le catalogue a ete mis a jour avec succes.');
       closeImportModal();
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Erreur',
-        error.message || "Impossible d'importer le catalogue. Verifiez votre connexion internet."
+        getErrorMessage(error) ??
+          "Impossible d'importer le catalogue. Verifiez votre connexion internet."
       );
     } finally {
       setIsImporting(false);
@@ -732,24 +795,6 @@ export default function ProductCatalogScreen({ navigation }: any) {
       return Array.from(brands);
     };
 
-    const getUniqueReferences = (
-      familyProducts: Product[],
-      articleType?: string,
-      brand?: string
-    ): string[] => {
-      const refs = new Set<string>();
-      familyProducts.forEach(p => {
-        if (
-          p.reference &&
-          (!articleType || p.article_type === articleType) &&
-          (!brand || p.brand === brand)
-        ) {
-          refs.add(p.reference);
-        }
-      });
-      return Array.from(refs);
-    };
-
     return (
       <ScrollView contentContainerStyle={styles.catalogueContainer}>
         {Object.entries(productsByFamily).map(([family, familyProducts]) => (
@@ -817,37 +862,40 @@ export default function ProductCatalogScreen({ navigation }: any) {
             </View>
 
             {/* Lignes du tableau */}
-            {familyProducts.map(product => (
-              <View key={product.id} style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 1.5 }]} numberOfLines={2}>
-                  {product.article_type || product.name}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
-                  {product.brand || '-'}
-                </Text>
-                {product.reference ? (
-                  <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                    onPress={() =>
-                      openHierarchyEditModal('reference', product.reference!, {
-                        family,
-                        article_type: product.article_type,
-                        brand: product.brand,
-                      })
-                    }
-                  >
-                    <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
-                      {product.reference}
-                    </Text>
-                    <Edit size={10} color={Colors.primary[900]} />
-                  </TouchableOpacity>
-                ) : (
-                  <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
-                    -
+            {familyProducts.map(product => {
+              const reference = product.reference;
+              return (
+                <View key={product.id} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]} numberOfLines={2}>
+                    {product.article_type || product.name}
                   </Text>
-                )}
-              </View>
-            ))}
+                  <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
+                    {product.brand || '-'}
+                  </Text>
+                  {reference ? (
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      onPress={() =>
+                        openHierarchyEditModal('reference', reference, {
+                          family,
+                          article_type: product.article_type,
+                          brand: product.brand,
+                        })
+                      }
+                    >
+                      <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
+                        {product.reference}
+                      </Text>
+                      <Edit size={10} color={Colors.primary[900]} />
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={[styles.tableCell, { flex: 1 }]} numberOfLines={1}>
+                      -
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
         ))}
 

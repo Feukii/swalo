@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { DollarSign, Receipt, Filter } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, TransactionDetailModal } from '../components/ui';
 import DateRangePicker from '../components/ui/DateRangePicker';
@@ -25,6 +26,7 @@ import {
   LocalCustomer,
   LocalSupplier,
 } from '../db/repositories';
+import type { RootStackParamList } from '../../App';
 
 interface Transaction {
   id: string;
@@ -36,6 +38,21 @@ interface Transaction {
   customer_id?: string;
   supplier_id?: string;
   isCredit?: boolean;
+}
+
+// Forme attendue par TransactionDetailModal
+interface TransactionDetail {
+  type: string;
+  date: string;
+  amount: number;
+  note?: string;
+  status?: string;
+  paymentMethod?: string;
+  isCredit?: boolean;
+  category?: string;
+  items?: Array<{ productName: string; quantity: number }>;
+  customerName?: string;
+  supplierName?: string;
 }
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'all';
@@ -63,7 +80,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   divers: 'Divers',
 };
 
-export default function TransactionHistoryScreen({ navigation }: any) {
+interface TransactionHistoryScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'TransactionHistory'>;
+}
+
+export default function TransactionHistoryScreen({ navigation }: TransactionHistoryScreenProps) {
   const { shopId } = useCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -82,7 +103,7 @@ export default function TransactionHistoryScreen({ navigation }: any) {
   const [datesWithData, setDatesWithData] = useState<string[]>([]);
 
   // Transaction detail
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionDetail | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Local lookup data
@@ -96,7 +117,7 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     count: 0,
   });
 
-  const getPeriodDates = (): { start: Date; end: Date } => {
+  const getPeriodDates = useCallback((): { start: Date; end: Date } => {
     // Si des dates personnalisées sont sélectionnées, les utiliser
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -135,7 +156,7 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     }
 
     return { start, end };
-  };
+  }, [startDate, endDate, selectedPeriod]);
 
   const loadTransactions = useCallback(async () => {
     if (!shopId) return;
@@ -236,7 +257,7 @@ export default function TransactionHistoryScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  }, [shopId, selectedPeriod, startDate, endDate]);
+  }, [shopId, getPeriodDates]);
 
   // Filtrer les transactions selon les critères sélectionnés
   useEffect(() => {

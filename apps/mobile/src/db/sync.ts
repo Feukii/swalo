@@ -72,6 +72,45 @@ export interface SyncConflict {
   clientVersion?: Record<string, unknown>;
 }
 
+/** A stored, unresolved sync conflict row (from the _sync_conflicts table). */
+export interface StoredSyncConflict {
+  id: string;
+  entity: string;
+  entity_id: string;
+  reason: string;
+  client_data: string | null;
+  server_data: string | null;
+  mutation_id: string | null;
+  resolved: number;
+  resolved_at: string | null;
+  resolution: string | null;
+  auto_resolved: number;
+  created_at: string;
+}
+
+/** A single change pushed to the server during sync. */
+interface PushChange {
+  op: MutationRecord['op'];
+  id: string;
+  data: Record<string, unknown>;
+  client_op_id: string;
+  device_id: string;
+  timestamp: string;
+  [key: string]: unknown;
+}
+
+/** A server record received during pull, before conversion to local format. */
+type ServerRecord = Record<string, unknown>;
+
+/**
+ * Minimal repository surface used by the sync engine (write paths only).
+ * Lets us index a repo map without coupling to each concrete row type.
+ */
+interface SyncWriteRepo {
+  bulkUpsertFromServer(records: Array<Record<string, unknown> & { id: string }>): Promise<void>;
+  upsertFromServer(data: Record<string, unknown> & { id: string }): Promise<void>;
+}
+
 /**
  * Get the API client for sync operations
  * This lazy-imports to avoid circular dependencies
@@ -264,10 +303,10 @@ class SyncEngine {
         this._maintenanceRan = true;
         this.runMaintenance().catch(() => undefined);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.emit({
         type: 'sync_error',
-        error: error.message || 'Sync failed',
+        error: error instanceof Error ? error.message : 'Sync failed',
       });
     } finally {
       this.syncLock = false;
@@ -291,7 +330,7 @@ class SyncEngine {
     await markBatchProcessing(ids);
 
     // Group by entity
-    const changes: Record<string, any[]> = {};
+    const changes: Record<string, PushChange[]> = {};
     for (const mutation of pending) {
       if (!changes[mutation.entity]) {
         changes[mutation.entity] = [];
@@ -355,10 +394,11 @@ class SyncEngine {
         applied: result.applied || {},
         conflicts: result.conflicts || [],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Network error — reset all to pending for retry
+      const message = error instanceof Error ? error.message : 'Network error';
       for (const id of ids) {
-        await markFailed(id, error.message || 'Network error');
+        await markFailed(id, message);
       }
       // Reset failed back to pending for retry on next cycle
       await resetProcessingToPending();
@@ -381,7 +421,7 @@ class SyncEngine {
     });
 
     // Apply server changes to local database
-    const repoMap: Record<string, any> = {
+    const repoMap: Record<string, SyncWriteRepo> = {
       products: productRepo,
       stock_batches: stockBatchRepo,
       packaging_types: packagingTypeRepo,
@@ -405,23 +445,29 @@ class SyncEngine {
       invoice_items: invoiceItemRepo,
     };
 
-    for (const [entity, records] of Object.entries(result.changes || {})) {
+    const changesByEntity: Record<string, ServerRecord[]> = result.changes || {};
+    for (const [entity, records] of Object.entries(changesByEntity)) {
       const repo = repoMap[entity];
       if (!repo || !Array.isArray(records) || records.length === 0) continue;
 
       // Convert server records to local format
-      const localRecords = records.map((r: any) => ({
-        ...r,
-        // Convert Date objects to ISO strings for SQLite
-        created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
-        updated_at: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at,
-        deleted_at:
-          r.deleted_at instanceof Date ? r.deleted_at.toISOString() : r.deleted_at || null,
-        // Convert booleans to integers for SQLite
-        deleted: r.deleted ? 1 : 0,
-        is_active: r.is_active !== undefined ? (r.is_active ? 1 : 0) : undefined,
-        is_default: r.is_default !== undefined ? (r.is_default ? 1 : 0) : undefined,
-      }));
+      const localRecords = records.map((r: ServerRecord) => {
+        const createdAt = r.created_at;
+        const updatedAt = r.updated_at;
+        const deletedAt = r.deleted_at;
+        return {
+          ...r,
+          id: String(r.id),
+          // Convert Date objects to ISO strings for SQLite
+          created_at: createdAt instanceof Date ? createdAt.toISOString() : createdAt,
+          updated_at: updatedAt instanceof Date ? updatedAt.toISOString() : updatedAt,
+          deleted_at: deletedAt instanceof Date ? deletedAt.toISOString() : deletedAt || null,
+          // Convert booleans to integers for SQLite
+          deleted: r.deleted ? 1 : 0,
+          is_active: r.is_active !== undefined ? (r.is_active ? 1 : 0) : undefined,
+          is_default: r.is_default !== undefined ? (r.is_default ? 1 : 0) : undefined,
+        } as Record<string, unknown> & { id: string };
+      });
 
       await repo.bulkUpsertFromServer(localRecords);
     }
@@ -448,7 +494,7 @@ class SyncEngine {
     // Auto-resolve reference data conflicts (Last-Write-Wins: accept server version)
     if (REFERENCE_ENTITIES.has(conflict.entity)) {
       // Accept server version: apply the server data locally
-      const repoMap: Record<string, any> = {
+      const repoMap: Record<string, SyncWriteRepo> = {
         products: productRepo,
         customers: customerRepo,
         suppliers: supplierRepo,
@@ -506,9 +552,9 @@ class SyncEngine {
   /**
    * Get unresolved conflicts
    */
-  async getConflicts(): Promise<any[]> {
+  async getConflicts(): Promise<StoredSyncConflict[]> {
     const db = await getDatabase();
-    return db.getAllAsync(
+    return db.getAllAsync<StoredSyncConflict>(
       `SELECT * FROM _sync_conflicts WHERE resolved = 0 ORDER BY created_at DESC`
     );
   }

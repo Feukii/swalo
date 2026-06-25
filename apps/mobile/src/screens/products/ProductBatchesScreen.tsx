@@ -25,7 +25,9 @@ interface BatchStats {
 }
 
 interface ProductBatchesScreenProps {
-  navigation: any;
+  navigation: {
+    goBack: () => void;
+  };
   route: {
     params: {
       productId: string;
@@ -71,7 +73,7 @@ export default function ProductBatchesScreen({ navigation, route }: ProductBatch
             0
           ),
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Erreur chargement lots:', error);
         Alert.alert('Erreur', 'Impossible de charger les lots de stock');
       } finally {

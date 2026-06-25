@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
@@ -142,10 +143,10 @@ export class TransfersService {
           _sum: { remaining_quantity: true },
         });
 
-        const availableStock = stockResult._sum.remaining_quantity || 0;
+        const availableStock = stockResult._sum.remaining_quantity ?? 0;
         if (availableStock < item.quantity) {
           throw new BadRequestException(
-            `Stock insuffisant pour "${item.product_name}". Disponible: ${availableStock}, Demande: ${item.quantity}`
+            `Stock insuffisant pour "${item.product_name}". Disponible: ${String(availableStock)}, Demande: ${String(item.quantity)}`
           );
         }
 
@@ -175,17 +176,16 @@ export class TransfersService {
         });
 
         // Find or create product in target shop by SKU
-        let targetProduct = await tx.product.findFirst({
-          where: {
-            shop_id: transfer.target_shop_id,
-            sku: item.product_sku,
-            deleted: false,
-          },
-        });
-
-        if (!targetProduct) {
+        const targetProduct =
+          (await tx.product.findFirst({
+            where: {
+              shop_id: transfer.target_shop_id,
+              sku: item.product_sku,
+              deleted: false,
+            },
+          })) ??
           // Auto-create product in target shop
-          targetProduct = await tx.product.create({
+          (await tx.product.create({
             data: {
               id: uuidv4(),
               shop_id: transfer.target_shop_id,
@@ -196,8 +196,7 @@ export class TransfersService {
               device_id: TRANSFER_DEVICE_ID,
               client_op_id: `transfer_product_${transferId}_${item.id}`,
             },
-          });
-        }
+          }));
 
         // Create stock batch in target shop
         await tx.stockBatch.create({
@@ -520,7 +519,7 @@ export class TransfersService {
    * FIFO stock deduction within a transaction
    */
   private async deductStockFIFO(
-    tx: any,
+    tx: Prisma.TransactionClient,
     shopId: string,
     productId: string,
     quantity: number,
@@ -554,7 +553,9 @@ export class TransfersService {
     }
 
     if (remainingToDeduct > 0) {
-      throw new BadRequestException(`Stock insuffisant. Il manque ${remainingToDeduct} unites.`);
+      throw new BadRequestException(
+        `Stock insuffisant. Il manque ${String(remainingToDeduct)} unites.`
+      );
     }
   }
 

@@ -60,7 +60,10 @@ interface CashStats {
 
 // Props du composant POSScreen
 interface POSScreenProps {
-  navigation: any; // Navigation React Navigation
+  navigation: {
+    navigate: (screen: string) => void;
+    reset: (state: { index: number; routes: { name: string }[] }) => void;
+  };
 }
 
 /**
@@ -309,12 +312,17 @@ export default function POSScreen({ navigation }: POSScreenProps) {
         }
       }
 
+      if (!shopId || !userId || !showModal) {
+        Alert.alert('Erreur', 'Session invalide');
+        return;
+      }
+
       setIsLoading(true);
 
       await createCashEntryOffline({
-        shopId: shopId!,
-        cashierId: userId!,
-        type: showModal!,
+        shopId,
+        cashierId: userId,
+        type: showModal,
         category,
         amount: amountInCentimes,
         note: trimmedNote || undefined,
@@ -325,9 +333,10 @@ export default function POSScreen({ navigation }: POSScreenProps) {
       Alert.alert('Succès', 'Opération enregistrée avec succès');
       handleCloseModal();
       await loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      const errorMessage = error?.message || "Erreur lors de l'enregistrement";
+      const errorMessage =
+        error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsLoading(false);

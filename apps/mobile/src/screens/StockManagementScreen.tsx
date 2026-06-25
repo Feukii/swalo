@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   Package,
   Search,
@@ -24,6 +25,7 @@ import {
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
+import type { RootStackParamList } from '../../App';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, stockBatchRepo } from '../db/repositories';
 import { createStockBatchOffline } from '../db/offlineWrite';
@@ -40,9 +42,14 @@ interface StockItem {
   sell_price?: number;
 }
 
-export default function StockManagementScreen({ navigation }: any) {
+interface StockManagementScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'StockManagement'>;
+}
+
+export default function StockManagementScreen({ navigation }: StockManagementScreenProps) {
   const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<StockItem[]>([]);
+  const productsCountRef = useRef(0);
   const [filteredProducts, setFilteredProducts] = useState<StockItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -78,10 +85,11 @@ export default function StockManagementScreen({ navigation }: any) {
           })
         );
         setProducts(enriched);
+        productsCountRef.current = enriched.length;
         setFilteredProducts(enriched);
       } catch (error) {
         console.error('Erreur chargement produits:', error);
-        if (products.length === 0) {
+        if (productsCountRef.current === 0) {
           Alert.alert('Erreur', 'Impossible de charger les produits');
         }
       } finally {
@@ -180,9 +188,10 @@ export default function StockManagementScreen({ navigation }: any) {
         `Prix de vente: ${formatMoney(sellPrice)}/unité`;
 
       Alert.alert('Approvisionnement enregistré', message);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'approvisionnement:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer l'approvisionnement");
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || "Impossible d'enregistrer l'approvisionnement");
     } finally {
       setIsSubmitting(false);
     }
@@ -582,7 +591,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: 8,
-    height: 'fit-content' as any,
+    height: 'auto',
   },
   statusText: {
     fontSize: 11,

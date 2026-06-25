@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
   Modal,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,13 +21,13 @@ import {
   Package,
   DollarSign,
   CreditCard,
+  IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
-import { Product } from '../types/stock';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { productRepo, customerRepo, stockBatchRepo } from '../db/repositories';
+import { productRepo, customerRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
 import { checkCreditLimit } from '../utils/creditCheck';
 import {
   createSaleOffline,
@@ -50,9 +49,24 @@ interface PriceOption {
   batch_count: number;
   batches: { id: string; remaining_quantity: number }[];
 }
-import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+// Produit enrichi avec le stock total calculé et les champs multi-prix optionnels
+interface SaleProduct extends LocalProduct {
+  current_stock: number;
+  is_multi_price?: boolean;
+  price_min?: number;
+  price_max?: number;
+}
+
+// Client utilisable dans l'écran de vente (client comptant par défaut + clients locaux)
+interface SaleCustomer {
+  id: string;
+  name: string;
+  first_name?: string | null;
+  phone?: string | null;
+  credit_limit?: number;
+}
+import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
 type PaymentMethod = 'cash' | 'credit';
 
@@ -69,27 +83,25 @@ export default function SaleScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Clients disponibles (chargés depuis local DB + API)
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<SaleCustomer[]>([]);
 
   // Produits disponibles (chargés depuis local DB + API)
-  const [products, setProducts] = useState<any[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [products, setProducts] = useState<SaleProduct[]>([]);
 
   // Multi-prix: modal de sélection
   const [showPriceModal, setShowPriceModal] = useState(false);
-  const [priceModalProduct, setPriceModalProduct] = useState<any>(null);
+  const [priceModalProduct, setPriceModalProduct] = useState<SaleProduct | null>(null);
   const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
 
   // Offline-first: Load products from local SQLite
   const loadProducts = useCallback(async () => {
     if (!shopId) return;
-    setIsLoadingProducts(true);
     try {
       const localProducts = await productRepo.getAll(shopId, {
         where: { is_active: 1 },
         orderBy: 'name ASC',
       });
-      const enriched = await Promise.all(
+      const enriched: SaleProduct[] = await Promise.all(
         localProducts.map(async p => {
           const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
           return { ...p, current_stock: totalStock };
@@ -98,8 +110,6 @@ export default function SaleScreen() {
       setProducts(enriched);
     } catch (error) {
       console.error('Erreur chargement produits:', error);
-    } finally {
-      setIsLoadingProducts(false);
     }
   }, [shopId]);
 
@@ -136,7 +146,7 @@ export default function SaleScreen() {
     if (selectedCustomer === 'cash' && paymentMethod === 'credit') {
       setPaymentMethod('cash');
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, paymentMethod]);
 
   const filteredProducts = products
     .filter(
@@ -148,7 +158,7 @@ export default function SaleScreen() {
     )
     .filter(p => (p.current_stock || 0) > 0);
 
-  const addToCart = async (product: any) => {
+  const addToCart = async (product: SaleProduct) => {
     const productName = `${product.family} - ${product.article_type} ${product.brand}`;
     const currentStock = product.current_stock || 0;
 
@@ -201,7 +211,7 @@ export default function SaleScreen() {
   };
 
   const addToCartDirect = (
-    product: any,
+    product: SaleProduct,
     productName: string,
     currentStock: number,
     unitPrice?: number,
@@ -484,9 +494,10 @@ export default function SaleScreen() {
 
       // Recharger les produits
       await loadProducts();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement de la vente:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer la vente");
+      const message = error instanceof Error ? error.message : "Impossible d'enregistrer la vente";
+      Alert.alert('Erreur', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -502,19 +513,11 @@ export default function SaleScreen() {
     setShowPaymentModal(false);
   };
 
-  const getPaymentMethodLabel = () => {
-    const labels: Record<PaymentMethod, string> = {
-      cash: 'Espèces',
-      credit: 'À crédit',
-    };
-    return labels[paymentMethod];
-  };
-
   // Méthodes de paiement disponibles (crédit désactivé pour client comptant)
   const paymentMethods: Array<{
     key: PaymentMethod;
     label: string;
-    icon: any;
+    icon: React.ComponentType<IconProps>;
     disabled?: boolean;
   }> = [
     { key: 'cash', label: 'Espèces', icon: DollarSign },

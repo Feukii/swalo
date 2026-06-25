@@ -20,7 +20,6 @@ interface BalanceIndicatorProps {
 export function BalanceIndicator({ balance, type, showAlert = true }: BalanceIndicatorProps) {
   const isPositive = balance > 0;
   const isNegative = balance < 0;
-  const isZero = balance === 0;
 
   // Determine colors based on balance
   const badgeColor = isPositive
@@ -42,7 +41,11 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
       : Colors.warning.dark;
 
   // Icon based on balance
-  const iconName = isPositive ? 'trending-up' : isNegative ? 'warning' : 'checkmark-circle';
+  const iconName: React.ComponentProps<typeof Ionicons>['name'] = isPositive
+    ? 'trending-up'
+    : isNegative
+      ? 'warning'
+      : 'checkmark-circle';
 
   // Message based on type and balance
   let message = '';
@@ -68,7 +71,7 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <View style={styles.header}>
-        <Ionicons name={iconName as any} size={24} color={badgeColor} />
+        <Ionicons name={iconName} size={24} color={badgeColor} />
         <Text style={[styles.label, { color: textColor }]}>{message}</Text>
       </View>
       <View style={styles.amountContainer}>

@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { SuppliersService } from './suppliers.service';
@@ -6,6 +7,10 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { ClaimRefundDto } from './dto/claim-refund.dto';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
+
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('suppliers')
 @RequireModule('suppliers')
@@ -17,7 +22,7 @@ export class SuppliersController {
    * Créer un nouveau fournisseur
    */
   @Post()
-  async create(@Req() req: any, @Body() dto: CreateSupplierDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSupplierDto) {
     return this.suppliersService.create(req.user.shopId, dto);
   }
 
@@ -27,7 +32,7 @@ export class SuppliersController {
    */
   @Get()
   async getAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('search') search?: string,
     @Query('is_active') isActive?: string
   ) {
@@ -42,7 +47,7 @@ export class SuppliersController {
    * Statistiques des fournisseurs
    */
   @Get('stats')
-  async getStats(@Req() req: any) {
+  async getStats(@Req() req: AuthenticatedRequest) {
     return this.suppliersService.getStats(req.user.shopId);
   }
 
@@ -52,7 +57,7 @@ export class SuppliersController {
    */
   @Get('duplicates')
   @Roles(Role.BOSS, Role.MANAGER)
-  async findDuplicates(@Req() req: any) {
+  async findDuplicates(@Req() req: AuthenticatedRequest) {
     return this.suppliersService.findDuplicates(req.user.shopId);
   }
 
@@ -62,7 +67,10 @@ export class SuppliersController {
    */
   @Post('merge')
   @Roles(Role.BOSS, Role.MANAGER)
-  async merge(@Req() req: any, @Body() dto: { keep_id: string; merge_id: string }) {
+  async merge(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: { keep_id: string; merge_id: string }
+  ) {
     return this.suppliersService.merge(req.user.shopId, dto.keep_id, dto.merge_id);
   }
 
@@ -71,7 +79,7 @@ export class SuppliersController {
    * Récupérer un fournisseur par ID
    */
   @Get(':id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.suppliersService.getOne(req.user.shopId, id);
   }
 
@@ -81,7 +89,11 @@ export class SuppliersController {
    */
   @Post(':id/claim-refund')
   @Roles(Role.BOSS, Role.MANAGER)
-  async claimRefund(@Req() req: any, @Param('id') id: string, @Body() dto: ClaimRefundDto) {
+  async claimRefund(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: ClaimRefundDto
+  ) {
     return this.suppliersService.claimRefund(req.user.shopId, id, req.user.userId, dto);
   }
 
@@ -90,7 +102,11 @@ export class SuppliersController {
    * Mettre à jour un fournisseur
    */
   @Put(':id')
-  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateSupplierDto) {
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateSupplierDto
+  ) {
     return this.suppliersService.update(req.user.shopId, id, dto);
   }
 
@@ -99,7 +115,7 @@ export class SuppliersController {
    * Supprimer un fournisseur
    */
   @Delete(':id')
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.suppliersService.delete(req.user.shopId, id);
   }
 }

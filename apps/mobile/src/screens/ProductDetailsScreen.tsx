@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,11 @@ import { ScreenHeader, KPICard, StatusBadge, IconButton } from '../components/ui
 import { Colors, Spacing } from '../constants/theme-v2';
 import { Product } from '../types/stock';
 import { getProducts, saveProducts } from '../utils/stockManager';
-import { formatMoney } from '../utils/money';
 
 interface ProductDetailsScreenProps {
-  navigation: any;
+  navigation: {
+    goBack: () => void;
+  };
   route: {
     params: {
       id: string;
@@ -46,11 +47,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     size: '',
   });
 
-  useEffect(() => {
-    loadProduct();
-  }, [id]);
-
-  const loadProduct = async () => {
+  const loadProduct = useCallback(async () => {
     setIsLoading(true);
     try {
       const products = await getProducts();
@@ -74,7 +71,11 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id, navigation]);
+
+  useEffect(() => {
+    loadProduct();
+  }, [loadProduct]);
 
   const handleDelete = () => {
     Alert.alert('Supprimer le produit', `Êtes-vous sûr de vouloir supprimer "${product?.name}" ?`, [
@@ -89,7 +90,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             await saveProducts(updatedProducts);
             Alert.alert('Succès', 'Produit supprimé');
             navigation.goBack();
-          } catch (error) {
+          } catch {
             Alert.alert('Erreur', 'Impossible de supprimer le produit');
           }
         },
@@ -111,7 +112,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           ? {
               ...p,
               name: editForm.name.trim(),
-              category: editForm.category as any,
+              category: editForm.category,
               stockThreshold: parseInt(editForm.stockThreshold) || 0,
               unit: editForm.unit,
               size: editForm.size.trim(),
@@ -122,7 +123,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
       await loadProduct();
       setShowEditModal(false);
       Alert.alert('Succès', 'Produit modifié');
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Impossible de modifier le produit');
     } finally {
       setIsSubmitting(false);
@@ -154,7 +155,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
       setShowStockModal(false);
       setStockAdjustment('');
       Alert.alert('Succès', `Stock ${adjustmentType === 'add' ? 'ajouté' : 'retiré'}`);
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Impossible de modifier le stock');
     } finally {
       setIsSubmitting(false);

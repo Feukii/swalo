@@ -13,7 +13,11 @@ export class ReceivablesService {
     const isNegativeAmount = dto.amount < 0;
     const status = isNegativeAmount ? 'PAID' : 'PENDING';
     const description =
-      dto.description || (isNegativeAmount ? 'Remboursement - Ajustement de solde' : undefined);
+      dto.description && dto.description.length > 0
+        ? dto.description
+        : isNegativeAmount
+          ? 'Remboursement - Ajustement de solde'
+          : undefined;
 
     // Vérifier la limite de crédit pour les montants positifs (nouvelles créances)
     if (!isNegativeAmount && dto.amount > 0) {
@@ -35,9 +39,9 @@ export class ReceivablesService {
 
         if (currentBalance + dto.amount > customer.credit_limit) {
           throw new BadRequestException(
-            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
-              `nouvelle créance : ${dto.amount} FCFA, ` +
-              `limite : ${customer.credit_limit} FCFA`
+            `Limite de crédit dépassée. Solde actuel : ${String(currentBalance)} FCFA, ` +
+              `nouvelle créance : ${String(dto.amount)} FCFA, ` +
+              `limite : ${String(customer.credit_limit)} FCFA`
           );
         }
       }

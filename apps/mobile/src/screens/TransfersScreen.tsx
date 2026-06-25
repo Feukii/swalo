@@ -11,11 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   ArrowLeftRight,
-  ArrowLeft,
   Package,
-  Store,
   CheckCircle,
   XCircle,
   Clock,
@@ -24,6 +23,7 @@ import { ScreenHeader, KPICard, StatusBadge } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { transfersApi } from '../lib/api';
+import type { RootStackParamList } from '../../App';
 
 interface Transfer {
   id: string;
@@ -55,18 +55,22 @@ const STATUS_CONFIG: Record<
   CANCELLED: { label: 'Annule', variant: 'danger' },
 };
 
-export default function TransfersScreen({ navigation }: any) {
+interface TransfersScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Transfers'>;
+}
+
+export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadTransfers = useCallback(async () => {
     try {
-      const data = await transfersApi.getAll();
+      const data = await transfersApi.getAll<Transfer>();
       setTransfers(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement transferts:', error);
-      if (error.message === 'Unauthorized') {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         Alert.alert('Session expiree', 'Veuillez vous reconnecter.', [
           { text: 'OK', onPress: () => navigation.replace('LoginPin') },
         ]);
@@ -126,8 +130,9 @@ export default function TransfersScreen({ navigation }: any) {
             await transfersApi[action](transfer.id);
             Alert.alert('Succes', `Transfert ${config.title.toLowerCase()} avec succes`);
             loadTransfers();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || "Erreur lors de l'operation");
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || "Erreur lors de l'operation");
           }
         },
       },

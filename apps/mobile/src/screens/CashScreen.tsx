@@ -24,9 +24,6 @@ import {
   supplierDebtRepo,
   customerRepo,
   supplierRepo,
-  LocalCashEntry,
-  LocalClientReceivable,
-  LocalSupplierDebt,
   LocalCustomer,
   LocalSupplier,
 } from '../db/repositories';
@@ -79,7 +76,7 @@ const getCategoryLabel = (category: string, isCredit?: boolean): string => {
   return baseLabel;
 };
 
-export default function CashScreen({ navigation }: any) {
+export default function CashScreen() {
   const { shopId, userId } = useCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [cashStats, setCashStats] = useState({

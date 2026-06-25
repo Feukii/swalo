@@ -52,7 +52,7 @@ export function getFreshnessInfo(lastSyncedAt: string | null): FreshnessInfo {
  * Listens to sync events and updates the freshness level.
  */
 export function useSyncFreshness(): FreshnessInfo {
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [, setLastSyncedAt] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<FreshnessInfo>({
     lastSyncedAt: null,
     level: 'unknown',

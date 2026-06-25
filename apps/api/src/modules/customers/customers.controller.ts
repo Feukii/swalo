@@ -1,10 +1,15 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
+
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('customers')
 export class CustomersController {
@@ -15,7 +20,7 @@ export class CustomersController {
    * Créer un nouveau client
    */
   @Post()
-  async create(@Req() req: any, @Body() dto: CreateCustomerDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateCustomerDto) {
     return this.customersService.create(req.user.shopId, dto);
   }
 
@@ -25,7 +30,7 @@ export class CustomersController {
    */
   @Get()
   async getAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('search') search?: string,
     @Query('is_active') isActive?: string
   ) {
@@ -40,7 +45,7 @@ export class CustomersController {
    * Statistiques des clients
    */
   @Get('stats')
-  async getStats(@Req() req: any) {
+  async getStats(@Req() req: AuthenticatedRequest) {
     return this.customersService.getStats(req.user.shopId);
   }
 
@@ -50,7 +55,7 @@ export class CustomersController {
    */
   @Get('duplicates')
   @Roles(Role.BOSS, Role.MANAGER)
-  async findDuplicates(@Req() req: any) {
+  async findDuplicates(@Req() req: AuthenticatedRequest) {
     return this.customersService.findDuplicates(req.user.shopId);
   }
 
@@ -60,7 +65,10 @@ export class CustomersController {
    */
   @Post('merge')
   @Roles(Role.BOSS, Role.MANAGER)
-  async merge(@Req() req: any, @Body() dto: { keep_id: string; merge_id: string }) {
+  async merge(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: { keep_id: string; merge_id: string }
+  ) {
     return this.customersService.merge(req.user.shopId, dto.keep_id, dto.merge_id);
   }
 
@@ -69,7 +77,7 @@ export class CustomersController {
    * Récupérer un client par ID
    */
   @Get(':id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.customersService.getOne(req.user.shopId, id);
   }
 
@@ -79,7 +87,11 @@ export class CustomersController {
    */
   @Post(':id/refund')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
-  async createRefund(@Req() req: any, @Param('id') id: string, @Body() dto: CreateRefundDto) {
+  async createRefund(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreateRefundDto
+  ) {
     return this.customersService.createRefund(req.user.shopId, id, req.user.userId, dto);
   }
 
@@ -88,7 +100,7 @@ export class CustomersController {
    * Récupérer l'historique des remboursements d'un client
    */
   @Get(':id/refunds')
-  async getRefundHistory(@Req() req: any, @Param('id') id: string) {
+  async getRefundHistory(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.customersService.getRefundHistory(req.user.shopId, id);
   }
 
@@ -97,7 +109,11 @@ export class CustomersController {
    * Mettre à jour un client
    */
   @Put(':id')
-  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateCustomerDto
+  ) {
     return this.customersService.update(req.user.shopId, id, dto);
   }
 
@@ -106,7 +122,7 @@ export class CustomersController {
    * Supprimer un client
    */
   @Delete(':id')
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.customersService.delete(req.user.shopId, id);
   }
 }

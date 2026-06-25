@@ -11,10 +11,9 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Building, DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
+import { DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
   ScreenHeader,
-  KPICard,
   ListItem,
   StatusBadge,
   TransactionDetailModal,
@@ -30,8 +29,6 @@ import {
   supplierRepo,
   supplierDebtRepo,
   supplierDebtPaymentRepo,
-  cashEntryRepo,
-  LocalSupplier,
   LocalSupplierDebt,
   LocalSupplierDebtPayment,
   LocalCashEntry,
@@ -44,13 +41,33 @@ import {
   paySupplierDebtOffline,
 } from '../db/offlineWrite';
 
+interface SupplierDetailsNavigation {
+  goBack: () => void;
+  addListener: (type: 'focus', callback: () => void) => () => void;
+}
+
 interface SupplierDetailsScreenProps {
-  navigation: any;
+  navigation: SupplierDetailsNavigation;
   route: {
     params: {
       id: string;
     };
   };
+}
+
+interface SelectedTransaction {
+  type: string;
+  date: string;
+  amount: number;
+  note?: string;
+  status?: string;
+  isCredit?: boolean;
+  category?: string;
+  supplierName?: string;
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
 }
 
 interface DebtWithPayments {
@@ -101,7 +118,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Transaction detail modal state
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Edit modal state
@@ -234,7 +251,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     setNote('');
   };
 
-  const handleOpenDebtModal = () => {
+  const _handleOpenDebtModal = () => {
     setShowDebtModal(true);
     setAmount('');
     setNote('');
@@ -251,7 +268,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId) return;
+    if (!shopId || !supplier) return;
 
     const amountValue = Math.round(parseFloat(amount));
 
@@ -266,15 +283,15 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         shopId,
         supplierId: id,
         amount: amountValue,
-        description: note || `Dette contractee aupres de ${getPersonName(supplier!)}`,
+        description: note || `Dette contractee aupres de ${getPersonName(supplier)}`,
       });
 
       Alert.alert('Succes', 'Dette enregistree');
       handleCloseDebtModal();
       loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
@@ -285,7 +302,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId || !userId) return;
+    if (!shopId || !userId || !supplier) return;
 
     const amountValue = Math.round(parseFloat(amount));
 
@@ -295,11 +312,11 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     }
 
     // Calculate total debt
-    const totalDebt = supplier!.stats?.total_balance || 0;
+    const totalDebt = supplier.stats?.total_balance ?? 0;
     const overpayment = amountValue - totalDebt;
 
     // Find oldest pending debt
-    const pendingDebts = supplier!.debts
+    const pendingDebts = supplier.debts
       .filter(d => d.status === 'PENDING' || d.status === 'PARTIAL')
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -353,17 +370,17 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   };
 
   const createNegativeDebt = async (amountValue: number) => {
-    if (!shopId) return;
+    if (!shopId || !supplier) return;
     setIsSubmitting(true);
     try {
       await createSupplierDebtOffline({
         shopId,
-        supplierId: supplier!.id,
+        supplierId: supplier.id,
         amount: -amountValue,
-        description: note || `Remboursement a recevoir de ${getPersonName(supplier!)}`,
+        description: note || `Remboursement a recevoir de ${getPersonName(supplier)}`,
       });
 
-      const totalDebt = supplier!.stats?.total_balance || 0;
+      const totalDebt = supplier.stats?.total_balance ?? 0;
       const newBalance = totalDebt - amountValue;
 
       Alert.alert(
@@ -373,27 +390,27 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
       handleClosePaymentModal();
       loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const processSupplierPayment = async (amountValue: number, debtId: string) => {
-    if (!userId) return;
+    if (!userId || !supplier) return;
     setIsSubmitting(true);
     try {
       await paySupplierDebtOffline({
         debtId,
         amount: amountValue,
         cashierId: userId,
-        notes: note || `Paiement a ${getPersonName(supplier!)}`,
+        notes: note || `Paiement a ${getPersonName(supplier)}`,
       });
 
       // Check if there's overpayment
-      const totalDebt = supplier!.stats?.total_balance || 0;
+      const totalDebt = supplier.stats?.total_balance ?? 0;
       const overpayment = amountValue - totalDebt;
 
       if (overpayment > 0) {
@@ -407,9 +424,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
       handleClosePaymentModal();
       loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
@@ -454,18 +471,19 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Succes', 'Fournisseur modifie avec succes');
       handleCloseEditModal();
       loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la modification:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la modification');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la modification');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = () => {
+    if (!supplier) return;
     Alert.alert(
       'Confirmer la suppression',
-      `Voulez-vous vraiment supprimer le fournisseur ${getPersonName(supplier!)} ?`,
+      `Voulez-vous vraiment supprimer le fournisseur ${getPersonName(supplier)} ?`,
       [
         {
           text: 'Annuler',
@@ -479,9 +497,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
               await deleteSupplierOffline(id);
               Alert.alert('Succes', 'Fournisseur supprime avec succes');
               navigation.goBack();
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error('Erreur lors de la suppression:', error);
-              Alert.alert('Erreur', error.message || 'Erreur lors de la suppression');
+              Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la suppression');
             }
           },
         },
@@ -515,7 +533,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId) return;
+    if (!shopId || !supplier) return;
 
     const amountValue = Math.round(parseFloat(supplierRefundAmount));
 
@@ -524,7 +542,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       return;
     }
 
-    const currentBalance = supplier?.stats?.total_balance || 0;
+    const currentBalance = supplier.stats?.total_balance ?? 0;
     const refundOwed = Math.abs(currentBalance);
 
     if (amountValue > refundOwed) {
@@ -542,15 +560,15 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         shopId,
         supplierId: id,
         amount: amountValue,
-        description: supplierRefundNote || `Remboursement recu de ${getPersonName(supplier!)}`,
+        description: supplierRefundNote || `Remboursement recu de ${getPersonName(supplier)}`,
       });
 
       Alert.alert('Succes', 'Remboursement reclame et enregistre avec succes');
       handleCloseSupplierRefundModal();
       await loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la reclamation du remboursement:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de reclamer le remboursement');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de reclamer le remboursement');
     } finally {
       setIsSubmitting(false);
     }
@@ -597,9 +615,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       Alert.alert('Succes', 'Dette creee avec succes');
       handleCloseCreateDebtModal();
       loadSupplier();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation de la dette:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de creer la dette');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de creer la dette');
     } finally {
       setIsSubmitting(false);
     }
@@ -745,8 +763,8 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                   Limite emprunt: {formatMoney(supplier.borrowing_limit)}
                 </Text>
                 {(() => {
-                  const used = supplier.stats?.total_balance || 0;
-                  const limit = supplier.borrowing_limit!;
+                  const used = supplier.stats?.total_balance ?? 0;
+                  const limit = supplier.borrowing_limit;
                   const pct = Math.min(100, Math.round((used / limit) * 100));
                   const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
                   return (

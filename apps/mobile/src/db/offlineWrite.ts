@@ -40,6 +40,12 @@ import {
   LocalInvoice,
   LocalCashSession,
   LocalInventorySession,
+  LocalStockBatch,
+  LocalInventoryMovement,
+  LocalSupplierDebtPayment,
+  LocalClientReceivablePayment,
+  LocalInvoiceItem,
+  LocalInventoryCount,
 } from './repositories';
 import { enqueueMutation, MutationOp } from './queue';
 import { SyncableEntity } from './schema';
@@ -293,7 +299,7 @@ export async function createStockBatchOffline(
     price_valid_from: now,
     price_valid_until: null,
     notes: input.notes || null,
-  } as any);
+  } as Partial<LocalStockBatch>);
 
   // Also create inventory movement locally
   const movementId = generateId();
@@ -312,7 +318,7 @@ export async function createStockBatchOffline(
     device_id: deviceId,
     client_op_id: movClientOpId,
     version: 1,
-  } as any);
+  } as Partial<LocalInventoryMovement>);
 
   // Enqueue batch mutation
   await enqueueAndSync({
@@ -500,7 +506,7 @@ export async function paySupplierDebtOffline(input: {
     cashier_id: input.cashierId,
     cash_exit_id: null,
     version: 1,
-  } as any);
+  } as Partial<LocalSupplierDebtPayment>);
 
   // Update debt balance locally
   const debt = await supplierDebtRepo.getById(input.debtId);
@@ -606,7 +612,7 @@ export async function payReceivableOffline(input: {
     cashier_id: input.cashierId,
     cash_entry_id: null,
     version: 1,
-  } as any);
+  } as Partial<LocalClientReceivablePayment>);
 
   // Update receivable balance locally
   const receivable = await clientReceivableRepo.getById(input.receivableId);
@@ -857,7 +863,7 @@ export async function createInvoiceOffline(
       tax_total: itemTaxTotal,
       total: itemTotal,
       version: 1,
-    } as any);
+    } as Partial<LocalInvoiceItem>);
   }
 
   await enqueueAndSync({
@@ -950,7 +956,7 @@ export async function addInventoryCountOffline(input: {
     difference: input.countedQty - input.expectedQty,
     notes: input.notes || null,
     version: 1,
-  } as any);
+  } as Partial<LocalInventoryCount>);
 
   await enqueueAndSync({
     entity: 'inventory_counts',

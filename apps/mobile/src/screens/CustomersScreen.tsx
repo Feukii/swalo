@@ -19,8 +19,16 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useLocalCustomers } from '../hooks/useLocalData';
 import { createCustomerOffline, createReceivableOffline } from '../db/offlineWrite';
 
+interface CustomersScreenNavigation {
+  goBack: () => void;
+  navigate: {
+    (screen: 'CustomerBalancesSummary'): void;
+    (screen: 'CustomerDetails', params: { id: string }): void;
+  };
+}
+
 interface CustomersScreenProps {
-  navigation: any;
+  navigation: CustomersScreenNavigation;
 }
 
 export default function CustomersScreen({ navigation }: CustomersScreenProps) {
@@ -114,9 +122,10 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       Alert.alert('Succes', 'Client cree avec succes');
       handleCloseModal();
       await refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la creation');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Erreur lors de la creation');
     } finally {
       setIsSaving(false);
     }

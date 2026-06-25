@@ -1,7 +1,13 @@
 import { Controller, Post, Get, Param, Body, Query, Request } from '@nestjs/common';
+import type { Request as ExpressRequest } from 'express';
+import { Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminControlsService } from './admin-controls.service';
 import { BlockEntityDto } from './dto/block-entity.dto';
+
+type AuthenticatedRequest = ExpressRequest & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('admin')
 @Roles('SUPERADMIN')
@@ -11,36 +17,48 @@ export class AdminControlsController {
   // ==================== SHOP BLOCKING ====================
 
   @Post('shops/:id/block')
-  async blockShop(@Param('id') id: string, @Body() dto: BlockEntityDto, @Request() req: any) {
+  async blockShop(
+    @Param('id') id: string,
+    @Body() dto: BlockEntityDto,
+    @Request() req: AuthenticatedRequest
+  ) {
     return this.adminControlsService.blockShop(id, req.user.userId, dto.reason);
   }
 
   @Post('shops/:id/unblock')
-  async unblockShop(@Param('id') id: string, @Request() req: any) {
+  async unblockShop(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.adminControlsService.unblockShop(id, req.user.userId);
   }
 
   // ==================== USER BLOCKING ====================
 
   @Post('users/:id/block')
-  async blockUser(@Param('id') id: string, @Body() dto: BlockEntityDto, @Request() req: any) {
+  async blockUser(
+    @Param('id') id: string,
+    @Body() dto: BlockEntityDto,
+    @Request() req: AuthenticatedRequest
+  ) {
     return this.adminControlsService.blockUser(id, req.user.userId, dto.reason);
   }
 
   @Post('users/:id/unblock')
-  async unblockUser(@Param('id') id: string, @Request() req: any) {
+  async unblockUser(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.adminControlsService.unblockUser(id, req.user.userId);
   }
 
   // ==================== ENTERPRISE BLOCKING ====================
 
   @Post('enterprises/:id/block')
-  async blockEnterprise(@Param('id') id: string, @Body() dto: BlockEntityDto, @Request() req: any) {
+  async blockEnterprise(
+    @Param('id') id: string,
+    @Body() dto: BlockEntityDto,
+    @Request() req: AuthenticatedRequest
+  ) {
     return this.adminControlsService.blockEnterprise(id, req.user.userId, dto.reason);
   }
 
   @Post('enterprises/:id/unblock')
-  async unblockEnterprise(@Param('id') id: string, @Request() req: any) {
+  async unblockEnterprise(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.adminControlsService.unblockEnterprise(id, req.user.userId);
   }
 
@@ -85,7 +103,7 @@ export class AdminControlsController {
   async updateShopModules(
     @Param('id') id: string,
     @Body() body: { modules: string[] },
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminControlsService.updateShopModules(id, req.user.userId, body.modules);
   }

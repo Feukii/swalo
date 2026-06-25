@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Package, Plus, Edit, Trash, Check, ChevronDown } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { Product, Category } from '../types/stock';
+import type { RootStackParamList } from '../../App';
 import {
   getProducts,
   initializeDefaultProducts,
@@ -41,7 +43,11 @@ interface EditableProduct {
 
 const UNITS = ['unité', 'sac', 'bouteille', 'carton', 'kg', 'pièce'];
 
-export default function ShopSettingsScreen({ navigation }: any) {
+interface ShopSettingsScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'ShopSettings'>;
+}
+
+export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenProps) {
   const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -225,8 +231,9 @@ export default function ShopSettingsScreen({ navigation }: any) {
       setCategoryName('');
       setEditingCategory(null);
       await loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Impossible de sauvegarder');
     } finally {
       setIsSaving(false);
     }
@@ -248,8 +255,9 @@ export default function ShopSettingsScreen({ navigation }: any) {
             await deleteCategory(category.id);
             Alert.alert('Succès', 'Catégorie supprimée');
             await loadData();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer');
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || 'Impossible de supprimer');
           }
         },
       },

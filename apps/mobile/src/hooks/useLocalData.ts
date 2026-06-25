@@ -44,6 +44,12 @@ interface UseLocalDataResult<T> {
   refresh: () => Promise<void>;
 }
 
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return undefined;
+}
+
 // ============================================================
 // Products
 // ============================================================
@@ -79,8 +85,8 @@ export function useLocalProducts(
 
       setData(products);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des produits');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des produits');
     } finally {
       setLoading(false);
     }
@@ -112,8 +118,8 @@ export function useLocalStockBatches(
       const batches = await stockBatchRepo.getByProduct(shopId, productId);
       setData(batches);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des lots');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des lots');
     } finally {
       setLoading(false);
     }
@@ -154,8 +160,8 @@ export function useLocalCustomers(
 
       setData(customers);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des clients');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des clients');
     } finally {
       setLoading(false);
     }
@@ -187,8 +193,8 @@ export function useLocalSales(
       const sales = await saleRepo.getRecent(shopId, options?.limit || 20);
       setData(sales);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des ventes');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des ventes');
     } finally {
       setLoading(false);
     }
@@ -215,8 +221,8 @@ export function useLocalSaleWithItems(
       const sale = await saleRepo.getWithItems(saleId);
       setData(sale);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement de la vente');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement de la vente');
     } finally {
       setLoading(false);
     }
@@ -245,8 +251,8 @@ export function useLocalCashEntries(shopId: string | null): UseLocalDataResult<L
       const entries = await cashEntryRepo.getToday(shopId);
       setData(entries);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement de la caisse');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement de la caisse');
     } finally {
       setLoading(false);
     }
@@ -273,8 +279,8 @@ export function useLocalCashBalance(
       const { totalIn, totalOut } = await cashEntryRepo.getBalance(shopId);
       setData({ totalIn, totalOut, balance: totalIn - totalOut });
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de calcul du solde');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de calcul du solde');
     } finally {
       setLoading(false);
     }
@@ -307,8 +313,8 @@ export function useLocalInventoryMovements(
       const movements = await inventoryMovementRepo.getByProduct(shopId, productId, limit);
       setData(movements);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des mouvements');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des mouvements');
     } finally {
       setLoading(false);
     }
@@ -347,8 +353,8 @@ export function useLocalSuppliers(
 
       setData(suppliers);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des fournisseurs');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des fournisseurs');
     } finally {
       setLoading(false);
     }
@@ -387,8 +393,8 @@ export function useLocalSupplierDebts(
 
       setData(debts);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des dettes');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des dettes');
     } finally {
       setLoading(false);
     }
@@ -415,8 +421,8 @@ export function useLocalSupplierDebtPayments(
       const payments = await supplierDebtPaymentRepo.getByDebt(debtId);
       setData(payments);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des paiements');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des paiements');
     } finally {
       setLoading(false);
     }
@@ -441,8 +447,8 @@ export function useLocalSupplierDebtTotal(shopId: string | null): UseLocalDataRe
       const total = await supplierDebtRepo.getTotalBalance(shopId);
       setData(total);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de calcul des dettes');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de calcul des dettes');
     } finally {
       setLoading(false);
     }
@@ -481,8 +487,8 @@ export function useLocalClientReceivables(
 
       setData(receivables);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des creances');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des creances');
     } finally {
       setLoading(false);
     }
@@ -509,8 +515,8 @@ export function useLocalReceivablePayments(
       const payments = await clientReceivablePaymentRepo.getByReceivable(receivableId);
       setData(payments);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des paiements');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des paiements');
     } finally {
       setLoading(false);
     }
@@ -535,8 +541,8 @@ export function useLocalReceivableTotal(shopId: string | null): UseLocalDataResu
       const total = await clientReceivableRepo.getTotalBalance(shopId);
       setData(total);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de calcul des creances');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de calcul des creances');
     } finally {
       setLoading(false);
     }
@@ -575,8 +581,8 @@ export function useLocalInvoices(
 
       setData(invoices);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des factures');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des factures');
     } finally {
       setLoading(false);
     }
@@ -608,8 +614,8 @@ export function useLocalOpenCashSession(
       const session = await cashSessionRepo.getOpenSession(shopId, cashierId);
       setData(session);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement de la session');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement de la session');
     } finally {
       setLoading(false);
     }
@@ -648,8 +654,8 @@ export function useLocalPayments(
 
       setData(payments);
       setError(null);
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement des paiements');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e) ?? 'Erreur de chargement des paiements');
     } finally {
       setLoading(false);
     }

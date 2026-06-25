@@ -1,16 +1,21 @@
 import { Controller, Get, Post, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { CashService } from './cash.service';
 import { CreateCashEntryDto } from './dto/create-cash-entry.dto';
 import { CreateMerchandisePurchaseDto } from './dto/create-merchandise-purchase.dto';
 
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
+
 @Controller('cash')
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 
   @Post('entries')
-  async createEntry(@Req() req: any, @Body() dto: CreateCashEntryDto) {
+  async createEntry(@Req() req: AuthenticatedRequest, @Body() dto: CreateCashEntryDto) {
     return this.cashService.createEntry(req.user.userId, req.user.shopId, req.user.role, dto);
   }
 
@@ -20,13 +25,16 @@ export class CashController {
    */
   @Post('merchandise-purchase')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
-  async createMerchandisePurchase(@Req() req: any, @Body() dto: CreateMerchandisePurchaseDto) {
+  async createMerchandisePurchase(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateMerchandisePurchaseDto
+  ) {
     return this.cashService.createMerchandisePurchase(req.user.userId, req.user.shopId, dto);
   }
 
   @Get('entries')
   async getAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('type') type?: 'IN' | 'OUT' | 'OPENING' | 'CLOSING',
     @Query('start_date') start_date?: string,
     @Query('end_date') end_date?: string
@@ -35,18 +43,18 @@ export class CashController {
   }
 
   @Get('entries/:id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.cashService.getOne(req.user.shopId, id);
   }
 
   @Get('balance')
-  async getBalance(@Req() req: any) {
+  async getBalance(@Req() req: AuthenticatedRequest) {
     return this.cashService.getBalance(req.user.shopId);
   }
 
   @Get('stats')
   async getStats(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('start_date') start_date?: string,
     @Query('end_date') end_date?: string
   ) {
@@ -54,7 +62,7 @@ export class CashController {
   }
 
   @Delete('entries/:id')
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.cashService.delete(req.user.shopId, id);
   }
 }

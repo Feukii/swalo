@@ -12,6 +12,20 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 
+/**
+ * Input shape for a bulk hierarchy update. `level` is the name of the product
+ * field to rewrite (family, article_type, brand, reference); the optional
+ * fields further restrict which products are affected.
+ */
+interface BatchUpdateHierarchyInput {
+  level: string;
+  old_value: string;
+  new_value: string;
+  family?: string;
+  article_type?: string;
+  brand?: string;
+}
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
@@ -64,12 +78,12 @@ export class ProductsService {
           article_type: dto.article_type,
           brand: dto.brand,
           reference: dto.reference,
-          unit: dto.unit || 'unit',
-          tax_rate: dto.tax_rate || 0,
+          unit: dto.unit ?? 'unit',
+          tax_rate: dto.tax_rate ?? 0,
           cost_price: dto.cost_price,
           sell_price: dto.sell_price,
-          is_active: dto.is_active !== undefined ? dto.is_active : true,
-          alert_threshold: dto.alert_threshold || 5,
+          is_active: dto.is_active ?? true,
+          alert_threshold: dto.alert_threshold ?? 5,
           image_url: dto.image_url,
           device_id: deviceId,
           client_op_id: uuidv4(),
@@ -95,7 +109,8 @@ export class ProductsService {
 
         // Gérer les erreurs Prisma spécifiques
         if (error.code === 'P2002') {
-          const target = (error.meta?.target as string[]) || [];
+          const rawTarget = error.meta?.target;
+          const target = Array.isArray(rawTarget) ? rawTarget.map(t => String(t)) : [];
           throw new ConflictException(`Contrainte unique violée: ${target.join(', ')}`);
         }
       } else {
@@ -113,7 +128,7 @@ export class ProductsService {
    * Récupérer tous les produits avec leur stock
    */
   async findAll(shopId: string, query?: SearchProductDto) {
-    const where: any = {
+    const where: Prisma.ProductWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -150,12 +165,10 @@ export class ProductsService {
     }
 
     // Tri
-    const orderBy: any = {};
-    if (query?.sort_by) {
-      orderBy[query.sort_by] = query.sort_order || 'asc';
-    } else {
-      orderBy.created_at = 'desc';
-    }
+    const sortOrder: Prisma.SortOrder = query?.sort_order ?? 'asc';
+    const orderBy: Prisma.ProductOrderByWithRelationInput = query?.sort_by
+      ? { [query.sort_by]: sortOrder }
+      : { created_at: 'desc' };
 
     const products = await this.prisma.product.findMany({
       where,
@@ -404,7 +417,7 @@ export class ProductsService {
     shopId: string,
     filters?: { family?: string; article_type?: string; brand?: string }
   ) {
-    const where: any = {
+    const where: Prisma.ProductWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -630,9 +643,9 @@ export class ProductsService {
   /**
    * Mettre à jour un niveau de hiérarchie en masse
    */
-  async batchUpdateHierarchy(shopId: string, dto: any) {
+  async batchUpdateHierarchy(shopId: string, dto: BatchUpdateHierarchyInput) {
     // Construire le where pour filtrer les produits
-    const where: any = {
+    const where: Prisma.ProductWhereInput = {
       shop_id: shopId,
       deleted: false,
       [dto.level]: dto.old_value,
@@ -660,7 +673,7 @@ export class ProductsService {
 
     return {
       count: result.count,
-      message: `${result.count} produit(s) mis à jour avec succès`,
+      message: `${String(result.count)} produit(s) mis à jour avec succès`,
     };
   }
 }

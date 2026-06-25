@@ -1,10 +1,15 @@
 import { Controller, Get, Post, Delete, Put, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { ReceivablesService } from './receivables.service';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
+
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('receivables')
 @RequireModule('receivables')
@@ -13,13 +18,13 @@ export class ReceivablesController {
 
   @Post()
   @Roles(Role.BOSS, Role.MANAGER)
-  async create(@Req() req: any, @Body() dto: CreateReceivableDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateReceivableDto) {
     return this.receivablesService.create(req.user.shopId, dto);
   }
 
   @Get()
   async getAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('customer_id') customerId?: string,
     @Query('status') status?: 'PENDING' | 'PARTIAL' | 'PAID' | 'CANCELLED'
   ) {
@@ -30,29 +35,33 @@ export class ReceivablesController {
   }
 
   @Get('stats')
-  async getStats(@Req() req: any) {
+  async getStats(@Req() req: AuthenticatedRequest) {
     return this.receivablesService.getStats(req.user.shopId);
   }
 
   @Get(':id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.receivablesService.getOne(req.user.shopId, id);
   }
 
   @Post(':id/payments')
-  async addPayment(@Req() req: any, @Param('id') id: string, @Body() dto: CreatePaymentDto) {
+  async addPayment(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreatePaymentDto
+  ) {
     return this.receivablesService.addPayment(req.user.shopId, id, dto);
   }
 
   @Put(':id/cancel')
   @Roles(Role.BOSS, Role.MANAGER)
-  async cancel(@Req() req: any, @Param('id') id: string) {
+  async cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.receivablesService.cancel(req.user.shopId, id);
   }
 
   @Delete(':id')
   @Roles(Role.BOSS, Role.MANAGER)
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.receivablesService.delete(req.user.shopId, id);
   }
 }

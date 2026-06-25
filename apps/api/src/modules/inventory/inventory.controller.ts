@@ -4,6 +4,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MovementType, Role } from '@prisma/client';
 
+interface CurrentUserPayload {
+  userId: string;
+  shopId: string;
+  role: Role;
+}
+
 @Controller('inventory')
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
@@ -24,7 +30,7 @@ export class InventoryController {
       ref_id?: string;
       unit_cost?: number;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.createMovement({
@@ -36,7 +42,7 @@ export class InventoryController {
       ref_type: data.ref_type,
       ref_id: data.ref_id,
       unit_cost: data.unit_cost,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 
@@ -52,7 +58,7 @@ export class InventoryController {
       quantity: number;
       sale_id?: string;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.recordSaleOut({
@@ -60,7 +66,7 @@ export class InventoryController {
       product_id: data.product_id,
       quantity: data.quantity,
       sale_id: data.sale_id,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 
@@ -77,7 +83,7 @@ export class InventoryController {
       unit_cost?: number;
       reason?: string;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.recordStockIn({
@@ -86,7 +92,7 @@ export class InventoryController {
       quantity: data.quantity,
       unit_cost: data.unit_cost,
       reason: data.reason,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 
@@ -105,7 +111,7 @@ export class InventoryController {
       sell_price: number;
       notes?: string;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.createStockBatch({
@@ -115,7 +121,7 @@ export class InventoryController {
       cost_price: data.cost_price,
       sell_price: data.sell_price,
       notes: data.notes,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 
@@ -124,7 +130,10 @@ export class InventoryController {
    * Récupérer tous les lots d'un produit
    */
   @Get('products/:productId/batches')
-  async getProductBatches(@Param('productId') productId: string, @CurrentUser() user: any) {
+  async getProductBatches(
+    @Param('productId') productId: string,
+    @CurrentUser() user: CurrentUserPayload
+  ) {
     return this.inventoryService.getProductBatches(user.shopId, productId);
   }
 
@@ -140,7 +149,7 @@ export class InventoryController {
       quantity: number;
       sale_id?: string;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.deductStockFIFO({
@@ -148,7 +157,7 @@ export class InventoryController {
       product_id: data.product_id,
       quantity: data.quantity,
       sale_id: data.sale_id,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 
@@ -165,7 +174,7 @@ export class InventoryController {
       quantity: number;
       sale_id?: string;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.inventoryService.deductFromBatch({
@@ -174,7 +183,7 @@ export class InventoryController {
       batch_id: data.batch_id,
       quantity: data.quantity,
       sale_id: data.sale_id,
-      device_id: deviceId || 'unknown',
+      device_id: deviceId ?? 'unknown',
     });
   }
 }

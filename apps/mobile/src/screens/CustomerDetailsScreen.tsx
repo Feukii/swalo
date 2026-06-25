@@ -11,10 +11,9 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
+import { DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
   ScreenHeader,
-  KPICard,
   ListItem,
   StatusBadge,
   TransactionDetailModal,
@@ -30,7 +29,6 @@ import {
   customerRepo,
   clientReceivableRepo,
   clientReceivablePaymentRepo,
-  LocalCustomer,
   LocalClientReceivable,
   LocalClientReceivablePayment,
   LocalCashEntry,
@@ -44,13 +42,33 @@ import {
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
 
+interface CustomerDetailsNavigation {
+  goBack: () => void;
+  addListener: (type: 'focus', callback: () => void) => () => void;
+}
+
 interface CustomerDetailsScreenProps {
-  navigation: any;
+  navigation: CustomerDetailsNavigation;
   route: {
     params: {
       id: string;
     };
   };
+}
+
+interface SelectedTransaction {
+  type: string;
+  date: string;
+  amount: number;
+  note?: string;
+  status?: string;
+  isCredit?: boolean;
+  category?: string;
+  customerName?: string;
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
 }
 
 interface ReceivableWithPayments {
@@ -115,7 +133,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [receivableNote, setReceivableNote] = useState('');
 
   // Transaction detail modal state
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Edit modal state
@@ -307,7 +325,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId || !userId) return;
+    if (!shopId || !userId || !customer) return;
 
     const amountValue = Math.round(parseFloat(amount));
 
@@ -316,10 +334,10 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
-    const totalDebt = customer!.stats?.total_balance || 0;
+    const totalDebt = customer.stats?.total_balance ?? 0;
     const overpayment = amountValue - totalDebt;
 
-    const pendingReceivables = customer!.receivables
+    const pendingReceivables = customer.receivables
       .filter(r => r.status === 'PENDING' || r.status === 'PARTIAL')
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -365,17 +383,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const createNegativeReceivable = async (amountValue: number) => {
-    if (!shopId) return;
+    if (!shopId || !customer) return;
     setIsSubmitting(true);
     try {
       await createReceivableOffline({
         shopId,
-        customerId: customer!.id,
+        customerId: customer.id,
         amount: -amountValue,
-        description: note || `Remboursement a effectuer a ${getPersonName(customer!)}`,
+        description: note || `Remboursement a effectuer a ${getPersonName(customer)}`,
       });
 
-      const totalDebt = customer!.stats?.total_balance || 0;
+      const totalDebt = customer.stats?.total_balance ?? 0;
       const newBalance = totalDebt - amountValue;
 
       Alert.alert(
@@ -385,26 +403,26 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
       handleCloseRefundModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const processPayment = async (amountValue: number, receivableId: string) => {
-    if (!userId) return;
+    if (!userId || !customer) return;
     setIsSubmitting(true);
     try {
       await payReceivableOffline({
         receivableId,
         amount: amountValue,
         cashierId: userId,
-        notes: note || `Paiement de ${getPersonName(customer!)}`,
+        notes: note || `Paiement de ${getPersonName(customer)}`,
       });
 
-      const totalDebt = customer!.stats?.total_balance || 0;
+      const totalDebt = customer.stats?.total_balance ?? 0;
       const overpayment = amountValue - totalDebt;
 
       if (overpayment > 0) {
@@ -418,9 +436,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
       handleCloseRefundModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
@@ -452,7 +470,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId) return;
+    if (!shopId || !customer) return;
 
     const amountValue = Math.round(parseFloat(customerRefundAmount));
 
@@ -461,7 +479,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
-    const currentBalance = customer?.stats?.total_balance || 0;
+    const currentBalance = customer.stats?.total_balance ?? 0;
     const refundOwed = Math.abs(currentBalance);
 
     if (amountValue > refundOwed) {
@@ -478,15 +496,15 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         shopId,
         customerId: id,
         amount: amountValue,
-        description: customerRefundNote || `Remboursement effectue a ${getPersonName(customer!)}`,
+        description: customerRefundNote || `Remboursement effectue a ${getPersonName(customer)}`,
       });
 
       Alert.alert('Succes', 'Remboursement enregistre avec succes');
       handleCloseCustomerRefundModal();
       await loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors du remboursement:', error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer le remboursement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible d'enregistrer le remboursement");
     } finally {
       setIsSubmitting(false);
     }
@@ -546,9 +564,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Succes', 'Creance creee avec succes');
       handleCloseCreateReceivableModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation de la creance:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de creer la creance');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de creer la creance');
     } finally {
       setIsSubmitting(false);
     }
@@ -593,18 +611,19 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Succes', 'Client modifie avec succes');
       handleCloseEditModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la modification:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la modification');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la modification');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = () => {
+    if (!customer) return;
     Alert.alert(
       'Confirmer la suppression',
-      `Voulez-vous vraiment supprimer le client ${getPersonName(customer!)} ?`,
+      `Voulez-vous vraiment supprimer le client ${getPersonName(customer)} ?`,
       [
         {
           text: 'Annuler',
@@ -618,9 +637,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
               await deleteCustomerOffline(id);
               Alert.alert('Succes', 'Client supprime avec succes');
               navigation.goBack();
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error('Erreur lors de la suppression:', error);
-              Alert.alert('Erreur', error.message || 'Erreur lors de la suppression');
+              Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la suppression');
             }
           },
         },
@@ -704,8 +723,8 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   Limite crédit: {formatMoney(customer.credit_limit)}
                 </Text>
                 {(() => {
-                  const used = customer.stats?.total_balance || 0;
-                  const limit = customer.credit_limit!;
+                  const used = customer.stats?.total_balance ?? 0;
+                  const limit = customer.credit_limit;
                   const pct = Math.min(100, Math.round((used / limit) * 100));
                   const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
                   return (

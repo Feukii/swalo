@@ -1,10 +1,15 @@
 import { Controller, Get, Post, Delete, Put, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { DebtsService } from './debts.service';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
+
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('debts')
 @RequireModule('debts')
@@ -13,13 +18,13 @@ export class DebtsController {
 
   @Post()
   @Roles(Role.BOSS, Role.MANAGER)
-  async create(@Req() req: any, @Body() dto: CreateDebtDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateDebtDto) {
     return this.debtsService.create(req.user.shopId, dto);
   }
 
   @Get()
   async getAll(
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Query('supplier_id') supplierId?: string,
     @Query('status') status?: 'PENDING' | 'PARTIAL' | 'PAID' | 'CANCELLED'
   ) {
@@ -30,29 +35,33 @@ export class DebtsController {
   }
 
   @Get('stats')
-  async getStats(@Req() req: any) {
+  async getStats(@Req() req: AuthenticatedRequest) {
     return this.debtsService.getStats(req.user.shopId);
   }
 
   @Get(':id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.debtsService.getOne(req.user.shopId, id);
   }
 
   @Post(':id/payments')
-  async addPayment(@Req() req: any, @Param('id') id: string, @Body() dto: CreateDebtPaymentDto) {
+  async addPayment(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreateDebtPaymentDto
+  ) {
     return this.debtsService.addPayment(req.user.shopId, id, dto);
   }
 
   @Put(':id/cancel')
   @Roles(Role.BOSS, Role.MANAGER)
-  async cancel(@Req() req: any, @Param('id') id: string) {
+  async cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.debtsService.cancel(req.user.shopId, id);
   }
 
   @Delete(':id')
   @Roles(Role.BOSS, Role.MANAGER)
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.debtsService.delete(req.user.shopId, id);
   }
 }

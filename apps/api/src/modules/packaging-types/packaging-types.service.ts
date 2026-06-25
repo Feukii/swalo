@@ -32,7 +32,7 @@ export class PackagingTypesService {
         shop_id: shopId,
         name: dto.name,
         symbol: dto.symbol,
-        is_default: dto.is_default || false,
+        is_default: dto.is_default ?? false,
       },
     });
   }
@@ -158,7 +158,7 @@ export class PackagingTypesService {
 
     if (productCount > 0) {
       throw new BadRequestException(
-        `Impossible de supprimer ce conditionnement: ${productCount} produit(s) l'utilisent`
+        `Impossible de supprimer ce conditionnement: ${String(productCount)} produit(s) l'utilisent`
       );
     }
 

@@ -28,8 +28,13 @@ interface Invoice {
   };
 }
 
+interface InvoiceListScreenNavigation {
+  goBack: () => void;
+  replace: (screen: 'LoginPin') => void;
+}
+
 interface InvoiceListScreenProps {
-  navigation: any;
+  navigation: InvoiceListScreenNavigation;
 }
 
 const STATUS_CONFIG: Record<
@@ -87,11 +92,11 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
 
   const loadInvoices = useCallback(async () => {
     try {
-      const data = await invoicesApi.getAll();
+      const data = await invoicesApi.getAll<Invoice>();
       setInvoices(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement factures:', error);
-      if (error.message === 'Unauthorized') {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         Alert.alert('Session expiree', 'Votre session a expire. Veuillez vous reconnecter.', [
           {
             text: 'OK',
