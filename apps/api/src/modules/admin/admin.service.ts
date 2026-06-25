@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
 import { CreateShopAdminDto } from './dto/create-shop-admin.dto';
@@ -17,6 +17,19 @@ import {
   type LicenseTier,
   type ModuleDefinition,
 } from '@swalo/core/modules/registry';
+import { normalizeShopCode } from '@swalo/core/schemas';
+
+/** Alphabet des codes boutique générés (alphanumérique majuscule). */
+const SHOP_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+/** Génère un code boutique aléatoire alphanumérique majuscule (6 caractères). */
+function generateShopCode(length = 6): string {
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += SHOP_CODE_ALPHABET[Math.floor(Math.random() * SHOP_CODE_ALPHABET.length)];
+  }
+  return code;
+}
 
 @Injectable()
 export class AdminService {
@@ -357,7 +370,9 @@ export class AdminService {
   // ============================================
 
   async createEnterprise(adminId: string, dto: CreateEnterpriseDto) {
-    const code = dto.code || 'ENT-' + Math.floor(100000 + Math.random() * 900000).toString();
+    const code = dto.code?.trim()
+      ? dto.code
+      : 'ENT-' + Math.floor(100000 + Math.random() * 900000).toString();
 
     // Verify unique code
     const existing = await this.prisma.enterprise.findFirst({
@@ -378,14 +393,14 @@ export class AdminService {
     }
 
     return this.prisma.$transaction(async tx => {
-      const createData: any = {
+      const createData: Prisma.EnterpriseCreateInput = {
         code,
         name: dto.name,
-        license_tier: dto.license_tier || 'STARTER',
-        max_shops: dto.max_shops || 1,
-        max_users_per_shop: dto.max_users_per_shop || 5,
+        license_tier: dto.license_tier ?? 'STARTER',
+        max_shops: dto.max_shops ?? 1,
+        max_users_per_shop: dto.max_users_per_shop ?? 5,
         licensed_until: dto.licensed_until ? new Date(dto.licensed_until) : null,
-        logo_url: dto.logo_url || null,
+        logo_url: dto.logo_url ?? null,
       };
       if (dto.owner_id) {
         createData.owner = { connect: { id: dto.owner_id } };
@@ -504,32 +519,42 @@ export class AdminService {
       throw new NotFoundException('Entreprise non trouvee');
     }
 
-    const oldValue: any = {};
-    const updateData: any = {};
+    const oldValue: Prisma.JsonObject = {};
+    const newValue: Prisma.JsonObject = {};
+    const updateData: Prisma.EnterpriseUpdateInput = {};
 
     if (dto.name !== undefined) {
       oldValue.name = enterprise.name;
       updateData.name = dto.name;
+      newValue.name = dto.name;
     }
     if (dto.license_tier !== undefined) {
       oldValue.license_tier = enterprise.license_tier;
       updateData.license_tier = dto.license_tier;
+      newValue.license_tier = dto.license_tier;
     }
     if (dto.max_shops !== undefined) {
       oldValue.max_shops = enterprise.max_shops;
       updateData.max_shops = dto.max_shops;
+      newValue.max_shops = dto.max_shops;
     }
     if (dto.max_users_per_shop !== undefined) {
       oldValue.max_users_per_shop = enterprise.max_users_per_shop;
       updateData.max_users_per_shop = dto.max_users_per_shop;
+      newValue.max_users_per_shop = dto.max_users_per_shop;
     }
     if (dto.licensed_until !== undefined) {
-      oldValue.licensed_until = enterprise.licensed_until;
-      updateData.licensed_until = new Date(dto.licensed_until);
+      oldValue.licensed_until = enterprise.licensed_until
+        ? enterprise.licensed_until.toISOString()
+        : null;
+      const licensedUntil = new Date(dto.licensed_until);
+      updateData.licensed_until = licensedUntil;
+      newValue.licensed_until = licensedUntil.toISOString();
     }
     if (dto.logo_url !== undefined) {
       oldValue.logo_url = enterprise.logo_url;
       updateData.logo_url = dto.logo_url;
+      newValue.logo_url = dto.logo_url;
     }
 
     return this.prisma.$transaction(async tx => {
@@ -545,7 +570,7 @@ export class AdminService {
           entity_type: 'ENTERPRISE',
           entity_id: id,
           old_value: oldValue,
-          new_value: updateData,
+          new_value: newValue,
         },
       });
 
@@ -570,7 +595,7 @@ export class AdminService {
     // Refuse deletion if enterprise has active shops
     if (enterprise.shops.length > 0) {
       throw new BadRequestException(
-        `Impossible de supprimer cette entreprise : ${enterprise.shops.length} boutique(s) active(s). Supprimez ou reassignez les boutiques d'abord.`
+        `Impossible de supprimer cette entreprise : ${String(enterprise.shops.length)} boutique(s) active(s). Supprimez ou reassignez les boutiques d'abord.`
       );
     }
 
@@ -604,12 +629,12 @@ export class AdminService {
   // ============================================
 
   async createShopAdmin(adminId: string, dto: CreateShopAdminDto) {
-    // Generate shop code if not provided
-    let shopCode: string = dto.shop_code || '';
+    // Generate shop code if not provided (normalize defensively otherwise)
+    let shopCode: string = dto.shop_code ? normalizeShopCode(dto.shop_code) : '';
     if (!shopCode) {
       let isUnique = false;
       while (!isUnique) {
-        shopCode = Math.floor(100000 + Math.random() * 900000).toString();
+        shopCode = generateShopCode();
         const existing = await this.prisma.shop.findUnique({
           where: { code: shopCode },
         });
@@ -633,7 +658,9 @@ export class AdminService {
       throw new NotFoundException('Entreprise non trouvee');
     }
     if (enterprise._count.shops >= enterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${enterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(enterprise.max_shops)})`
+      );
     }
 
     return this.prisma.$transaction(async tx => {
@@ -654,7 +681,7 @@ export class AdminService {
         const owner = await tx.user.create({
           data: {
             display_name: dto.owner_name,
-            phone: dto.owner_phone || null,
+            phone: dto.owner_phone?.trim() ? dto.owner_phone : null,
             pin_code: ownerPin,
             is_active: true,
           },
@@ -662,15 +689,22 @@ export class AdminService {
         ownerId = owner.id;
       }
 
-      const shopData: any = {
+      // Une boutique requiert obligatoirement un propriétaire (owner_id en base)
+      if (!ownerId) {
+        throw new BadRequestException(
+          'Un propriétaire est requis : fournissez owner_id ou owner_name'
+        );
+      }
+
+      const shopData: Prisma.ShopCreateInput = {
         code: shopCode,
         name: dto.shop_name,
-        shop_type: dto.shop_type || 'BOUTIQUE',
-        address: dto.address || null,
-        phone: dto.phone || null,
-        email: dto.email || null,
-        currency: dto.currency || 'XOF',
-        enabled_modules: dto.enabled_modules || [
+        shop_type: dto.shop_type ?? 'BOUTIQUE',
+        address: dto.address?.trim() ? dto.address : null,
+        phone: dto.phone?.trim() ? dto.phone : null,
+        email: dto.email?.trim() ? dto.email : null,
+        currency: dto.currency?.trim() ? dto.currency : 'XOF',
+        enabled_modules: dto.enabled_modules ?? [
           'auth',
           'products',
           'customers',
@@ -678,24 +712,20 @@ export class AdminService {
           'cash',
           'inventory',
         ],
+        enterprise: { connect: { id: dto.enterprise_id } },
+        owner: { connect: { id: ownerId } },
       };
-      if (ownerId) {
-        shopData.owner = { connect: { id: ownerId } };
-      }
-      shopData.enterprise = { connect: { id: dto.enterprise_id } };
 
       const shop = await tx.shop.create({ data: shopData });
 
-      // Create OWNER role if we have an owner
-      if (ownerId) {
-        await tx.userRole.create({
-          data: {
-            user_id: ownerId,
-            shop_id: shop.id,
-            role: 'BOSS',
-          },
-        });
-      }
+      // Create OWNER role
+      await tx.userRole.create({
+        data: {
+          user_id: ownerId,
+          shop_id: shop.id,
+          role: 'BOSS',
+        },
+      });
 
       await tx.auditLog.create({
         data: {
@@ -719,7 +749,7 @@ export class AdminService {
           shop_type: shop.shop_type,
           enterprise_id: shop.enterprise_id,
         },
-        owner: ownerId ? { id: ownerId, pin_code: ownerPin } : null,
+        owner: { id: ownerId, pin_code: ownerPin },
       };
     });
   }
@@ -744,18 +774,25 @@ export class AdminService {
       max_users_per_shop: enterprise.max_users_per_shop,
     };
 
-    const updateData: any = {
+    const updateData: Prisma.EnterpriseUpdateInput = {
+      license_tier: dto.license_tier,
+    };
+    const newValue: Prisma.JsonObject = {
       license_tier: dto.license_tier,
     };
 
     if (dto.licensed_until) {
-      updateData.licensed_until = new Date(dto.licensed_until);
+      const licensedUntil = new Date(dto.licensed_until);
+      updateData.licensed_until = licensedUntil;
+      newValue.licensed_until = licensedUntil.toISOString();
     }
     if (dto.max_shops !== undefined) {
       updateData.max_shops = dto.max_shops;
+      newValue.max_shops = dto.max_shops;
     }
     if (dto.max_users_per_shop !== undefined) {
       updateData.max_users_per_shop = dto.max_users_per_shop;
+      newValue.max_users_per_shop = dto.max_users_per_shop;
     }
 
     return this.prisma.$transaction(async tx => {
@@ -793,7 +830,7 @@ export class AdminService {
           entity_type: 'ENTERPRISE',
           entity_id: enterpriseId,
           old_value: oldValue,
-          new_value: updateData,
+          new_value: newValue,
           reason: `Licence: ${oldValue.license_tier} -> ${dto.license_tier}`,
         },
       });
@@ -816,7 +853,9 @@ export class AdminService {
     }
 
     if (enterprise._count.shops >= enterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${enterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(enterprise.max_shops)})`
+      );
     }
 
     const shop = await this.prisma.shop.findUnique({
@@ -877,7 +916,9 @@ export class AdminService {
       throw new NotFoundException('Entreprise cible non trouvee');
     }
     if (newEnterprise._count.shops >= newEnterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${newEnterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(newEnterprise.max_shops)})`
+      );
     }
 
     return this.prisma.$transaction(async tx => {
@@ -906,11 +947,11 @@ export class AdminService {
   // ============================================
 
   async getGlobalUsers(params: { search?: string; role?: string; page?: number; limit?: number }) {
-    const page = params.page || 1;
-    const limit = params.limit || 20;
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: any = { deleted: false };
+    const where: Prisma.UserWhereInput = { deleted: false };
 
     if (params.search) {
       where.OR = [
@@ -1002,11 +1043,11 @@ export class AdminService {
         create: {
           key,
           value: dto.value,
-          description: dto.description || null,
+          description: dto.description?.trim() ? dto.description : null,
         },
         update: {
           value: dto.value,
-          description: dto.description !== undefined ? dto.description : undefined,
+          description: dto.description ?? undefined,
         },
       });
 
@@ -1062,15 +1103,16 @@ export class AdminService {
     start_date?: string;
     end_date?: string;
   }) {
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
+    const createdAt: Prisma.DateTimeFilter = {};
 
     if (filters.action) where.action = filters.action;
     if (filters.entity_type) where.entity_type = filters.entity_type;
 
     if (filters.start_date || filters.end_date) {
-      where.created_at = {};
-      if (filters.start_date) where.created_at.gte = new Date(filters.start_date);
-      if (filters.end_date) where.created_at.lte = new Date(filters.end_date);
+      if (filters.start_date) createdAt.gte = new Date(filters.start_date);
+      if (filters.end_date) createdAt.lte = new Date(filters.end_date);
+      where.created_at = createdAt;
     }
 
     const logs = await this.prisma.auditLog.findMany({
@@ -1087,8 +1129,8 @@ export class AdminService {
     const rows = logs
       .map(log => {
         const date = log.created_at.toISOString();
-        const admin = log.admin?.display_name || 'N/A';
-        const reason = (log.reason || '').replace(/"/g, '""');
+        const admin = log.admin.display_name ? log.admin.display_name : 'N/A';
+        const reason = (log.reason ?? '').replace(/"/g, '""');
         return `"${date}","${admin}","${log.action}","${log.entity_type}","${log.entity_id}","${reason}"`;
       })
       .join('\n');
@@ -1114,12 +1156,12 @@ export class AdminService {
       where: { key: 'license_tier_overrides' },
     });
 
-    const overrides: Record<string, LicenseTier> = {};
+    const overrides: Record<string, LicenseTier | undefined> = {};
     if (config) {
       try {
-        const parsed = JSON.parse(config.value);
+        const parsed: unknown = JSON.parse(config.value);
         if (Array.isArray(parsed)) {
-          for (const o of parsed) {
+          for (const o of parsed as { code: string; minimumLicenseTier: LicenseTier }[]) {
             overrides[o.code] = o.minimumLicenseTier;
           }
         }
@@ -1202,7 +1244,7 @@ export class AdminService {
         if (this.LICENSE_TIER_ORDER[o.minimumLicenseTier] < this.LICENSE_TIER_ORDER[depTier]) {
           const depDef = MODULE_DEFINITIONS.find(m => m.code === dep);
           throw new BadRequestException(
-            `"${def.name}" (${o.minimumLicenseTier}) ne peut pas être plus bas que sa dépendance "${depDef?.name || dep}" (${depTier})`
+            `"${def.name}" (${o.minimumLicenseTier}) ne peut pas être plus bas que sa dépendance "${depDef?.name ?? dep}" (${depTier})`
           );
         }
       }
@@ -1241,8 +1283,7 @@ export class AdminService {
       let shopsUpdated = 0;
       for (const shop of shops) {
         if (shop.enabled_modules.length === 0) continue; // [] = all allowed
-        const licenseTier = shop.enterprise?.license_tier as LicenseTier;
-        if (!licenseTier) continue;
+        const licenseTier = shop.enterprise.license_tier as LicenseTier;
 
         const tierLevel = this.LICENSE_TIER_ORDER[licenseTier];
         const allowedCodes = MODULE_DEFINITIONS.map(m => {

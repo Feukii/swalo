@@ -13,9 +13,10 @@ export default function LoginPin() {
   const hasAutoSubmittedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Auto-submit when PIN reaches 4 digits and shop code is complete
+  // Auto-submit when PIN is complete and the shop code respects the policy length
   useEffect(() => {
-    if (pin.length === 4 && shopCode.length === 6 && !isLoading && !hasAutoSubmittedRef.current) {
+    const isShopCodeValid = shopCode.length >= 4 && shopCode.length <= 10;
+    if (pin.length === 4 && isShopCodeValid && !isLoading && !hasAutoSubmittedRef.current) {
       hasAutoSubmittedRef.current = true;
       // Trigger form submission programmatically
       formRef.current?.requestSubmit();
@@ -33,7 +34,7 @@ export default function LoginPin() {
     e.preventDefault();
 
     // Validation
-    if (shopCode.length !== 6) {
+    if (shopCode.length < 4 || shopCode.length > 10) {
       return;
     }
 
@@ -53,7 +54,10 @@ export default function LoginPin() {
   };
 
   const handleShopCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+    const value = e.target.value
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 10);
     setShopCode(value);
   };
 
@@ -87,16 +91,16 @@ export default function LoginPin() {
               {/* Code Boutique */}
               <div className="mb-5">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Code Boutique (6 chiffres)
+                  Code Boutique
                 </label>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
                   value={shopCode}
                   onChange={handleShopCodeChange}
-                  placeholder="123456"
-                  maxLength={6}
+                  placeholder="BTQ01"
+                  maxLength={10}
                   autoFocus
                   disabled={isLoading}
                   className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -131,7 +135,9 @@ export default function LoginPin() {
               {/* Bouton de connexion */}
               <button
                 type="submit"
-                disabled={isLoading || shopCode.length !== 6 || pin.length !== 4}
+                disabled={
+                  isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4
+                }
                 className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isLoading ? (

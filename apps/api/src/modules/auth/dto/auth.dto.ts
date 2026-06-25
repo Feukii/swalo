@@ -1,4 +1,13 @@
-import { IsString, IsEmail, IsOptional, MinLength, IsUUID, Length } from 'class-validator';
+import { IsString, IsEmail, IsOptional, MinLength, IsUUID, Length, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { SHOP_CODE_REGEX, normalizeShopCode } from '@swalo/core/schemas';
+
+/**
+ * Normalise un code boutique entrant (trim + majuscules) lors de la validation.
+ * Garantit que la casse est cohérente avant tout lookup en base.
+ */
+const transformShopCode = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? normalizeShopCode(value) : value;
 
 export class RegisterDto {
   @IsEmail()
@@ -15,7 +24,12 @@ export class RegisterDto {
   @IsString()
   display_name: string;
 
+  @Transform(transformShopCode)
   @IsString()
+  @Length(4, 10, { message: 'Le code boutique doit contenir entre 4 et 10 caractères' })
+  @Matches(SHOP_CODE_REGEX, {
+    message: 'Le code boutique ne peut contenir que des lettres majuscules et des chiffres',
+  })
   shop_code: string;
 
   @IsString()
@@ -44,8 +58,12 @@ export class RefreshTokenDto {
 }
 
 export class PinLoginDto {
+  @Transform(transformShopCode)
   @IsString()
-  @Length(6, 6, { message: 'Le code boutique doit contenir exactement 6 chiffres' })
+  @Length(4, 10, { message: 'Le code boutique doit contenir entre 4 et 10 caractères' })
+  @Matches(SHOP_CODE_REGEX, {
+    message: 'Le code boutique ne peut contenir que des lettres majuscules et des chiffres',
+  })
   shop_code: string;
 
   @IsString()
