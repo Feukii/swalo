@@ -18,7 +18,7 @@ export default defineConfig({
         name: 'SWALO - Gestion de Boutique',
         short_name: 'SWALO',
         description: 'SWALO — mini-ERP de gestion de boutique',
-        theme_color: '#0F2A44',
+        theme_color: '#102A43',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
