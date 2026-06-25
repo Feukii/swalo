@@ -133,7 +133,7 @@ export default function AdminConfig() {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
-      <h1 className="text-3xl font-bold mb-8">⚙️ Configuration Système</h1>
+      <h1 className="text-3xl font-bold text-primary-900 mb-8">⚙️ Configuration Système</h1>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -142,9 +142,9 @@ export default function AdminConfig() {
       )}
 
       {/* Configuration Section */}
-      <section className="bg-white rounded-lg shadow-md p-6 mb-8">
+      <section className="bg-white rounded-2xl shadow-card p-6 mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">📋 Paramètres de Configuration</h2>
+          <h2 className="text-xl font-semibold text-primary-900">📋 Paramètres de Configuration</h2>
           <button
             onClick={handleAdd}
             className="bg-action-500 hover:bg-action-600 text-white px-4 py-2 rounded-lg transition"
@@ -155,33 +155,33 @@ export default function AdminConfig() {
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left p-3 font-semibold">Clé</th>
-                <th className="text-left p-3 font-semibold">Valeur</th>
-                <th className="text-left p-3 font-semibold">Description</th>
-                <th className="text-left p-3 font-semibold">Dernière mise à jour</th>
-                <th className="text-right p-3 font-semibold">Actions</th>
+                <th className="text-left p-3 font-semibold text-slate-700">Clé</th>
+                <th className="text-left p-3 font-semibold text-slate-700">Valeur</th>
+                <th className="text-left p-3 font-semibold text-slate-700">Description</th>
+                <th className="text-left p-3 font-semibold text-slate-700">Dernière mise à jour</th>
+                <th className="text-right p-3 font-semibold text-slate-700">Actions</th>
               </tr>
             </thead>
             <tbody>
               {configs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center p-8 text-gray-500">
+                  <td colSpan={5} className="text-center p-8 text-slate-500">
                     Aucune configuration définie
                   </td>
                 </tr>
               ) : (
                 configs.map(config => (
-                  <tr key={config.key} className="border-b hover:bg-gray-50">
+                  <tr key={config.key} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="p-3 font-mono text-sm">{config.key}</td>
                     <td className="p-3 text-sm">{config.value}</td>
-                    <td className="p-3 text-sm text-gray-600">{config.description || '-'}</td>
-                    <td className="p-3 text-sm text-gray-500">{formatDate(config.updated_at)}</td>
+                    <td className="p-3 text-sm text-slate-600">{config.description || '-'}</td>
+                    <td className="p-3 text-sm text-slate-500">{formatDate(config.updated_at)}</td>
                     <td className="p-3 text-right">
                       <button
                         onClick={() => handleEdit(config)}
-                        className="text-blue-600 hover:text-blue-800 mr-3"
+                        className="text-action-600 hover:text-action-700 mr-3"
                         title="Modifier"
                       >
                         ✏️
@@ -203,8 +203,8 @@ export default function AdminConfig() {
       </section>
 
       {/* Audit Log Export Section */}
-      <section className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">📊 Export Logs d'Audit</h2>
+      <section className="bg-white rounded-2xl shadow-card p-6">
+        <h2 className="text-xl font-semibold text-primary-900 mb-4">📊 Export Logs d'Audit</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
@@ -214,7 +214,7 @@ export default function AdminConfig() {
               value={auditFilters.action || ''}
               onChange={e => setAuditFilters({ ...auditFilters, action: e.target.value })}
               placeholder="CREATE, UPDATE, DELETE..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -225,7 +225,7 @@ export default function AdminConfig() {
               value={auditFilters.entity_type || ''}
               onChange={e => setAuditFilters({ ...auditFilters, entity_type: e.target.value })}
               placeholder="Customer, Sale, Product..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -235,7 +235,7 @@ export default function AdminConfig() {
               type="date"
               value={auditFilters.start_date || ''}
               onChange={e => setAuditFilters({ ...auditFilters, start_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -245,7 +245,7 @@ export default function AdminConfig() {
               type="date"
               value={auditFilters.end_date || ''}
               onChange={e => setAuditFilters({ ...auditFilters, end_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -264,8 +264,8 @@ export default function AdminConfig() {
       {/* Add/Edit Modal */}
       {(showAddModal || editingKey) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">
+          <div className="bg-white rounded-2xl shadow-elevated p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-primary-900 mb-4">
               {showAddModal ? '➕ Ajouter une configuration' : '✏️ Modifier la configuration'}
             </h3>
 
@@ -285,7 +285,7 @@ export default function AdminConfig() {
                   value={formKey}
                   onChange={e => setFormKey(e.target.value)}
                   disabled={!!editingKey}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent font-mono disabled:bg-gray-100"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent font-mono disabled:bg-slate-100"
                   placeholder="ex: max_upload_size"
                 />
               </div>
@@ -298,7 +298,7 @@ export default function AdminConfig() {
                   type="text"
                   value={formValue}
                   onChange={e => setFormValue(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
                   placeholder="ex: 10485760"
                 />
               </div>
@@ -308,7 +308,7 @@ export default function AdminConfig() {
                 <textarea
                   value={formDescription}
                   onChange={e => setFormDescription(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
                   rows={3}
                   placeholder="Description optionnelle..."
                 />
@@ -321,7 +321,7 @@ export default function AdminConfig() {
                   setShowAddModal(false);
                   setEditingKey(null);
                 }}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition"
               >
                 Annuler
               </button>
@@ -339,8 +339,8 @@ export default function AdminConfig() {
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">⚠️ Confirmer la suppression</h3>
+          <div className="bg-white rounded-2xl shadow-elevated p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold text-primary-900 mb-4">⚠️ Confirmer la suppression</h3>
             <p className="mb-6">
               Êtes-vous sûr de vouloir supprimer la configuration{' '}
               <span className="font-mono font-bold">{deleteConfirm}</span> ?
@@ -348,7 +348,7 @@ export default function AdminConfig() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+                className="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition"
               >
                 Annuler
               </button>

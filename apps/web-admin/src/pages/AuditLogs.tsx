@@ -90,12 +90,12 @@ export default function AuditLogs() {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Logs d'audit</h1>
-          <p className="text-gray-600 mt-1">Historique de toutes les actions administratives</p>
+          <h1 className="text-2xl font-bold text-primary-900">Logs d'audit</h1>
+          <p className="text-slate-600 mt-1">Historique de toutes les actions administratives</p>
         </div>
         <button
           onClick={() => navigate('/')}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+          className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 text-sm"
         >
           Retour au dashboard
         </button>
@@ -109,7 +109,7 @@ export default function AuditLogs() {
             setFilterAction(e.target.value);
             setPage(1);
           }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
         >
           <option value="">Toutes les actions</option>
           {Object.entries(ACTION_LABELS).map(([key, label]) => (
@@ -124,7 +124,7 @@ export default function AuditLogs() {
             setFilterEntityType(e.target.value);
             setPage(1);
           }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
         >
           <option value="">Tous les types</option>
           {Object.entries(ENTITY_LABELS).map(([key, label]) => (
@@ -134,7 +134,7 @@ export default function AuditLogs() {
           ))}
         </select>
         {response && (
-          <span className="text-sm text-gray-500 self-center ml-auto">
+          <span className="text-sm text-slate-500 self-center ml-auto">
             {response.total} resultats
           </span>
         )}
@@ -143,41 +143,41 @@ export default function AuditLogs() {
       {/* Table */}
       {isLoading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#102A43] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-action-500 mx-auto"></div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Date
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Admin
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Action
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Entite
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Raison
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Details
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {response?.data.map(log => (
                 <>
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                  <tr key={log.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-xs text-slate-500">
                       {formatDate(log.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{log.admin.display_name}</td>
+                    <td className="px-4 py-3 text-sm text-primary-900">{log.admin.display_name}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
@@ -185,24 +185,24 @@ export default function AuditLogs() {
                             ? 'bg-red-100 text-red-800'
                             : log.action.startsWith('UNBLOCK')
                               ? 'bg-green-100 text-green-800'
-                              : 'bg-blue-100 text-blue-800'
+                              : 'bg-action-50 text-action-600'
                         }`}
                       >
                         {ACTION_LABELS[log.action] || log.action}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-slate-600">
                       {ENTITY_LABELS[log.entity_type] || log.entity_type}
-                      <span className="text-xs text-gray-400 ml-1">
+                      <span className="text-xs text-slate-400 ml-1">
                         ({log.entity_id.slice(0, 8)}...)
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{log.reason || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{log.reason || '-'}</td>
                     <td className="px-4 py-3">
                       {(log.old_value || log.new_value) && (
                         <button
                           onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
-                          className="text-xs text-blue-600 hover:underline"
+                          className="text-xs text-action-600 hover:underline"
                         >
                           {expandedId === log.id ? 'Masquer' : 'Voir'}
                         </button>
@@ -211,20 +211,20 @@ export default function AuditLogs() {
                   </tr>
                   {expandedId === log.id && (
                     <tr key={`${log.id}-details`}>
-                      <td colSpan={6} className="px-4 py-3 bg-gray-50">
+                      <td colSpan={6} className="px-4 py-3 bg-slate-50">
                         <div className="grid grid-cols-2 gap-4 text-xs">
                           {log.old_value && (
                             <div>
-                              <div className="font-semibold text-gray-700 mb-1">Avant</div>
-                              <pre className="bg-white p-2 rounded border text-gray-600 overflow-auto max-h-32">
+                              <div className="font-semibold text-slate-700 mb-1">Avant</div>
+                              <pre className="bg-white p-2 rounded border border-slate-200 text-slate-600 overflow-auto max-h-32">
                                 {JSON.stringify(log.old_value, null, 2)}
                               </pre>
                             </div>
                           )}
                           {log.new_value && (
                             <div>
-                              <div className="font-semibold text-gray-700 mb-1">Apres</div>
-                              <pre className="bg-white p-2 rounded border text-gray-600 overflow-auto max-h-32">
+                              <div className="font-semibold text-slate-700 mb-1">Apres</div>
+                              <pre className="bg-white p-2 rounded border border-slate-200 text-slate-600 overflow-auto max-h-32">
                                 {JSON.stringify(log.new_value, null, 2)}
                               </pre>
                             </div>
@@ -237,7 +237,7 @@ export default function AuditLogs() {
               ))}
               {response?.data.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                     Aucun log d'audit
                   </td>
                 </tr>
@@ -253,17 +253,17 @@ export default function AuditLogs() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50"
+            className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
           >
             Precedent
           </button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-slate-600">
             Page {response.page} / {response.totalPages}
           </span>
           <button
             onClick={() => setPage(p => Math.min(response.totalPages, p + 1))}
             disabled={page === response.totalPages}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg disabled:opacity-50"
+            className="px-3 py-1 text-sm border border-slate-300 rounded-lg disabled:opacity-50"
           >
             Suivant
           </button>

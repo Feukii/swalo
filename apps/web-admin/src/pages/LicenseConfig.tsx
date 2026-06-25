@@ -139,7 +139,7 @@ export default function LicenseConfig() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-2xl mb-2">&#9203;</div>
-          <p className="text-gray-600">Chargement de la configuration des licences...</p>
+          <p className="text-slate-600">Chargement de la configuration des licences...</p>
         </div>
       </div>
     );
@@ -161,12 +161,12 @@ export default function LicenseConfig() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-canvas p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configuration des Licences</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-bold text-primary-900 mb-2">Configuration des Licences</h1>
+          <p className="text-slate-600">
             Definir quel tier de licence est requis pour chaque module
           </p>
         </div>
@@ -230,7 +230,7 @@ export default function LicenseConfig() {
             className={`px-6 py-2 rounded-lg font-medium transition-colors ${
               hasChanges && !saving
                 ? 'bg-action-500 text-white hover:bg-action-600'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
             }`}
           >
             {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
@@ -238,7 +238,7 @@ export default function LicenseConfig() {
           {hasChanges && (
             <button
               onClick={handleReset}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Annuler les modifications
             </button>
@@ -249,12 +249,12 @@ export default function LicenseConfig() {
         {(['CORE', 'EXTENDED', 'PREMIUM'] as const).map(groupTier => (
           <div key={groupTier} className="mb-6">
             <div className={`rounded-lg border ${MODULE_TIER_COLORS[groupTier]} overflow-hidden`}>
-              <div className="px-4 py-3 border-b font-semibold text-gray-900">
+              <div className="px-4 py-3 border-b border-slate-200 font-semibold text-primary-900">
                 {TIER_LABELS[groupTier]} ({groupedModules[groupTier].length} modules)
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-xs text-gray-600 uppercase border-b">
+                  <tr className="text-left text-xs text-slate-600 uppercase border-b border-slate-200">
                     <th className="px-4 py-2">Module</th>
                     <th className="px-4 py-2">Description</th>
                     <th className="px-4 py-2">Dependances</th>
@@ -269,36 +269,36 @@ export default function LicenseConfig() {
                     const isChanged = originalDef && currentTier !== originalDef.minimumLicenseTier;
 
                     return (
-                      <tr key={m.code} className="border-b last:border-b-0 hover:bg-white/50">
+                      <tr key={m.code} className="border-b border-slate-200 last:border-b-0 hover:bg-white/50">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">{m.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">{m.code}</div>
+                          <div className="font-medium text-primary-900">{m.name}</div>
+                          <div className="text-xs text-slate-500 font-mono">{m.code}</div>
                           {m.overridden && (
                             <span className="text-xs text-orange-600 font-medium">
                               (personnalise)
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{m.description}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{m.description}</td>
                         <td className="px-4 py-3">
                           {m.dependencies.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {m.dependencies.map(dep => (
                                 <span
                                   key={dep}
-                                  className="text-xs px-1.5 py-0.5 bg-gray-200 rounded"
+                                  className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded"
                                 >
                                   {dep}
                                 </span>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">-</span>
+                            <span className="text-xs text-slate-400">-</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           {isCore ? (
-                            <span className="px-3 py-1 text-xs font-medium rounded bg-gray-200 text-gray-600">
+                            <span className="px-3 py-1 text-xs font-medium rounded bg-slate-200 text-slate-600">
                               STARTER (fixe)
                             </span>
                           ) : (
@@ -307,7 +307,7 @@ export default function LicenseConfig() {
                                 value={currentTier}
                                 onChange={e => handleTierChange(m.code, e.target.value)}
                                 className={`px-3 py-1 text-sm border rounded-lg focus:ring-2 focus:ring-action-500 ${
-                                  isChanged ? 'border-orange-400 bg-orange-50' : 'border-gray-300'
+                                  isChanged ? 'border-orange-400 bg-orange-50' : 'border-slate-300'
                                 }`}
                               >
                                 {TIER_OPTIONS.map(t => (

@@ -42,16 +42,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-primary-900 border-r border-primary-800 transition-all duration-300 ease-in-out flex flex-col`}
+        } bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col`}
       >
         {/* Logo & Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-primary-800">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
           {sidebarOpen ? (
             <>
-              <Logo variant="full" size="sm" tone="light" />
+              <Logo variant="full" size="sm" tone="marine" />
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg text-primary-100 hover:bg-primary-800 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-action-50 hover:text-action-600 transition-colors"
               >
                 ◀
               </button>
@@ -59,9 +59,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-primary-800 transition-colors mx-auto"
+              className="p-1.5 rounded-lg hover:bg-action-50 transition-colors mx-auto"
             >
-              <Logo variant="icon" size="sm" tone="light" />
+              <Logo variant="icon" size="sm" tone="marine" />
             </button>
           )}
         </div>
@@ -77,14 +77,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   sidebarOpen ? 'px-3' : 'px-2 justify-center'
                 } py-3 rounded-lg transition-all duration-200 group relative ${
                   isActive(item.path)
-                    ? 'bg-action-500 text-white font-medium shadow-sm'
-                    : 'text-primary-100 hover:bg-primary-800 hover:text-white'
+                    ? 'bg-action-50 text-action-600 font-medium'
+                    : 'text-slate-600 hover:bg-action-50 hover:text-action-600'
                 }`}
               >
-                <span className="text-xl">{item.icon}</span>
+                <span
+                  className={`text-xl ${isActive(item.path) ? 'text-action-600' : 'text-action-500'}`}
+                >
+                  {item.icon}
+                </span>
                 {sidebarOpen && <span className="ml-3 text-sm">{item.name}</span>}
                 {!sidebarOpen && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-primary-950 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-primary-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                     {item.name}
                   </div>
                 )}
@@ -94,23 +98,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* User */}
-        <div className="border-t border-primary-800 p-4">
+        <div className="border-t border-slate-200 p-4">
           {sidebarOpen ? (
             <div className="space-y-3">
-              <div className="flex items-center space-x-3 rounded-lg bg-primary-800 p-2">
+              <div className="flex items-center space-x-3 rounded-lg bg-slate-50 p-2">
                 <div className="w-10 h-10 rounded-full bg-action-500 flex items-center justify-center text-white font-medium">
                   {user?.display_name?.charAt(0) || 'A'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-primary-900 truncate">
                     {user?.display_name || 'Administrateur'}
                   </p>
-                  <p className="text-xs text-primary-300 truncate">SUPERADMIN</p>
+                  <p className="text-xs text-slate-500 truncate">SUPERADMIN</p>
                 </div>
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full btn btn-sm bg-primary-800 text-primary-100 hover:bg-primary-700 hover:text-white flex items-center justify-center space-x-2"
+                className="w-full btn btn-sm bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center space-x-2"
               >
                 <span>🚪</span>
                 <span>Deconnexion</span>
@@ -119,7 +123,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <button
               onClick={handleLogout}
-              className="w-full p-2 rounded-lg text-primary-100 hover:bg-primary-800 transition-colors flex items-center justify-center"
+              className="w-full p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors flex items-center justify-center"
               title="Deconnexion"
             >
               <span className="text-xl">🚪</span>
@@ -131,12 +135,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-primary-900">
               {navItems.find(item => isActive(item.path))?.name || 'Swalo Admin'}
             </h1>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-slate-500">
               {new Date().toLocaleDateString('fr-FR', {
                 weekday: 'long',
                 year: 'numeric',
@@ -146,7 +150,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="badge bg-action-100 text-action-800">Plateforme Admin</span>
+            <span className="badge bg-action-50 text-action-600">Plateforme Admin</span>
           </div>
         </header>
 

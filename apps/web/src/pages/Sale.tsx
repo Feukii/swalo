@@ -395,12 +395,12 @@ export default function Sale() {
         {/* ================================================================
             LEFT SIDE - Product grid (2/3)
             ================================================================ */}
-        <div className="w-2/3 flex flex-col border-r border-gray-200">
+        <div className="w-2/3 flex flex-col border-r border-slate-200">
           {/* Search bar + category filter */}
-          <div className="p-4 border-b border-gray-200 bg-white space-y-3">
+          <div className="p-4 border-b border-slate-200 bg-white space-y-3">
             <div className="relative">
               <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -427,8 +427,8 @@ export default function Sale() {
                   onClick={() => setSelectedCategory('')}
                   className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                     selectedCategory === ''
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-action-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Toutes
@@ -439,8 +439,8 @@ export default function Sale() {
                     onClick={() => setSelectedCategory(selectedCategory === cat ? '' : cat)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                       selectedCategory === cat
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-action-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {cat}
@@ -451,13 +451,13 @@ export default function Sale() {
           </div>
 
           {/* Products grid */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 bg-canvas">
             {productsLoading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="w-10 h-10 spinner" />
               </div>
             ) : products.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+              <div className="flex flex-col items-center justify-center h-64 text-slate-400">
                 <svg
                   className="w-16 h-16 mb-4"
                   fill="none"
@@ -492,15 +492,15 @@ export default function Sale() {
                       disabled={isOutOfStock}
                       className={`relative flex flex-col items-start p-3 rounded-xl border text-left transition-all duration-150 ${
                         isOutOfStock
-                          ? 'bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed'
+                          ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
                           : inCartQty > 0
-                            ? 'bg-primary-50 border-primary-300 shadow-sm hover:shadow-md'
-                            : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-sm'
+                            ? 'bg-action-50 border-action-300 shadow-sm hover:shadow-md'
+                            : 'bg-white border-slate-200 hover:border-action-300 hover:shadow-sm'
                       }`}
                     >
                       {/* Cart qty badge */}
                       {inCartQty > 0 && (
-                        <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary-600 text-white text-xs font-bold flex items-center justify-center shadow">
+                        <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-action-500 text-white text-xs font-bold flex items-center justify-center shadow">
                           {inCartQty}
                         </span>
                       )}
@@ -512,10 +512,10 @@ export default function Sale() {
                         </span>
                       )}
 
-                      <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight">
+                      <p className="text-sm font-semibold text-slate-900 line-clamp-2 leading-tight">
                         {product.name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{product.sku}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{product.sku}</p>
 
                       <div className="mt-auto pt-2 w-full">
                         {product.is_multi_price ? (
@@ -524,7 +524,7 @@ export default function Sale() {
                             {formatFCFA(product.price_max ?? product.sell_price)}
                           </p>
                         ) : (
-                          <p className="text-sm font-bold text-primary-700">
+                          <p className="text-sm font-bold text-action-700">
                             {formatFCFA(product.sell_price)}
                           </p>
                         )}
@@ -551,10 +551,10 @@ export default function Sale() {
             ================================================================ */}
         <div className="w-1/3 flex flex-col bg-white">
           {/* Cart header */}
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <svg
-                className="w-5 h-5 text-primary-600"
+                className="w-5 h-5 text-action-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -566,7 +566,7 @@ export default function Sale() {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
                 />
               </svg>
-              <h2 className="text-lg font-semibold text-gray-900">Panier</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Panier</h2>
             </div>
             {cart.length > 0 && (
               <span className="badge-primary">
@@ -578,7 +578,7 @@ export default function Sale() {
           {/* Cart items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
                 <svg
                   className="w-12 h-12 mb-3"
                   fill="none"
@@ -599,14 +599,16 @@ export default function Sale() {
               cart.map((item, index) => (
                 <div
                   key={`${item.productId}_${item.batchId ?? 'default'}_${index}`}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 animate-slide-in"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50 animate-slide-in"
                 >
                   {/* Product info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {item.productName}
+                    </p>
+                    <p className="text-xs text-slate-500">
                       {formatFCFA(item.unitPrice)} x {item.qty} ={' '}
-                      <span className="font-semibold text-gray-700">
+                      <span className="font-semibold text-slate-700">
                         {formatFCFA(item.unitPrice * item.qty)}
                       </span>
                     </p>
@@ -616,7 +618,7 @@ export default function Sale() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => updateQty(index, -1)}
-                      className="w-7 h-7 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 transition-colors"
+                      className="w-7 h-7 rounded-md bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-700 transition-colors"
                     >
                       <svg
                         className="w-3.5 h-3.5"
@@ -632,12 +634,12 @@ export default function Sale() {
                         />
                       </svg>
                     </button>
-                    <span className="w-8 text-center text-sm font-semibold text-gray-900">
+                    <span className="w-8 text-center text-sm font-semibold text-slate-900">
                       {item.qty}
                     </span>
                     <button
                       onClick={() => updateQty(index, 1)}
-                      className="w-7 h-7 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 transition-colors"
+                      className="w-7 h-7 rounded-md bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-700 transition-colors"
                     >
                       <svg
                         className="w-3.5 h-3.5"
@@ -675,10 +677,10 @@ export default function Sale() {
           </div>
 
           {/* Cart footer: customer, payment, total, validate */}
-          <div className="border-t border-gray-200 p-4 space-y-4 bg-white">
+          <div className="border-t border-slate-200 p-4 space-y-4 bg-white">
             {/* Customer select */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Client</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Client</label>
               <select
                 value={selectedCustomerId}
                 onChange={e => setSelectedCustomerId(e.target.value)}
@@ -696,7 +698,7 @@ export default function Sale() {
 
             {/* Payment method */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-slate-500 mb-1">
                 Mode de paiement
               </label>
               <div className="flex gap-2">
@@ -704,8 +706,8 @@ export default function Sale() {
                   onClick={() => setPaymentMethod('cash')}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-colors ${
                     paymentMethod === 'cash'
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      ? 'border-action-500 bg-action-50 text-action-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                   }`}
                 >
                   Especes
@@ -715,10 +717,10 @@ export default function Sale() {
                   disabled={!selectedCustomerId}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-colors ${
                     paymentMethod === 'credit'
-                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      ? 'border-action-500 bg-action-50 text-action-700'
                       : !selectedCustomerId
-                        ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                   }`}
                 >
                   Credit
@@ -732,9 +734,9 @@ export default function Sale() {
             </div>
 
             {/* Total */}
-            <div className="bg-gray-50 rounded-xl p-4 text-center">
-              <p className="text-xs text-gray-500 mb-1">Total</p>
-              <p className="text-3xl font-bold text-gray-900">{formatFCFA(cartTotal)}</p>
+            <div className="bg-slate-50 rounded-xl p-4 text-center">
+              <p className="text-xs text-slate-500 mb-1">Total</p>
+              <p className="text-3xl font-bold text-slate-900">{formatFCFA(cartTotal)}</p>
             </div>
 
             {/* Validate button */}
@@ -743,7 +745,7 @@ export default function Sale() {
               disabled={cart.length === 0 || submitting}
               className={`w-full py-3 rounded-xl text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                 cart.length === 0 || submitting
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   : 'bg-success-600 text-white hover:bg-success-700 shadow-sm hover:shadow-md'
               }`}
             >
@@ -808,7 +810,7 @@ export default function Sale() {
 
             {/* Modal body */}
             <div className="p-6 space-y-3 max-h-80 overflow-y-auto">
-              <p className="text-sm text-gray-500 mb-3">
+              <p className="text-sm text-slate-500 mb-3">
                 Ce produit a plusieurs prix actifs. Selectionnez le prix applicable.
               </p>
 
@@ -817,25 +819,25 @@ export default function Sale() {
                   <div className="w-8 h-8 spinner" />
                 </div>
               ) : priceOptions.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Aucun prix disponible.</p>
+                <p className="text-sm text-slate-400 text-center py-4">Aucun prix disponible.</p>
               ) : (
                 priceOptions.map((option, idx) => (
                   <button
                     key={idx}
                     onClick={() => handlePriceSelection(option)}
-                    className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-primary-300 hover:bg-primary-50 transition-all text-left"
+                    className="w-full flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-action-300 hover:bg-action-50 transition-all text-left"
                   >
                     <div>
-                      <p className="text-lg font-bold text-primary-700">
+                      <p className="text-lg font-bold text-action-700">
                         {formatFCFA(option.sell_price)}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         {option.available_qty} unite{option.available_qty > 1 ? 's' : ''} disponible
                         {option.available_qty > 1 ? 's' : ''}
                       </p>
                     </div>
                     <svg
-                      className="w-5 h-5 text-gray-300"
+                      className="w-5 h-5 text-slate-300"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"

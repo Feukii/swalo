@@ -102,9 +102,9 @@ export default function Receivables() {
       case 'PAID':
         return <span className="badge badge-success">Payee</span>;
       case 'CANCELLED':
-        return <span className="badge bg-gray-100 text-gray-600">Annulee</span>;
+        return <span className="badge bg-slate-100 text-slate-600">Annulee</span>;
       default:
-        return <span className="badge bg-gray-100 text-gray-600">{status}</span>;
+        return <span className="badge bg-slate-100 text-slate-600">{status}</span>;
     }
   };
 
@@ -177,16 +177,16 @@ export default function Receivables() {
             <p className="text-3xl font-bold mt-1">{formatCurrency(stats.totalReceivable)}</p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">Actives</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalCount}</p>
+            <p className="text-slate-500 text-sm">Actives</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalCount}</p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">En attente</p>
+            <p className="text-slate-500 text-sm">En attente</p>
             <p className="text-3xl font-bold text-warning-600 mt-1">{stats.pendingCount}</p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">Partielles</p>
-            <p className="text-3xl font-bold text-info-600 mt-1">{stats.partialCount}</p>
+            <p className="text-slate-500 text-sm">Partielles</p>
+            <p className="text-3xl font-bold text-action-600 mt-1">{stats.partialCount}</p>
           </div>
         </div>
       )}
@@ -231,7 +231,7 @@ export default function Receivables() {
 
       {/* List */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Creances clients</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Creances clients</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -239,7 +239,7 @@ export default function Receivables() {
           </div>
         ) : receivables.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">Aucune creance trouvee</p>
+            <p className="text-slate-500">Aucune creance trouvee</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -250,19 +250,19 @@ export default function Receivables() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="font-medium text-gray-900">{getCustomerName(r.customer)}</p>
+                        <p className="font-medium text-slate-900">{getCustomerName(r.customer)}</p>
                         {getStatusBadge(r.status)}
                       </div>
                       {r.description && (
-                        <p className="text-sm text-gray-500 truncate">{r.description}</p>
+                        <p className="text-sm text-slate-500 truncate">{r.description}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-slate-400 mt-1">
                         Creee le {formatDate(r.created_at)}
                         {r.due_date && ` - Echeance: ${formatDate(r.due_date)}`}
                       </p>
                     </div>
                     <div className="ml-4 text-right">
-                      <p className="text-lg font-bold text-gray-900">{formatCurrency(r.amount)}</p>
+                      <p className="text-lg font-bold text-slate-900">{formatCurrency(r.amount)}</p>
                       {remaining > 0 && remaining < r.amount && (
                         <p className="text-sm text-warning-600">
                           Reste: {formatCurrency(remaining)}
@@ -272,7 +272,7 @@ export default function Receivables() {
                   </div>
                   {/* Actions */}
                   {(r.status === 'PENDING' || r.status === 'PARTIAL') && (
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button
                         onClick={() => {
                           setPaymentModal(r);
@@ -324,7 +324,7 @@ export default function Receivables() {
             </div>
             <form onSubmit={handleCreateReceivable} className="p-6 space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Client <span className="text-danger-500">*</span>
                 </label>
                 <select
@@ -342,7 +342,7 @@ export default function Receivables() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Montant (FCFA) <span className="text-danger-500">*</span>
                 </label>
                 <input
@@ -355,7 +355,7 @@ export default function Receivables() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Description</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Description</label>
                 <textarea
                   value={createForm.description}
                   onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
@@ -364,7 +364,7 @@ export default function Receivables() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Date echeance
                 </label>
                 <input
@@ -374,7 +374,7 @@ export default function Receivables() {
                   className="input"
                 />
               </div>
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -419,16 +419,16 @@ export default function Receivables() {
               </div>
             </div>
             <form onSubmit={handleAddPayment} className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm text-gray-500 mb-1">Reste a payer</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="bg-slate-50 rounded-xl p-4 text-center">
+                <p className="text-sm text-slate-500 mb-1">Reste a payer</p>
+                <p className="text-2xl font-bold text-slate-900">
                   {formatCurrency(
                     paymentModal.remaining ?? paymentModal.amount - (paymentModal.paid_amount || 0)
                   )}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Montant du paiement (FCFA) <span className="text-danger-500">*</span>
                 </label>
                 <input
@@ -442,7 +442,7 @@ export default function Receivables() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Note</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Note</label>
                 <input
                   type="text"
                   value={paymentNote}
@@ -451,7 +451,7 @@ export default function Receivables() {
                   placeholder="Note optionnelle..."
                 />
               </div>
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setPaymentModal(null)}
@@ -472,7 +472,7 @@ export default function Receivables() {
       {detailView && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-t-3xl">
+            <div className="px-6 py-5 bg-gradient-to-r from-sky-400 via-action-500 to-action-600 text-white rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold">Detail creance</h2>
                 <button
@@ -493,19 +493,19 @@ export default function Receivables() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Client</p>
+                  <p className="text-sm text-slate-500">Client</p>
                   <p className="font-medium">{getCustomerName(detailView.customer)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Statut</p>
+                  <p className="text-sm text-slate-500">Statut</p>
                   {getStatusBadge(detailView.status)}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Montant total</p>
+                  <p className="text-sm text-slate-500">Montant total</p>
                   <p className="font-bold text-lg">{formatCurrency(detailView.amount)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Deja paye</p>
+                  <p className="text-sm text-slate-500">Deja paye</p>
                   <p className="font-bold text-lg text-success-600">
                     {formatCurrency(detailView.paid_amount || 0)}
                   </p>
@@ -513,26 +513,26 @@ export default function Receivables() {
               </div>
               {detailView.description && (
                 <div>
-                  <p className="text-sm text-gray-500">Description</p>
-                  <p className="text-gray-700">{detailView.description}</p>
+                  <p className="text-sm text-slate-500">Description</p>
+                  <p className="text-slate-700">{detailView.description}</p>
                 </div>
               )}
               {detailView.payments && detailView.payments.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-gray-500 mb-2">Historique paiements</p>
+                  <p className="text-sm font-medium text-slate-500 mb-2">Historique paiements</p>
                   <div className="space-y-2">
                     {detailView.payments.map(p => (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
                       >
                         <div>
                           <p className="text-sm font-medium text-success-600">
                             +{formatCurrency(p.amount)}
                           </p>
-                          {p.note && <p className="text-xs text-gray-500">{p.note}</p>}
+                          {p.note && <p className="text-xs text-slate-500">{p.note}</p>}
                         </div>
-                        <p className="text-xs text-gray-400">{formatDate(p.created_at)}</p>
+                        <p className="text-xs text-slate-400">{formatDate(p.created_at)}</p>
                       </div>
                     ))}
                   </div>

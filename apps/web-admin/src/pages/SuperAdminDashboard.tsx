@@ -146,14 +146,14 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between rounded-2xl bg-gradient-to-br from-action-500 to-action-600 p-6 text-white shadow-card">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Administration Systeme</h1>
-          <p className="text-gray-600 mt-1">Gestion des boutiques, utilisateurs et entreprises</p>
+          <h1 className="text-2xl font-bold">Administration Systeme</h1>
+          <p className="mt-1 text-white/90">Gestion des boutiques, utilisateurs et entreprises</p>
         </div>
         <button
           onClick={() => navigate('/audit-logs')}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+          className="px-4 py-2 bg-white/15 text-white rounded-lg hover:bg-white/25 text-sm font-medium"
         >
           Logs d'audit
         </button>
@@ -162,9 +162,9 @@ export default function SuperAdminDashboard() {
       {/* KPIs */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Utilisateurs</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{stats.users.total}</div>
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Utilisateurs</div>
+            <div className="text-2xl font-bold text-primary-900 mt-1">{stats.users.total}</div>
             <div className="flex gap-2 mt-1">
               <span className="text-xs text-green-600">{stats.users.active} actifs</span>
               {stats.users.blocked > 0 && (
@@ -172,9 +172,9 @@ export default function SuperAdminDashboard() {
               )}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Boutiques</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{stats.shops.total}</div>
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Boutiques</div>
+            <div className="text-2xl font-bold text-primary-900 mt-1">{stats.shops.total}</div>
             <div className="flex gap-2 mt-1">
               <span className="text-xs text-green-600">{stats.shops.active} actives</span>
               {stats.shops.blocked > 0 && (
@@ -182,9 +182,9 @@ export default function SuperAdminDashboard() {
               )}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Entreprises</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{stats.enterprises.total}</div>
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Entreprises</div>
+            <div className="text-2xl font-bold text-primary-900 mt-1">{stats.enterprises.total}</div>
             <div className="flex gap-2 mt-1">
               <span className="text-xs text-green-600">{stats.enterprises.active} actives</span>
               {stats.enterprises.blocked > 0 && (
@@ -192,28 +192,28 @@ export default function SuperAdminDashboard() {
               )}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Entites bloquees</div>
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Entites bloquees</div>
             <div className="text-2xl font-bold text-red-600 mt-1">
               {stats.users.blocked + stats.shops.blocked + stats.enterprises.blocked}
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Appareils connectes</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Appareils connectes</div>
+            <div className="text-2xl font-bold text-primary-900 mt-1">
               {stats.connectedDevices.last15min}{' '}
               <span className="text-sm font-medium text-green-600">en ligne</span>
             </div>
             <div className="flex gap-2 mt-1">
-              <span className="text-xs text-gray-500">{stats.connectedDevices.last24h} / 24h</span>
-              <span className="text-xs text-gray-500">{stats.connectedDevices.last7d} / 7j</span>
+              <span className="text-xs text-slate-500">{stats.connectedDevices.last24h} / 24h</span>
+              <span className="text-xs text-slate-500">{stats.connectedDevices.last7d} / 7j</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="text-sm text-gray-500">Licences</div>
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <div className="text-sm text-slate-500">Licences</div>
             <div
               className={`text-2xl font-bold mt-1 ${
-                stats.licenses.expired > 0 ? 'text-red-600' : 'text-gray-900'
+                stats.licenses.expired > 0 ? 'text-red-600' : 'text-primary-900'
               }`}
             >
               {stats.licenses.expired} expiree{stats.licenses.expired > 1 ? 's' : ''}
@@ -232,21 +232,21 @@ export default function SuperAdminDashboard() {
 
       {/* Recent Audit Logs */}
       {stats?.recentAuditLogs && stats.recentAuditLogs.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 mb-6">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Actions recentes</h3>
+        <div className="bg-white rounded-2xl shadow-card mb-6">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-700">Actions recentes</h3>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-slate-100">
             {stats.recentAuditLogs.map(log => (
               <div key={log.id} className="px-4 py-2 flex items-center justify-between text-sm">
                 <div>
-                  <span className="font-medium text-gray-900">{log.admin.display_name}</span>
-                  <span className="text-gray-500 ml-2">
+                  <span className="font-medium text-primary-900">{log.admin.display_name}</span>
+                  <span className="text-slate-500 ml-2">
                     {actionLabels[log.action] || log.action}
                   </span>
-                  {log.reason && <span className="text-gray-400 ml-1">- {log.reason}</span>}
+                  {log.reason && <span className="text-slate-400 ml-1">- {log.reason}</span>}
                 </div>
-                <span className="text-xs text-gray-400">{formatDate(log.created_at)}</span>
+                <span className="text-xs text-slate-400">{formatDate(log.created_at)}</span>
               </div>
             ))}
           </div>
@@ -260,7 +260,7 @@ export default function SuperAdminDashboard() {
           placeholder="Rechercher..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 max-w-xs"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 max-w-xs"
         />
         {(['all', 'active', 'blocked'] as const).map(f => (
           <button
@@ -268,8 +268,8 @@ export default function SuperAdminDashboard() {
             onClick={() => setFilter(f)}
             className={`px-3 py-2 rounded-lg text-sm font-medium ${
               filter === f
-                ? 'bg-[#102A43] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-action-500 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             {f === 'all' ? 'Toutes' : f === 'active' ? 'Actives' : 'Bloquees'}
@@ -280,40 +280,40 @@ export default function SuperAdminDashboard() {
       {/* Shops List */}
       {isLoading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#102A43] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-action-500 mx-auto"></div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Boutique
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Proprietaire
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Statut
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Stats
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {filteredShops.map(shop => (
-                <tr key={shop.id} className="hover:bg-gray-50">
+                <tr key={shop.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{shop.name}</div>
-                    <div className="text-xs text-gray-500">Code: {shop.code}</div>
+                    <div className="text-sm font-medium text-primary-900">{shop.name}</div>
+                    <div className="text-xs text-slate-500">Code: {shop.code}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{shop.owner.display_name}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-sm text-primary-900">{shop.owner.display_name}</div>
+                    <div className="text-xs text-slate-500">
                       {shop.owner.email || shop.owner.phone}
                     </div>
                   </td>
@@ -324,7 +324,7 @@ export default function SuperAdminDashboard() {
                           Bloquee
                         </span>
                         {shop.blocked_reason && (
-                          <div className="text-xs text-gray-400 mt-1">{shop.blocked_reason}</div>
+                          <div className="text-xs text-slate-400 mt-1">{shop.blocked_reason}</div>
                         )}
                       </div>
                     ) : (
@@ -333,7 +333,7 @@ export default function SuperAdminDashboard() {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-slate-600">
                     {shop._count.user_roles}U / {shop._count.products}P / {shop._count.sales}V
                   </td>
                   <td className="px-6 py-4">
@@ -365,8 +365,8 @@ export default function SuperAdminDashboard() {
       {/* Block Modal */}
       {blockModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-white rounded-2xl shadow-elevated p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-primary-900 mb-4">
               Bloquer {blockModal.type === 'shop' ? 'la boutique' : "l'utilisateur"} "
               {blockModal.name}"
             </h3>
@@ -374,7 +374,7 @@ export default function SuperAdminDashboard() {
               value={blockReason}
               onChange={e => setBlockReason(e.target.value)}
               placeholder="Raison du blocage (obligatoire)..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-4"
               rows={3}
             />
             <div className="flex gap-3 justify-end">
@@ -383,7 +383,7 @@ export default function SuperAdminDashboard() {
                   setBlockModal(null);
                   setBlockReason('');
                 }}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
               >
                 Annuler
               </button>

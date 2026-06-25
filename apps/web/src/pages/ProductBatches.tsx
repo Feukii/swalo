@@ -70,7 +70,7 @@ export default function ProductBatches() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header avec gradient */}
-      <div className="card bg-gradient-to-r from-primary-600 to-primary-700 text-white">
+      <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -87,7 +87,7 @@ export default function ProductBatches() {
           </button>
           <div>
             <h1 className="text-2xl font-bold">Lots en stock</h1>
-            <p className="text-sm text-primary-100 mt-1">
+            <p className="text-sm text-white/80 mt-1">
               Historique et details des lots pour ce produit
             </p>
           </div>
@@ -99,12 +99,12 @@ export default function ProductBatches() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Total lots</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalBatches}</p>
+              <p className="text-slate-500 text-sm">Total lots</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalBatches}</p>
             </div>
-            <div className="w-12 h-12 bg-primary-50 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-action-50 rounded-xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-primary-600"
+                className="w-6 h-6 text-action-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -123,8 +123,8 @@ export default function ProductBatches() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Lots avec stock</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.batchesWithStock}</p>
+              <p className="text-slate-500 text-sm">Lots avec stock</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.batchesWithStock}</p>
             </div>
             <div className="w-12 h-12 bg-success-50 rounded-xl flex items-center justify-center">
               <svg
@@ -147,8 +147,8 @@ export default function ProductBatches() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Quantite totale</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalQuantity}</p>
+              <p className="text-slate-500 text-sm">Quantite totale</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.totalQuantity}</p>
             </div>
             <div className="w-12 h-12 bg-warning-50 rounded-xl flex items-center justify-center">
               <svg
@@ -171,12 +171,12 @@ export default function ProductBatches() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Valeur totale</p>
-              <p className="text-xl font-bold text-gray-900 mt-1">{formatFCFA(stats.totalValue)}</p>
+              <p className="text-slate-500 text-sm">Valeur totale</p>
+              <p className="text-xl font-bold text-slate-900 mt-1">{formatFCFA(stats.totalValue)}</p>
             </div>
-            <div className="w-12 h-12 bg-secondary-50 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-action-50 rounded-xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-secondary-600"
+                className="w-6 h-6 text-action-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -195,7 +195,7 @@ export default function ProductBatches() {
 
       {/* Tableau des lots */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Liste des lots</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Liste des lots</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -203,9 +203,9 @@ export default function ProductBatches() {
           </div>
         ) : batches.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-gray-400"
+                className="w-8 h-8 text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -218,8 +218,8 @@ export default function ProductBatches() {
                 />
               </svg>
             </div>
-            <p className="text-gray-500">Aucun lot de stock pour ce produit</p>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-slate-500">Aucun lot de stock pour ce produit</p>
+            <p className="text-sm text-slate-400 mt-1">
               Les lots apparaitront ici lors des approvisionnements
             </p>
           </div>
@@ -227,54 +227,54 @@ export default function ProductBatches() {
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Date de creation
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Prix d'achat (FCFA)
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Prix de vente (FCFA)
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Qte restante
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Qte initiale
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Statut
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {batches.map(batch => {
                   const ratio = batch.quantity > 0 ? batch.remaining_quantity / batch.quantity : 0;
                   const isInStock = batch.remaining_quantity > 0;
 
                   return (
-                    <tr key={batch.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={batch.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{formatDate(batch.created_at)}</p>
+                        <p className="text-sm text-slate-900">{formatDate(batch.created_at)}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-slate-900">
                           {formatFCFA(batch.cost_price)}
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-slate-900">
                           {formatFCFA(batch.sell_price)}
                         </p>
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-slate-900">
                             {batch.remaining_quantity}
                           </p>
                           {/* Barre de progression */}
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-slate-200 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full transition-all ${
                                 ratio > 0.5
@@ -283,7 +283,7 @@ export default function ProductBatches() {
                                     ? 'bg-warning-500'
                                     : ratio > 0
                                       ? 'bg-danger-500'
-                                      : 'bg-gray-300'
+                                      : 'bg-slate-300'
                               }`}
                               style={{ width: `${Math.round(ratio * 100)}%` }}
                             />
@@ -291,7 +291,7 @@ export default function ProductBatches() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-500">{batch.quantity}</p>
+                        <p className="text-sm text-slate-500">{batch.quantity}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`badge ${isInStock ? 'badge-success' : 'badge-danger'}`}>
