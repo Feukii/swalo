@@ -301,13 +301,13 @@ export default function AdminShops() {
             placeholder="🔍 Rechercher (nom, code, propriétaire)..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           />
 
           <select
             value={filterEnterprise}
             onChange={e => setFilterEnterprise(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           >
             <option value="">🏢 Toutes les entreprises</option>
             {enterprises.map(ent => (
@@ -320,7 +320,7 @@ export default function AdminShops() {
           <select
             value={filterBlocked}
             onChange={e => setFilterBlocked(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           >
             <option value="">📊 Tous les statuts</option>
             <option value="active">✅ Actives</option>
@@ -329,7 +329,7 @@ export default function AdminShops() {
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            className="bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition"
           >
             ➕ Créer une boutique
           </button>
@@ -446,7 +446,7 @@ export default function AdminShops() {
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => setExpandedShopId(expandedShopId === shop.id ? null : shop.id)}
-                    className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded hover:bg-blue-50"
+                    className="text-action-600 hover:text-action-700 px-3 py-1 rounded hover:bg-action-50"
                     title="Voir les details"
                   >
                     {expandedShopId === shop.id ? '[-]' : '[+]'}
@@ -505,7 +505,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.shop_name}
                     onChange={e => setFormData({ ...formData, shop_name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     required
                   />
                 </div>
@@ -527,7 +527,7 @@ export default function AdminShops() {
                             .slice(0, 10),
                         })
                       }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500 font-mono"
                       placeholder="Auto-généré si vide"
                       maxLength={10}
                       pattern="[A-Z0-9]{4,10}"
@@ -546,7 +546,7 @@ export default function AdminShops() {
                           shop_type: e.target.value as 'BOUTIQUE' | 'MAGASIN',
                         })
                       }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     >
                       <option value="BOUTIQUE">Boutique</option>
                       <option value="MAGASIN">Magasin</option>
@@ -561,7 +561,7 @@ export default function AdminShops() {
                       type="text"
                       value={formData.owner_name}
                       onChange={e => setFormData({ ...formData, owner_name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
 
@@ -573,7 +573,7 @@ export default function AdminShops() {
                       type="tel"
                       value={formData.owner_phone}
                       onChange={e => setFormData({ ...formData, owner_phone: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
                 </div>
@@ -583,7 +583,7 @@ export default function AdminShops() {
                   <select
                     value={formData.enterprise_id}
                     onChange={e => setFormData({ ...formData, enterprise_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                   >
                     <option value="">Aucune entreprise</option>
                     {enterprises.map(ent => (
@@ -600,7 +600,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
@@ -611,7 +611,7 @@ export default function AdminShops() {
                       type="tel"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
 
@@ -621,7 +621,7 @@ export default function AdminShops() {
                       type="email"
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
                 </div>
@@ -634,7 +634,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.currency}
                     onChange={e => setFormData({ ...formData, currency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     required
                   />
                 </div>
@@ -650,7 +650,7 @@ export default function AdminShops() {
                           type="checkbox"
                           checked={formData.enabled_modules?.includes(module.value) || false}
                           onChange={() => toggleModule(module.value)}
-                          className="rounded text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          className="rounded text-action-500 focus:ring-2 focus:ring-action-500"
                         />
                         <span className="text-sm">{module.label}</span>
                       </label>
@@ -661,7 +661,7 @@ export default function AdminShops() {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    className="flex-1 bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition"
                   >
                     ✅ Créer la boutique
                   </button>
@@ -836,7 +836,7 @@ export default function AdminShops() {
                 <button
                   onClick={handleSaveModules}
                   disabled={savingModules}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="flex-1 bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition disabled:opacity-50"
                 >
                   {savingModules ? 'Enregistrement...' : 'Enregistrer'}
                 </button>

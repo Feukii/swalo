@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import Logo from './ui/Logo';
 
 interface NavItem {
   name: string;
@@ -41,24 +42,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gray-900 transition-all duration-300 ease-in-out flex flex-col`}
+        } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col`}
       >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-800">
+        {/* Logo & Header */}
+        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
           {sidebarOpen ? (
             <>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-secondary-500 to-primary-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                  S
-                </div>
-                <div>
-                  <span className="text-lg font-bold text-white">Swalo</span>
-                  <span className="text-xs text-secondary-400 block -mt-1">Admin</span>
-                </div>
-              </div>
+              <Logo variant="full" size="sm" />
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 ◀
               </button>
@@ -66,9 +59,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 transition-colors mx-auto"
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors mx-auto"
             >
-              ▶
+              <Logo variant="icon" size="sm" />
             </button>
           )}
         </div>
@@ -84,14 +77,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   sidebarOpen ? 'px-3' : 'px-2 justify-center'
                 } py-3 rounded-lg transition-all duration-200 group relative ${
                   isActive(item.path)
-                    ? 'bg-secondary-600/20 text-secondary-300 font-medium'
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                    ? 'bg-primary-50 text-primary-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 <span className="text-xl">{item.icon}</span>
                 {sidebarOpen && <span className="ml-3 text-sm">{item.name}</span>}
                 {!sidebarOpen && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                     {item.name}
                   </div>
                 )}
@@ -101,15 +94,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* User */}
-        <div className="border-t border-gray-800 p-4">
+        <div className="border-t border-gray-200 p-4">
           {sidebarOpen ? (
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-secondary-500 to-primary-500 flex items-center justify-center text-white font-medium">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-700 to-primary-900 flex items-center justify-center text-white font-medium">
                   {user?.display_name?.charAt(0) || 'A'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
+                  <p className="text-sm font-medium text-gray-900 truncate">
                     {user?.display_name || 'Administrateur'}
                   </p>
                   <p className="text-xs text-gray-500 truncate">SUPERADMIN</p>
@@ -117,7 +110,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex items-center justify-center space-x-2"
+                className="w-full btn-secondary btn-sm flex items-center justify-center space-x-2"
               >
                 <span>🚪</span>
                 <span>Deconnexion</span>
@@ -126,7 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ) : (
             <button
               onClick={handleLogout}
-              className="w-full p-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center"
+              className="w-full p-2 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center"
               title="Deconnexion"
             >
               <span className="text-xl">🚪</span>
@@ -153,7 +146,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="badge bg-secondary-100 text-secondary-800">Plateforme Admin</span>
+            <span className="badge bg-action-100 text-action-800">Plateforme Admin</span>
           </div>
         </header>
 

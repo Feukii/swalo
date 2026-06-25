@@ -23,7 +23,11 @@
   }
 
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-sm hover:shadow;
+    @apply btn bg-primary-900 text-white hover:bg-primary-700 focus:ring-primary-500 shadow-sm hover:shadow;
+  }
+
+  .btn-action {
+    @apply btn bg-action-500 text-white hover:bg-action-600 focus:ring-action-500 shadow-sm hover:shadow;
   }
 
   .btn-secondary {
@@ -93,7 +97,7 @@
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary-900 to-primary-700 bg-clip-text text-transparent;
   }
 
   .glass {

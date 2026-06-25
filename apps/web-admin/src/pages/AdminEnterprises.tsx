@@ -342,7 +342,7 @@ export default function AdminEnterprises() {
         <div className="mb-6">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition-colors"
           >
             ➕ Créer une entreprise
           </button>
@@ -475,13 +475,13 @@ export default function AdminEnterprises() {
                   <div className="flex flex-wrap gap-2 mt-4">
                     <button
                       onClick={() => openEditModal(selectedEnterprise)}
-                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                      className="flex-1 px-3 py-2 bg-action-500 text-white text-sm rounded hover:bg-action-600 transition-colors"
                     >
                       Modifier
                     </button>
                     <button
                       onClick={() => openLicenseModal(selectedEnterprise)}
-                      className="flex-1 px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                      className="flex-1 px-3 py-2 bg-action-500 text-white text-sm rounded hover:bg-action-600 transition-colors"
                     >
                       Licence
                     </button>
@@ -608,7 +608,7 @@ export default function AdminEnterprises() {
                       required
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                       placeholder="Nom de l'entreprise"
                     />
                   </div>
@@ -621,7 +621,7 @@ export default function AdminEnterprises() {
                       type="text"
                       value={formData.code}
                       onChange={e => setFormData({ ...formData, code: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                       placeholder="Code unique"
                     />
                   </div>
@@ -634,7 +634,7 @@ export default function AdminEnterprises() {
                       required
                       value={formData.license_tier}
                       onChange={e => setFormData({ ...formData, license_tier: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     >
                       <option value="STARTER">STARTER</option>
                       <option value="PROFESSIONAL">PROFESSIONAL</option>
@@ -654,7 +654,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setFormData({ ...formData, max_shops: parseInt(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -670,7 +670,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setFormData({ ...formData, max_users_per_shop: parseInt(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -682,7 +682,7 @@ export default function AdminEnterprises() {
                       type="date"
                       value={formData.licensed_until}
                       onChange={e => setFormData({ ...formData, licensed_until: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
                 </div>
@@ -700,7 +700,7 @@ export default function AdminEnterprises() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition-colors"
                   >
                     Créer
                   </button>
@@ -728,7 +728,7 @@ export default function AdminEnterprises() {
                       required
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                       placeholder="Nom de l'entreprise"
                     />
                   </div>
@@ -739,7 +739,7 @@ export default function AdminEnterprises() {
                       type="text"
                       value={formData.code}
                       onChange={e => setFormData({ ...formData, code: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                       placeholder="Code unique"
                     />
                   </div>
@@ -752,7 +752,7 @@ export default function AdminEnterprises() {
                       required
                       value={formData.license_tier}
                       onChange={e => setFormData({ ...formData, license_tier: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     >
                       <option value="STARTER">STARTER</option>
                       <option value="PROFESSIONAL">PROFESSIONAL</option>
@@ -772,7 +772,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setFormData({ ...formData, max_shops: parseInt(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -788,7 +788,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setFormData({ ...formData, max_users_per_shop: parseInt(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -800,7 +800,7 @@ export default function AdminEnterprises() {
                       type="date"
                       value={formData.licensed_until}
                       onChange={e => setFormData({ ...formData, licensed_until: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
                 </div>
@@ -818,7 +818,7 @@ export default function AdminEnterprises() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition-colors"
                   >
                     Enregistrer
                   </button>
@@ -847,7 +847,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setLicenseData({ ...licenseData, license_tier: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     >
                       <option value="STARTER">STARTER</option>
                       <option value="PROFESSIONAL">PROFESSIONAL</option>
@@ -865,7 +865,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setLicenseData({ ...licenseData, licensed_until: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -881,7 +881,7 @@ export default function AdminEnterprises() {
                       onChange={e =>
                         setLicenseData({ ...licenseData, max_shops: parseInt(e.target.value) })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
 
@@ -900,7 +900,7 @@ export default function AdminEnterprises() {
                           max_users_per_shop: parseInt(e.target.value),
                         })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
                 </div>
@@ -915,7 +915,7 @@ export default function AdminEnterprises() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition-colors"
                   >
                     Mettre à jour
                   </button>
@@ -1078,7 +1078,7 @@ export default function AdminEnterprises() {
                 <button
                   onClick={handleSaveShopModules}
                   disabled={savingModules}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition-colors disabled:opacity-50"
                 >
                   {savingModules ? 'Enregistrement...' : 'Enregistrer'}
                 </button>

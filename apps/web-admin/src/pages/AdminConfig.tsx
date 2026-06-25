@@ -147,7 +147,7 @@ export default function AdminConfig() {
           <h2 className="text-xl font-semibold">📋 Paramètres de Configuration</h2>
           <button
             onClick={handleAdd}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+            className="bg-action-500 hover:bg-action-600 text-white px-4 py-2 rounded-lg transition"
           >
             ➕ Ajouter
           </button>
@@ -214,7 +214,7 @@ export default function AdminConfig() {
               value={auditFilters.action || ''}
               onChange={e => setAuditFilters({ ...auditFilters, action: e.target.value })}
               placeholder="CREATE, UPDATE, DELETE..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -225,7 +225,7 @@ export default function AdminConfig() {
               value={auditFilters.entity_type || ''}
               onChange={e => setAuditFilters({ ...auditFilters, entity_type: e.target.value })}
               placeholder="Customer, Sale, Product..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -235,7 +235,7 @@ export default function AdminConfig() {
               type="date"
               value={auditFilters.start_date || ''}
               onChange={e => setAuditFilters({ ...auditFilters, start_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
 
@@ -245,7 +245,7 @@ export default function AdminConfig() {
               type="date"
               value={auditFilters.end_date || ''}
               onChange={e => setAuditFilters({ ...auditFilters, end_date: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -285,7 +285,7 @@ export default function AdminConfig() {
                   value={formKey}
                   onChange={e => setFormKey(e.target.value)}
                   disabled={!!editingKey}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono disabled:bg-gray-100"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent font-mono disabled:bg-gray-100"
                   placeholder="ex: max_upload_size"
                 />
               </div>
@@ -298,7 +298,7 @@ export default function AdminConfig() {
                   type="text"
                   value={formValue}
                   onChange={e => setFormValue(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
                   placeholder="ex: 10485760"
                 />
               </div>
@@ -308,7 +308,7 @@ export default function AdminConfig() {
                 <textarea
                   value={formDescription}
                   onChange={e => setFormDescription(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
                   rows={3}
                   placeholder="Description optionnelle..."
                 />
@@ -327,7 +327,7 @@ export default function AdminConfig() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                className="px-4 py-2 bg-action-500 text-white rounded-lg hover:bg-action-600 transition"
               >
                 💾 Enregistrer
               </button>

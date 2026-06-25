@@ -147,7 +147,7 @@ export default function AdminGlobalUsers() {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Nom, email ou téléphone..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
               />
             </div>
 
@@ -162,7 +162,7 @@ export default function AdminGlobalUsers() {
                   setRoleFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-transparent"
               >
                 <option value="">Tous les rôles</option>
                 {ROLES.map(role => (
@@ -185,7 +185,7 @@ export default function AdminGlobalUsers() {
         {/* Loading State */}
         {loading ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-action-500"></div>
             <p className="mt-4 text-gray-600">Chargement des utilisateurs...</p>
           </div>
         ) : (
