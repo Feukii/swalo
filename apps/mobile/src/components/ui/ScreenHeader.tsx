@@ -32,12 +32,12 @@ export function ScreenHeader({
             onPress={onBack}
             style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
           >
-            {backIcon || <ArrowLeft size={24} color={Colors.primary[900]} />}
+            {backIcon || <ArrowLeft size={24} color={Colors.onMarine} />}
           </Pressable>
         ) : (
           <View style={styles.logoContainer}>
             <Image
-              source={require('../../../assets/logo.png')}
+              source={require('../../../assets/swalo_mark_light.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -56,9 +56,9 @@ export function ScreenHeader({
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.primary[900],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.primary[800],
   },
   content: {
     flexDirection: 'row',
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.onMarine,
     textAlign: 'center',
   },
   rightAction: {

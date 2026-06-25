@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModules } from '../../hooks/useModules';
-import Logo from '../ui/Logo';
 
 interface NavItem {
   name: string;
@@ -56,21 +55,24 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-canvas">
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-white border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col`}
+        } bg-primary-900 border-r border-primary-800 transition-all duration-300 ease-in-out flex flex-col`}
       >
         {/* Logo & Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-primary-800">
           {sidebarOpen ? (
             <>
-              <Logo variant="full" size="sm" />
+              <div className="flex items-center space-x-2">
+                <img src="/swalo_icone_ciel.png" alt="Swalo" className="w-8 h-8 object-contain" />
+                <span className="text-lg font-bold text-white">Swalo</span>
+              </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1.5 rounded-lg text-primary-100 hover:bg-primary-800 transition-colors"
               >
                 ◀
               </button>
@@ -78,9 +80,9 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ) : (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors mx-auto"
+              className="p-1.5 rounded-lg hover:bg-primary-800 transition-colors mx-auto"
             >
-              <Logo variant="icon" size="sm" />
+              <img src="/swalo_icone_ciel.png" alt="Swalo" className="w-8 h-8 object-contain" />
             </button>
           )}
         </div>
@@ -101,8 +103,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       sidebarOpen ? 'px-3' : 'px-2 justify-center'
                     } py-3 rounded-lg transition-all duration-200 group relative ${
                       isActive(item.path)
-                        ? 'bg-primary-50 text-primary-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-action-500 text-white font-medium shadow-sm'
+                        : 'text-primary-100 hover:bg-primary-800 hover:text-white'
                     }`}
                   >
                     <span className="text-2xl">{item.icon}</span>
@@ -111,7 +113,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       <span className="ml-auto badge-danger">{item.badge}</span>
                     )}
                     {!sidebarOpen && (
-                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-primary-950 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                         {item.name}
                       </div>
                     )}
@@ -128,9 +130,11 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   title={`Module non disponible avec votre licence ${tierLabel}`}
                 >
                   <span className="text-2xl grayscale">{item.icon}</span>
-                  {sidebarOpen && <span className="ml-3 text-sm text-gray-400">{item.name}</span>}
-                  {sidebarOpen && <span className="ml-auto text-xs text-gray-400">🔒</span>}
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 max-w-48">
+                  {sidebarOpen && (
+                    <span className="ml-3 text-sm text-primary-300">{item.name}</span>
+                  )}
+                  {sidebarOpen && <span className="ml-auto text-xs text-primary-300">🔒</span>}
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-primary-950 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 max-w-48">
                     Licence {tierLabel} - Module non inclus
                   </div>
                 </div>
@@ -140,18 +144,18 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </nav>
 
         {/* User Profile */}
-        <div className="border-t border-gray-200 p-4">
+        <div className="border-t border-primary-800 p-4">
           {sidebarOpen ? (
             <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-700 to-primary-900 flex items-center justify-center text-white font-medium">
+              <div className="flex items-center space-x-3 rounded-lg bg-primary-800 p-2">
+                <div className="w-10 h-10 rounded-full bg-action-500 flex items-center justify-center text-white font-medium">
                   {user?.display_name?.charAt(0) || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-white truncate">
                     {user?.display_name || 'Utilisateur'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-primary-300 truncate">
                     {enterprise
                       ? `${enterprise.name} - ${shop?.name || 'Boutique'}`
                       : shop?.name || 'Boutique'}
@@ -160,7 +164,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full btn-secondary btn-sm flex items-center justify-center space-x-2"
+                className="w-full btn btn-sm bg-primary-800 text-primary-100 hover:bg-primary-700 hover:text-white flex items-center justify-center space-x-2"
               >
                 <span>🚪</span>
                 <span>Déconnexion</span>
@@ -169,7 +173,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           ) : (
             <button
               onClick={handleLogout}
-              className="w-full p-2 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center"
+              className="w-full p-2 rounded-lg text-primary-100 hover:bg-primary-800 transition-colors flex items-center justify-center"
               title="Déconnexion"
             >
               <span className="text-xl">🚪</span>
@@ -273,7 +277,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-6 bg-canvas">
           <div className="max-w-7xl mx-auto animate-fade-in">{children}</div>
         </main>
       </div>

@@ -194,7 +194,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
         {/* Logo Swalo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/full_icon.png')}
+            source={require('../../assets/swalo_mark_light.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -282,13 +282,13 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   logoContainer: {
     alignItems: 'center',
@@ -302,13 +302,13 @@ const styles = StyleSheet.create({
   brandWordmark: {
     fontSize: 30,
     fontWeight: '800',
-    color: Colors.primary[900],
+    color: Colors.onMarine,
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   appSubtitle: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.primary[200],
   },
   formContainer: {
     backgroundColor: Colors.surface,
