@@ -312,7 +312,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0F2A44" />
+            <ActivityIndicator size="large" color="#102A43" />
           </View>
         ) : (
           <>
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0F2A44',
+    backgroundColor: '#102A43',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -569,8 +569,8 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   statCardPrimary: {
-    backgroundColor: '#0F2A44',
-    borderColor: '#0F2A44',
+    backgroundColor: '#102A43',
+    borderColor: '#102A43',
   },
   statLabel: {
     fontSize: 11,
@@ -722,8 +722,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   roleButtonActive: {
-    backgroundColor: '#0F2A44',
-    borderColor: '#0F2A44',
+    backgroundColor: '#102A43',
+    borderColor: '#102A43',
   },
   roleButtonText: {
     fontSize: 14,
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: '#0F2A44',
+    backgroundColor: '#102A43',
   },
   submitButtonText: {
     color: '#fff',

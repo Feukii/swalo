@@ -154,7 +154,7 @@ export default function Home() {
         <div
           className="rounded-2xl p-8 text-center shadow-lg"
           style={{
-            background: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
+            background: 'linear-gradient(135deg, #102A43 0%, #1B3A57 100%)',
           }}
         >
           <p className="text-sm font-medium text-white/80 mb-2">Solde de caisse</p>

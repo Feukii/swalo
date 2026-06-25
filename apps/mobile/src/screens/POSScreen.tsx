@@ -375,7 +375,7 @@ export default function POSScreen({ navigation }: POSScreenProps) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={['#0F2A44', '#a855f7']}
+        colors={['#102A43', '#a855f7']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   badge: {
-    backgroundColor: '#0F2A44',
+    backgroundColor: '#102A43',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,

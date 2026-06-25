@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Couleurs principales SWALO - Bleu petrole (#0F2A44)
+        // Couleurs principales SWALO - Marine (#102A43)
         primary: {
           50: '#EEF5FB',
           100: '#C8DFF0',
@@ -15,7 +15,7 @@ export default {
           600: '#1A4260',
           700: '#183B5A',
           800: '#13324D',
-          900: '#0F2A44',
+          900: '#102A43',
           950: '#091A2B',
         },
         secondary: {
@@ -28,7 +28,7 @@ export default {
           600: '#1A4260',
           700: '#183B5A',
           800: '#13324D',
-          900: '#0F2A44',
+          900: '#102A43',
           950: '#091A2B',
         },
         success: {
@@ -37,8 +37,8 @@ export default {
           200: '#A7F3D0',
           300: '#6EE7B7',
           400: '#34D399',
-          500: '#1EB980',
-          600: '#1EB980',
+          500: '#10B981',
+          600: '#10B981',
           700: '#047857',
           800: '#065F46',
           900: '#064E3B',

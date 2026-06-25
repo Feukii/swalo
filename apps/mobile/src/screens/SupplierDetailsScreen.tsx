@@ -694,7 +694,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0F2A44" />
+          <ActivityIndicator size="large" color="#102A43" />
         </View>
       </SafeAreaView>
     );
