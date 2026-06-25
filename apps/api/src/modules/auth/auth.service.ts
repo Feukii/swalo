@@ -245,7 +245,7 @@ export class AuthService {
 
   /**
    * Authentification par code Boutique + PIN (6 chiffres + 4 chiffres)
-   * Conforme au CDC SWALO - Section 2 & 3.8
+   * Conforme au CDC Swalo - Section 2 & 3.8
    * Avec vérification d'appareil pour les employés
    */
   async loginWithPin(

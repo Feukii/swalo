@@ -76,7 +76,7 @@ export default function LoginPin() {
             <div className="mx-auto mb-4 flex items-center justify-center">
               <Logo variant="icon" size="lg" />
             </div>
-            <h1 className="text-3xl font-bold text-primary-900 mb-2">SWALO</h1>
+            <h1 className="text-3xl font-bold text-primary-900 mb-2">Swalo</h1>
             <p className="text-gray-600 text-sm">Gerez, Vendez, Prosperez</p>
           </div>
 
@@ -180,7 +180,7 @@ export default function LoginPin() {
 
         {/* Footer */}
         <div className="mt-6 text-center animate-slide-in">
-          <p className="text-sm text-white font-medium opacity-90">SWALO v1.0 - Gestion Retail</p>
+          <p className="text-sm text-white font-medium opacity-90">Swalo v1.0 - Gestion Retail</p>
         </div>
       </div>
     </div>

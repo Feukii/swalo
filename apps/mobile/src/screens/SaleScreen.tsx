@@ -440,7 +440,7 @@ export default function SaleScreen() {
           };
         });
         return {
-          number: `${shop?.code || 'SWALO'}-${new Date().getFullYear()}-PROV`,
+          number: `${shop?.code || 'Swalo'}-${new Date().getFullYear()}-PROV`,
           issue_date: now,
           status: 'ISSUED',
           shop: {

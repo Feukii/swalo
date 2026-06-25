@@ -196,7 +196,7 @@ export function generateInvoiceHTML(data: InvoiceData): string {
   <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 32px; text-align: center;">
     <p style="font-size: 11px; color: #9ca3af;">Merci pour votre confiance !</p>
     <p style="font-size: 10px; color: #d1d5db; margin-top: 8px;">
-      Facture generee par SWALO - Systeme de gestion commerciale
+      Facture generee par Swalo - Systeme de gestion commerciale
     </p>
     <p style="font-size: 10px; color: #d1d5db;">
       ${data.shop.name} - ${data.shop.code}${data.shop.phone ? ` - Tel: ${data.shop.phone}` : ''}

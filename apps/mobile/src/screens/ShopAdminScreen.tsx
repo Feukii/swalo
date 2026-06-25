@@ -190,7 +190,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
             text: 'Partager',
             onPress: () => {
               Share.share({
-                message: `Code PIN SWALO\n\nCode: ${result.pin_code}\nPour: ${result.invited_name}\nRôle: ${result.role}\nValide jusqu'au: ${formatDate(result.expires_at)}`,
+                message: `Code PIN Swalo\n\nCode: ${result.pin_code}\nPour: ${result.invited_name}\nRôle: ${result.role}\nValide jusqu'au: ${formatDate(result.expires_at)}`,
               });
             },
           },

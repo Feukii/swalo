@@ -11,7 +11,7 @@ export class CustomersService {
 
   /**
    * Créer un nouveau client
-   * Conforme au CDC SWALO - Section 3.2
+   * Conforme au CDC Swalo - Section 3.2
    */
   async create(shopId: string, dto: CreateCustomerDto) {
     // Vérifier si un client avec le même nom existe déjà (case-insensitive)

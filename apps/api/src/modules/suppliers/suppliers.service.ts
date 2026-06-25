@@ -11,7 +11,7 @@ export class SuppliersService {
 
   /**
    * Créer un nouveau fournisseur
-   * Conforme au CDC SWALO - Section 3.3
+   * Conforme au CDC Swalo - Section 3.3
    */
   async create(shopId: string, dto: CreateSupplierDto) {
     // Vérifier si un fournisseur avec le même nom existe déjà (case-insensitive)

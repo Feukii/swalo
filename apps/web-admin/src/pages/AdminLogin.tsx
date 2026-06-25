@@ -26,7 +26,7 @@ export default function AdminLogin() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-secondary-500 to-primary-500 rounded-2xl shadow-lg mb-4">
             <span className="text-3xl font-bold text-white">S</span>
           </div>
-          <h1 className="text-3xl font-bold text-white">SWALO Admin</h1>
+          <h1 className="text-3xl font-bold text-white">Swalo Admin</h1>
           <p className="text-gray-400 mt-1">Plateforme d'administration</p>
         </div>
 
@@ -90,7 +90,7 @@ export default function AdminLogin() {
         </div>
 
         <p className="text-center text-gray-500 text-sm mt-6">
-          Acces reserve aux administrateurs SWALO
+          Acces reserve aux administrateurs Swalo
         </p>
       </div>
     </div>

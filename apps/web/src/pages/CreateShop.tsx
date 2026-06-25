@@ -261,7 +261,7 @@ export default function CreateShop() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-900 to-primary-700 bg-clip-text text-transparent mb-2">
               Nouvelle Boutique
             </h1>
-            <p className="text-gray-600 text-sm">Administration SWALO</p>
+            <p className="text-gray-600 text-sm">Administration Swalo</p>
           </div>
 
           {/* Formulaire */}

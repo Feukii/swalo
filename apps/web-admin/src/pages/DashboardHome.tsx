@@ -79,7 +79,7 @@ export default function DashboardHome() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
-        <p className="text-gray-500 mt-1">Vue d'ensemble de la plateforme SWALO</p>
+        <p className="text-gray-500 mt-1">Vue d'ensemble de la plateforme Swalo</p>
       </div>
 
       {/* KPIs */}

@@ -125,7 +125,7 @@ export default function Dashboard() {
         >
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-              {shop?.name || 'SWALO'}
+              {shop?.name || 'Swalo'}
             </h1>
             <p style={{ opacity: 0.9 }}>{user?.display_name}</p>
           </div>
