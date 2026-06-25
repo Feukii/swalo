@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   DollarSign,
@@ -76,7 +77,9 @@ interface SelectedTransaction {
 export default function HomeScreen() {
   const { shopId, shop, enterprise } = useCurrentUser();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const freshness = useSyncFreshness();
+  const [scrolled, setScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     cashBalance: 0,
@@ -251,21 +254,27 @@ export default function HomeScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar style={scrolled ? 'dark' : 'light'} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => {
+          const next = e.nativeEvent.contentOffset.y > 120;
+          if (next !== scrolled) setScrolled(next);
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.primary[900]}
+            tintColor={Colors.onMarine}
           />
         }
       >
         {/* HERO marine */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}>
           <View style={styles.heroTop}>
             <View style={styles.heroBrand}>
               <Logo size={26} tone="light" />
@@ -427,13 +436,21 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
+      {/* En-tête blanc collant (apparaît au défilement) */}
+      <View
+        style={[styles.stickyHeader, { paddingTop: insets.top, opacity: scrolled ? 1 : 0 }]}
+        pointerEvents="none"
+      >
+        <Logo size={26} tone="marine" showWordmark />
+      </View>
+
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
         visible={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -445,6 +462,21 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    zIndex: 10,
   },
   content: {
     paddingBottom: 96,

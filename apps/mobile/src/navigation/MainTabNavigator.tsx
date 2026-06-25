@@ -21,12 +21,12 @@ export default function MainTabNavigator() {
       id={undefined}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.accent,
-        tabBarInactiveTintColor: Colors.primary[300],
+        tabBarActiveTintColor: Colors.primary[900],
+        tabBarInactiveTintColor: Colors.textColors.tertiary,
         tabBarStyle: {
           borderTopWidth: 1,
-          borderTopColor: Colors.primary[800],
-          backgroundColor: Colors.primary[900],
+          borderTopColor: Colors.border,
+          backgroundColor: Colors.surface,
           height: 60 + insets.bottom,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
