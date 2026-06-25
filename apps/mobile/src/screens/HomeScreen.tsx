@@ -1,9 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { DollarSign, Receipt } from '../components/icons/SimpleIcons';
-import { ScreenHeader, ListItem, TransactionDetailModal } from '../components/ui';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  DollarSign,
+  Receipt,
+  ShoppingCart,
+  Wallet,
+  Package,
+  Ellipsis,
+} from '../components/icons/SimpleIcons';
+import { ListItem, TransactionDetailModal } from '../components/ui';
+import { Logo } from '../components/ui/Logo';
 import { Colors, Spacing } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { getTodayLabel } from '../utils/date';
@@ -41,7 +49,7 @@ const freshnessColors: Record<FreshnessLevel, string> = {
   fresh: Colors.success.main,
   stale: Colors.warning.main,
   old: Colors.danger.main,
-  unknown: Colors.muted.foreground,
+  unknown: Colors.primary[300],
 };
 
 // Transaction agrégée du jour (entrées caisse + créances/dettes à crédit)
@@ -67,6 +75,7 @@ interface SelectedTransaction {
 
 export default function HomeScreen() {
   const { shopId, shop, enterprise } = useCurrentUser();
+  const navigation = useNavigation();
   const freshness = useSyncFreshness();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -185,7 +194,7 @@ export default function HomeScreen() {
         purchasesCredit,
       });
 
-      setRecentTransactions(todayTransactions.slice(0, 4));
+      setRecentTransactions(todayTransactions.slice(0, 5));
     } catch (error) {
       console.error('Error loading HomeScreen data:', error);
     }
@@ -231,134 +240,160 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  const shopName =
+    enterprise?.name && shop?.name ? `${enterprise.name} · ${shop.name}` : shop?.name || 'Swalo';
+
+  const quickActions: { label: string; route: string; icon: React.ReactNode }[] = [
+    { label: 'Vente', route: 'Sale', icon: <ShoppingCart size={24} color={Colors.primary[700]} /> },
+    { label: 'Caisse', route: 'Cash', icon: <Wallet size={24} color={Colors.primary[700]} /> },
+    { label: 'Stock', route: 'Stock', icon: <Package size={24} color={Colors.primary[700]} /> },
+    { label: 'Plus', route: 'More', icon: <Ellipsis size={24} color={Colors.primary[700]} /> },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader
-        title={
-          enterprise?.name && shop?.name
-            ? `${enterprise.name} - ${shop.name}`
-            : shop?.name || 'Swalo'
-        }
-      />
-
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Sync Freshness Badge */}
-        <View style={styles.freshnessBadge}>
-          <View
-            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary[900]}
           />
-          <Text style={styles.freshnessText}>{freshness.label}</Text>
-        </View>
-
-        {/* Date and Summary */}
-        <View style={styles.dateRow}>
-          <View>
-            <Text style={styles.label}>Aujourd'hui</Text>
-            <Text style={styles.dateText}>{getTodayLabel()}</Text>
+        }
+      >
+        {/* HERO marine */}
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroBrand}>
+              <Logo size={26} tone="light" />
+              <Text style={styles.heroShop} numberOfLines={1}>
+                {shopName}
+              </Text>
+            </View>
+            <View style={styles.freshnessBadge}>
+              <View
+                style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+              />
+              <Text style={styles.freshnessText}>{freshness.label}</Text>
+            </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.label}>Transactions</Text>
-            <Text style={[styles.salesAmount, { color: Colors.primary[900] }]}>
-              {stats.transactionCount}
+
+          <Text style={styles.balanceLabel}>Solde de caisse</Text>
+          <Text style={styles.balanceAmount}>{formatMoney(stats.cashBalance)}</Text>
+
+          <View style={styles.heroMeta}>
+            <Text style={styles.heroMetaText}>{getTodayLabel()}</Text>
+            <Text style={styles.heroMetaText}>
+              {stats.transactionCount} transaction{stats.transactionCount > 1 ? 's' : ''}
             </Text>
           </View>
         </View>
 
-        {/* Solde Caisse Header */}
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceLabel}>Solde de caisse</Text>
-          <Text style={styles.balanceAmount}>{formatMoney(stats.cashBalance)}</Text>
+        {/* Carte de stats flottante */}
+        <View style={styles.floatingCard}>
+          <View style={styles.statCol}>
+            <Text style={styles.statLabel}>Ventes</Text>
+            <Text style={[styles.statValue, { color: Colors.success.main }]}>
+              {formatMoney(stats.totalSales)}
+            </Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statLabel}>Achats</Text>
+            <Text style={[styles.statValue, { color: Colors.danger.main }]}>
+              {formatMoney(stats.totalPurchases)}
+            </Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={styles.statLabel}>Entrées</Text>
+            <Text style={[styles.statValue, { color: Colors.primary[900] }]}>
+              {formatMoney(stats.totalEntries)}
+            </Text>
+          </View>
         </View>
 
-        {/* KPI Entrées */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <Text style={styles.cardTitle}>Entrées</Text>
-                <Text style={styles.cardSubtitle}>{formatMoney(stats.totalEntries)}</Text>
+        <View style={styles.body}>
+          {/* Accès rapide */}
+          <Text style={styles.sectionTitle}>Accès rapide</Text>
+          <View style={styles.tilesGrid}>
+            {quickActions.map(action => (
+              <Pressable
+                key={action.label}
+                style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+                onPress={() => navigation.navigate(action.route as never)}
+              >
+                <View style={styles.tileIconBox}>{action.icon}</View>
+                <Text style={styles.tileLabel}>{action.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Détail Ventes */}
+          <View style={styles.card}>
+            <View style={styles.cardTopRow}>
+              <Text style={styles.cardTitle}>Ventes du jour</Text>
+              <Text style={[styles.cardTotal, { color: Colors.success.main }]}>
+                {formatMoney(stats.totalSales)}
+              </Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Cash</Text>
+                <Text style={styles.breakdownValue}>{formatMoney(stats.salesCash)}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.cardLabel}>Total Ventes</Text>
-                <Text style={[styles.cardValue, { color: Colors.success.main }]}>
-                  {formatMoney(stats.totalSales)}
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Crédit</Text>
+                <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
+                  {formatMoney(stats.salesCredit)}
                 </Text>
               </View>
             </View>
           </View>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.success.main }]}>
-                {formatMoney(stats.salesCash)}
-              </Text>
-            </View>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Crédit</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
-                {formatMoney(stats.salesCredit)}
-              </Text>
-            </View>
-          </View>
-        </View>
 
-        {/* KPI Sorties */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <Text style={styles.cardTitle}>Sorties</Text>
-                <Text style={styles.cardSubtitle}>{formatMoney(stats.totalExits)}</Text>
+          {/* Détail Achats */}
+          <View style={styles.card}>
+            <View style={styles.cardTopRow}>
+              <Text style={styles.cardTitle}>Achats du jour</Text>
+              <Text style={[styles.cardTotal, { color: Colors.danger.main }]}>
+                {formatMoney(stats.totalPurchases)}
+              </Text>
+            </View>
+            <View style={styles.breakdownRow}>
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Cash</Text>
+                <Text style={styles.breakdownValue}>{formatMoney(stats.purchasesCash)}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.cardLabel}>Total Achats</Text>
-                <Text style={[styles.cardValue, { color: Colors.danger.main }]}>
-                  {formatMoney(stats.totalPurchases)}
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>Crédit</Text>
+                <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
+                  {formatMoney(stats.purchasesCredit)}
                 </Text>
               </View>
             </View>
           </View>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.danger.main }]}>
-                {formatMoney(stats.purchasesCash)}
-              </Text>
-            </View>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Crédit</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
-                {formatMoney(stats.purchasesCredit)}
-              </Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Recent Transactions */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Transactions récentes</Text>
-          </View>
-          <View>
+          {/* Transactions récentes */}
+          <Text style={styles.sectionTitle}>Transactions récentes</Text>
+          <View style={styles.listCard}>
             {recentTransactions.length > 0 ? (
               recentTransactions.map(transaction => {
                 const isEntry = transaction.type === 'IN';
                 const isCredit = transaction.isCredit === true;
-
                 const categoryLabel = getCategoryLabel(transaction.category);
-                const title = isCredit ? `${categoryLabel} (Credit)` : categoryLabel;
+                const title = isCredit ? `${categoryLabel} (Crédit)` : categoryLabel;
 
                 return (
                   <ListItem
                     key={transaction.id}
                     icon={
                       isEntry ? (
-                        <Receipt size={20} color={Colors.primary[900]} />
+                        <Receipt size={20} color={Colors.primary[700]} />
                       ) : (
-                        <DollarSign size={20} color={Colors.primary[900]} />
+                        <DollarSign size={20} color={Colors.primary[700]} />
                       )
                     }
                     title={title}
@@ -384,10 +419,8 @@ export default function HomeScreen() {
                 );
               })
             ) : (
-              <View style={{ padding: Spacing.lg }}>
-                <Text style={{ color: Colors.muted.foreground, textAlign: 'center' }}>
-                  Aucune transaction aujourd'hui
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Aucune transaction aujourd'hui</Text>
               </View>
             )}
           </View>
@@ -407,122 +440,220 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.primary[900],
+  },
+  scroll: {
+    flex: 1,
     backgroundColor: Colors.background,
   },
   content: {
-    padding: Spacing.lg,
-    paddingBottom: 80,
-    gap: Spacing['2xl'],
+    paddingBottom: 96,
+  },
+  // HERO
+  hero: {
+    backgroundColor: Colors.primary[900],
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['3xl'] + Spacing.lg,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xl,
+  },
+  heroBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flexShrink: 1,
+  },
+  heroShop: {
+    color: Colors.primary[200],
+    fontSize: 13,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   freshnessBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
     gap: 6,
+    backgroundColor: Colors.primary[800],
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   freshnessDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
   },
   freshnessText: {
     fontSize: 11,
-    color: Colors.muted.foreground,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  label: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 16,
+    color: Colors.primary[100],
     fontWeight: '500',
-    color: Colors.text,
-  },
-  salesAmount: {
-    fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  balanceHeader: {
-    backgroundColor: Colors.primary[900],
-    padding: Spacing['2xl'],
-    borderRadius: 18,
-    alignItems: 'center',
   },
   balanceLabel: {
     fontSize: 14,
-    color: Colors.primary.foreground,
-    marginBottom: Spacing.xs,
-    opacity: 0.9,
+    color: Colors.primary[200],
   },
   balanceAmount: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.primary.foreground,
+    fontSize: 38,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
   },
-  card: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  cardHeaderRow: {
+  heroMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    marginTop: Spacing.lg,
+  },
+  heroMetaText: {
+    fontSize: 13,
+    color: Colors.primary[200],
+  },
+  // FLOATING STATS CARD
+  floatingCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginTop: -Spacing['2xl'],
+    borderRadius: 18,
+    paddingVertical: Spacing.lg,
+    shadowColor: '#0B2A45',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  statCol: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 4,
+  },
+  // BODY
+  body: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    gap: Spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  // QUICK ACTION TILES
+  tilesGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: -Spacing.xs,
+  },
+  tile: {
+    width: '23%',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  tilePressed: {
+    opacity: 0.6,
+  },
+  tileIconBox: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 18,
+    backgroundColor: Colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.text,
+  },
+  // CARDS
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    shadowColor: '#0B2A45',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.muted.foreground,
-  },
-  cardSubtitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.primary[900],
-    marginTop: Spacing.xs,
-    fontVariant: ['tabular-nums'],
-  },
-  cardLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-  },
-  cardValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    color: Colors.text,
+  },
+  cardTotal: {
+    fontSize: 18,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
-    marginTop: 2,
   },
   breakdownRow: {
     flexDirection: 'row',
-    padding: Spacing.lg,
     gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: Spacing.md,
   },
   breakdownItem: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    gap: 4,
   },
   breakdownLabel: {
     fontSize: 12,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.xs,
+    color: Colors.textColors.tertiary,
   },
   breakdownValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    color: Colors.text,
     fontVariant: ['tabular-nums'],
+  },
+  // LIST
+  listCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#0B2A45',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  emptyState: {
+    padding: Spacing['2xl'],
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: Colors.textColors.tertiary,
+    fontSize: 14,
   },
 });

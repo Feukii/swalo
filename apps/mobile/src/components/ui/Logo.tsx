@@ -19,7 +19,11 @@ export function Logo({ size = 40, showWordmark = false, tone = 'marine' }: LogoP
   return (
     <View style={styles.row}>
       <Image
-        source={require('../../../assets/swalo_mark.png')}
+        source={
+          tone === 'light'
+            ? require('../../../assets/swalo_mark_light.png')
+            : require('../../../assets/swalo_mark.png')
+        }
         style={{ width: size, height: size }}
         resizeMode="contain"
       />
