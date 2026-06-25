@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,19 +12,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  ShoppingCart,
   Search,
   Plus,
   Minus,
   Trash,
-  CheckCircle,
   Package,
   DollarSign,
   CreditCard,
+  ChevronRight,
   IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useResponsive } from '../hooks/useResponsive';
@@ -75,6 +74,8 @@ export default function SaleScreen() {
   const { shopId, userId, shop } = useCurrentUser();
   const { isTablet, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
+  // Filtre catégorie (vue uniquement) — chips de la maquette
+  const [selectedCategory, setSelectedCategory] = useState<string>('Tous');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -158,7 +159,17 @@ export default function SaleScreen() {
         p.article_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.brand?.toLowerCase().includes(searchQuery.toLowerCase())
     )
-    .filter(p => (p.current_stock || 0) > 0);
+    .filter(p => (p.current_stock || 0) > 0)
+    .filter(p => selectedCategory === 'Tous' || p.category === selectedCategory);
+
+  // Catégories disponibles (dérivées des produits) pour les chips de la maquette.
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => {
+      if (p.category) set.add(p.category);
+    });
+    return ['Tous', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [products]);
 
   const addToCart = async (product: SaleProduct) => {
     const productName = `${product.family} - ${product.article_type} ${product.brand}`;
@@ -538,136 +549,233 @@ export default function SaleScreen() {
   // grande tablette ~'15%' (6 col) — dérivée de `columns` avec un peu de gouttière.
   const tabletCardWidth = `${Math.floor(100 / columns) - 2}%` as const;
 
+  // Nom d'affichage compact d'un produit (carte grille). On garde la même
+  // logique métier pour le nom envoyé au panier (cf. addToCart).
+  const productLabel = (product: SaleProduct) =>
+    product.family ||
+    [product.article_type, product.brand].filter(Boolean).join(' ') ||
+    product.name;
+
+  // Total d'une ligne panier (présentation uniquement, mêmes prix que computedTotal).
+  const lineTotal = (item: CartItem) => {
+    const product = products.find(p => p.id === item.productId);
+    const unitPrice = item.unitPrice || product?.sell_price || 0;
+    return unitPrice * item.quantity;
+  };
+
+  const lineUnitPrice = (item: CartItem) => {
+    const product = products.find(p => p.id === item.productId);
+    return item.unitPrice || product?.sell_price || 0;
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Point de vente" />
+      <ScreenHeader title="Nouvelle vente" subtitle="Sélectionnez les articles" />
 
-      <View style={[styles.mainContent, isTablet && styles.mainContentTablet]}>
-        {/* Products Section - 2/3 of height (phone) / left pane 60% (tablet) */}
-        <View style={[styles.productsSection, isTablet && styles.productsSectionTablet]}>
-          {/* Search Bar */}
+      <View style={styles.body}>
+        {/* Barre de recherche */}
+        <View style={styles.searchWrapper}>
           <View style={styles.searchContainer}>
-            <Search size={20} color={Colors.muted.foreground} />
+            <Search size={20} color={Colors.action} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un produit..."
+              placeholder="Rechercher un produit…"
               placeholderTextColor={Colors.muted.foreground}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
+        </View>
 
-          {/* Products Grid */}
-          <ScrollView contentContainerStyle={styles.productsGrid}>
-            {filteredProducts.map(product => {
-              const inCart = cart.find(item => item.productId === product.id);
+        {/* Chips de catégorie */}
+        <View style={styles.chipsRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContent}
+          >
+            {categories.map(category => {
+              const active = selectedCategory === category;
               return (
                 <TouchableOpacity
-                  key={product.id}
-                  style={[
-                    styles.productCard,
-                    isTablet && { width: tabletCardWidth },
-                    inCart && styles.productCardInCart,
-                  ]}
-                  onPress={() => addToCart(product)}
+                  key={category}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => setSelectedCategory(category)}
+                  activeOpacity={0.8}
                 >
-                  <View style={styles.productIconContainer}>
-                    <Package size={20} color={Colors.action} />
-                  </View>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.family}
+                  <Text
+                    style={[styles.chipText, active && styles.chipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {category}
                   </Text>
-                  <Text style={styles.productDetail} numberOfLines={1}>
-                    {product.article_type} {product.brand}
-                  </Text>
-                  <Text style={styles.productStock}>{product.current_stock || 0} unités</Text>
-                  {product.is_multi_price && (
-                    <Text style={styles.multiPriceBadge}>
-                      {formatMoney(product.price_min)} - {formatMoney(product.price_max)}
-                    </Text>
-                  )}
-                  {inCart && (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{inCart.quantity}</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             })}
-            {filteredProducts.length === 0 && (
-              <View style={styles.emptyProducts}>
-                <Package size={48} color={Colors.muted.foreground} />
-                <Text style={styles.emptyText}>
-                  {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit en stock'}
-                </Text>
-              </View>
-            )}
           </ScrollView>
         </View>
 
-        {/* Cart Section - 1/3 of height (phone) / right pane 40% (tablet) */}
-        <View style={[styles.cartSection, isTablet && styles.cartSectionTablet]}>
-          <View style={styles.cartHeader}>
-            <View style={styles.cartHeaderLeft}>
-              <ShoppingCart size={20} color={Colors.action} />
-              <Text style={styles.cartTitle}>Panier</Text>
-            </View>
-            <View style={styles.cartCount}>
-              <Text style={styles.cartCountText}>{getTotalItems()} article(s)</Text>
-            </View>
-          </View>
-
-          {cart.length === 0 ? (
-            <View style={styles.emptyCart}>
-              <Text style={styles.emptyCartText}>Panier vide - Sélectionnez des produits</Text>
-            </View>
-          ) : (
-            <View style={styles.cartContent}>
-              {/* Cart Items - Horizontal scroll */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.cartItemsContainer}
+        {/* Grille produits 2 colonnes */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.productsGrid,
+            cart.length > 0 && styles.productsGridWithSheet,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredProducts.map(product => {
+            const stock = product.current_stock || 0;
+            const lowStock = product.alert_threshold > 0 && stock <= product.alert_threshold;
+            return (
+              <TouchableOpacity
+                key={product.id}
+                style={[styles.productCard, isTablet && { width: tabletCardWidth }]}
+                onPress={() => addToCart(product)}
+                activeOpacity={0.85}
               >
-                {cart.map(item => (
-                  <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.cartItem}>
-                    <Text style={styles.cartItemName} numberOfLines={1}>
-                      {item.productName}
-                    </Text>
-                    <View style={styles.cartItemActions}>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, -1, item.batchId)}
-                      >
-                        <Minus size={14} color={Colors.text} />
-                      </TouchableOpacity>
-                      <Text style={styles.quantity}>{item.quantity}</Text>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, 1, item.batchId)}
-                      >
-                        <Plus size={14} color={Colors.text} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => removeFromCart(item.productId, item.batchId)}
-                      >
-                        <Trash size={14} color={Colors.danger.main} />
-                      </TouchableOpacity>
-                    </View>
+                <View style={styles.productCardHeader}>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {productLabel(product)}
+                  </Text>
+                  <View style={styles.addButton}>
+                    <Plus size={18} color={Colors.action} />
                   </View>
-                ))}
-              </ScrollView>
-
-              {/* Checkout Button */}
-              <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
-                <CheckCircle size={20} color={Colors.primary.foreground} />
-                <Text style={styles.checkoutButtonText}>Valider la vente</Text>
+                </View>
+                <Text style={styles.productPrice}>{formatMoney(product.sell_price)}</Text>
+                <View style={styles.productMetaRow}>
+                  <Text style={[styles.productStock, lowStock && styles.productStockLow]}>
+                    {stock} en stock
+                  </Text>
+                  {product.is_multi_price && (
+                    <View style={styles.multiPriceBadge}>
+                      <Text style={styles.multiPriceBadgeText}>MULTI-PRIX</Text>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
+            );
+          })}
+          {filteredProducts.length === 0 && (
+            <View style={styles.emptyProducts}>
+              <Package size={48} color={Colors.muted.foreground} />
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit en stock'}
+              </Text>
             </View>
           )}
-        </View>
+        </ScrollView>
       </View>
+
+      {/* Bottom-sheet "Encaisser" — visible dès que le panier n'est pas vide */}
+      <Modal visible={cart.length > 0} transparent animationType="slide">
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Encaisser</Text>
+              <Text style={styles.sheetTotal}>{formatMoney(computedTotal)}</Text>
+            </View>
+
+            <ScrollView
+              style={styles.sheetItems}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {cart.map(item => (
+                <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.sheetItem}>
+                  <View style={styles.sheetItemInfo}>
+                    <Text style={styles.sheetItemName} numberOfLines={1}>
+                      {item.productName}
+                    </Text>
+                    <Text style={styles.sheetItemUnit}>{formatMoney(lineUnitPrice(item))}</Text>
+                  </View>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity
+                      style={styles.stepperButton}
+                      onPress={() =>
+                        item.quantity <= 1
+                          ? removeFromCart(item.productId, item.batchId)
+                          : updateQuantity(item.productId, -1, item.batchId)
+                      }
+                    >
+                      {item.quantity <= 1 ? (
+                        <Trash size={14} color={Colors.danger.main} />
+                      ) : (
+                        <Minus size={14} color={Colors.text} />
+                      )}
+                    </TouchableOpacity>
+                    <Text style={styles.stepperValue}>{item.quantity}</Text>
+                    <TouchableOpacity
+                      style={styles.stepperButton}
+                      onPress={() => updateQuantity(item.productId, 1, item.batchId)}
+                    >
+                      <Plus size={14} color={Colors.action} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.sheetItemTotal}>{formatMoney(lineTotal(item))}</Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Ajouter un client */}
+            <TouchableOpacity style={styles.addCustomerRow} onPress={handleCheckout}>
+              <View style={styles.addCustomerIcon}>
+                <Plus size={16} color={Colors.action} />
+              </View>
+              <Text style={styles.addCustomerText}>
+                {selectedCustomer && selectedCustomer !== 'cash'
+                  ? customers.find(c => c.id === selectedCustomer)?.name || 'Client'
+                  : 'Ajouter un client (optionnel)'}
+              </Text>
+              <ChevronRight size={20} color={Colors.muted.foreground} />
+            </TouchableOpacity>
+
+            {/* Toggle paiement Cash / Crédit */}
+            <View style={styles.segment}>
+              {paymentMethods.map(method => {
+                const isActive = paymentMethod === method.key;
+                const isDisabled = method.disabled;
+                return (
+                  <TouchableOpacity
+                    key={method.key}
+                    style={[styles.segmentItem, isActive && styles.segmentItemActive]}
+                    onPress={() => {
+                      if (isDisabled) {
+                        handleCheckout();
+                      } else {
+                        setPaymentMethod(method.key);
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isActive && styles.segmentTextActive,
+                        isDisabled && styles.segmentTextDisabled,
+                      ]}
+                    >
+                      {method.key === 'cash' ? 'Cash' : 'Crédit'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Grand bouton Encaisser */}
+            <TouchableOpacity
+              style={styles.encaisserButton}
+              onPress={handleCheckout}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.encaisserButtonText}>
+                {paymentMethod === 'credit' ? 'Encaisser à crédit' : 'Encaisser en cash'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Payment Modal */}
       <Modal
@@ -910,110 +1018,130 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  mainContent: {
+  body: {
     flex: 1,
-    flexDirection: 'column',
+    backgroundColor: Colors.background,
   },
-  // Tablette : master-detail horizontal (produits à gauche, panier à droite).
-  mainContentTablet: {
-    flexDirection: 'row',
-  },
-  productsSection: {
-    flex: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  // Tablette : volet gauche ~60%, séparateur vertical au lieu d'horizontal.
-  productsSectionTablet: {
-    flex: 3,
-    borderBottomWidth: 0,
-    borderRightWidth: 1,
-    borderRightColor: Colors.border,
+  // --- Barre de recherche ---
+  searchWrapper: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
+    ...Shadows.sm,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.text,
   },
-  productsGrid: {
-    padding: Spacing.sm,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // --- Chips de catégorie ---
+  chipsRow: {
+    paddingBottom: Spacing.sm,
+  },
+  chipsContent: {
+    paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
+  chip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary[900],
+    borderColor: Colors.primary[900],
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  chipTextActive: {
+    color: Colors.primary.foreground,
+  },
+  // --- Grille produits ---
+  productsGrid: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xl,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  productsGridWithSheet: {
+    paddingBottom: 360,
+  },
   productCard: {
-    width: '23%',
+    width: '48%',
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: Spacing.sm,
-    alignItems: 'center',
-    position: 'relative',
+    padding: Spacing.lg,
     ...Shadows.sm,
   },
-  productCardInCart: {
-    borderWidth: 2,
-    borderColor: Colors.action,
-    backgroundColor: Colors.primary[50],
-  },
-  productIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary[50],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
+  productCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   productName: {
-    fontSize: 12,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.text,
-    textAlign: 'center',
-    marginBottom: 2,
   },
-  productDetail: {
-    fontSize: 10,
-    color: Colors.muted.foreground,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  productStock: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.success.main,
-  },
-  multiPriceBadge: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: Colors.warning.main,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: Colors.action,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+  addButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cartBadgeText: {
-    color: Colors.primary.foreground,
+  productPrice: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.primary[900],
+    marginBottom: Spacing.xs,
+  },
+  productMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  productStock: {
     fontSize: 11,
     fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  productStockLow: {
+    color: Colors.warning.main,
+  },
+  multiPriceBadge: {
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  multiPriceBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: Colors.action,
   },
   emptyProducts: {
     flex: 1,
@@ -1027,115 +1155,169 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.muted.foreground,
   },
-  cartSection: {
+  // --- Bottom-sheet "Encaisser" ---
+  sheetOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(11, 42, 69, 0.25)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
     backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['2xl'],
+    maxHeight: '70%',
+    ...Shadows.lg,
   },
-  // Tablette : volet droit ~40% pleine hauteur.
-  cartSectionTablet: {
-    flex: 2,
-    borderTopWidth: 0,
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
+    marginBottom: Spacing.lg,
   },
-  cartHeader: {
+  sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    marginBottom: Spacing.lg,
   },
-  cartHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  cartTitle: {
-    fontSize: 16,
+  sheetTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
   },
-  cartCount: {
-    backgroundColor: Colors.primary[50],
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 12,
-  },
-  cartCountText: {
-    fontSize: 12,
-    fontWeight: '600',
+  sheetTotal: {
+    fontSize: 22,
+    fontWeight: '700',
     color: Colors.action,
   },
-  emptyCart: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  sheetItems: {
+    flexGrow: 0,
   },
-  emptyCartText: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
-  },
-  cartContent: {
-    flex: 1,
-    padding: Spacing.md,
-  },
-  cartItemsContainer: {
+  sheetItem: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
-  cartItem: {
+  sheetItemInfo: {
+    flex: 1,
+  },
+  sheetItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  sheetItemUnit: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
-    padding: Spacing.md,
-    minWidth: 140,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 4,
   },
-  cartItemName: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  cartItemActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.muted.main,
+  stepperButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quantity: {
+  stepperValue: {
+    minWidth: 24,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sheetItemTotal: {
+    minWidth: 64,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  addCustomerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  addCustomerIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addCustomerText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '600',
     color: Colors.text,
-    minWidth: 20,
-    textAlign: 'center',
   },
-  removeButton: {
-    marginLeft: 'auto',
-    padding: Spacing.xs,
-  },
-  checkoutButton: {
+  segment: {
     flexDirection: 'row',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 4,
+    gap: 4,
+    marginBottom: Spacing.lg,
+  },
+  segmentItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.success.main,
-    padding: Spacing.lg,
-    borderRadius: 12,
-    marginTop: 'auto',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
   },
-  checkoutButtonText: {
+  segmentItemActive: {
+    backgroundColor: Colors.surface,
+    ...Shadows.sm,
+  },
+  segmentText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  segmentTextActive: {
+    color: Colors.action,
+  },
+  segmentTextDisabled: {
+    color: Colors.textColors.disabled,
+  },
+  encaisserButton: {
+    backgroundColor: Colors.success.main,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  encaisserButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
+    fontWeight: '700',
+    color: Colors.success.foreground,
   },
   modalOverlay: {
     flex: 1,

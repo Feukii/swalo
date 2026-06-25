@@ -1,25 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
-  DollarSign,
-  Receipt,
   ShoppingCart,
   Wallet,
   Package,
-  Ellipsis,
+  Users,
+  TrendingDown,
+  TrendingUp,
 } from '../components/icons/SimpleIcons';
-import { ListItem, TransactionDetailModal } from '../components/ui';
-import { Logo } from '../components/ui/Logo';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { ScreenHeader, TransactionDetailModal } from '../components/ui';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { getTodayLabel } from '../utils/date';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
 import { syncEngine } from '../db/sync';
 import { authApi } from '../lib/api';
 import { cashEntryRepo, clientReceivableRepo, supplierDebtRepo } from '../db/repositories';
@@ -47,11 +42,22 @@ const formatTransactionTime = (isoString: string): string => {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
-const freshnessColors: Record<FreshnessLevel, string> = {
-  fresh: Colors.success.main,
-  stale: Colors.warning.main,
-  old: Colors.danger.main,
-  unknown: Colors.primary[300],
+// Date courte du jour (ex: "Vendredi 26 juin")
+const getTodayShort = (): string => {
+  const today = new Date();
+  const weekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(today);
+  const rest = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(today);
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${rest}`;
+};
+
+// Sépare le montant (ex: "3 500 F") en valeur + suffixe "F" pour styliser le F en sky
+const splitMoney = (amount: number): { value: string; unit: string } => {
+  const formatted = formatMoney(amount);
+  const idx = formatted.lastIndexOf(' F');
+  if (idx === -1) {
+    return { value: formatted, unit: '' };
+  }
+  return { value: formatted.slice(0, idx), unit: 'F' };
 };
 
 // Transaction agrégée du jour (entrées caisse + créances/dettes à crédit)
@@ -75,12 +81,16 @@ interface SelectedTransaction {
   category: string;
 }
 
+interface QuickAction {
+  label: string;
+  route: string;
+  icon: React.ReactNode;
+  iconBg: string;
+}
+
 export default function HomeScreen() {
   const { shopId, shop, enterprise } = useCurrentUser();
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const freshness = useSyncFreshness();
-  const [scrolled, setScrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     cashBalance: 0,
@@ -244,181 +254,161 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const shopName =
-    enterprise?.name && shop?.name ? `${enterprise.name} · ${shop.name}` : shop?.name || 'Swalo';
+  const headerTitle = shop?.name || 'Swalo';
+  const headerSubtitle = enterprise?.name || undefined;
 
-  const quickActions: { label: string; route: string; icon: React.ReactNode }[] = [
-    { label: 'Vente', route: 'Sale', icon: <ShoppingCart size={24} color={Colors.action} /> },
-    { label: 'Caisse', route: 'Cash', icon: <Wallet size={24} color={Colors.action} /> },
-    { label: 'Stock', route: 'Stock', icon: <Package size={24} color={Colors.action} /> },
-    { label: 'Plus', route: 'More', icon: <Ellipsis size={24} color={Colors.action} /> },
+  const netDay = stats.totalSales - stats.totalPurchases;
+  const balance = splitMoney(stats.cashBalance);
+
+  const quickActions: QuickAction[] = [
+    {
+      label: 'Vente',
+      route: 'Sale',
+      icon: <ShoppingCart size={22} color={Colors.action} />,
+      iconBg: Colors.info.background,
+    },
+    {
+      label: 'Caisse',
+      route: 'Cash',
+      icon: <Wallet size={22} color={Colors.primary[900]} />,
+      iconBg: Colors.primary[50],
+    },
+    {
+      label: 'Stock',
+      route: 'Stock',
+      icon: <Package size={22} color={Colors.success.main} />,
+      iconBg: Colors.success.background,
+    },
+    {
+      label: 'Clients',
+      route: 'Customers',
+      icon: <Users size={22} color={Colors.warning.main} />,
+      iconBg: Colors.warning.background,
+    },
   ];
 
   return (
     <View style={styles.container}>
-      <StatusBar style={scrolled ? 'dark' : 'light'} />
+      <StatusBar style="dark" />
+      <ScreenHeader title={headerTitle} subtitle={headerSubtitle} />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={e => {
-          const next = e.nativeEvent.contentOffset.y > 120;
-          if (next !== scrolled) setScrolled(next);
-        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.onMarine}
+            tintColor={Colors.primary[900]}
           />
         }
       >
-        {/* HERO dégradé bleu clair */}
-        <LinearGradient
-          colors={['#5CC8F5', '#0EA5E9', '#0284C7']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}
-        >
-          <View style={styles.heroTop}>
-            <View style={styles.heroBrand}>
-              <Text style={styles.heroShop} numberOfLines={1}>
-                {shopName}
+        {/* HERO MARINE — Solde de caisse */}
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>Solde de caisse</Text>
+            <Text style={styles.heroDate}>{getTodayShort()}</Text>
+          </View>
+
+          <Text style={styles.heroAmount}>
+            {balance.value}
+            {balance.unit ? <Text style={styles.heroAmountUnit}> {balance.unit}</Text> : null}
+          </Text>
+
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Ventes</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>
+                +{formatMoney(stats.totalSales)}
               </Text>
             </View>
-            <View style={styles.freshnessBadge}>
-              <View
-                style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
-              />
-              <Text style={styles.freshnessText}>{freshness.label}</Text>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Achats</Text>
+              <Text style={styles.heroStatValue}>{formatMoney(stats.totalPurchases)}</Text>
             </View>
-          </View>
-
-          <Text style={styles.balanceLabel}>Solde de caisse</Text>
-          <Text style={styles.balanceAmount}>{formatMoney(stats.cashBalance)}</Text>
-
-          <View style={styles.heroMeta}>
-            <Text style={styles.heroMetaText}>{getTodayLabel()}</Text>
-            <Text style={styles.heroMetaText}>
-              {stats.transactionCount} transaction{stats.transactionCount > 1 ? 's' : ''}
-            </Text>
-          </View>
-        </LinearGradient>
-
-        {/* Carte de stats flottante */}
-        <View style={styles.floatingCard}>
-          <View style={styles.statCol}>
-            <Text style={styles.statLabel}>Ventes</Text>
-            <Text style={[styles.statValue, { color: Colors.success.main }]}>
-              {formatMoney(stats.totalSales)}
-            </Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCol}>
-            <Text style={styles.statLabel}>Achats</Text>
-            <Text style={[styles.statValue, { color: Colors.danger.main }]}>
-              {formatMoney(stats.totalPurchases)}
-            </Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCol}>
-            <Text style={styles.statLabel}>Entrées</Text>
-            <Text style={[styles.statValue, { color: Colors.primary[900] }]}>
-              {formatMoney(stats.totalEntries)}
-            </Text>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Net du jour</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>
+                {netDay >= 0 ? '+' : '-'}
+                {formatMoney(netDay)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.body}>
-          {/* Accès rapide */}
-          <Text style={styles.sectionTitle}>Accès rapide</Text>
-          <View style={styles.tilesGrid}>
-            {quickActions.map(action => (
-              <Pressable
-                key={action.label}
-                style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-                onPress={() => navigation.navigate(action.route as never)}
-              >
-                <View style={styles.tileIconBox}>{action.icon}</View>
-                <Text style={styles.tileLabel}>{action.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+        {/* TUILES D'ACCÈS RAPIDE */}
+        <View style={styles.tilesRow}>
+          {quickActions.map(action => (
+            <Pressable
+              key={action.label}
+              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+              onPress={() => navigation.navigate(action.route as never)}
+            >
+              <View style={[styles.tileIcon, { backgroundColor: action.iconBg }]}>
+                {action.icon}
+              </View>
+              <Text style={styles.tileLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
-          {/* Détail Ventes */}
-          <View style={styles.card}>
-            <View style={styles.cardTopRow}>
-              <Text style={styles.cardTitle}>Ventes du jour</Text>
-              <Text style={[styles.cardTotal, { color: Colors.success.main }]}>
-                {formatMoney(stats.totalSales)}
+        {/* VENTES DU JOUR */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Ventes du jour</Text>
+            <Text style={[styles.sectionAmount, styles.textSuccess]}>
+              {formatMoney(stats.totalSales)}
+            </Text>
+          </View>
+          <View style={styles.salesRow}>
+            <View style={styles.salesCard}>
+              <Text style={styles.salesCardLabel}>Cash</Text>
+              <Text style={styles.salesCardValue}>{formatMoney(stats.salesCash)}</Text>
+            </View>
+            <View style={styles.salesCard}>
+              <Text style={styles.salesCardLabel}>Crédit</Text>
+              <Text style={[styles.salesCardValue, styles.textWarning]}>
+                {formatMoney(stats.salesCredit)}
               </Text>
             </View>
-            <View style={styles.breakdownRow}>
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Cash</Text>
-                <Text style={styles.breakdownValue}>{formatMoney(stats.salesCash)}</Text>
-              </View>
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Crédit</Text>
-                <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
-                  {formatMoney(stats.salesCredit)}
-                </Text>
-              </View>
-            </View>
+          </View>
+        </View>
+
+        {/* TRANSACTIONS RÉCENTES */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Transactions récentes</Text>
+            <Pressable onPress={() => navigation.navigate('Cash' as never)}>
+              <Text style={styles.linkSeeAll}>Tout voir</Text>
+            </Pressable>
           </View>
 
-          {/* Détail Achats */}
-          <View style={styles.card}>
-            <View style={styles.cardTopRow}>
-              <Text style={styles.cardTitle}>Achats du jour</Text>
-              <Text style={[styles.cardTotal, { color: Colors.danger.main }]}>
-                {formatMoney(stats.totalPurchases)}
-              </Text>
-            </View>
-            <View style={styles.breakdownRow}>
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Cash</Text>
-                <Text style={styles.breakdownValue}>{formatMoney(stats.purchasesCash)}</Text>
-              </View>
-              <View style={styles.breakdownItem}>
-                <Text style={styles.breakdownLabel}>Crédit</Text>
-                <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
-                  {formatMoney(stats.purchasesCredit)}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Transactions récentes */}
-          <Text style={styles.sectionTitle}>Transactions récentes</Text>
           <View style={styles.listCard}>
             {recentTransactions.length > 0 ? (
-              recentTransactions.map(transaction => {
+              recentTransactions.map((transaction, index) => {
                 const isEntry = transaction.type === 'IN';
                 const isCredit = transaction.isCredit === true;
                 const categoryLabel = getCategoryLabel(transaction.category);
                 const title = isCredit ? `${categoryLabel} (Crédit)` : categoryLabel;
+                const subtitle = `${formatTransactionTime(transaction.created_at)} · ${
+                  isCredit ? 'Crédit' : 'Cash'
+                }`;
+                const amountColor = isCredit
+                  ? Colors.warning.main
+                  : isEntry
+                    ? Colors.success.main
+                    : Colors.danger.main;
 
                 return (
-                  <ListItem
+                  <Pressable
                     key={transaction.id}
-                    icon={
-                      isEntry ? (
-                        <Receipt size={20} color={Colors.action} />
-                      ) : (
-                        <DollarSign size={20} color={Colors.action} />
-                      )
-                    }
-                    title={title}
-                    subtitle={formatTransactionTime(transaction.created_at)}
-                    amount={
-                      isEntry
-                        ? `+${formatMoney(transaction.amount)}`
-                        : `-${formatMoney(transaction.amount)}`
-                    }
-                    amountColor={isCredit ? 'warning' : isEntry ? 'success' : 'danger'}
-                    onClick={() => {
+                    style={({ pressed }) => [
+                      styles.txRow,
+                      index < recentTransactions.length - 1 && styles.txRowBordered,
+                      pressed && styles.txRowPressed,
+                    ]}
+                    onPress={() => {
                       setSelectedTransaction({
                         type: isEntry ? 'entry' : 'exit',
                         date: transaction.created_at,
@@ -429,25 +419,46 @@ export default function HomeScreen() {
                       });
                       setShowDetailModal(true);
                     }}
-                  />
+                  >
+                    <View
+                      style={[
+                        styles.txIcon,
+                        {
+                          backgroundColor: isEntry
+                            ? Colors.success.background
+                            : Colors.danger.background,
+                        },
+                      ]}
+                    >
+                      {isEntry ? (
+                        <TrendingDown size={18} color={Colors.success.main} />
+                      ) : (
+                        <TrendingUp size={18} color={Colors.danger.main} />
+                      )}
+                    </View>
+                    <View style={styles.txBody}>
+                      <Text style={styles.txTitle} numberOfLines={1}>
+                        {title}
+                      </Text>
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {subtitle}
+                      </Text>
+                    </View>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>
+                      {isEntry ? '+' : '-'}
+                      {formatMoney(transaction.amount)}
+                    </Text>
+                  </Pressable>
                 );
               })
             ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>Aucune transaction aujourd'hui</Text>
+                <Text style={styles.emptyText}>Aucune transaction aujourd&apos;hui</Text>
               </View>
             )}
           </View>
         </View>
       </ScrollView>
-
-      {/* En-tête blanc collant (apparaît au défilement) */}
-      <View
-        style={[styles.stickyHeader, { paddingTop: insets.top, opacity: scrolled ? 1 : 0 }]}
-        pointerEvents="none"
-      >
-        <Logo size={26} tone="marine" showWordmark />
-      </View>
 
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
@@ -462,227 +473,204 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.action,
+    backgroundColor: Colors.background,
   },
   scroll: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  stickyHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.surface,
-    paddingBottom: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    zIndex: 10,
   },
   content: {
+    paddingTop: Spacing.lg,
     paddingBottom: 96,
+    gap: Spacing.xl,
   },
-  // HERO
+  // HERO MARINE
   hero: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing['3xl'] + Spacing.lg,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
   },
-  heroTop: {
+  heroTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: Spacing.xl,
   },
-  heroBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flexShrink: 1,
-  },
-  heroShop: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 13,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  freshnessBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  freshnessDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  freshnessText: {
-    fontSize: 11,
-    color: '#FFFFFF',
-    fontWeight: '500',
-  },
-  balanceLabel: {
+  heroLabel: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+    color: Colors.action,
   },
-  balanceAmount: {
-    fontSize: 38,
+  heroDate: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.action,
+  },
+  heroAmount: {
+    fontSize: 34,
     fontWeight: '800',
     color: Colors.onMarine,
-    marginTop: 2,
+    marginTop: Spacing.xs,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
   },
-  heroMeta: {
+  heroAmountUnit: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  heroStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.lg,
+    marginTop: Spacing.xl,
   },
-  heroMetaText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
-  // FLOATING STATS CARD
-  floatingCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg,
-    marginTop: -Spacing['2xl'],
-    borderRadius: 18,
-    paddingVertical: Spacing.lg,
-    shadowColor: '#0B2A45',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  statCol: {
+  heroStatCol: {
     flex: 1,
-    alignItems: 'center',
     gap: 4,
   },
-  statLabel: {
+  heroStatLabel: {
     fontSize: 12,
-    color: Colors.textColors.tertiary,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
   },
-  statValue: {
-    fontSize: 15,
+  heroStatValue: {
+    fontSize: 14,
     fontWeight: '700',
+    color: Colors.onMarine,
     fontVariant: ['tabular-nums'],
   },
-  statDivider: {
-    width: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 4,
+  heroStatPositive: {
+    color: Colors.success.main,
   },
-  // BODY
-  body: {
+  // TUILES
+  tilesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-    gap: Spacing.lg,
+    gap: Spacing.md,
+  },
+  tile: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    ...Shadows.sm,
+  },
+  tilePressed: {
+    opacity: 0.7,
+  },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  // SECTIONS
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
     color: Colors.text,
   },
-  // QUICK ACTION TILES
-  tilesGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: -Spacing.xs,
-  },
-  tile: {
-    width: '23%',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  tilePressed: {
-    opacity: 0.6,
-  },
-  tileIconBox: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 18,
-    backgroundColor: Colors.primary[50],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  // CARDS
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    shadowColor: '#0B2A45',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  cardTotal: {
-    fontSize: 18,
+  sectionAmount: {
+    fontSize: 17,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  breakdownRow: {
+  linkSeeAll: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  textSuccess: {
+    color: Colors.success.main,
+  },
+  textWarning: {
+    color: Colors.warning.main,
+  },
+  // VENTES DU JOUR
+  salesRow: {
     flexDirection: 'row',
     gap: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.md,
   },
-  breakdownItem: {
+  salesCard: {
     flex: 1,
-    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
     gap: 4,
+    ...Shadows.sm,
   },
-  breakdownLabel: {
-    fontSize: 12,
+  salesCardLabel: {
+    fontSize: 13,
     color: Colors.textColors.tertiary,
+    fontWeight: '500',
   },
-  breakdownValue: {
-    fontSize: 15,
-    fontWeight: '600',
+  salesCardValue: {
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     fontVariant: ['tabular-nums'],
   },
-  // LIST
+  // LISTE TRANSACTIONS
   listCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#0B2A45',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 1,
+    ...Shadows.sm,
+  },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  txRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  txRowPressed: {
+    backgroundColor: Colors.surfaceAlt,
+  },
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txBody: {
+    flex: 1,
+    gap: 2,
+  },
+  txTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  txSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   emptyState: {
     padding: Spacing['2xl'],

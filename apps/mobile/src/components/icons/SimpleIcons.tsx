@@ -263,6 +263,38 @@ export const ArrowLeft = ({ size = 24, color = Colors.text }: IconProps) => (
   </Svg>
 );
 
+export const ArrowDown = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="12" y1="5" x2="12" y2="19" />
+    <Path d="m19 12-7 7-7-7" />
+  </Svg>
+);
+
+export const ArrowUp = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="12" y1="19" x2="12" y2="5" />
+    <Path d="m5 12 7-7 7 7" />
+  </Svg>
+);
+
 export const DollarSign = ({ size = 24, color = Colors.text }: IconProps) => (
   <Svg
     width={size}
