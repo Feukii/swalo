@@ -260,7 +260,7 @@ function App() {
         <Route
           path="/settings/packaging-types"
           element={
-            <ProtectedRoute requireRole="OWNER">
+            <ProtectedRoute requireRole="BOSS">
               <MainLayout>
                 <PackagingTypes />
               </MainLayout>
