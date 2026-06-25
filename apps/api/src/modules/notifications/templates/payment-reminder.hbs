@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f5f7; color: #1f2937;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f5f7; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #1e3a5f; padding: 24px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700;">{{shop_name}}</h1>
+              <p style="margin: 4px 0 0; color: #94a3b8; font-size: 13px;">Rappel de paiement</p>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td style="padding: 24px 32px 16px;">
+              <p style="margin: 0; font-size: 15px; color: #374151;">
+                Bonjour <strong>{{customer_name}}</strong>,
+              </p>
+              <p style="margin: 12px 0 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                Nous vous rappelons qu'un solde reste a regler sur votre compte chez <strong>{{shop_name}}</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Balance box -->
+          <tr>
+            <td style="padding: 8px 32px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; text-align: center;">
+                    <p style="margin: 0; font-size: 11px; color: #dc2626; text-transform: uppercase; font-weight: 600;">Montant du</p>
+                    <p style="margin: 8px 0 0; font-size: 24px; font-weight: 700; color: #991b1b;">{{balance}} F</p>
+                    {{#if due_date}}
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #b91c1c;">Echeance : {{due_date}}</p>
+                    {{/if}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {{#if description}}
+          <tr>
+            <td style="padding: 0 32px 16px;">
+              <p style="margin: 0; font-size: 13px; color: #6b7280;">Objet : {{description}}</p>
+            </td>
+          </tr>
+          {{/if}}
+
+          <tr>
+            <td style="padding: 0 32px 24px;">
+              <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                Merci de bien vouloir regulariser votre situation des que possible. Si le paiement a deja ete effectue, veuillez ne pas tenir compte de ce message.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px 32px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                Ce rappel est genere automatiquement par <strong>{{shop_name}}</strong>.
+              </p>
+              {{#if shop_phone}}
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                Contact : {{shop_phone}}{{#if shop_email}} | {{shop_email}}{{/if}}
+              </p>
+              {{/if}}
+              <p style="margin: 12px 0 0; font-size: 11px; color: #d1d5db; text-align: center;">
+                Pour ne plus recevoir ces rappels, contactez votre boutique.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
