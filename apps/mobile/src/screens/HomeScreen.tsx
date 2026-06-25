@@ -277,7 +277,6 @@ export default function HomeScreen() {
         <View style={[styles.hero, { paddingTop: insets.top + Spacing.md }]}>
           <View style={styles.heroTop}>
             <View style={styles.heroBrand}>
-              <Logo size={26} tone="light" />
               <Text style={styles.heroShop} numberOfLines={1}>
                 {shopName}
               </Text>
@@ -457,7 +456,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   scroll: {
     flex: 1,
@@ -483,7 +482,7 @@ const styles = StyleSheet.create({
   },
   // HERO
   hero: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing['3xl'] + Spacing.lg,
@@ -503,7 +502,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   heroShop: {
-    color: Colors.primary[200],
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 13,
     fontWeight: '600',
     flexShrink: 1,
@@ -512,7 +511,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary[800],
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
@@ -524,12 +523,12 @@ const styles = StyleSheet.create({
   },
   freshnessText: {
     fontSize: 11,
-    color: Colors.primary[100],
+    color: '#FFFFFF',
     fontWeight: '500',
   },
   balanceLabel: {
     fontSize: 14,
-    color: Colors.primary[200],
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   balanceAmount: {
     fontSize: 38,
@@ -546,7 +545,7 @@ const styles = StyleSheet.create({
   },
   heroMetaText: {
     fontSize: 13,
-    color: Colors.primary[200],
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   // FLOATING STATS CARD
   floatingCard: {
