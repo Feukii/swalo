@@ -10,12 +10,21 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, Edit, Trash, Plus, Minus } from '../components/icons/SimpleIcons';
-import { ScreenHeader, KPICard, StatusBadge, IconButton } from '../components/ui';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+import {
+  Package,
+  Edit,
+  Trash,
+  Plus,
+  Minus,
+  Receipt,
+  DollarSign,
+  AlertTriangle,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader, IconButton } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { Product } from '../types/stock';
 import { getProducts, saveProducts } from '../utils/stockManager';
+import { formatMoney } from '../utils/money';
 
 interface ProductDetailsScreenProps {
   navigation: {
@@ -169,13 +178,6 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     return 'ok';
   };
 
-  const getStockBadge = () => {
-    const status = getStockStatus();
-    if (status === 'out') return { text: 'Rupture de stock', variant: 'danger' as const };
-    if (status === 'low') return { text: 'Stock faible', variant: 'warning' as const };
-    return { text: 'En stock', variant: 'success' as const };
-  };
-
   const getCategoryLabel = (category: string) => {
     const map: Record<string, string> = {
       alimentation: 'Alimentation',
@@ -190,11 +192,11 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -202,10 +204,14 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     return null;
   }
 
+  const stockStatus = getStockStatus();
+  const isLowStock = stockStatus === 'low' || stockStatus === 'out';
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <ScreenHeader
         title={product.name}
+        subtitle={getCategoryLabel(product.category)}
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
@@ -216,75 +222,131 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <IconButton onPress={handleDelete}>
               <Trash size={20} color={Colors.danger.main} />
             </IconButton>
-            <StatusBadge text={getStockBadge().text} variant={getStockBadge().variant} />
           </View>
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Product Info */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoText}>
-            <Text>📦 Référence: </Text>
-            <Text>{product.reference}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HERO MARINE — Stock du produit */}
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroIcon}>
+              <Package size={22} color={Colors.action} />
+            </View>
+            <View style={styles.heroTitleBlock}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {product.name}
+              </Text>
+              <Text style={styles.heroCategory} numberOfLines={1}>
+                {getCategoryLabel(product.category)}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroAmount}>
+            {product.stockQuantity}
+            <Text style={styles.heroAmountUnit}> {product.unit}</Text>
           </Text>
-          <Text style={styles.infoText}>
-            <Text>🏷️ Catégorie: </Text>
-            <Text>{getCategoryLabel(product.category)}</Text>
-          </Text>
-          {product.size && (
-            <Text style={styles.infoText}>
-              <Text>📏 Taille: </Text>
-              <Text>{product.size}</Text>
-            </Text>
-          )}
-          <Text style={styles.infoText}>
-            <Text>📊 Unité: </Text>
-            <Text>{product.unit}</Text>
-          </Text>
+
+          <View style={styles.heroFooterRow}>
+            {typeof product.price === 'number' ? (
+              <Text style={styles.heroPrice}>
+                {formatMoney(product.price)}
+                <Text style={styles.heroPriceUnit}> / {product.unit}</Text>
+              </Text>
+            ) : (
+              <Text style={styles.heroPriceMuted}>Prix non défini</Text>
+            )}
+
+            {isLowStock ? (
+              <View style={styles.heroLowBadge}>
+                <AlertTriangle size={13} color={Colors.warning.main} />
+                <Text style={styles.heroLowBadgeText}>
+                  {stockStatus === 'out' ? 'Rupture' : 'Stock bas'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
-        {/* Stock KPIs */}
-        <View style={styles.kpiRow}>
-          <View style={{ flex: 1 }}>
-            <KPICard
-              label="Stock actuel"
-              value={`${product.stockQuantity} ${product.unit}`}
-              icon={<Package size={20} color={Colors.action} />}
+        {/* INFOS PRODUIT */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informations</Text>
+          <View style={styles.infoCard}>
+            <InfoRow
+              icon={<Receipt size={18} color={Colors.action} />}
+              label="Référence"
+              value={product.reference}
             />
-          </View>
-          <View style={{ flex: 1 }}>
-            <KPICard
+            <InfoRow
+              icon={<Package size={18} color={Colors.action} />}
+              label="Catégorie"
+              value={getCategoryLabel(product.category)}
+              bordered
+            />
+            {product.size ? (
+              <InfoRow
+                icon={<Package size={18} color={Colors.action} />}
+                label="Taille"
+                value={product.size}
+                bordered
+              />
+            ) : null}
+            <InfoRow
+              icon={<Package size={18} color={Colors.action} />}
+              label="Unité"
+              value={product.unit}
+              bordered
+            />
+            <InfoRow
+              icon={<AlertTriangle size={18} color={Colors.action} />}
               label="Seuil d'alerte"
               value={`${product.stockThreshold} ${product.unit}`}
-              icon={<Package size={20} color={Colors.action} />}
+              valueColor={isLowStock ? Colors.warning.main : undefined}
+              bordered
             />
+            {typeof product.price === 'number' ? (
+              <InfoRow
+                icon={<DollarSign size={18} color={Colors.action} />}
+                label="Prix de vente"
+                value={formatMoney(product.price)}
+                valueStrong
+                bordered
+              />
+            ) : null}
           </View>
         </View>
 
-        {/* Stock Adjustment Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
-            onPress={() => {
-              setAdjustmentType('add');
-              setShowStockModal(true);
-            }}
-          >
-            <Plus size={20} color={Colors.primary.foreground} />
-            <Text style={styles.actionButtonText}>Ajouter stock</Text>
-          </TouchableOpacity>
+        {/* AJUSTEMENT DE STOCK */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Ajuster le stock</Text>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonAdd]}
+              onPress={() => {
+                setAdjustmentType('add');
+                setShowStockModal(true);
+              }}
+            >
+              <Plus size={20} color={Colors.primary.foreground} />
+              <Text style={styles.actionButtonText}>Ajouter</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: Colors.danger.main }]}
-            onPress={() => {
-              setAdjustmentType('remove');
-              setShowStockModal(true);
-            }}
-          >
-            <Minus size={20} color={Colors.primary.foreground} />
-            <Text style={styles.actionButtonText}>Retirer stock</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonRemove]}
+              onPress={() => {
+                setAdjustmentType('remove');
+                setShowStockModal(true);
+              }}
+            >
+              <Minus size={20} color={Colors.danger.main} />
+              <Text style={[styles.actionButtonText, styles.actionButtonTextRemove]}>Retirer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -296,10 +358,11 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         onRequestClose={() => setShowEditModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+          <ScrollView contentContainerStyle={styles.modalScroll}>
             <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <View>
+                <View style={styles.modalHeaderTextBlock}>
                   <Text style={styles.modalHeaderTitle}>Modifier le produit</Text>
                   <Text style={styles.modalHeaderSubtitle}>{product.name}</Text>
                 </View>
@@ -319,17 +382,19 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                     value={editForm.name}
                     onChangeText={text => setEditForm({ ...editForm, name: text })}
                     placeholder="Nom du produit"
+                    placeholderTextColor={Colors.textColors.disabled}
                   />
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Seuil d'alerte</Text>
+                  <Text style={styles.formLabel}>Seuil d&apos;alerte</Text>
                   <TextInput
                     style={styles.input}
                     value={editForm.stockThreshold}
                     onChangeText={text => setEditForm({ ...editForm, stockThreshold: text })}
                     keyboardType="numeric"
                     placeholder="Seuil d'alerte"
+                    placeholderTextColor={Colors.textColors.disabled}
                   />
                 </View>
 
@@ -340,6 +405,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                     value={editForm.size}
                     onChangeText={text => setEditForm({ ...editForm, size: text })}
                     placeholder="Ex: 500ml, XL, etc."
+                    placeholderTextColor={Colors.textColors.disabled}
                   />
                 </View>
 
@@ -356,7 +422,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator size="small" color={Colors.surface} />
+                      <ActivityIndicator size="small" color={Colors.primary.foreground} />
                     ) : (
                       <Text style={styles.modalSubmitButtonText}>Enregistrer</Text>
                     )}
@@ -377,13 +443,14 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <View>
+              <View style={styles.modalHeaderTextBlock}>
                 <Text style={styles.modalHeaderTitle}>
                   {adjustmentType === 'add' ? 'Ajouter du stock' : 'Retirer du stock'}
                 </Text>
                 <Text style={styles.modalHeaderSubtitle}>
-                  Stock actuel: {product.stockQuantity} {product.unit}
+                  Stock actuel : {product.stockQuantity} {product.unit}
                 </Text>
               </View>
               <TouchableOpacity
@@ -405,6 +472,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                   onChangeText={setStockAdjustment}
                   keyboardType="numeric"
                   placeholder="0"
+                  placeholderTextColor={Colors.textColors.disabled}
                 />
               </View>
 
@@ -421,7 +489,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
                   ) : (
                     <Text style={styles.modalSubmitButtonText}>Valider</Text>
                   )}
@@ -431,7 +499,35 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
+  );
+}
+
+interface InfoRowProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  bordered?: boolean;
+  valueColor?: string;
+  valueStrong?: boolean;
+}
+
+function InfoRow({ icon, label, value, bordered, valueColor, valueStrong }: InfoRowProps) {
+  return (
+    <View style={[styles.infoRow, bordered && styles.infoRowBordered]}>
+      <View style={styles.infoIcon}>{icon}</View>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.infoValue,
+          valueStrong && styles.infoValueStrong,
+          valueColor ? { color: valueColor } : null,
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -443,100 +539,247 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    flex: 1,
-    padding: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
+    gap: Spacing.xl,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // HERO MARINE
+  hero: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(14, 165, 233, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTitleBlock: {
+    flex: 1,
+  },
+  heroName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  heroCategory: {
+    fontSize: 12.5,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 1,
+  },
+  heroAmount: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.lg,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroAmountUnit: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  heroFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+  },
+  heroPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
+  },
+  heroPriceUnit: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  heroPriceMuted: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.55)',
+  },
+  heroLowBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+  },
+  heroLowBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.warning.main,
+  },
+  // SECTIONS
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  // INFO CARD
   infoCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    overflow: 'hidden',
     ...Shadows.sm,
   },
-  infoText: {
-    fontSize: 14,
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-    lineHeight: 20,
-  },
-  kpiRow: {
+  infoRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.md,
-    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
+  infoRowBordered: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  infoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.textColors.secondary,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  infoValueStrong: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.primary[900],
+  },
+  // ACTION BUTTONS
   actionButtons: {
     flexDirection: 'row',
     gap: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.md,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 14,
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    minHeight: 56,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    minHeight: 52,
+  },
+  actionButtonAdd: {
+    backgroundColor: Colors.action,
+  },
+  actionButtonRemove: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.danger.main,
   },
   actionButtonText: {
-    color: Colors.surface,
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.primary.foreground,
+    fontSize: 15,
+    fontWeight: '700',
   },
+  actionButtonTextRemove: {
+    color: Colors.danger.main,
+  },
+  // MODALS
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    padding: Spacing.lg,
+    justifyContent: 'flex-end',
+  },
+  modalScroll: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
-    maxWidth: 500,
-    width: '100%',
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    paddingBottom: Spacing.xl,
+    ...Shadows.lg,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
     alignSelf: 'center',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  modalHeaderTextBlock: {
+    flex: 1,
+  },
   modalHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   modalHeaderSubtitle: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
   },
   modalCloseButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 999,
     backgroundColor: Colors.muted.main,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCloseButtonText: {
-    fontSize: 18,
-    color: Colors.text,
+    fontSize: 16,
+    color: Colors.textColors.secondary,
     fontWeight: '600',
   },
   modalBody: {
@@ -547,49 +790,52 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.text,
     marginBottom: Spacing.sm,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.text,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceAlt,
   },
   modalActions: {
     flexDirection: 'row',
     gap: Spacing.md,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
     paddingVertical: Spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   modalCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
   },
   modalSubmitButton: {
     flex: 1,
     paddingVertical: Spacing.md,
-    borderRadius: 12,
+    borderRadius: BorderRadius.sm,
     backgroundColor: Colors.action,
     alignItems: 'center',
-    minHeight: 48,
     justifyContent: 'center',
+    minHeight: 48,
   },
   modalSubmitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.primary.foreground,
   },
 });

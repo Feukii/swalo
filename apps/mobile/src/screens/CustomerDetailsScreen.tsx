@@ -10,17 +10,20 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
-  ScreenHeader,
-  ListItem,
-  StatusBadge,
-  TransactionDetailModal,
-  IconButton,
-} from '../components/ui';
-import { BalanceIndicator } from '../components/ui/BalanceIndicator';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+  DollarSign,
+  Edit,
+  Trash,
+  Plus,
+  Smartphone,
+  Mail,
+  MapPin,
+  ArrowUp,
+  ArrowDown,
+  X,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
@@ -69,6 +72,28 @@ interface SelectedTransaction {
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
+}
+
+// Sépare le montant ("12 500 F") en valeur + suffixe "F" pour styliser le F en sky
+function splitMoney(amount: number): { value: string; unit: string } {
+  const formatted = formatMoney(Math.abs(amount));
+  const idx = formatted.lastIndexOf(' F');
+  if (idx === -1) {
+    return { value: formatted, unit: '' };
+  }
+  return { value: formatted.slice(0, idx), unit: 'F' };
+}
+
+// Initiales (max 2 lettres) à partir du prénom + nom
+function getInitials(firstName: string | null, name: string): string {
+  const a = (firstName || '').trim();
+  const b = (name || '').trim();
+  if (a && b) return `${a[0]}${b[0]}`.toUpperCase();
+  const single = (b || a).trim();
+  if (!single) return '?';
+  const parts = single.split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return single.slice(0, 2).toUpperCase();
 }
 
 interface ReceivableWithPayments {
@@ -664,11 +689,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Client"
+          subtitle="Créances & paiements"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -676,17 +707,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     return null;
   }
 
+  const totalBalance = customer.stats?.total_balance ?? 0;
+  const shopOwes = totalBalance < 0; // la boutique doit rembourser le client
+  const heroAmount = splitMoney(totalBalance);
+  const heroLabel = shopOwes ? 'À rembourser au client' : 'Créances en cours';
+
+  const creditLimit =
+    customer.credit_limit && customer.credit_limit > 0 ? customer.credit_limit : 0;
+  const usedCredit = Math.max(0, totalBalance);
+  const creditPct =
+    creditLimit > 0 ? Math.min(100, Math.round((usedCredit / creditLimit) * 100)) : 0;
+  const creditBarColor = creditPct >= 80 ? Colors.danger.main : Colors.success.main;
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <ScreenHeader
         title={getPersonName(customer)}
+        subtitle="Créances & paiements"
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
           <View style={styles.headerActions}>
             {canEditOrDelete() && (
               <>
-                <IconButton onPress={handleOpenEditModal}>
+                <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
                   <Edit size={20} color={Colors.action} />
                 </IconButton>
                 <IconButton onPress={handleDelete}>
@@ -694,84 +738,92 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 </IconButton>
               </>
             )}
-            <StatusBadge
-              text={customer.is_active ? 'Actif' : 'Inactif'}
-              variant={customer.is_active ? 'success' : 'danger'}
-            />
           </View>
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Contact Info */}
-        {!!(
-          customer.phone ||
-          customer.email ||
-          customer.address ||
-          (customer.credit_limit && customer.credit_limit > 0)
-        ) && (
-          <View style={styles.infoCard}>
-            {!!customer.phone && (
-              <Text style={styles.infoText}>
-                Tél: {formatCameroonPhone(String(customer.phone))}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HERO MARINE — avatar + solde / créances */}
+        <View style={styles.hero}>
+          <View style={styles.heroHeaderRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {getInitials(customer.first_name, customer.name)}
               </Text>
-            )}
-            {!!customer.email && (
-              <Text style={styles.infoText}>Email: {String(customer.email)}</Text>
-            )}
-            {!!customer.address && (
-              <Text style={styles.infoText}>Adresse: {String(customer.address)}</Text>
-            )}
-            {!!(customer.credit_limit && customer.credit_limit > 0) && (
-              <View>
-                <Text style={styles.infoText}>
-                  Limite crédit: {formatMoney(customer.credit_limit)}
-                </Text>
-                {(() => {
-                  const used = customer.stats?.total_balance ?? 0;
-                  const limit = customer.credit_limit;
-                  const pct = Math.min(100, Math.round((used / limit) * 100));
-                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
-                  return (
-                    <View style={{ marginTop: 4 }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, color: Colors.muted.foreground }}>
-                          Utilisé: {formatMoney(used)}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: barColor, fontWeight: '600' }}>
-                          {pct}%
-                        </Text>
-                      </View>
-                      <View style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3 }}>
-                        <View
-                          style={{
-                            height: 6,
-                            backgroundColor: barColor,
-                            borderRadius: 3,
-                            width: `${pct}%`,
-                          }}
-                        />
-                      </View>
-                    </View>
-                  );
-                })()}
+            </View>
+            <View style={styles.heroHeaderText}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {getPersonName(customer)}
+              </Text>
+              <View style={styles.heroStatusRow}>
+                <StatusBadge
+                  text={customer.is_active ? 'Actif' : 'Inactif'}
+                  variant={customer.is_active ? 'success' : 'danger'}
+                />
               </View>
-            )}
+            </View>
+          </View>
+
+          <Text style={styles.heroLabel}>{heroLabel}</Text>
+          <Text style={[styles.heroAmount, shopOwes && styles.heroAmountRefund]}>
+            {heroAmount.value}
+            {heroAmount.unit ? <Text style={styles.heroAmountUnit}> {heroAmount.unit}</Text> : null}
+          </Text>
+
+          {creditLimit > 0 && (
+            <View style={styles.creditBlock}>
+              <View style={styles.creditBarTrack}>
+                <View
+                  style={[
+                    styles.creditBarFill,
+                    { width: `${creditPct}%`, backgroundColor: creditBarColor },
+                  ]}
+                />
+              </View>
+              <View style={styles.creditMetaRow}>
+                <Text style={styles.creditMetaLabel}>Limite de crédit</Text>
+                <Text style={styles.creditMetaValue}>{formatMoney(creditLimit)}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Infos client */}
+        {!!(customer.phone || customer.email || customer.address) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Coordonnées</Text>
+            <View style={styles.infoCard}>
+              {!!customer.phone && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Smartphone size={18} color={Colors.action} />
+                  </View>
+                  <Text style={styles.infoText}>{formatCameroonPhone(String(customer.phone))}</Text>
+                </View>
+              )}
+              {!!customer.email && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Mail size={18} color={Colors.action} />
+                  </View>
+                  <Text style={styles.infoText}>{String(customer.email)}</Text>
+                </View>
+              )}
+              {!!customer.address && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <MapPin size={18} color={Colors.action} />
+                  </View>
+                  <Text style={styles.infoText}>{String(customer.address)}</Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
-
-        {/* Balance Indicator */}
-        <BalanceIndicator
-          balance={customer.stats?.total_balance || 0}
-          type="customer"
-          showAlert={true}
-        />
 
         {/* Action Buttons */}
         {(userRole === 'OWNER' ||
@@ -780,65 +832,55 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
           userRole === 'EMPLOYEE') && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+              onPress={handleOpenRefundModal}
+              activeOpacity={0.85}
+            >
+              <DollarSign size={20} color={Colors.success.foreground} />
+              <Text style={styles.actionButtonText}>Recevoir paiement</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
               onPress={handleOpenCreateReceivableModal}
+              activeOpacity={0.85}
             >
-              <Plus size={20} color={Colors.primary.foreground} />
+              <Plus size={20} color={Colors.warning.foreground} />
               <Text style={styles.actionButtonText}>Créer créance</Text>
             </TouchableOpacity>
 
             {/* Show Refund button only when balance is negative */}
-            {(customer.stats?.total_balance || 0) < 0 && (
+            {shopOwes && (
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: Colors.danger.main }]}
+                style={[
+                  styles.actionButton,
+                  styles.actionButtonFull,
+                  { backgroundColor: Colors.danger.main },
+                ]}
                 onPress={handleOpenCustomerRefundModal}
+                activeOpacity={0.85}
               >
-                <DollarSign size={20} color={Colors.primary.foreground} />
-                <Text style={styles.actionButtonText}>Rembourser Client</Text>
+                <DollarSign size={20} color={Colors.danger.foreground} />
+                <Text style={styles.actionButtonText}>Rembourser le client</Text>
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
-              onPress={handleOpenRefundModal}
-            >
-              <DollarSign size={20} color={Colors.primary.foreground} />
-              <Text style={styles.actionButtonText}>Recevoir paiement</Text>
-            </TouchableOpacity>
           </View>
         )}
 
         {/* Transactions History */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Historique des opérations</Text>
-          </View>
-          <View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Historique des opérations</Text>
+          <View style={styles.listCard}>
             {transactions.length === 0 ? (
-              <View style={{ padding: Spacing.lg }}>
-                <Text style={{ color: Colors.muted.foreground, textAlign: 'center' }}>
-                  Aucune transaction
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Aucune transaction</Text>
               </View>
             ) : (
               transactions.map((transaction, index) => {
                 // Detect if this is a refund (negative receivable)
                 const isRefund = transaction.type === 'receivable' && transaction.amount < 0;
                 const isCredit = transaction.type === 'receivable' && !isRefund;
-
-                const getIcon = () => {
-                  if (isRefund) {
-                    return <DollarSign size={20} color={Colors.danger.main} />;
-                  }
-                  switch (transaction.type) {
-                    case 'receivable':
-                      return <Receipt size={20} color={Colors.action} />;
-                    case 'payment':
-                      return <DollarSign size={20} color={Colors.action} />;
-                    default:
-                      return <Receipt size={20} color={Colors.action} />;
-                  }
-                };
+                const isPositive = transaction.amount > 0;
 
                 const getTitle = () => {
                   if (isRefund) {
@@ -870,20 +912,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   return statusMap[transaction.status] || undefined;
                 };
 
+                const badge = getBadge();
                 const dateStr = transaction.date ? formatDate(transaction.date) : 'Date inconnue';
+                const amountColor = isCredit
+                  ? Colors.warning.main
+                  : isPositive
+                    ? Colors.success.main
+                    : Colors.danger.main;
+                const iconTint = isCredit
+                  ? Colors.warning.main
+                  : isPositive
+                    ? Colors.success.main
+                    : Colors.danger.main;
+                const iconBg = isCredit
+                  ? Colors.warning.background
+                  : isPositive
+                    ? Colors.success.background
+                    : Colors.danger.background;
 
                 return (
-                  <ListItem
+                  <TouchableOpacity
                     key={index}
-                    icon={getIcon()}
-                    title={getTitle()}
-                    subtitle={dateStr}
-                    amount={`${transaction.amount > 0 ? '+' : ''}${formatMoney(Math.abs(transaction.amount))}`}
-                    amountColor={
-                      isCredit ? 'warning' : transaction.amount > 0 ? 'success' : 'danger'
-                    }
-                    badge={getBadge()}
-                    onClick={() => {
+                    activeOpacity={0.7}
+                    style={[styles.txRow, index < transactions.length - 1 && styles.txRowBordered]}
+                    onPress={() => {
                       setSelectedTransaction({
                         type: transaction.type,
                         date: transaction.date,
@@ -896,7 +948,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                       });
                       setShowDetailModal(true);
                     }}
-                  />
+                  >
+                    <View style={[styles.txIcon, { backgroundColor: iconBg }]}>
+                      {isPositive ? (
+                        <ArrowDown size={18} color={iconTint} />
+                      ) : (
+                        <ArrowUp size={18} color={iconTint} />
+                      )}
+                    </View>
+                    <View style={styles.txBody}>
+                      <View style={styles.txTitleRow}>
+                        <Text style={styles.txTitle} numberOfLines={1}>
+                          {getTitle()}
+                        </Text>
+                        {badge ? <StatusBadge text={badge.text} variant={badge.variant} /> : null}
+                      </View>
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {dateStr}
+                      </Text>
+                    </View>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>
+                      {isPositive ? '+' : '-'}
+                      {formatMoney(Math.abs(transaction.amount))}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -913,6 +988,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -925,7 +1001,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 onPress={handleCloseCreateReceivableModal}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -1008,6 +1084,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1017,7 +1094,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 </Text>
               </View>
               <TouchableOpacity onPress={handleCloseRefundModal} style={styles.modalCloseButton}>
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -1082,6 +1159,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1094,7 +1172,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 onPress={handleCloseCustomerRefundModal}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -1176,6 +1254,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         <View style={styles.modalOverlay}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View>
@@ -1185,7 +1264,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   </Text>
                 </View>
                 <TouchableOpacity onPress={handleCloseEditModal} style={styles.modalCloseButton}>
-                  <Text style={styles.modalCloseButtonText}>✕</Text>
+                  <X size={18} color={Colors.action} />
                 </TouchableOpacity>
               </View>
 
@@ -1292,7 +1371,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         onClose={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1301,335 +1380,274 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 14,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    minHeight: 56,
-  },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...Shadows.sm,
-  },
-  cardHeader: {
-    padding: Spacing.lg,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  headerIconBtn: {
+    marginRight: Spacing.xs,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingTop: Spacing.lg,
+    paddingBottom: 96,
+    gap: Spacing.xl,
+  },
+
+  // HERO MARINE
+  hero: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    letterSpacing: 0.5,
+  },
+  heroHeaderText: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  heroName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  heroStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  heroLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  heroAmount: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroAmountRefund: {
+    color: Colors.accent,
+  },
+  heroAmountUnit: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  creditBlock: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  creditBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+  },
+  creditBarFill: {
+    height: 6,
+    borderRadius: 999,
+  },
+  creditMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  creditMetaLabel: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  creditMetaValue: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
   },
-  backText: {
-    fontSize: 24,
-    color: '#374151',
+
+  // SECTIONS
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButtonText: {
-    fontSize: 20,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#dcfce7',
-  },
-  statusBadgeInactive: {
-    backgroundColor: '#fee2e2',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#16a34a',
-  },
-  statusTextInactive: {
-    color: '#dc2626',
-  },
-  content: {
-    flex: 1,
-    padding: Spacing.lg,
-  },
+
+  // INFOS CLIENT
   infoCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    gap: Spacing.md,
     ...Shadows.sm,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   infoText: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 14.5,
     color: Colors.text,
-    marginBottom: Spacing.sm,
     lineHeight: 20,
   },
-  balanceCard: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  balanceCardDebt: {
-    backgroundColor: '#dc2626',
-  },
-  balanceCardPaid: {
-    backgroundColor: '#10b981',
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceValue: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDetails: {
+
+  // ACTION BUTTONS
+  actionButtons: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: 48,
+    ...Shadows.sm,
   },
-  balanceDetailItem: {
-    alignItems: 'center',
+  actionButtonFull: {
+    minWidth: '100%',
   },
-  balanceDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+  actionButtonText: {
+    color: Colors.onMarine,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  balanceDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  actionGradient: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    fontSize: 32,
-  },
-  actionText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  actionSubtext: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  historyCard: {
-    backgroundColor: '#fff',
+
+  // LISTE TRANSACTIONS
+  listCard: {
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  transactionsList: {
-    gap: 12,
-  },
-  transactionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   emptyState: {
+    padding: Spacing['2xl'],
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
   },
   emptyText: {
+    color: Colors.textColors.tertiary,
     fontSize: 14,
-    color: '#6b7280',
   },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  transactionLeft: {
-    flex: 1,
-  },
-  transactionHeader: {
+  txRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
-  transactionType: {
-    fontSize: 14,
+  txRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txBody: {
+    flex: 1,
+    gap: 2,
+  },
+  txTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  txTitle: {
+    flexShrink: 1,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
   },
-  statusBadgeSmall: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+  txSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
   },
-  statusBadgeSuccess: {
-    backgroundColor: '#dcfce7',
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  statusBadgeWarning: {
-    backgroundColor: '#fef3c7',
-  },
-  statusBadgePending: {
-    backgroundColor: '#dbeafe',
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 2,
-  },
-  transactionNote: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 12,
-  },
-  transactionAmountPositive: {
-    color: '#dc2626',
-  },
-  transactionAmountNegative: {
-    color: '#16a34a',
-  },
+
+  // MODALES
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    maxHeight: '85%',
+    paddingTop: Spacing.sm,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
+    marginVertical: Spacing.sm,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.lg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -1637,7 +1655,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   modalHeaderSubtitle: {
     fontSize: 14,
@@ -1646,33 +1664,28 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 999,
     backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCloseButtonText: {
-    fontSize: 20,
-    color: Colors.action,
-    fontWeight: 'bold',
-  },
   modalBody: {
-    padding: 20,
+    padding: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.textColors.secondary,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
     fontSize: 14,
     color: Colors.text,
     backgroundColor: Colors.surfaceAlt,
@@ -1682,43 +1695,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.surfaceAlt,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.text,
-    paddingVertical: 12,
+    paddingVertical: Spacing.md,
+    fontVariant: ['tabular-nums'],
   },
   amountCurrency: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textColors.tertiary,
+    fontWeight: '700',
+    color: Colors.action,
   },
   noteInput: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
     fontSize: 14,
     color: Colors.text,
     height: 80,
     textAlignVertical: 'top',
     backgroundColor: Colors.surfaceAlt,
   },
+  textInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: 14,
+    color: Colors.text,
+    height: 60,
+    textAlignVertical: 'top',
+    backgroundColor: Colors.surfaceAlt,
+  },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
     backgroundColor: Colors.muted.main,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
@@ -1732,7 +1757,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.action,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
@@ -1740,149 +1765,6 @@ const styles = StyleSheet.create({
   modalSubmitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-  },
-  // New balance display styles
-  balanceDisplayButton: {
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  balanceDisplayGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  balanceDisplayLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceDisplayAmount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDisplayDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  balanceDisplayDetailItem: {
-    alignItems: 'center',
-  },
-  balanceDisplayDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  balanceDisplayDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDisplayDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  // New action buttons row styles
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionButtonHalf: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionGradientHalf: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 120,
-    justifyContent: 'center',
-  },
-  actionIconLarge: {
-    fontSize: 36,
-    marginBottom: 4,
-  },
-  actionTextMedium: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  actionSubtextSmall: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-  },
-  overpaymentWarning: {
-    backgroundColor: Colors.warning.main + '20',
-    borderWidth: 1,
-    borderColor: Colors.warning.main,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  overpaymentWarningText: {
-    color: Colors.warning.main,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    color: Colors.text,
-    height: 60,
-    textAlignVertical: 'top',
-    backgroundColor: Colors.surfaceAlt,
-  },
-  paymentMethodContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  paymentMethodButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.muted.foreground,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentMethodButtonActive: {
-    backgroundColor: Colors.action,
-    borderColor: Colors.action,
-  },
-  paymentMethodButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.muted.foreground,
-  },
-  paymentMethodButtonTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.onMarine,
   },
 });
