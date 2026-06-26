@@ -80,6 +80,9 @@ export default function SaleScreen() {
   // Filtre catégorie (vue uniquement) — chips de la maquette
   const [selectedCategory, setSelectedCategory] = useState<string>('Tous');
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Le panier s'affiche d'abord en barre compacte (maquette swalo_vente) ;
+  // un tap déploie le bottom-sheet "Encaisser" (maquette swalo_vente2).
+  const [showCartSheet, setShowCartSheet] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [totalPrice, setTotalPrice] = useState('');
@@ -166,6 +169,7 @@ export default function SaleScreen() {
   const filteredProducts = products
     .filter(
       p =>
+        p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.family?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.article_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -550,6 +554,7 @@ export default function SaleScreen() {
 
   const resetForm = () => {
     setCart([]);
+    setShowCartSheet(false);
     setTotalPrice('');
     setOverridePrice(false);
     setPricingNotes('');
@@ -557,6 +562,22 @@ export default function SaleScreen() {
     setPaymentMethod('cash');
     setDueDate('');
     setShowPaymentModal(false);
+  };
+
+  // Vider entièrement le panier (bouton corbeille de la barre compacte).
+  const clearCart = () => {
+    if (cart.length === 0) return;
+    Alert.alert('Vider le panier', 'Retirer tous les articles du panier ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Vider',
+        style: 'destructive',
+        onPress: () => {
+          setCart([]);
+          setShowCartSheet(false);
+        },
+      },
+    ]);
   };
 
   // Méthodes de paiement disponibles (crédit désactivé pour client comptant)
@@ -722,11 +743,52 @@ export default function SaleScreen() {
         </ScrollView>
       </View>
 
-      {/* Bottom-sheet "Encaisser" — visible dès que le panier n'est pas vide */}
-      <Modal visible={cart.length > 0} transparent animationType="slide">
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
+      {/* Barre compacte du panier (maquette swalo_vente) — corbeille + total.
+          Visible dès qu'il y a des articles et que le sheet est replié. */}
+      {cart.length > 0 && !showCartSheet && (
+        <View style={styles.cartBar}>
+          <TouchableOpacity
+            style={styles.cartBarTrash}
+            onPress={clearCart}
+            activeOpacity={0.85}
+            accessibilityLabel="Vider le panier"
+          >
+            <Trash size={20} color={Colors.danger.main} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cartBarMain}
+            onPress={() => setShowCartSheet(true)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.cartBarCount}>
+              <Text style={styles.cartBarCountText}>{getTotalItems()}</Text>
+            </View>
+            <Text style={styles.cartBarLabel}>Encaisser</Text>
+            <Text style={styles.cartBarTotal}>{formatMoney(computedTotal)}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bottom-sheet "Encaisser" — déployé au tap sur la barre compacte */}
+      <Modal
+        visible={showCartSheet && cart.length > 0}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCartSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCartSheet(false)}
+        >
+          <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+            <TouchableOpacity
+              style={styles.sheetHandleTouch}
+              onPress={() => setShowCartSheet(false)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.sheetHandle} />
+            </TouchableOpacity>
 
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Encaisser</Text>
@@ -834,8 +896,8 @@ export default function SaleScreen() {
                     : 'Encaisser en cash'}
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Payment Modal */}
@@ -1192,7 +1254,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   productsGridWithSheet: {
-    paddingBottom: 360,
+    // Laisse la place à la barre compacte du panier ancrée en bas.
+    paddingBottom: 96,
   },
   productCard: {
     width: '48%',
@@ -1265,6 +1328,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.muted.foreground,
   },
+  // --- Barre compacte du panier (état replié) ---
+  cartBar: {
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    bottom: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  cartBarTrash: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.danger.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  cartBarMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    height: 52,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.action,
+    paddingHorizontal: Spacing.lg,
+    ...Shadows.sm,
+  },
+  cartBarCount: {
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBarCountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  cartBarLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  cartBarTotal: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
   // --- Bottom-sheet "Encaisser" ---
   sheetOverlay: {
     flex: 1,
@@ -1281,13 +1399,18 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     ...Shadows.lg,
   },
+  sheetHandleTouch: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.md,
+  },
   sheetHandle: {
     alignSelf: 'center',
     width: 44,
     height: 5,
     borderRadius: 999,
     backgroundColor: Colors.borderStrong,
-    marginBottom: Spacing.lg,
   },
   sheetHeader: {
     flexDirection: 'row',

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { cashApi, suppliersApi, customersApi } from '../lib/api';
-import { formatCurrency } from '@swalo/core/utils';
 import { ENTRY_CATEGORIES, EXIT_CATEGORIES, MIN_NOTE_LENGTH, requiresNote } from '@swalo/core';
 import { useAuthStore } from '../store/authStore';
 
@@ -43,6 +42,28 @@ interface Customer {
   name: string;
   first_name?: string;
 }
+
+/**
+ * Formate un montant entier FCFA de maniere compacte pour les cartes KPI.
+ * Exemples: 3 500 000 -> "3,50 M F", 730 000 -> "+730 K F".
+ */
+const formatCompactFCFA = (amount: number, withSign = false): string => {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : withSign ? '+' : '';
+  if (abs >= 1_000_000) {
+    return `${sign}${(abs / 1_000_000).toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} M F`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${Math.round(abs / 1_000).toLocaleString('fr-FR')} K F`;
+  }
+  return `${sign}${abs.toLocaleString('fr-FR')} F`;
+};
+
+/** Formate un montant entier FCFA avec separateurs de milliers (lignes de table). */
+const formatFCFA = (amount: number): string => `${amount.toLocaleString('fr-FR')} F`;
 
 export default function POS() {
   const { role: userRole } = useAuthStore();
@@ -261,9 +282,11 @@ export default function POS() {
 
       handleCloseModal();
       loadData();
-    } catch (error: any) {
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } } | undefined)
+        ?.response?.data?.message;
       console.error("Erreur lors de l'enregistrement:", error);
-      alert(error.response?.data?.message || "Erreur lors de l'enregistrement");
+      alert(apiMessage || "Erreur lors de l'enregistrement");
     } finally {
       setIsLoading(false);
     }
@@ -279,121 +302,161 @@ export default function POS() {
     return person.first_name ? `${person.first_name} ${person.name}` : person.name;
   };
 
+  /** Libellé de description d'une ligne de journal (tiers ou note). */
+  const getDescription = (entry: CashEntry): string => {
+    const person = entry.supplier
+      ? getPersonName(entry.supplier)
+      : entry.customer
+        ? getPersonName(entry.customer)
+        : '';
+    return person || entry.note || '—';
+  };
+
   // Déterminer si on doit afficher la sélection fournisseur ou client
   const showSupplierSelect = category === 'Règlement fournisseur';
   const showCustomerSelect = category === 'Remboursement client';
 
+  const balance = stats?.balance ?? 0;
+  const todayNet = stats?.todayNet ?? 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Balance Section - Hero Card */}
-      <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
-        <div className="mb-4">
-          <p className="text-white/80 text-sm mb-2">💰 Solde de caisse</p>
-          <h2 className="text-5xl font-bold tracking-tight">
-            {formatCurrency(stats?.balance || 0)}
-          </h2>
-        </div>
+      {/* En-tête de page */}
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold text-marine-900">Caisse</h1>
+        <p className="text-sm text-slate-500">Mouvements &amp; solde</p>
+      </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-3 mt-6">
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs text-white/70 mb-1">Entrées</p>
-            <p className="text-xl font-semibold">{formatCurrency(stats?.todayEntries || 0)}</p>
-            <p className="text-xs text-white/60 mt-1">{stats?.entriesCount || 0} op.</p>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs text-white/70 mb-1">Sorties</p>
-            <p className="text-xl font-semibold">{formatCurrency(stats?.todayExits || 0)}</p>
-            <p className="text-xs text-white/60 mt-1">{stats?.exitsCount || 0} op.</p>
-          </div>
-          <div className="glass rounded-xl p-4">
-            <p className="text-xs text-white/70 mb-1">Net</p>
-            <p
-              className={`text-xl font-semibold ${(stats?.todayNet || 0) >= 0 ? 'text-white' : 'text-danger-200'}`}
-            >
-              {formatCurrency(stats?.todayNet || 0)}
-            </p>
-          </div>
+      {/* 4 cartes KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-slate-500">Solde de caisse</p>
+          <p className="text-2xl font-bold text-marine-900 mt-2">{formatCompactFCFA(balance)}</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-slate-500">Entrées du jour</p>
+          <p className="text-2xl font-bold text-success-600 mt-2">
+            {formatCompactFCFA(stats?.todayEntries ?? 0, true)}
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-slate-500">Sorties du jour</p>
+          <p className="text-2xl font-bold text-danger-600 mt-2">
+            {stats?.todayExits ? `-${formatCompactFCFA(stats.todayExits)}` : '0 F'}
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-slate-500">Net du jour</p>
+          <p
+            className={`text-2xl font-bold mt-2 ${todayNet >= 0 ? 'text-marine-900' : 'text-danger-600'}`}
+          >
+            {formatCompactFCFA(todayNet, todayNet > 0)}
+          </p>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Boutons d'action */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           onClick={() => handleOpenModal('IN')}
-          className="btn-success btn-lg rounded-2xl h-16 flex items-center justify-center space-x-2 shadow-soft hover:shadow-medium"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-success-50 hover:bg-success-100 py-5 text-base font-semibold text-success-700 shadow-card transition-colors"
         >
-          <span className="text-xl">↗️</span>
-          <span>Entrée</span>
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-success-500 text-white text-lg leading-none">
+            +
+          </span>
+          Entrée de caisse
         </button>
         <button
           onClick={() => handleOpenModal('OUT')}
-          className="btn-danger btn-lg rounded-2xl h-16 flex items-center justify-center space-x-2 shadow-soft hover:shadow-medium"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-danger-50 hover:bg-danger-100 py-5 text-base font-semibold text-danger-700 shadow-card transition-colors"
         >
-          <span className="text-xl">↙️</span>
-          <span>Sortie</span>
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-danger-500 text-white text-lg leading-none">
+            −
+          </span>
+          Sortie de caisse
         </button>
       </div>
 
-      {/* Operations List */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-900">📊 Opérations du jour</h3>
-          <span className="badge-primary">{entries.length}</span>
+      {/* Journal de caisse */}
+      <div className="bg-white rounded-2xl shadow-card">
+        <div className="px-6 pt-6 pb-4">
+          <h2 className="text-lg font-semibold text-marine-900">
+            Journal de caisse · aujourd&apos;hui
+          </h2>
         </div>
 
         {entries.length === 0 ? (
-          <div className="py-12 text-center">
+          <div className="text-center py-16 px-6">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
-              <span className="text-3xl">📝</span>
+              <svg
+                className="w-7 h-7 text-slate-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
             </div>
-            <p className="text-sm text-slate-500">Aucune opération aujourd'hui</p>
+            <p className="text-sm text-slate-500">Aucune opération aujourd&apos;hui</p>
             <p className="text-xs text-slate-400 mt-1">
-              Commencez par enregistrer une entrée ou sortie
+              Commencez par enregistrer une entrée ou une sortie
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {entries.map(entry => (
-              <div
-                key={entry.id}
-                className="card-hover p-4 animate-slide-in cursor-pointer"
-                onClick={() => setSelectedEntry(entry)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span
-                        className={`badge ${entry.type === 'IN' ? 'badge-success' : 'badge-danger'}`}
-                      >
-                        {entry.type === 'IN' ? '↗️ ' : '↙️ '}
-                        {entry.category}
-                      </span>
-                      <span className="text-xs text-slate-400">{formatTime(entry.created_at)}</span>
-                    </div>
-                    {(entry.supplier || entry.customer) && (
-                      <p className="text-sm font-medium text-slate-700 mt-1">
-                        {entry.supplier && `🏭 ${getPersonName(entry.supplier)}`}
-                        {entry.customer && `👤 ${getPersonName(entry.customer)}`}
-                      </p>
-                    )}
-                    {entry.note && (
-                      <p className="text-sm text-slate-600 truncate mt-1">{entry.note}</p>
-                    )}
-                  </div>
-                  <div className="ml-4 text-right">
-                    <p
-                      className={`text-lg font-bold ${
-                        entry.type === 'IN' ? 'text-success-600' : 'text-danger-600'
-                      }`}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-y border-slate-100 bg-slate-50/50">
+                  <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Heure
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Catégorie
+                  </th>
+                  <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Montant
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {entries.map(entry => {
+                  const isIn = entry.type === 'IN' || entry.type === 'OPENING';
+                  return (
+                    <tr
+                      key={entry.id}
+                      onClick={() => setSelectedEntry(entry)}
+                      className="hover:bg-slate-50 transition-colors cursor-pointer"
                     >
-                      {entry.type === 'IN' ? '+' : '-'}
-                      {formatCurrency(entry.amount)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
+                        {formatTime(entry.created_at)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-medium text-marine-900">{entry.category}</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate">
+                        {getDescription(entry)}
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right text-sm font-semibold whitespace-nowrap ${
+                          isIn ? 'text-success-600' : 'text-danger-600'
+                        }`}
+                      >
+                        {isIn ? '+' : '-'}
+                        {formatFCFA(Math.abs(entry.amount))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -409,12 +472,14 @@ export default function POS() {
             onClick={e => e.stopPropagation()}
           >
             <div
-              className={`px-6 py-5 rounded-t-3xl ${selectedEntry.type === 'IN' ? 'bg-gradient-to-r from-success-500 to-success-600' : 'bg-gradient-to-r from-danger-500 to-danger-600'}`}
+              className={`px-6 py-5 rounded-t-3xl ${selectedEntry.type === 'OUT' || selectedEntry.type === 'CLOSING' ? 'bg-gradient-to-r from-danger-500 to-danger-600' : 'bg-gradient-to-r from-success-500 to-success-600'}`}
             >
               <div className="flex items-center justify-between text-white">
                 <div>
                   <h2 className="text-xl font-bold">
-                    {selectedEntry.type === 'IN' ? 'Entree' : 'Sortie'}
+                    {selectedEntry.type === 'OUT' || selectedEntry.type === 'CLOSING'
+                      ? 'Sortie'
+                      : 'Entrée'}
                   </h2>
                   <p className="text-sm text-white/80 mt-1">{selectedEntry.category}</p>
                 </div>
@@ -441,10 +506,10 @@ export default function POS() {
             <div className="p-6 space-y-4">
               <div className="text-center">
                 <p
-                  className={`text-3xl font-bold ${selectedEntry.type === 'IN' ? 'text-success-600' : 'text-danger-600'}`}
+                  className={`text-3xl font-bold ${selectedEntry.type === 'OUT' || selectedEntry.type === 'CLOSING' ? 'text-danger-600' : 'text-success-600'}`}
                 >
-                  {selectedEntry.type === 'IN' ? '+' : '-'}
-                  {formatCurrency(selectedEntry.amount)}
+                  {selectedEntry.type === 'OUT' || selectedEntry.type === 'CLOSING' ? '-' : '+'}
+                  {formatFCFA(Math.abs(selectedEntry.amount))}
                 </p>
                 <p className="text-sm text-slate-500 mt-1">FCFA</p>
               </div>
@@ -452,11 +517,13 @@ export default function POS() {
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-500">Type</span>
                   <span className="text-sm font-medium">
-                    {selectedEntry.type === 'IN' ? 'Entree' : 'Sortie'}
+                    {selectedEntry.type === 'OUT' || selectedEntry.type === 'CLOSING'
+                      ? 'Sortie'
+                      : 'Entrée'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-slate-500">Categorie</span>
+                  <span className="text-sm text-slate-500">Catégorie</span>
                   <span className="text-sm font-medium">{selectedEntry.category}</span>
                 </div>
                 <div className="flex justify-between">
@@ -504,7 +571,7 @@ export default function POS() {
               <div className="flex items-center justify-between text-white">
                 <div>
                   <h2 className="text-xl font-bold">
-                    {showModal === 'IN' ? '↗️ Nouvelle entrée' : '↙️ Nouvelle sortie'}
+                    {showModal === 'IN' ? 'Nouvelle entrée' : 'Nouvelle sortie'}
                   </h2>
                   <p className="text-sm text-white/80 mt-1">
                     {showModal === 'IN'
@@ -568,7 +635,7 @@ export default function POS() {
                     type="text"
                     value={supplierSearch}
                     onChange={e => handleSupplierSearch(e.target.value)}
-                    placeholder="🔍 Rechercher et sélectionner un fournisseur..."
+                    placeholder="Rechercher et sélectionner un fournisseur..."
                     className="input"
                     required
                   />
@@ -612,7 +679,7 @@ export default function POS() {
                     type="text"
                     value={customerSearch}
                     onChange={e => handleCustomerSearch(e.target.value)}
-                    placeholder="🔍 Rechercher et sélectionner un client..."
+                    placeholder="Rechercher et sélectionner un client..."
                     className="input"
                     required
                   />
@@ -668,8 +735,7 @@ export default function POS() {
                 </div>
                 {userRole === 'BOSS' && (
                   <p className="text-sm text-action-700 mt-2 italic">
-                    💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
-                    erreurs
+                    Propriétaires: vous pouvez entrer des montants négatifs pour corriger des erreurs
                   </p>
                 )}
               </div>
@@ -696,18 +762,19 @@ export default function POS() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`flex-1 ${showModal === 'IN' ? 'btn-success' : 'btn-danger'} flex items-center justify-center gap-2`}
+                  className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                    showModal === 'IN'
+                      ? 'bg-success-500 hover:bg-success-600'
+                      : 'bg-danger-500 hover:bg-danger-600'
+                  }`}
                 >
                   {isLoading ? (
                     <>
-                      <div className="w-5 h-5 spinner"></div>
+                      <div className="w-5 h-5 spinner border-white border-t-transparent"></div>
                       <span>Enregistrement...</span>
                     </>
                   ) : (
-                    <>
-                      <span>✓</span>
-                      <span>Valider</span>
-                    </>
+                    <span>Valider</span>
                   )}
                 </button>
               </div>

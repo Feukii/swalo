@@ -37,6 +37,7 @@ import SyncConflictsScreen from './src/screens/SyncConflictsScreen';
 import TransfersScreen from './src/screens/TransfersScreen';
 import ShopSwitcherScreen from './src/screens/ShopSwitcherScreen';
 import RelancesScreen from './src/screens/RelancesScreen';
+import ReminderSettingsScreen from './src/screens/ReminderSettingsScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
 
 console.log('📱 APP STARTING - Version 1.0.0');
@@ -76,6 +77,7 @@ export type RootStackParamList = {
   Transfers: undefined;
   ShopSwitcher: undefined;
   Relances: undefined;
+  ReminderSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -223,6 +225,7 @@ export default function App() {
             <Stack.Screen name="Transfers" component={TransfersScreen} />
             <Stack.Screen name="ShopSwitcher" component={ShopSwitcherScreen} />
             <Stack.Screen name="Relances" component={RelancesScreen} />
+            <Stack.Screen name="ReminderSettings" component={ReminderSettingsScreen} />
 
             {/* Anciens écrans (pour compatibilité temporaire) */}
             <Stack.Screen name="POS" component={POSScreen} />
