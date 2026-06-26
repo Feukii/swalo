@@ -3,6 +3,25 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { customersApi, receivablesApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
 
+interface NotificationLogEntry {
+  id: string;
+  type: string;
+  channel: string;
+  status: string;
+  recipient: string;
+  target_type?: string | null;
+  target_id?: string | null;
+  error?: string | null;
+  sent_at: string;
+}
+
+interface NotificationsSummary {
+  total: number;
+  by_status: Record<string, number>;
+  by_channel: Record<string, number>;
+  recent: NotificationLogEntry[];
+}
+
 interface CustomerDetails {
   id: string;
   name: string;
@@ -12,6 +31,10 @@ interface CustomerDetails {
   address?: string;
   credit_limit: number;
   notes?: string;
+  email_notifications_enabled?: boolean;
+  sms_notifications_enabled?: boolean;
+  whatsapp_notifications_enabled?: boolean;
+  notifications_summary?: NotificationsSummary;
   receivables: Array<{
     id: string;
     amount: number;
@@ -78,6 +101,9 @@ export default function CustomerDetails() {
     email: '',
     address: '',
     credit_limit: '',
+    email_notifications_enabled: true,
+    sms_notifications_enabled: false,
+    whatsapp_notifications_enabled: false,
   });
 
   useEffect(() => {
@@ -170,6 +196,9 @@ export default function CustomerDetails() {
       email: customer.email || '',
       address: customer.address || '',
       credit_limit: customer.credit_limit ? (customer.credit_limit / 100).toString() : '',
+      email_notifications_enabled: customer.email_notifications_enabled ?? true,
+      sms_notifications_enabled: customer.sms_notifications_enabled ?? false,
+      whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled ?? false,
     });
     setShowEditModal(true);
   };
@@ -186,20 +215,25 @@ export default function CustomerDetails() {
 
     setIsSubmitting(true);
     try {
-      const updateData: any = {
+      let creditLimit: number | undefined;
+      if (editForm.credit_limit) {
+        const creditLimitInCentimes = Math.round(parseFloat(editForm.credit_limit) * 100);
+        if (!isNaN(creditLimitInCentimes) && creditLimitInCentimes >= 0) {
+          creditLimit = creditLimitInCentimes;
+        }
+      }
+
+      const updateData = {
         name: editForm.name,
         first_name: editForm.first_name || undefined,
         phone: editForm.phone || undefined,
         email: editForm.email || undefined,
         address: editForm.address || undefined,
+        credit_limit: creditLimit,
+        email_notifications_enabled: editForm.email_notifications_enabled,
+        sms_notifications_enabled: editForm.sms_notifications_enabled,
+        whatsapp_notifications_enabled: editForm.whatsapp_notifications_enabled,
       };
-
-      if (editForm.credit_limit) {
-        const creditLimitInCentimes = Math.round(parseFloat(editForm.credit_limit) * 100);
-        if (!isNaN(creditLimitInCentimes) && creditLimitInCentimes >= 0) {
-          updateData.credit_limit = creditLimitInCentimes;
-        }
-      }
 
       await customersApi.update(id, updateData);
       alert('Client mis à jour avec succès');
@@ -263,6 +297,40 @@ export default function CustomerDetails() {
       DRAFT: 'Brouillon',
     };
     return labels[status as keyof typeof labels] || status;
+  };
+
+  // --- Notifications (transparence des relances) ---
+  const getChannelLabel = (channel: string) => {
+    const labels: Record<string, string> = {
+      EMAIL: 'Email',
+      SMS: 'SMS',
+      WHATSAPP: 'WhatsApp',
+    };
+    return labels[channel] || channel;
+  };
+
+  const getNotifTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      LOW_STOCK: 'Stock bas',
+      PAYMENT_REMINDER: 'Rappel de paiement',
+      MONTHLY_SUMMARY: 'Résumé mensuel',
+      RECEIPT: 'Reçu',
+      DEBT_CREATED: 'Créance créée',
+      DEBT_PAYMENT: 'Paiement de créance',
+    };
+    return labels[type] || type;
+  };
+
+  const getNotifStatus = (
+    status: string
+  ): { label: string; badge: string } => {
+    const map: Record<string, { label: string; badge: string }> = {
+      SENT: { label: 'Envoyé', badge: 'badge-success' },
+      QUEUED: { label: 'En file', badge: 'badge-warning' },
+      FAILED: { label: 'Échec', badge: 'badge-danger' },
+      SKIPPED: { label: 'Ignoré', badge: 'badge-secondary' },
+    };
+    return map[status] || { label: status, badge: 'badge-secondary' };
   };
 
   // Combiner toutes les transactions dans une timeline
@@ -466,6 +534,67 @@ export default function CustomerDetails() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Notifications (transparence des relances) */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">🔔 Notifications</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {customer.email_notifications_enabled && (
+              <span className="badge bg-action-100 text-action-700">Email</span>
+            )}
+            {customer.sms_notifications_enabled && (
+              <span className="badge bg-action-100 text-action-700">SMS</span>
+            )}
+            {customer.whatsapp_notifications_enabled && (
+              <span className="badge bg-action-100 text-action-700">WhatsApp</span>
+            )}
+            {!customer.email_notifications_enabled &&
+              !customer.sms_notifications_enabled &&
+              !customer.whatsapp_notifications_enabled && (
+                <span className="badge badge-secondary">Aucun canal actif</span>
+              )}
+          </div>
+        </div>
+
+        {!customer.notifications_summary || customer.notifications_summary.total === 0 ? (
+          <div className="py-10 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
+              <span className="text-3xl">🔕</span>
+            </div>
+            <p className="text-sm text-slate-500">Aucune notification envoyée pour ce client</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {customer.notifications_summary.recent.map(notif => {
+              const statusInfo = getNotifStatus(notif.status);
+              return (
+                <div
+                  key={notif.id}
+                  className="flex items-start justify-between gap-3 p-3 bg-slate-50 rounded-lg"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="badge bg-slate-200 text-slate-700">
+                        {getChannelLabel(notif.channel)}
+                      </span>
+                      <span className={`badge ${statusInfo.badge}`}>{statusInfo.label}</span>
+                      <span className="text-xs text-slate-400">{formatDate(notif.sent_at)}</span>
+                    </div>
+                    <p className="text-sm text-slate-700">{getNotifTypeLabel(notif.type)}</p>
+                    {notif.recipient && (
+                      <p className="text-xs text-slate-400 truncate">{notif.recipient}</p>
+                    )}
+                    {notif.status === 'FAILED' && notif.error && (
+                      <p className="text-xs text-danger-600 mt-1">{notif.error}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Statistiques */}

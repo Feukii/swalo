@@ -33,6 +33,7 @@ function buildCustomerWithStats(totalBalance: number): CustomerWithStats {
     notes: null,
     is_active: true,
     email_notifications_enabled: true,
+    sms_notifications_enabled: false,
     whatsapp_notifications_enabled: false,
     created_at: new Date(),
     updated_at: new Date(),
@@ -51,6 +52,12 @@ function buildCustomerWithStats(totalBalance: number): CustomerWithStats {
       sales_count: 0,
       cash_refunds_count: 0,
       total_cash_refunds: 0,
+    },
+    notifications_summary: {
+      total: 0,
+      by_status: {},
+      by_channel: {},
+      recent: [],
     },
   };
 }

@@ -3,11 +3,15 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SearchSaleDto } from './dto/search-sale.dto';
+import { DebtNotificationsService } from '../notifications/debt-notifications.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly debtNotifications: DebtNotificationsService
+  ) {}
 
   /**
    * Liste toutes les ventes d'une boutique avec filtres
@@ -239,6 +243,12 @@ export class SalesService {
         throw new BadRequestException('Un client doit être sélectionné pour une vente à crédit');
       }
 
+      if (!dto.due_date) {
+        throw new BadRequestException(
+          "Une date d'échéance est obligatoire pour une vente à crédit"
+        );
+      }
+
       const customer = await this.prisma.customer.findFirst({
         where: { id: dto.customer_id, shop_id: shopId, deleted: false },
       });
@@ -268,8 +278,17 @@ export class SalesService {
       }
     }
 
+    // Type de la créance créée pour une vente à crédit (notifiée après la transaction).
+    interface CreatedReceivable {
+      id: string;
+      customer_id: string;
+      amount: number;
+      due_date: Date | null;
+    }
+
     // Créer la vente avec transaction (inclut le destockage FIFO)
-    const sale = await this.prisma.$transaction(async tx => {
+    const { sale, createdReceivable } = await this.prisma.$transaction(async tx => {
+      let receivableForNotification: CreatedReceivable | null = null;
       // Si COMPLETED, effectuer le destockage FIFO ou par lot spécifique
       const batchAssignments = new Map<string, string>(); // saleItem index -> primary batch_id
 
@@ -387,7 +406,7 @@ export class SalesService {
 
       // Si vente à crédit COMPLETED, créer automatiquement une créance
       if (dto.status === 'COMPLETED' && paymentMethod === 'CREDIT' && dto.customer_id) {
-        await tx.clientReceivable.create({
+        const creditReceivable = await tx.clientReceivable.create({
           data: {
             shop_id: shopId,
             customer_id: dto.customer_id,
@@ -395,9 +414,16 @@ export class SalesService {
             balance: grandTotal,
             paid_amount: 0,
             status: 'PENDING',
+            due_date: dto.due_date ? new Date(dto.due_date) : null,
             description: `Vente à crédit #${newSale.id.slice(0, 8)}`,
           },
         });
+        receivableForNotification = {
+          id: creditReceivable.id,
+          customer_id: dto.customer_id,
+          amount: grandTotal,
+          due_date: creditReceivable.due_date,
+        };
       }
 
       // Si COMPLETED, créer les mouvements de stock avec ref_id = sale ID
@@ -422,8 +448,19 @@ export class SalesService {
         }
       }
 
-      return newSale;
+      return { sale: newSale, createdReceivable: receivableForNotification };
     });
+
+    // Transparence client : notifier la dette de la vente à crédit (jamais bloquant).
+    if (createdReceivable) {
+      await this.debtNotifications.notifyDebtCreated({
+        shopId,
+        customerId: createdReceivable.customer_id,
+        receivableId: createdReceivable.id,
+        amount: createdReceivable.amount,
+        dueDate: createdReceivable.due_date,
+      });
+    }
 
     return sale;
   }

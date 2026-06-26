@@ -1,8 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
-import { NotificationStatus, NotificationType } from '@prisma/client';
+import {
+  NotificationChannel,
+  NotificationStatus,
+  NotificationType,
+  SellerTaskStatus,
+  SellerTaskType,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { ProductsService } from '../products/products.service';
+import { NotificationDispatcherService } from './notification-dispatcher.service';
 
 /** Module code required for the notifications feature (entitlement gating). */
 const NOTIFICATIONS_MODULE = 'notifications';
@@ -10,11 +17,14 @@ const NOTIFICATIONS_MODULE = 'notifications';
 /** Re-alert window for a persistently-low product: skip if a SENT LOW_STOCK log exists within this window. */
 const LOW_STOCK_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** Anti-spam: never send more than one reminder per receivable within this window. */
-const PAYMENT_REMINDER_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/**
+ * Day offsets (relative to the due date) at which a payment reminder is sent:
+ * J-7, J-3 and J-0 (the due day itself).
+ */
+const PAYMENT_REMINDER_OFFSETS = [7, 3, 0] as const;
 
-/** Hard cap on the number of reminders ever sent for a single receivable. */
-const PAYMENT_REMINDER_MAX_COUNT = 5;
+/** Milliseconds in a day, for due-date offset arithmetic. */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface LowStockProductLine {
   name: string;
@@ -31,6 +41,7 @@ interface LowStockScanResult {
 interface PaymentReminderScanResult {
   shops_processed: number;
   reminders_sent: number;
+  tasks_created: number;
   skipped: number;
 }
 
@@ -62,7 +73,8 @@ export class NotificationsService {
   constructor(
     private readonly mailer: MailerService,
     private readonly prisma: PrismaService,
-    private readonly products: ProductsService
+    private readonly products: ProductsService,
+    private readonly dispatcher: NotificationDispatcherService
   ) {}
 
   /**
@@ -509,20 +521,37 @@ export class NotificationsService {
   }
 
   /**
-   * Scan every eligible shop for overdue receivables and send individual payment-reminder emails.
+   * Whole-day difference (in days) between the due date and "now", both
+   * normalized to midnight, so a comparison against the J-7/J-3/J-0 offsets is
+   * not affected by the time of day the scan runs.
+   * Positive = days remaining before the due date; 0 = due today.
+   */
+  private daysUntilDue(dueDate: Date, now: Date): number {
+    const dueMidnight = new Date(
+      dueDate.getFullYear(),
+      dueDate.getMonth(),
+      dueDate.getDate()
+    ).getTime();
+    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return Math.round((dueMidnight - nowMidnight) / MS_PER_DAY);
+  }
+
+  /**
+   * Scan every eligible shop for receivables approaching their due date and, at
+   * J-7 / J-3 / J-0, (a) send a PAYMENT_REMINDER to the customer on every channel
+   * they opted into and (b) create a seller follow-up task (SellerTask, type
+   * DEBT_REMINDER) so a human can also chase the payment.
    *
    * Eligibility: non-deleted shop with payment_reminders_enabled=true AND notifications module allowed.
-   * Receivable selection: status IN (PENDING, PARTIAL), balance > 0, deleted=false, due_date != null AND due_date < now.
-   * Recipient: customer.email, gated by customer.email_notifications_enabled.
+   * Receivable selection: status IN (PENDING, PARTIAL), balance > 0, deleted=false, due_date != null.
+   * A receivable is processed only when its whole-day distance to the due date is exactly 7, 3 or 0.
    *
-   * Cadence / anti-spam (dedup_key `payment_reminder:{receivable_id}`):
-   *  - never send more than one reminder per receivable within 24h;
-   *  - stop after PAYMENT_REMINDER_MAX_COUNT (5) reminders sent for a receivable;
-   *  - only re-send if the last SENT PAYMENT_REMINDER for that receivable is older than the shop's
-   *    payment_reminder_cadence_days (the 24h floor and the cadence are both enforced; cadence usually dominates).
+   * Anti-duplicate:
+   *  - reminder dispatch dedup_key `reminder:{receivable_id}:{offset}` (per channel, enforced by the dispatcher);
+   *  - seller task dedup_key `task:{receivable_id}:{offset}` (skipped if a task with that key already exists).
    *
-   * Missing email -> SKIPPED log. Opted-out customer -> SKIPPED log.
-   * Failures are caught per receivable (never thrown out of the loop); a FAILED log is written and the scan continues.
+   * Robustness: each receivable is wrapped in try/catch; a failure is logged and the
+   * scan continues — the loop never throws.
    */
   async scanPaymentRemindersForAllShops(): Promise<PaymentReminderScanResult> {
     const shops = await this.prisma.shop.findMany({
@@ -530,14 +559,12 @@ export class NotificationsService {
       select: {
         id: true,
         name: true,
-        phone: true,
-        email: true,
         enabled_modules: true,
-        payment_reminder_cadence_days: true,
       },
     });
 
     let remindersSent = 0;
+    let tasksCreated = 0;
     let skipped = 0;
     const now = new Date();
 
@@ -546,138 +573,132 @@ export class NotificationsService {
         continue;
       }
 
-      const cadenceMs = shop.payment_reminder_cadence_days * 24 * 60 * 60 * 1000;
-
       const receivables = await this.prisma.clientReceivable.findMany({
         where: {
           shop_id: shop.id,
           deleted: false,
           status: { in: ['PENDING', 'PARTIAL'] },
           balance: { gt: 0 },
-          due_date: { not: null, lt: now },
+          due_date: { not: null },
         },
         include: {
           customer: {
             select: {
+              id: true,
               name: true,
               first_name: true,
               email: true,
+              phone: true,
               email_notifications_enabled: true,
+              sms_notifications_enabled: true,
+              whatsapp_notifications_enabled: true,
             },
           },
         },
       });
 
       for (const receivable of receivables) {
-        const dedupKey = `payment_reminder:${receivable.id}`;
         try {
-          const customer = receivable.customer;
+          if (!receivable.due_date) {
+            continue;
+          }
 
-          if (!customer.email || !customer.email_notifications_enabled) {
+          const offset = this.daysUntilDue(receivable.due_date, now);
+          if (
+            !PAYMENT_REMINDER_OFFSETS.includes(offset as (typeof PAYMENT_REMINDER_OFFSETS)[number])
+          ) {
+            continue;
+          }
+
+          const customer = receivable.customer;
+          const customerName = customer.first_name
+            ? `${customer.first_name} ${customer.name}`
+            : customer.name;
+          const dueDate = receivable.due_date;
+          const dueLabel = this.formatDate(dueDate);
+
+          // (a) Customer reminder, on each opted-in channel.
+          const channels = this.dispatcher.resolveCustomerChannels(customer);
+          const reminderBody =
+            offset === 0
+              ? `Rappel : votre dette de ${this.formatAmount(receivable.balance)} FCFA arrive à échéance aujourd'hui (${dueLabel}).`
+              : `Rappel : votre dette de ${this.formatAmount(receivable.balance)} FCFA est à régler avant le ${dueLabel} (dans ${String(offset)} jours).`;
+
+          if (channels.length === 0) {
             await this.prisma.notificationLog.create({
               data: {
                 shop_id: shop.id,
                 type: NotificationType.PAYMENT_REMINDER,
+                channel: NotificationChannel.EMAIL,
                 target_type: 'receivable',
                 target_id: receivable.id,
                 recipient: customer.email ?? '',
                 status: NotificationStatus.SKIPPED,
-                error: !customer.email
-                  ? 'No customer email'
-                  : 'Customer opted out of email notifications',
-                dedup_key: dedupKey,
+                error: 'No opted-in notification channel for customer',
+                dedup_key: `reminder:${receivable.id}:${String(offset)}`,
               },
             });
             skipped++;
-            continue;
-          }
-
-          const sentLogs = await this.prisma.notificationLog.findMany({
-            where: {
-              shop_id: shop.id,
-              type: NotificationType.PAYMENT_REMINDER,
-              status: NotificationStatus.SENT,
-              dedup_key: dedupKey,
-            },
-            orderBy: { sent_at: 'desc' },
-          });
-
-          // Hard cap on total reminders.
-          if (sentLogs.length >= PAYMENT_REMINDER_MAX_COUNT) {
-            skipped++;
-            continue;
-          }
-
-          if (sentLogs.length > 0) {
-            const lastSent = sentLogs[0].sent_at;
-            const elapsed = now.getTime() - lastSent.getTime();
-            // Respect both the 24h floor and the shop cadence.
-            if (elapsed < PAYMENT_REMINDER_MIN_INTERVAL_MS || elapsed < cadenceMs) {
-              skipped++;
-              continue;
+          } else {
+            for (const { channel, recipient } of channels) {
+              const outcome = await this.dispatcher.dispatch({
+                shopId: shop.id,
+                type: NotificationType.PAYMENT_REMINDER,
+                channel,
+                recipient,
+                subject: `Rappel de paiement - ${shop.name}`,
+                body: reminderBody,
+                targetType: 'receivable',
+                targetId: receivable.id,
+                dedupKey: `reminder:${receivable.id}:${String(offset)}`,
+              });
+              if (outcome === 'SENT' || outcome === 'QUEUED') {
+                remindersSent++;
+              } else if (outcome === 'SKIPPED') {
+                skipped++;
+              }
             }
           }
 
-          const customerName = customer.first_name
-            ? `${customer.first_name} ${customer.name}`
-            : customer.name;
-
-          await this.mailer.sendMail({
-            to: customer.email,
-            subject: `Rappel de paiement - ${shop.name}`,
-            template: 'payment-reminder',
-            context: {
-              customer_name: customerName,
-              shop_name: shop.name,
-              shop_phone: shop.phone ?? undefined,
-              shop_email: shop.email ?? undefined,
-              balance: this.formatAmount(receivable.balance),
-              due_date: receivable.due_date ? this.formatDate(receivable.due_date) : '',
-              description: receivable.description ?? undefined,
-            },
+          // (b) Seller follow-up task (anti-duplicate via dedup_key).
+          const taskDedupKey = `task:${receivable.id}:${String(offset)}`;
+          const existingTask = await this.prisma.sellerTask.findFirst({
+            where: { dedup_key: taskDedupKey },
+            select: { id: true },
           });
-
-          await this.prisma.notificationLog.create({
-            data: {
-              shop_id: shop.id,
-              type: NotificationType.PAYMENT_REMINDER,
-              target_type: 'receivable',
-              target_id: receivable.id,
-              recipient: customer.email,
-              status: NotificationStatus.SENT,
-              dedup_key: dedupKey,
-            },
-          });
-          remindersSent++;
-
-          this.logger.log(
-            `Payment reminder sent to ${customer.email} for receivable ${receivable.id} (shop ${shop.name})`
-          );
+          if (!existingTask) {
+            await this.prisma.sellerTask.create({
+              data: {
+                shop_id: shop.id,
+                type: SellerTaskType.DEBT_REMINDER,
+                customer_id: customer.id,
+                receivable_id: receivable.id,
+                title: `Relancer ${customerName} — échéance ${dueLabel}`,
+                message:
+                  offset === 0
+                    ? `Dette de ${this.formatAmount(receivable.balance)} FCFA à échéance aujourd'hui.`
+                    : `Dette de ${this.formatAmount(receivable.balance)} FCFA, échéance dans ${String(offset)} jours.`,
+                due_date: dueDate,
+                status: SellerTaskStatus.PENDING,
+                dedup_key: taskDedupKey,
+              },
+            });
+            tasksCreated++;
+          }
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           this.logger.error(`Payment reminder failed for receivable ${receivable.id}: ${message}`);
-          await this.prisma.notificationLog.create({
-            data: {
-              shop_id: shop.id,
-              type: NotificationType.PAYMENT_REMINDER,
-              target_type: 'receivable',
-              target_id: receivable.id,
-              recipient: receivable.customer.email ?? '',
-              status: NotificationStatus.FAILED,
-              error: message,
-              dedup_key: dedupKey,
-            },
-          });
         }
       }
     }
 
     this.logger.log(
-      `Payment reminders scan complete: ${String(remindersSent)} sent, ${String(skipped)} skipped across ${String(shops.length)} shops`
+      `Payment reminders scan complete: ${String(remindersSent)} sent, ${String(tasksCreated)} tasks, ${String(skipped)} skipped across ${String(shops.length)} shops`
     );
     return {
       shops_processed: shops.length,
       reminders_sent: remindersSent,
+      tasks_created: tasksCreated,
       skipped,
     };
   }

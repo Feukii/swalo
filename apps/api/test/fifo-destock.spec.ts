@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SalesService } from '../src/modules/sales/sales.service';
+import { DebtNotificationsService } from '../src/modules/notifications/debt-notifications.service';
 import { InventoryService } from '../src/modules/inventory/inventory.service';
 import { PackagingTypesService } from '../src/modules/packaging-types/packaging-types.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
@@ -60,7 +61,17 @@ describe('SalesService - FIFO Destocking', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SalesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        SalesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: DebtNotificationsService,
+          useValue: {
+            notifyDebtCreated: jest.fn().mockResolvedValue(undefined),
+            notifyDebtPayment: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);
@@ -545,7 +556,17 @@ describe('SalesService - Explicit batch_id', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SalesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        SalesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: DebtNotificationsService,
+          useValue: {
+            notifyDebtCreated: jest.fn().mockResolvedValue(undefined),
+            notifyDebtPayment: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);

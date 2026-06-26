@@ -21,6 +21,9 @@ interface Customer {
   is_active: boolean;
   updated_at?: string;
   receivables?: CustomerReceivable[];
+  email_notifications_enabled?: boolean;
+  sms_notifications_enabled?: boolean;
+  whatsapp_notifications_enabled?: boolean;
 }
 
 interface RawCustomer {
@@ -35,6 +38,9 @@ interface RawCustomer {
   is_active: boolean;
   updated_at?: string;
   receivables?: CustomerReceivable[];
+  email_notifications_enabled?: boolean;
+  sms_notifications_enabled?: boolean;
+  whatsapp_notifications_enabled?: boolean;
 }
 
 /** Formatte un montant en centimes -> "12 500 F" (présentation, maquette). */
@@ -68,6 +74,45 @@ function getInitials(first?: string, name?: string): string {
   const single = (b || a).split(/\s+/).filter(Boolean);
   if (single.length >= 2) return `${single[0][0]}${single[1][0]}`.toUpperCase();
   return (single[0] || '?').slice(0, 2).toUpperCase();
+}
+
+/** Toggle (switch) pour activer/désactiver un canal de notification. */
+function NotificationToggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-marine-900">{label}</p>
+        <p className="text-xs text-slate-400">{description}</p>
+      </div>
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? 'bg-action-500' : 'bg-slate-300'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
+  );
 }
 
 /** Teinte stable (déterministe) pour l'avatar, dérivée d'une chaîne. */
@@ -124,6 +169,9 @@ export default function Customers() {
     email: '',
     address: '',
     credit_limit: '',
+    email_notifications_enabled: true,
+    sms_notifications_enabled: false,
+    whatsapp_notifications_enabled: false,
   });
 
   useEffect(() => {
@@ -146,6 +194,9 @@ export default function Customers() {
         is_active: customer.is_active,
         updated_at: customer.updated_at,
         receivables: customer.receivables,
+        email_notifications_enabled: customer.email_notifications_enabled,
+        sms_notifications_enabled: customer.sms_notifications_enabled,
+        whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled,
       }));
       setCustomers(normalized);
     } catch (error) {
@@ -166,6 +217,9 @@ export default function Customers() {
         email: customer.email || '',
         address: customer.address || '',
         credit_limit: customer.credit_limit ? String(customer.credit_limit / 100) : '',
+        email_notifications_enabled: customer.email_notifications_enabled ?? true,
+        sms_notifications_enabled: customer.sms_notifications_enabled ?? false,
+        whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled ?? false,
       });
     } else {
       setSelectedCustomer(null);
@@ -176,6 +230,9 @@ export default function Customers() {
         email: '',
         address: '',
         credit_limit: '',
+        email_notifications_enabled: true,
+        sms_notifications_enabled: false,
+        whatsapp_notifications_enabled: false,
       });
     }
     setShowModal(true);
@@ -191,6 +248,9 @@ export default function Customers() {
       email: '',
       address: '',
       credit_limit: '',
+      email_notifications_enabled: true,
+      sms_notifications_enabled: false,
+      whatsapp_notifications_enabled: false,
     });
   };
 
@@ -205,6 +265,9 @@ export default function Customers() {
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
       credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue) * 100) : undefined,
+      email_notifications_enabled: formData.email_notifications_enabled,
+      sms_notifications_enabled: formData.sms_notifications_enabled,
+      whatsapp_notifications_enabled: formData.whatsapp_notifications_enabled,
     };
 
     if (!payload.name) {
@@ -565,6 +628,42 @@ export default function Customers() {
                 <p className="text-xs text-slate-500 mt-1">
                   Montant maximum que le client peut devoir
                 </p>
+              </div>
+
+              {/* Préférences de notification */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                  Canaux de relance
+                </label>
+                <p className="text-xs text-slate-500 mb-3">
+                  Comment prévenir ce client en cas d'échéance de créance.
+                </p>
+                <div className="space-y-2">
+                  <NotificationToggle
+                    label="Email"
+                    description="Rappels par courriel"
+                    checked={formData.email_notifications_enabled}
+                    onChange={value =>
+                      setFormData({ ...formData, email_notifications_enabled: value })
+                    }
+                  />
+                  <NotificationToggle
+                    label="SMS"
+                    description="Rappels par message texte"
+                    checked={formData.sms_notifications_enabled}
+                    onChange={value =>
+                      setFormData({ ...formData, sms_notifications_enabled: value })
+                    }
+                  />
+                  <NotificationToggle
+                    label="WhatsApp"
+                    description="Rappels via WhatsApp"
+                    checked={formData.whatsapp_notifications_enabled}
+                    onChange={value =>
+                      setFormData({ ...formData, whatsapp_notifications_enabled: value })
+                    }
+                  />
+                </div>
               </div>
 
               {/* Actions */}

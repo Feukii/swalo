@@ -528,6 +528,30 @@ export const debtsApi = {
   },
 };
 
+// Seller Tasks API (Tâches vendeur : relances de créances / échéances)
+export interface SellerTask {
+  id: string;
+  title: string;
+  message?: string;
+  due_date?: string;
+  customer_id?: string;
+  receivable_id?: string;
+  status: string;
+  customer?: { name: string; phone?: string };
+}
+
+export const sellerTasksApi = {
+  getTasks: async (): Promise<SellerTask[]> => {
+    return api.get<SellerTask[]>('/seller-tasks');
+  },
+  getCount: async (): Promise<{ count: number }> => {
+    return api.get<{ count: number }>('/seller-tasks/count');
+  },
+  markDone: async (id: string): Promise<SellerTask> => {
+    return api.post<SellerTask>(`/seller-tasks/${id}/done`, {});
+  },
+};
+
 // Import API
 export const importApi = {
   previewCatalog: async <T = JsonRecord>(fileContent: string, fileName: string): Promise<T> => {

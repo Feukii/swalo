@@ -16,6 +16,7 @@ import CustomerDetails from './pages/CustomerDetails';
 import Suppliers from './pages/Suppliers';
 import SupplierDetails from './pages/SupplierDetails';
 import Receivables from './pages/Receivables';
+import Relances from './pages/Relances';
 import Debts from './pages/Debts';
 import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
@@ -188,6 +189,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Receivables />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relances"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Relances />
               </MainLayout>
             </ProtectedRoute>
           }

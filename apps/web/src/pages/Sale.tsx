@@ -81,6 +81,8 @@ export default function Sale() {
   // --- Customer & payment ---
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  // Date d'echeance obligatoire pour une vente a credit (creance).
+  const [dueDate, setDueDate] = useState('');
 
   // --- Multi-price modal ---
   const [priceModalOpen, setPriceModalOpen] = useState(false);
@@ -157,6 +159,9 @@ export default function Sale() {
   );
 
   const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.qty, 0), [cart]);
+
+  /** Vente a credit sans date d'echeance => encaissement bloque. */
+  const creditDueDateMissing = paymentMethod === 'credit' && !dueDate;
 
   /** Map productId -> total qty in cart (across batches). */
   const cartQtyByProduct = useMemo(() => {
@@ -282,6 +287,7 @@ export default function Sale() {
     setCart([]);
     setSelectedCustomerId('');
     setPaymentMethod('cash');
+    setDueDate('');
     setErrorMessage('');
     setSuccessMessage('');
   };
@@ -304,6 +310,16 @@ export default function Sale() {
       return;
     }
 
+    // Date d'echeance obligatoire pour une vente a credit (creance).
+    if (paymentMethod === 'credit' && !dueDate) {
+      setErrorMessage("Veuillez renseigner une date d'echeance pour la vente a credit.");
+      return;
+    }
+
+    // Convertit la date saisie (YYYY-MM-DD) en ISO pour l'API.
+    const dueDateIso =
+      paymentMethod === 'credit' && dueDate ? new Date(dueDate).toISOString() : undefined;
+
     setSubmitting(true);
     try {
       // 1. Create the sale
@@ -316,6 +332,7 @@ export default function Sale() {
         })),
         status: 'COMPLETED' as const,
         notes: paymentMethod === 'credit' ? 'Vente a credit' : 'Vente au comptant',
+        ...(dueDateIso ? { due_date: dueDateIso } : {}),
       };
 
       const createdSale = await salesApi.create(salePayload);
@@ -334,6 +351,7 @@ export default function Sale() {
           customer_id: selectedCustomerId,
           amount: cartTotal,
           description: `Vente a credit #${createdSale?.id?.slice(0, 8) || ''} - ${totalItems} article(s)`,
+          due_date: dueDateIso,
         });
       }
 
@@ -355,6 +373,7 @@ export default function Sale() {
       setCart([]);
       setSelectedCustomerId('');
       setPaymentMethod('cash');
+      setDueDate('');
       await loadProducts();
 
       // Auto-dismiss success after 5 seconds
@@ -757,9 +776,35 @@ export default function Sale() {
               </button>
             </div>
             {paymentMethod === 'credit' && (
-              <p className="text-xs text-warning-600 -mt-2">
-                Une vente a credit cree une creance. Le solde caisse n'est pas impacte.
-              </p>
+              <>
+                <p className="text-xs text-warning-600 -mt-2">
+                  Une vente a credit cree une creance. Le solde caisse n'est pas impacte.
+                </p>
+                {/* Date d'echeance OBLIGATOIRE pour une vente a credit. */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="due-date"
+                    className="block text-xs font-medium text-slate-600"
+                  >
+                    Date d'echeance <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    id="due-date"
+                    type="date"
+                    value={dueDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={e => setDueDate(e.target.value)}
+                    className={`w-full px-3 py-2 bg-white border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors ${
+                      dueDate ? 'border-slate-200' : 'border-danger-300'
+                    }`}
+                  />
+                  {!dueDate && (
+                    <p className="text-xs text-danger-500">
+                      Une date d'echeance est requise pour encaisser a credit.
+                    </p>
+                  )}
+                </div>
+              </>
             )}
 
             {/* Sous-total / Remise / Total */}
@@ -789,16 +834,16 @@ export default function Sale() {
               </button>
               <button
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || submitting}
+                disabled={cart.length === 0 || submitting || creditDueDateMissing}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Facturer
               </button>
               <button
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || submitting}
+                disabled={cart.length === 0 || submitting || creditDueDateMissing}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                  cart.length === 0 || submitting
+                  cart.length === 0 || submitting || creditDueDateMissing
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     : 'bg-success-600 text-white hover:bg-success-700 shadow-sm hover:shadow-md'
                 }`}

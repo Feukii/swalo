@@ -84,6 +84,8 @@ export default function SaleScreen() {
   const [pricingNotes, setPricingNotes] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Date d'échéance (ISO) — OBLIGATOIRE pour une vente à crédit (notifications serveur).
+  const [dueDate, setDueDate] = useState<string>('');
 
   // Clients disponibles (chargés depuis local DB + API)
   const [customers, setCustomers] = useState<SaleCustomer[]>([]);
@@ -150,6 +152,13 @@ export default function SaleScreen() {
       setPaymentMethod('cash');
     }
   }, [selectedCustomer, paymentMethod]);
+
+  // L'échéance n'a de sens qu'en crédit : on l'efface dès qu'on repasse en espèces.
+  useEffect(() => {
+    if (paymentMethod !== 'credit' && dueDate) {
+      setDueDate('');
+    }
+  }, [paymentMethod, dueDate]);
 
   const filteredProducts = products
     .filter(
@@ -357,6 +366,15 @@ export default function SaleScreen() {
       return;
     }
 
+    // Date d'échéance obligatoire pour une vente à crédit (requise par l'API + notifications)
+    if (paymentMethod === 'credit' && !dueDate) {
+      Alert.alert(
+        "Date d'échéance requise",
+        "Veuillez choisir une date d'échéance pour la vente à crédit."
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -395,6 +413,7 @@ export default function SaleScreen() {
           amount: amount,
           description: `Vente à crédit - ${getTotalItems()} article(s)`,
           notes: itemsDescription,
+          dueDate,
         });
       } else {
         // Cash sale: create cash entry
@@ -430,6 +449,7 @@ export default function SaleScreen() {
         note: itemsDescription,
         expectedTotal: overridePrice ? computedTotal : undefined,
         pricingNotes: overridePrice ? pricingNotes : undefined,
+        dueDate: paymentMethod === 'credit' ? dueDate : undefined,
       });
 
       // Build invoice data from cart for local PDF generation
@@ -523,6 +543,7 @@ export default function SaleScreen() {
     setPricingNotes('');
     setSelectedCustomer('');
     setPaymentMethod('cash');
+    setDueDate('');
     setShowPaymentModal(false);
   };
 
@@ -567,6 +588,29 @@ export default function SaleScreen() {
     const product = products.find(p => p.id === item.productId);
     return item.unitPrice || product?.sell_price || 0;
   };
+
+  // --- Date d'échéance (vente à crédit) ---
+  // Renvoie une date ISO décalée de `days` jours à partir d'aujourd'hui (heure midi pour éviter les soucis de fuseau).
+  const isoInDays = (days: number): string => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + days);
+    return d.toISOString();
+  };
+
+  // Libellé court d'une date ISO (JJ/MM/AAAA) pour l'affichage.
+  const formatDueDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('fr-FR');
+  };
+
+  // Raccourcis d'échéance proposés au vendeur.
+  const dueDatePresets: Array<{ label: string; days: number }> = [
+    { label: '+7j', days: 7 },
+    { label: '+15j', days: 15 },
+    { label: '+30j', days: 30 },
+  ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -915,6 +959,60 @@ export default function SaleScreen() {
                   })}
                 </View>
               </View>
+
+              {/* Date d'échéance (obligatoire en crédit) */}
+              {paymentMethod === 'credit' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Date d'échéance *</Text>
+                  <View style={styles.dueDatePresets}>
+                    {dueDatePresets.map(preset => {
+                      const iso = isoInDays(preset.days);
+                      const active = dueDate === iso;
+                      return (
+                        <TouchableOpacity
+                          key={preset.days}
+                          style={[styles.dueDateChip, active && styles.dueDateChipActive]}
+                          onPress={() => setDueDate(iso)}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            style={[
+                              styles.dueDateChipText,
+                              active && styles.dueDateChipTextActive,
+                            ]}
+                          >
+                            {preset.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TextInput
+                    style={[styles.input, styles.dueDateInput]}
+                    placeholder="AAAA-MM-JJ"
+                    placeholderTextColor={Colors.muted.foreground}
+                    value={dueDate ? dueDate.slice(0, 10) : ''}
+                    onChangeText={text => {
+                      // Saisie manuelle : on accepte une date AAAA-MM-JJ valide.
+                      const parsed = new Date(`${text}T12:00:00`);
+                      if (/^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(parsed.getTime())) {
+                        setDueDate(parsed.toISOString());
+                      } else if (text === '') {
+                        setDueDate('');
+                      }
+                    }}
+                  />
+                  {dueDate ? (
+                    <Text style={styles.dueDateSelected}>
+                      Échéance : {formatDueDate(dueDate)}
+                    </Text>
+                  ) : (
+                    <Text style={styles.dueDateHint}>
+                      Choisissez une échéance (raccourci ou date manuelle).
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Credit Warning */}
               {paymentMethod === 'credit' && (
@@ -1419,6 +1517,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.muted.foreground,
     marginLeft: 'auto',
+  },
+  dueDatePresets: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  dueDateChip: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  dueDateChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.primary[50],
+  },
+  dueDateChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  dueDateChipTextActive: {
+    color: Colors.action,
+  },
+  dueDateInput: {
+    marginTop: 0,
+  },
+  dueDateSelected: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  dueDateHint: {
+    marginTop: Spacing.sm,
+    fontSize: 12,
+    color: Colors.muted.foreground,
   },
   creditWarning: {
     backgroundColor: Colors.warning.main + '20',
