@@ -13,8 +13,11 @@ export class DebtsService {
     const isNegativeAmount = dto.amount < 0;
     const status = isNegativeAmount ? 'PAID' : 'PENDING';
     const description =
-      dto.description ||
-      (isNegativeAmount ? 'Remboursement - Ajustement de solde fournisseur' : undefined);
+      dto.description && dto.description.length > 0
+        ? dto.description
+        : isNegativeAmount
+          ? 'Remboursement - Ajustement de solde fournisseur'
+          : undefined;
 
     // Vérifier la limite d'emprunt pour les montants positifs (nouvelles dettes)
     if (!isNegativeAmount && dto.amount > 0) {
@@ -36,9 +39,9 @@ export class DebtsService {
 
         if (currentBalance + dto.amount > supplier.borrowing_limit) {
           throw new BadRequestException(
-            `Limite d'emprunt dépassée. Solde actuel : ${currentBalance} FCFA, ` +
-              `nouvelle dette : ${dto.amount} FCFA, ` +
-              `limite : ${supplier.borrowing_limit} FCFA`
+            `Limite d'emprunt dépassée. Solde actuel : ${String(currentBalance)} FCFA, ` +
+              `nouvelle dette : ${String(dto.amount)} FCFA, ` +
+              `limite : ${String(supplier.borrowing_limit)} FCFA`
           );
         }
       }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,27 +8,27 @@ import {
   TextInput,
   Alert,
   Modal,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  ShoppingCart,
   Search,
   Plus,
   Minus,
   Trash,
-  CheckCircle,
   Package,
   DollarSign,
   CreditCard,
+  ChevronRight,
+  IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
-import { Product } from '../types/stock';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { productRepo, customerRepo, stockBatchRepo } from '../db/repositories';
+import { usePermissions } from '../hooks/usePermissions';
+import { useResponsive } from '../hooks/useResponsive';
+import { productRepo, customerRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
 import { checkCreditLimit } from '../utils/creditCheck';
 import {
   createSaleOffline,
@@ -50,15 +50,35 @@ interface PriceOption {
   batch_count: number;
   batches: { id: string; remaining_quantity: number }[];
 }
-import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+// Produit enrichi avec le stock total calculé et les champs multi-prix optionnels
+interface SaleProduct extends LocalProduct {
+  current_stock: number;
+  is_multi_price?: boolean;
+  price_min?: number;
+  price_max?: number;
+}
+
+// Client utilisable dans l'écran de vente (client comptant par défaut + clients locaux)
+interface SaleCustomer {
+  id: string;
+  name: string;
+  first_name?: string | null;
+  phone?: string | null;
+  credit_limit?: number;
+}
+import { showInvoiceActions, InvoiceData } from '../utils/pdfGenerator';
 
 type PaymentMethod = 'cash' | 'credit';
 
 export default function SaleScreen() {
   const { shopId, userId, shop } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateSale = can('sales', 'create');
+  const { isTablet, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
+  // Filtre catégorie (vue uniquement) — chips de la maquette
+  const [selectedCategory, setSelectedCategory] = useState<string>('Tous');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -67,29 +87,29 @@ export default function SaleScreen() {
   const [pricingNotes, setPricingNotes] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Date d'échéance (ISO) — OBLIGATOIRE pour une vente à crédit (notifications serveur).
+  const [dueDate, setDueDate] = useState<string>('');
 
   // Clients disponibles (chargés depuis local DB + API)
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<SaleCustomer[]>([]);
 
   // Produits disponibles (chargés depuis local DB + API)
-  const [products, setProducts] = useState<any[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [products, setProducts] = useState<SaleProduct[]>([]);
 
   // Multi-prix: modal de sélection
   const [showPriceModal, setShowPriceModal] = useState(false);
-  const [priceModalProduct, setPriceModalProduct] = useState<any>(null);
+  const [priceModalProduct, setPriceModalProduct] = useState<SaleProduct | null>(null);
   const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
 
   // Offline-first: Load products from local SQLite
   const loadProducts = useCallback(async () => {
     if (!shopId) return;
-    setIsLoadingProducts(true);
     try {
       const localProducts = await productRepo.getAll(shopId, {
         where: { is_active: 1 },
         orderBy: 'name ASC',
       });
-      const enriched = await Promise.all(
+      const enriched: SaleProduct[] = await Promise.all(
         localProducts.map(async p => {
           const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
           return { ...p, current_stock: totalStock };
@@ -98,8 +118,6 @@ export default function SaleScreen() {
       setProducts(enriched);
     } catch (error) {
       console.error('Erreur chargement produits:', error);
-    } finally {
-      setIsLoadingProducts(false);
     }
   }, [shopId]);
 
@@ -136,7 +154,14 @@ export default function SaleScreen() {
     if (selectedCustomer === 'cash' && paymentMethod === 'credit') {
       setPaymentMethod('cash');
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, paymentMethod]);
+
+  // L'échéance n'a de sens qu'en crédit : on l'efface dès qu'on repasse en espèces.
+  useEffect(() => {
+    if (paymentMethod !== 'credit' && dueDate) {
+      setDueDate('');
+    }
+  }, [paymentMethod, dueDate]);
 
   const filteredProducts = products
     .filter(
@@ -146,9 +171,19 @@ export default function SaleScreen() {
         p.article_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.brand?.toLowerCase().includes(searchQuery.toLowerCase())
     )
-    .filter(p => (p.current_stock || 0) > 0);
+    .filter(p => (p.current_stock || 0) > 0)
+    .filter(p => selectedCategory === 'Tous' || p.category === selectedCategory);
 
-  const addToCart = async (product: any) => {
+  // Catégories disponibles (dérivées des produits) pour les chips de la maquette.
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach(p => {
+      if (p.category) set.add(p.category);
+    });
+    return ['Tous', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [products]);
+
+  const addToCart = async (product: SaleProduct) => {
     const productName = `${product.family} - ${product.article_type} ${product.brand}`;
     const currentStock = product.current_stock || 0;
 
@@ -201,7 +236,7 @@ export default function SaleScreen() {
   };
 
   const addToCartDirect = (
-    product: any,
+    product: SaleProduct,
     productName: string,
     currentStock: number,
     unitPrice?: number,
@@ -301,6 +336,10 @@ export default function SaleScreen() {
   const effectiveTotal = overridePrice && totalPrice ? parseInt(totalPrice) : computedTotal;
 
   const handleCheckout = () => {
+    if (!canCreateSale) {
+      Alert.alert('Accès non autorisé', "Vous n'êtes pas autorisé à enregistrer une vente.");
+      return;
+    }
     if (cart.length === 0) {
       Alert.alert('Panier vide', 'Ajoutez des produits avant de valider');
       return;
@@ -309,6 +348,11 @@ export default function SaleScreen() {
   };
 
   const confirmSale = async () => {
+    // Garde de capacité (défense en profondeur — le bouton est déjà désactivé).
+    if (!canCreateSale) {
+      Alert.alert('Accès non autorisé', "Vous n'êtes pas autorisé à enregistrer une vente.");
+      return;
+    }
     // Validations
     if (!selectedCustomer) {
       Alert.alert('Client requis', 'Veuillez sélectionner un client');
@@ -330,6 +374,15 @@ export default function SaleScreen() {
       Alert.alert(
         'Client requis',
         'Impossible de vendre à crédit à un client comptant.\nVeuillez sélectionner un client enregistré.'
+      );
+      return;
+    }
+
+    // Date d'échéance obligatoire pour une vente à crédit (requise par l'API + notifications)
+    if (paymentMethod === 'credit' && !dueDate) {
+      Alert.alert(
+        "Date d'échéance requise",
+        "Veuillez choisir une date d'échéance pour la vente à crédit."
       );
       return;
     }
@@ -372,6 +425,7 @@ export default function SaleScreen() {
           amount: amount,
           description: `Vente à crédit - ${getTotalItems()} article(s)`,
           notes: itemsDescription,
+          dueDate,
         });
       } else {
         // Cash sale: create cash entry
@@ -407,6 +461,7 @@ export default function SaleScreen() {
         note: itemsDescription,
         expectedTotal: overridePrice ? computedTotal : undefined,
         pricingNotes: overridePrice ? pricingNotes : undefined,
+        dueDate: paymentMethod === 'credit' ? dueDate : undefined,
       });
 
       // Build invoice data from cart for local PDF generation
@@ -428,7 +483,7 @@ export default function SaleScreen() {
           };
         });
         return {
-          number: `${shop?.code || 'SWALO'}-${new Date().getFullYear()}-PROV`,
+          number: `${shop?.code || 'Swalo'}-${new Date().getFullYear()}-PROV`,
           issue_date: now,
           status: 'ISSUED',
           shop: {
@@ -484,9 +539,10 @@ export default function SaleScreen() {
 
       // Recharger les produits
       await loadProducts();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement de la vente:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer la vente");
+      const message = error instanceof Error ? error.message : "Impossible d'enregistrer la vente";
+      Alert.alert('Erreur', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -499,22 +555,15 @@ export default function SaleScreen() {
     setPricingNotes('');
     setSelectedCustomer('');
     setPaymentMethod('cash');
+    setDueDate('');
     setShowPaymentModal(false);
-  };
-
-  const getPaymentMethodLabel = () => {
-    const labels: Record<PaymentMethod, string> = {
-      cash: 'Espèces',
-      credit: 'À crédit',
-    };
-    return labels[paymentMethod];
   };
 
   // Méthodes de paiement disponibles (crédit désactivé pour client comptant)
   const paymentMethods: Array<{
     key: PaymentMethod;
     label: string;
-    icon: any;
+    icon: React.ComponentType<IconProps>;
     disabled?: boolean;
   }> = [
     { key: 'cash', label: 'Espèces', icon: DollarSign },
@@ -526,132 +575,268 @@ export default function SaleScreen() {
     },
   ];
 
+  // Mode tablette (largeur >= 768) : master-detail côte à côte (produits | panier).
+  // Sur téléphone, isTablet est faux et tous ces overrides valent undefined,
+  // donc le rendu/les styles restent strictement identiques à aujourd'hui.
+  // Largeur de carte produit : téléphone '23%' (4 col), tablette ~'18%' (5 col),
+  // grande tablette ~'15%' (6 col) — dérivée de `columns` avec un peu de gouttière.
+  const tabletCardWidth = `${Math.floor(100 / columns) - 2}%` as const;
+
+  // Nom d'affichage compact d'un produit (carte grille). On garde la même
+  // logique métier pour le nom envoyé au panier (cf. addToCart).
+  const productLabel = (product: SaleProduct) =>
+    product.family ||
+    [product.article_type, product.brand].filter(Boolean).join(' ') ||
+    product.name;
+
+  // Total d'une ligne panier (présentation uniquement, mêmes prix que computedTotal).
+  const lineTotal = (item: CartItem) => {
+    const product = products.find(p => p.id === item.productId);
+    const unitPrice = item.unitPrice || product?.sell_price || 0;
+    return unitPrice * item.quantity;
+  };
+
+  const lineUnitPrice = (item: CartItem) => {
+    const product = products.find(p => p.id === item.productId);
+    return item.unitPrice || product?.sell_price || 0;
+  };
+
+  // --- Date d'échéance (vente à crédit) ---
+  // Renvoie une date ISO décalée de `days` jours à partir d'aujourd'hui (heure midi pour éviter les soucis de fuseau).
+  const isoInDays = (days: number): string => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + days);
+    return d.toISOString();
+  };
+
+  // Libellé court d'une date ISO (JJ/MM/AAAA) pour l'affichage.
+  const formatDueDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('fr-FR');
+  };
+
+  // Raccourcis d'échéance proposés au vendeur.
+  const dueDatePresets: Array<{ label: string; days: number }> = [
+    { label: '+7j', days: 7 },
+    { label: '+15j', days: 15 },
+    { label: '+30j', days: 30 },
+  ];
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Point de vente" />
+      <ScreenHeader title="Nouvelle vente" subtitle="Sélectionnez les articles" />
 
-      <View style={styles.mainContent}>
-        {/* Products Section - 2/3 of height */}
-        <View style={styles.productsSection}>
-          {/* Search Bar */}
+      <View style={styles.body}>
+        {/* Barre de recherche */}
+        <View style={styles.searchWrapper}>
           <View style={styles.searchContainer}>
-            <Search size={20} color={Colors.muted.foreground} />
+            <Search size={20} color={Colors.action} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un produit..."
+              placeholder="Rechercher un produit…"
               placeholderTextColor={Colors.muted.foreground}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
+        </View>
 
-          {/* Products Grid */}
-          <ScrollView contentContainerStyle={styles.productsGrid}>
-            {filteredProducts.map(product => {
-              const inCart = cart.find(item => item.productId === product.id);
+        {/* Chips de catégorie */}
+        <View style={styles.chipsRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContent}
+          >
+            {categories.map(category => {
+              const active = selectedCategory === category;
               return (
                 <TouchableOpacity
-                  key={product.id}
-                  style={[styles.productCard, inCart && styles.productCardInCart]}
-                  onPress={() => addToCart(product)}
+                  key={category}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => setSelectedCategory(category)}
+                  activeOpacity={0.8}
                 >
-                  <View style={styles.productIconContainer}>
-                    <Package size={20} color={Colors.primary[900]} />
-                  </View>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.family}
+                  <Text
+                    style={[styles.chipText, active && styles.chipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {category}
                   </Text>
-                  <Text style={styles.productDetail} numberOfLines={1}>
-                    {product.article_type} {product.brand}
-                  </Text>
-                  <Text style={styles.productStock}>{product.current_stock || 0} unités</Text>
-                  {product.is_multi_price && (
-                    <Text style={styles.multiPriceBadge}>
-                      {formatMoney(product.price_min)} - {formatMoney(product.price_max)}
-                    </Text>
-                  )}
-                  {inCart && (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{inCart.quantity}</Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               );
             })}
-            {filteredProducts.length === 0 && (
-              <View style={styles.emptyProducts}>
-                <Package size={48} color={Colors.muted.foreground} />
-                <Text style={styles.emptyText}>
-                  {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit en stock'}
-                </Text>
-              </View>
-            )}
           </ScrollView>
         </View>
 
-        {/* Cart Section - 1/3 of height */}
-        <View style={styles.cartSection}>
-          <View style={styles.cartHeader}>
-            <View style={styles.cartHeaderLeft}>
-              <ShoppingCart size={20} color={Colors.primary.foreground} />
-              <Text style={styles.cartTitle}>Panier</Text>
-            </View>
-            <View style={styles.cartCount}>
-              <Text style={styles.cartCountText}>{getTotalItems()} article(s)</Text>
-            </View>
-          </View>
-
-          {cart.length === 0 ? (
-            <View style={styles.emptyCart}>
-              <Text style={styles.emptyCartText}>Panier vide - Sélectionnez des produits</Text>
-            </View>
-          ) : (
-            <View style={styles.cartContent}>
-              {/* Cart Items - Horizontal scroll */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.cartItemsContainer}
+        {/* Grille produits 2 colonnes */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.productsGrid,
+            cart.length > 0 && styles.productsGridWithSheet,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredProducts.map(product => {
+            const stock = product.current_stock || 0;
+            const lowStock = product.alert_threshold > 0 && stock <= product.alert_threshold;
+            return (
+              <TouchableOpacity
+                key={product.id}
+                style={[styles.productCard, isTablet && { width: tabletCardWidth }]}
+                onPress={() => addToCart(product)}
+                activeOpacity={0.85}
               >
-                {cart.map(item => (
-                  <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.cartItem}>
-                    <Text style={styles.cartItemName} numberOfLines={1}>
-                      {item.productName}
-                    </Text>
-                    <View style={styles.cartItemActions}>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, -1, item.batchId)}
-                      >
-                        <Minus size={14} color={Colors.text} />
-                      </TouchableOpacity>
-                      <Text style={styles.quantity}>{item.quantity}</Text>
-                      <TouchableOpacity
-                        style={styles.quantityButton}
-                        onPress={() => updateQuantity(item.productId, 1, item.batchId)}
-                      >
-                        <Plus size={14} color={Colors.text} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.removeButton}
-                        onPress={() => removeFromCart(item.productId, item.batchId)}
-                      >
-                        <Trash size={14} color={Colors.danger.main} />
-                      </TouchableOpacity>
-                    </View>
+                <View style={styles.productCardHeader}>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {productLabel(product)}
+                  </Text>
+                  <View style={styles.addButton}>
+                    <Plus size={18} color={Colors.action} />
                   </View>
-                ))}
-              </ScrollView>
-
-              {/* Checkout Button */}
-              <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
-                <CheckCircle size={20} color={Colors.primary.foreground} />
-                <Text style={styles.checkoutButtonText}>Valider la vente</Text>
+                </View>
+                <Text style={styles.productPrice}>{formatMoney(product.sell_price)}</Text>
+                <View style={styles.productMetaRow}>
+                  <Text style={[styles.productStock, lowStock && styles.productStockLow]}>
+                    {stock} en stock
+                  </Text>
+                  {product.is_multi_price && (
+                    <View style={styles.multiPriceBadge}>
+                      <Text style={styles.multiPriceBadgeText}>MULTI-PRIX</Text>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
+            );
+          })}
+          {filteredProducts.length === 0 && (
+            <View style={styles.emptyProducts}>
+              <Package size={48} color={Colors.muted.foreground} />
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit en stock'}
+              </Text>
             </View>
           )}
-        </View>
+        </ScrollView>
       </View>
+
+      {/* Bottom-sheet "Encaisser" — visible dès que le panier n'est pas vide */}
+      <Modal visible={cart.length > 0} transparent animationType="slide">
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Encaisser</Text>
+              <Text style={styles.sheetTotal}>{formatMoney(computedTotal)}</Text>
+            </View>
+
+            <ScrollView
+              style={styles.sheetItems}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {cart.map(item => (
+                <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.sheetItem}>
+                  <View style={styles.sheetItemInfo}>
+                    <Text style={styles.sheetItemName} numberOfLines={1}>
+                      {item.productName}
+                    </Text>
+                    <Text style={styles.sheetItemUnit}>{formatMoney(lineUnitPrice(item))}</Text>
+                  </View>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity
+                      style={styles.stepperButton}
+                      onPress={() =>
+                        item.quantity <= 1
+                          ? removeFromCart(item.productId, item.batchId)
+                          : updateQuantity(item.productId, -1, item.batchId)
+                      }
+                    >
+                      {item.quantity <= 1 ? (
+                        <Trash size={14} color={Colors.danger.main} />
+                      ) : (
+                        <Minus size={14} color={Colors.text} />
+                      )}
+                    </TouchableOpacity>
+                    <Text style={styles.stepperValue}>{item.quantity}</Text>
+                    <TouchableOpacity
+                      style={styles.stepperButton}
+                      onPress={() => updateQuantity(item.productId, 1, item.batchId)}
+                    >
+                      <Plus size={14} color={Colors.action} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.sheetItemTotal}>{formatMoney(lineTotal(item))}</Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Ajouter un client */}
+            <TouchableOpacity style={styles.addCustomerRow} onPress={handleCheckout}>
+              <View style={styles.addCustomerIcon}>
+                <Plus size={16} color={Colors.action} />
+              </View>
+              <Text style={styles.addCustomerText}>
+                {selectedCustomer && selectedCustomer !== 'cash'
+                  ? customers.find(c => c.id === selectedCustomer)?.name || 'Client'
+                  : 'Ajouter un client (optionnel)'}
+              </Text>
+              <ChevronRight size={20} color={Colors.muted.foreground} />
+            </TouchableOpacity>
+
+            {/* Toggle paiement Cash / Crédit */}
+            <View style={styles.segment}>
+              {paymentMethods.map(method => {
+                const isActive = paymentMethod === method.key;
+                const isDisabled = method.disabled;
+                return (
+                  <TouchableOpacity
+                    key={method.key}
+                    style={[styles.segmentItem, isActive && styles.segmentItemActive]}
+                    onPress={() => {
+                      if (isDisabled) {
+                        handleCheckout();
+                      } else {
+                        setPaymentMethod(method.key);
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isActive && styles.segmentTextActive,
+                        isDisabled && styles.segmentTextDisabled,
+                      ]}
+                    >
+                      {method.key === 'cash' ? 'Cash' : 'Crédit'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Grand bouton Encaisser — désactivé sans la capacité sales.create */}
+            <TouchableOpacity
+              style={[styles.encaisserButton, !canCreateSale && styles.encaisserButtonDisabled]}
+              onPress={handleCheckout}
+              disabled={!canCreateSale}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.encaisserButtonText}>
+                {!canCreateSale
+                  ? 'Accès non autorisé'
+                  : paymentMethod === 'credit'
+                    ? 'Encaisser à crédit'
+                    : 'Encaisser en cash'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Payment Modal */}
       <Modal
@@ -770,7 +955,7 @@ export default function SaleScreen() {
                             isDisabled
                               ? Colors.muted.foreground
                               : isActive
-                                ? Colors.primary[900]
+                                ? Colors.action
                                 : Colors.text
                           }
                         />
@@ -791,6 +976,55 @@ export default function SaleScreen() {
                   })}
                 </View>
               </View>
+
+              {/* Date d'échéance (obligatoire en crédit) */}
+              {paymentMethod === 'credit' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Date d'échéance *</Text>
+                  <View style={styles.dueDatePresets}>
+                    {dueDatePresets.map(preset => {
+                      const iso = isoInDays(preset.days);
+                      const active = dueDate === iso;
+                      return (
+                        <TouchableOpacity
+                          key={preset.days}
+                          style={[styles.dueDateChip, active && styles.dueDateChipActive]}
+                          onPress={() => setDueDate(iso)}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            style={[styles.dueDateChipText, active && styles.dueDateChipTextActive]}
+                          >
+                            {preset.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TextInput
+                    style={[styles.input, styles.dueDateInput]}
+                    placeholder="AAAA-MM-JJ"
+                    placeholderTextColor={Colors.muted.foreground}
+                    value={dueDate ? dueDate.slice(0, 10) : ''}
+                    onChangeText={text => {
+                      // Saisie manuelle : on accepte une date AAAA-MM-JJ valide.
+                      const parsed = new Date(`${text}T12:00:00`);
+                      if (/^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(parsed.getTime())) {
+                        setDueDate(parsed.toISOString());
+                      } else if (text === '') {
+                        setDueDate('');
+                      }
+                    }}
+                  />
+                  {dueDate ? (
+                    <Text style={styles.dueDateSelected}>Échéance : {formatDueDate(dueDate)}</Text>
+                  ) : (
+                    <Text style={styles.dueDateHint}>
+                      Choisissez une échéance (raccourci ou date manuelle).
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Credit Warning */}
               {paymentMethod === 'credit' && (
@@ -894,99 +1128,130 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  mainContent: {
+  body: {
     flex: 1,
-    flexDirection: 'column',
+    backgroundColor: Colors.background,
   },
-  productsSection: {
-    flex: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  // --- Barre de recherche ---
+  searchWrapper: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
+    ...Shadows.sm,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.text,
   },
-  productsGrid: {
-    padding: Spacing.sm,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  // --- Chips de catégorie ---
+  chipsRow: {
+    paddingBottom: Spacing.sm,
+  },
+  chipsContent: {
+    paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
-  productCard: {
-    width: '23%',
+  chip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.sm,
-    alignItems: 'center',
-    position: 'relative',
   },
-  productCardInCart: {
+  chipActive: {
+    backgroundColor: Colors.primary[900],
     borderColor: Colors.primary[900],
-    backgroundColor: Colors.primary[50],
   },
-  productIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary[50],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  chipTextActive: {
+    color: Colors.primary.foreground,
+  },
+  // --- Grille produits ---
+  productsGrid: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xl,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  productsGridWithSheet: {
+    paddingBottom: 360,
+  },
+  productCard: {
+    width: '48%',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    ...Shadows.sm,
+  },
+  productCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   productName: {
-    fontSize: 12,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.text,
-    textAlign: 'center',
-    marginBottom: 2,
   },
-  productDetail: {
-    fontSize: 10,
-    color: Colors.muted.foreground,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  productStock: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.success.main,
-  },
-  multiPriceBadge: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: Colors.warning.main,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: Colors.primary[900],
-    borderRadius: 10,
-    width: 20,
-    height: 20,
+  addButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cartBadgeText: {
-    color: Colors.primary.foreground,
+  productPrice: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.primary[900],
+    marginBottom: Spacing.xs,
+  },
+  productMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  productStock: {
     fontSize: 11,
     fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  productStockLow: {
+    color: Colors.warning.main,
+  },
+  multiPriceBadge: {
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  multiPriceBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: Colors.action,
   },
   emptyProducts: {
     flex: 1,
@@ -1000,108 +1265,172 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.muted.foreground,
   },
-  cartSection: {
+  // --- Bottom-sheet "Encaisser" ---
+  sheetOverlay: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: 'rgba(11, 42, 69, 0.25)',
+    justifyContent: 'flex-end',
   },
-  cartHeader: {
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['2xl'],
+    maxHeight: '70%',
+    ...Shadows.lg,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
+    marginBottom: Spacing.lg,
+  },
+  sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: Spacing.lg,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sheetTotal: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  sheetItems: {
+    flexGrow: 0,
+  },
+  sheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  sheetItemInfo: {
+    flex: 1,
+  },
+  sheetItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  sheetItemUnit: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 4,
+  },
+  stepperButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperValue: {
+    minWidth: 24,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sheetItemTotal: {
+    minWidth: 64,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  addCustomerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  cartHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  cartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
-  },
-  cartCount: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 12,
-  },
-  cartCountText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
-  },
-  emptyCart: {
-    flex: 1,
+  addCustomerIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyCartText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  cartContent: {
+  addCustomerText: {
     flex: 1,
-    padding: Spacing.md,
-  },
-  cartItemsContainer: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
-  },
-  cartItem: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 12,
-    padding: Spacing.md,
-    minWidth: 140,
-  },
-  cartItemName: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.primary.foreground,
-    marginBottom: Spacing.sm,
-  },
-  cartItemActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quantity: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary.foreground,
-    minWidth: 20,
-    textAlign: 'center',
+    color: Colors.text,
   },
-  removeButton: {
-    marginLeft: 'auto',
-    padding: Spacing.xs,
-  },
-  checkoutButton: {
+  segment: {
     flexDirection: 'row',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 4,
+    gap: 4,
+    marginBottom: Spacing.lg,
+  },
+  segmentItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  segmentItemActive: {
+    backgroundColor: Colors.surface,
+    ...Shadows.sm,
+  },
+  segmentText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  segmentTextActive: {
+    color: Colors.action,
+  },
+  segmentTextDisabled: {
+    color: Colors.textColors.disabled,
+  },
+  encaisserButton: {
     backgroundColor: Colors.success.main,
-    padding: Spacing.lg,
-    borderRadius: 12,
-    marginTop: 'auto',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
-  checkoutButtonText: {
+  encaisserButtonDisabled: {
+    backgroundColor: Colors.muted.main,
+  },
+  encaisserButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
+    fontWeight: '700',
+    color: Colors.success.foreground,
   },
   modalOverlay: {
     flex: 1,
@@ -1181,7 +1510,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   paymentMethodActive: {
-    borderColor: Colors.primary[900],
+    borderColor: Colors.action,
     backgroundColor: Colors.primary[50],
   },
   paymentMethodDisabled: {
@@ -1194,7 +1523,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   paymentMethodTextActive: {
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   paymentMethodTextDisabled: {
     color: Colors.muted.foreground,
@@ -1203,6 +1532,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.muted.foreground,
     marginLeft: 'auto',
+  },
+  dueDatePresets: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  dueDateChip: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  dueDateChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.primary[50],
+  },
+  dueDateChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  dueDateChipTextActive: {
+    color: Colors.action,
+  },
+  dueDateInput: {
+    marginTop: 0,
+  },
+  dueDateSelected: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  dueDateHint: {
+    marginTop: Spacing.sm,
+    fontSize: 12,
+    color: Colors.muted.foreground,
   },
   creditWarning: {
     backgroundColor: Colors.warning.main + '20',
@@ -1236,7 +1606,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: 12,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   modalConfirmButtonDisabled: {
     opacity: 0.6,
@@ -1292,7 +1662,7 @@ const styles = StyleSheet.create({
   priceOptionBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   // Auto-total and override styles
   calculatedTotalContainer: {
@@ -1322,11 +1692,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   overrideCheckboxActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   overrideCheckmark: {
-    color: '#fff',
+    color: Colors.surface,
     fontSize: 14,
     fontWeight: '700',
   },

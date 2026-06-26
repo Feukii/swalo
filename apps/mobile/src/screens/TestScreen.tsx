@@ -2,7 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function TestScreen({ navigation }: any) {
+interface TestScreenProps {
+  navigation: { navigate: (screen: 'DesignTest') => void };
+}
+
+export default function TestScreen({ navigation }: TestScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -34,7 +38,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   button: {
-    backgroundColor: '#0F2A44',
+    backgroundColor: '#102A43',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 14,

@@ -14,10 +14,10 @@ interface Invoice {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  DRAFT: { label: 'Brouillon', className: 'bg-gray-100 text-gray-700' },
-  ISSUED: { label: 'Émise', className: 'bg-blue-100 text-blue-700' },
-  PAID: { label: 'Payée', className: 'bg-green-100 text-green-700' },
-  CANCELLED: { label: 'Annulée', className: 'bg-red-100 text-red-700' },
+  DRAFT: { label: 'Brouillon', className: 'bg-slate-100 text-slate-700' },
+  ISSUED: { label: 'Émise', className: 'bg-action-100 text-action-700' },
+  PAID: { label: 'Payée', className: 'bg-success-100 text-success-700' },
+  CANCELLED: { label: 'Annulée', className: 'bg-danger-100 text-danger-700' },
 };
 
 const formatAmount = (amount: number): string => {
@@ -113,10 +113,10 @@ export default function Invoices() {
     <div className="space-y-6 animate-fade-in">
       {/* Header avec stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+        <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-primary-100 text-sm">Total Factures</p>
+              <p className="text-white/80 text-sm">Total Factures</p>
               <p className="text-3xl font-bold mt-1">{stats.total}</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
@@ -135,12 +135,12 @@ export default function Invoices() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Émises</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.issued}</p>
+              <p className="text-slate-500 text-sm">Émises</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.issued}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-action-50 rounded-xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-blue-600"
+                className="w-6 h-6 text-action-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -159,12 +159,12 @@ export default function Invoices() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Payées</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.paid}</p>
+              <p className="text-slate-500 text-sm">Payées</p>
+              <p className="text-3xl font-bold text-slate-900 mt-1">{stats.paid}</p>
             </div>
-            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-success-50 rounded-xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-green-600"
+                className="w-6 h-6 text-success-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -183,14 +183,14 @@ export default function Invoices() {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Montant total</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-slate-500 text-sm">Montant total</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">
                 {formatAmount(stats.totalAmount)}
               </p>
             </div>
-            <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-warning-50 rounded-xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-yellow-600"
+                className="w-6 h-6 text-warning-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -212,7 +212,7 @@ export default function Invoices() {
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
           <div className="flex flex-col md:flex-row gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Date début</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">Date début</label>
               <input
                 type="date"
                 value={startDate}
@@ -221,7 +221,7 @@ export default function Invoices() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Date fin</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">Date fin</label>
               <input
                 type="date"
                 value={endDate}
@@ -245,7 +245,7 @@ export default function Invoices() {
 
       {/* Table des factures */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Liste des factures</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Liste des factures</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -253,9 +253,9 @@ export default function Invoices() {
           </div>
         ) : invoices.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-gray-400"
+                className="w-8 h-8 text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -268,8 +268,8 @@ export default function Invoices() {
                 />
               </svg>
             </div>
-            <p className="text-gray-500">Aucune facture trouvée</p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-slate-500">Aucune facture trouvée</p>
+            <p className="text-slate-400 text-sm mt-1">
               {startDate || endDate
                 ? 'Essayez de modifier les filtres de date'
                 : 'Les factures apparaîtront ici après leur création'}
@@ -279,28 +279,28 @@ export default function Invoices() {
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     N° Facture
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Client
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Total TTC
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Statut
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {invoices.map(invoice => {
                   const statusConfig = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.DRAFT;
                   const customerName = invoice.customer
@@ -308,18 +308,18 @@ export default function Invoices() {
                     : 'Client anonyme';
 
                   return (
-                    <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={invoice.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{invoice.invoice_number}</p>
+                        <p className="font-medium text-slate-900">{invoice.invoice_number}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">{formatDate(invoice.created_at)}</p>
+                        <p className="text-sm text-slate-600">{formatDate(invoice.created_at)}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{customerName}</p>
+                        <p className="text-sm text-slate-900">{customerName}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-slate-900">
                           {formatAmount(invoice.total_ttc)}
                         </p>
                       </td>
@@ -334,7 +334,7 @@ export default function Invoices() {
                         <button
                           onClick={() => handleViewPdf(invoice)}
                           disabled={loadingPdfId === invoice.id}
-                          className="text-primary-600 hover:text-primary-700 font-medium text-sm disabled:text-gray-400 disabled:cursor-wait flex items-center gap-1 ml-auto"
+                          className="text-action-600 hover:text-action-700 font-medium text-sm disabled:text-slate-400 disabled:cursor-wait flex items-center gap-1 ml-auto"
                         >
                           {loadingPdfId === invoice.id ? (
                             <>

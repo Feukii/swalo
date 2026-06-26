@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/theme';
+import { Colors, BorderRadius, Spacing } from '../../constants/theme-v2';
 import { formatCurrency } from '../../utils/currency';
 
 interface BalanceIndicatorProps {
@@ -20,7 +20,6 @@ interface BalanceIndicatorProps {
 export function BalanceIndicator({ balance, type, showAlert = true }: BalanceIndicatorProps) {
   const isPositive = balance > 0;
   const isNegative = balance < 0;
-  const isZero = balance === 0;
 
   // Determine colors based on balance
   const badgeColor = isPositive
@@ -39,10 +38,14 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
     ? Colors.success.text
     : isNegative
       ? Colors.danger.text
-      : Colors.warning.dark;
+      : Colors.warning.text;
 
   // Icon based on balance
-  const iconName = isPositive ? 'trending-up' : isNegative ? 'warning' : 'checkmark-circle';
+  const iconName: React.ComponentProps<typeof Ionicons>['name'] = isPositive
+    ? 'trending-up'
+    : isNegative
+      ? 'warning'
+      : 'checkmark-circle';
 
   // Message based on type and balance
   let message = '';
@@ -68,7 +71,7 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <View style={styles.header}>
-        <Ionicons name={iconName as any} size={24} color={badgeColor} />
+        <Ionicons name={iconName} size={24} color={badgeColor} />
         <Text style={[styles.label, { color: textColor }]}>{message}</Text>
       </View>
       <View style={styles.amountContainer}>
@@ -79,7 +82,7 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
       </View>
       {showAlert && isNegative && (
         <View style={[styles.alert, { backgroundColor: Colors.danger.main }]}>
-          <Ionicons name="alert-circle" size={16} color="#fff" />
+          <Ionicons name="alert-circle" size={16} color={Colors.surface} />
           <Text style={styles.alertText}>
             {type === 'customer'
               ? 'Remboursement dû au client !'
@@ -93,36 +96,37 @@ export function BalanceIndicator({ balance, type, showAlert = true }: BalanceInd
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    marginVertical: Spacing.sm,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
   },
   amountContainer: {
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   amount: {
     fontSize: 28,
     fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
   },
   alert: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    padding: 8,
-    borderRadius: 8,
+    marginTop: Spacing.md,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
   },
   alertText: {
-    color: '#fff',
+    color: Colors.surface,
     fontSize: 13,
     fontWeight: '600',
     marginLeft: 6,

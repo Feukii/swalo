@@ -1,25 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { DollarSign, Receipt } from '../components/icons/SimpleIcons';
-import { ScreenHeader, KPICard, ListItem, TransactionDetailModal } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  ShoppingCart,
+  Wallet,
+  Package,
+  Users,
+  TrendingDown,
+  TrendingUp,
+  Bell,
+  ChevronRight,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader, TransactionDetailModal } from '../components/ui';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
-import { getTodayLabel } from '../utils/date';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { useSyncFreshness, FreshnessLevel } from '../hooks/useOfflineReports';
 import { syncEngine } from '../db/sync';
-import { authApi } from '../lib/api';
-import {
-  cashEntryRepo,
-  clientReceivableRepo,
-  supplierDebtRepo,
-  LocalCashEntry,
-  LocalClientReceivable,
-  LocalSupplierDebt,
-} from '../db/repositories';
+import { authApi, sellerTasksApi } from '../lib/api';
+import { cashEntryRepo, clientReceivableRepo, supplierDebtRepo } from '../db/repositories';
 
 // Labels des catégories
 const getCategoryLabel = (category: string): string => {
@@ -44,16 +44,55 @@ const formatTransactionTime = (isoString: string): string => {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
-const freshnessColors: Record<FreshnessLevel, string> = {
-  fresh: Colors.success.main,
-  stale: Colors.warning.main,
-  old: Colors.danger.main,
-  unknown: Colors.muted.foreground,
+// Date courte du jour (ex: "Vendredi 26 juin")
+const getTodayShort = (): string => {
+  const today = new Date();
+  const weekday = new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(today);
+  const rest = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' }).format(today);
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${rest}`;
 };
+
+// Sépare le montant (ex: "3 500 F") en valeur + suffixe "F" pour styliser le F en sky
+const splitMoney = (amount: number): { value: string; unit: string } => {
+  const formatted = formatMoney(amount);
+  const idx = formatted.lastIndexOf(' F');
+  if (idx === -1) {
+    return { value: formatted, unit: '' };
+  }
+  return { value: formatted.slice(0, idx), unit: 'F' };
+};
+
+// Transaction agrégée du jour (entrées caisse + créances/dettes à crédit)
+interface RecentTransaction {
+  id: string;
+  type: 'IN' | 'OUT';
+  category: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+  isCredit: boolean;
+}
+
+// Transaction sélectionnée pour le modal de détail
+interface SelectedTransaction {
+  type: 'entry' | 'exit';
+  date: string;
+  amount: number;
+  note?: string;
+  isCredit: boolean;
+  category: string;
+}
+
+interface QuickAction {
+  label: string;
+  route: string;
+  icon: React.ReactNode;
+  iconBg: string;
+}
 
 export default function HomeScreen() {
   const { shopId, shop, enterprise } = useCurrentUser();
-  const freshness = useSyncFreshness();
+  const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     cashBalance: 0,
@@ -67,9 +106,10 @@ export default function HomeScreen() {
     purchasesCash: 0,
     purchasesCredit: 0,
   });
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [relanceCount, setRelanceCount] = useState(0);
 
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -111,13 +151,14 @@ export default function HomeScreen() {
       const purchasesCredit = todayDebts.reduce((s, d) => s + Math.max(0, d.amount), 0);
 
       // Build recent transactions
-      const todayTransactions: any[] = [];
+      const todayTransactions: RecentTransaction[] = [];
 
       todayCashEntries.forEach(entry => {
+        const entryType: 'IN' | 'OUT' = entry.type === 'IN' ? 'IN' : 'OUT';
         todayTransactions.push({
           id: entry.id,
-          type: entry.type,
-          category: entry.category || (entry.type === 'IN' ? 'entree' : 'sortie'),
+          type: entryType,
+          category: entry.category || (entryType === 'IN' ? 'entree' : 'sortie'),
           amount: entry.amount,
           note: entry.note,
           created_at: entry.created_at,
@@ -170,7 +211,7 @@ export default function HomeScreen() {
         purchasesCredit,
       });
 
-      setRecentTransactions(todayTransactions.slice(0, 4));
+      setRecentTransactions(todayTransactions.slice(0, 5));
     } catch (error) {
       console.error('Error loading HomeScreen data:', error);
     }
@@ -186,15 +227,33 @@ export default function HomeScreen() {
       const token = await AsyncStorage.getItem('access_token');
       if (!token) return;
 
-      const meData = await authApi.getMe();
+      const meData = (await authApi.getMe()) as {
+        enabled_modules?: string[];
+        license_tier?: string;
+        permissions?: Record<string, string[]>;
+      };
       if (meData.enabled_modules) {
         await AsyncStorage.setItem('enabled_modules', JSON.stringify(meData.enabled_modules));
       }
       if (meData.license_tier) {
         await AsyncStorage.setItem('license_tier', meData.license_tier);
       }
+      // Permissions fines (matrice effective) — mise en cache pour le gating offline-first.
+      if (meData.permissions) {
+        await AsyncStorage.setItem('permissions', JSON.stringify(meData.permissions));
+      }
     } catch {
       // Silently fail - offline or server unavailable
+    }
+  }, []);
+
+  // Nombre de clients à relancer (échéances proches/dépassées) — badge de la carte.
+  const loadRelanceCount = useCallback(async () => {
+    try {
+      const { count } = await sellerTasksApi.getCount();
+      setRelanceCount(count);
+    } catch {
+      // Hors-ligne ou serveur indisponible : on garde la valeur précédente
     }
   }, []);
 
@@ -202,9 +261,10 @@ export default function HomeScreen() {
     useCallback(() => {
       loadData();
       refreshUserData();
+      loadRelanceCount();
       // Déclencher une sync en arrière-plan pour garder les données à jour
       syncEngine.fullSync().catch(() => undefined);
-    }, [loadData, refreshUserData])
+    }, [loadData, refreshUserData, loadRelanceCount])
   );
 
   const onRefresh = async () => {
@@ -213,163 +273,228 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  const headerTitle = shop?.name || 'Swalo';
+  const headerSubtitle = enterprise?.name || undefined;
+
+  const netDay = stats.totalSales - stats.totalPurchases;
+  const balance = splitMoney(stats.cashBalance);
+
+  const quickActions: QuickAction[] = [
+    {
+      label: 'Vente',
+      route: 'Sale',
+      icon: <ShoppingCart size={22} color={Colors.action} />,
+      iconBg: Colors.info.background,
+    },
+    {
+      label: 'Caisse',
+      route: 'Cash',
+      icon: <Wallet size={22} color={Colors.primary[900]} />,
+      iconBg: Colors.primary[50],
+    },
+    {
+      label: 'Stock',
+      route: 'Stock',
+      icon: <Package size={22} color={Colors.success.main} />,
+      iconBg: Colors.success.background,
+    },
+    {
+      label: 'Clients',
+      route: 'Customers',
+      icon: <Users size={22} color={Colors.warning.main} />,
+      iconBg: Colors.warning.background,
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader
-        title={
-          enterprise?.name && shop?.name
-            ? `${enterprise.name} - ${shop.name}`
-            : shop?.name || 'Swalo'
-        }
-      />
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <ScreenHeader title={headerTitle} subtitle={headerSubtitle} />
 
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Sync Freshness Badge */}
-        <View style={styles.freshnessBadge}>
-          <View
-            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary[900]}
           />
-          <Text style={styles.freshnessText}>{freshness.label}</Text>
-        </View>
-
-        {/* Date and Summary */}
-        <View style={styles.dateRow}>
-          <View>
-            <Text style={styles.label}>Aujourd'hui</Text>
-            <Text style={styles.dateText}>{getTodayLabel()}</Text>
+        }
+      >
+        {/* HERO MARINE — Solde de caisse */}
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>Solde de caisse</Text>
+            <Text style={styles.heroDate}>{getTodayShort()}</Text>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.label}>Transactions</Text>
-            <Text style={[styles.salesAmount, { color: Colors.primary[900] }]}>
-              {stats.transactionCount}
-            </Text>
-          </View>
-        </View>
 
-        {/* Solde Caisse Header */}
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceLabel}>Solde de caisse</Text>
-          <Text style={styles.balanceAmount}>{formatMoney(stats.cashBalance)}</Text>
-        </View>
+          <Text style={styles.heroAmount}>
+            {balance.value}
+            {balance.unit ? <Text style={styles.heroAmountUnit}> {balance.unit}</Text> : null}
+          </Text>
 
-        {/* KPI Entrées */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <Text style={styles.cardTitle}>Entrées</Text>
-                <Text style={styles.cardSubtitle}>{formatMoney(stats.totalEntries)}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.cardLabel}>Total Ventes</Text>
-                <Text style={[styles.cardValue, { color: Colors.success.main }]}>
-                  {formatMoney(stats.totalSales)}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.success.main }]}>
-                {formatMoney(stats.salesCash)}
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Ventes</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>
+                +{formatMoney(stats.totalSales)}
               </Text>
             </View>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Crédit</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Achats</Text>
+              <Text style={styles.heroStatValue}>{formatMoney(stats.totalPurchases)}</Text>
+            </View>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Net du jour</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>
+                {netDay >= 0 ? '+' : '-'}
+                {formatMoney(netDay)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* TUILES D'ACCÈS RAPIDE */}
+        <View style={styles.tilesRow}>
+          {quickActions.map(action => (
+            <Pressable
+              key={action.label}
+              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+              onPress={() => navigation.navigate(action.route as never)}
+            >
+              <View style={[styles.tileIcon, { backgroundColor: action.iconBg }]}>
+                {action.icon}
+              </View>
+              <Text style={styles.tileLabel}>{action.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* CLIENTS À RELANCER */}
+        {relanceCount > 0 ? (
+          <View style={styles.section}>
+            <Pressable
+              style={({ pressed }) => [styles.relanceCard, pressed && styles.relancePressed]}
+              onPress={() => navigation.navigate('Relances' as never)}
+            >
+              <View style={styles.relanceIcon}>
+                <Bell size={20} color={Colors.warning.main} />
+                <View style={styles.relanceBadge}>
+                  <Text style={styles.relanceBadgeText}>{relanceCount}</Text>
+                </View>
+              </View>
+              <View style={styles.relanceBody}>
+                <Text style={styles.relanceTitle}>Clients à relancer</Text>
+                <Text style={styles.relanceSubtitle}>Échéances proches ou dépassées</Text>
+              </View>
+              <ChevronRight size={20} color={Colors.textColors.tertiary} />
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* VENTES DU JOUR */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Ventes du jour</Text>
+            <Text style={[styles.sectionAmount, styles.textSuccess]}>
+              {formatMoney(stats.totalSales)}
+            </Text>
+          </View>
+          <View style={styles.salesRow}>
+            <View style={styles.salesCard}>
+              <Text style={styles.salesCardLabel}>Cash</Text>
+              <Text style={styles.salesCardValue}>{formatMoney(stats.salesCash)}</Text>
+            </View>
+            <View style={styles.salesCard}>
+              <Text style={styles.salesCardLabel}>Crédit</Text>
+              <Text style={[styles.salesCardValue, styles.textWarning]}>
                 {formatMoney(stats.salesCredit)}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* KPI Sorties */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <Text style={styles.cardTitle}>Sorties</Text>
-                <Text style={styles.cardSubtitle}>{formatMoney(stats.totalExits)}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.cardLabel}>Total Achats</Text>
-                <Text style={[styles.cardValue, { color: Colors.danger.main }]}>
-                  {formatMoney(stats.totalPurchases)}
-                </Text>
-              </View>
-            </View>
+        {/* TRANSACTIONS RÉCENTES */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Transactions récentes</Text>
+            <Pressable onPress={() => navigation.navigate('Cash' as never)}>
+              <Text style={styles.linkSeeAll}>Tout voir</Text>
+            </Pressable>
           </View>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.danger.main }]}>
-                {formatMoney(stats.purchasesCash)}
-              </Text>
-            </View>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Crédit</Text>
-              <Text style={[styles.breakdownValue, { color: Colors.warning.main }]}>
-                {formatMoney(stats.purchasesCredit)}
-              </Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Recent Transactions */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Transactions récentes</Text>
-          </View>
-          <View>
+          <View style={styles.listCard}>
             {recentTransactions.length > 0 ? (
-              recentTransactions.map(transaction => {
+              recentTransactions.map((transaction, index) => {
                 const isEntry = transaction.type === 'IN';
                 const isCredit = transaction.isCredit === true;
-
                 const categoryLabel = getCategoryLabel(transaction.category);
-                const title = isCredit ? `${categoryLabel} (Credit)` : categoryLabel;
+                const title = isCredit ? `${categoryLabel} (Crédit)` : categoryLabel;
+                const subtitle = `${formatTransactionTime(transaction.created_at)} · ${
+                  isCredit ? 'Crédit' : 'Cash'
+                }`;
+                const amountColor = isCredit
+                  ? Colors.warning.main
+                  : isEntry
+                    ? Colors.success.main
+                    : Colors.danger.main;
 
                 return (
-                  <ListItem
+                  <Pressable
                     key={transaction.id}
-                    icon={
-                      isEntry ? (
-                        <Receipt size={20} color={Colors.primary[900]} />
-                      ) : (
-                        <DollarSign size={20} color={Colors.primary[900]} />
-                      )
-                    }
-                    title={title}
-                    subtitle={formatTransactionTime(transaction.created_at)}
-                    amount={
-                      isEntry
-                        ? `+${formatMoney(transaction.amount)}`
-                        : `-${formatMoney(transaction.amount)}`
-                    }
-                    amountColor={isCredit ? 'warning' : isEntry ? 'success' : 'danger'}
-                    onClick={() => {
+                    style={({ pressed }) => [
+                      styles.txRow,
+                      index < recentTransactions.length - 1 && styles.txRowBordered,
+                      pressed && styles.txRowPressed,
+                    ]}
+                    onPress={() => {
                       setSelectedTransaction({
                         type: isEntry ? 'entry' : 'exit',
                         date: transaction.created_at,
                         amount: isEntry ? transaction.amount : -transaction.amount,
-                        note: transaction.note,
+                        note: transaction.note ?? undefined,
                         isCredit: isCredit,
                         category: transaction.category,
                       });
                       setShowDetailModal(true);
                     }}
-                  />
+                  >
+                    <View
+                      style={[
+                        styles.txIcon,
+                        {
+                          backgroundColor: isEntry
+                            ? Colors.success.background
+                            : Colors.danger.background,
+                        },
+                      ]}
+                    >
+                      {isEntry ? (
+                        <TrendingDown size={18} color={Colors.success.main} />
+                      ) : (
+                        <TrendingUp size={18} color={Colors.danger.main} />
+                      )}
+                    </View>
+                    <View style={styles.txBody}>
+                      <Text style={styles.txTitle} numberOfLines={1}>
+                        {title}
+                      </Text>
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {subtitle}
+                      </Text>
+                    </View>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>
+                      {isEntry ? '+' : '-'}
+                      {formatMoney(transaction.amount)}
+                    </Text>
+                  </Pressable>
                 );
               })
             ) : (
-              <View style={{ padding: Spacing.lg }}>
-                <Text style={{ color: Colors.muted.foreground, textAlign: 'center' }}>
-                  Aucune transaction aujourd'hui
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Aucune transaction aujourd&apos;hui</Text>
               </View>
             )}
           </View>
@@ -382,7 +507,7 @@ export default function HomeScreen() {
         onClose={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -391,120 +516,263 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  scroll: {
+    flex: 1,
+  },
   content: {
-    padding: Spacing.lg,
-    paddingBottom: 80,
-    gap: Spacing['2xl'],
+    paddingTop: Spacing.lg,
+    paddingBottom: 96,
+    gap: Spacing.xl,
   },
-  freshnessBadge: {
+  // HERO MARINE
+  hero: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+  },
+  heroTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-end',
-    gap: 6,
-  },
-  freshnessDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  freshnessText: {
-    fontSize: 11,
-    color: Colors.muted.foreground,
-  },
-  dateRow: {
-    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  label: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
-    marginBottom: 4,
+  heroLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.action,
   },
-  dateText: {
-    fontSize: 16,
+  heroDate: {
+    fontSize: 12,
     fontWeight: '500',
+    color: Colors.action,
+  },
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroAmountUnit: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xl,
+  },
+  heroStatCol: {
+    flex: 1,
+    gap: 4,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+  },
+  heroStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
+  },
+  heroStatPositive: {
+    color: Colors.success.main,
+  },
+  // TUILES
+  tilesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  tile: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    ...Shadows.sm,
+  },
+  tilePressed: {
+    opacity: 0.7,
+  },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
     color: Colors.text,
   },
-  salesAmount: {
-    fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  balanceHeader: {
-    backgroundColor: Colors.primary[900],
-    padding: Spacing['2xl'],
-    borderRadius: 18,
+  // CLIENTS À RELANCER
+  relanceCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    ...Shadows.sm,
   },
-  balanceLabel: {
-    fontSize: 14,
-    color: Colors.primary.foreground,
-    marginBottom: Spacing.xs,
-    opacity: 0.9,
+  relancePressed: {
+    opacity: 0.7,
   },
-  balanceAmount: {
-    fontSize: 28,
+  relanceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.warning.background,
+  },
+  relanceBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: Colors.danger.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.surface,
+  },
+  relanceBadgeText: {
+    color: Colors.danger.foreground,
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.primary.foreground,
+  },
+  relanceBody: {
+    flex: 1,
+    gap: 2,
+  },
+  relanceTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  relanceSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  // SECTIONS
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sectionAmount: {
+    fontSize: 17,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  card: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
-    overflow: 'hidden',
+  linkSeeAll: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.action,
   },
-  cardHeader: {
+  textSuccess: {
+    color: Colors.success.main,
+  },
+  textWarning: {
+    color: Colors.warning.main,
+  },
+  // VENTES DU JOUR
+  salesRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  salesCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
     padding: Spacing.lg,
+    gap: 4,
+    ...Shadows.sm,
+  },
+  salesCardLabel: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    fontWeight: '500',
+  },
+  salesCardValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  // LISTE TRANSACTIONS
+  listCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  txRowBordered: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  txRowPressed: {
+    backgroundColor: Colors.surfaceAlt,
   },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.muted.foreground,
-  },
-  cardSubtitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.primary[900],
-    marginTop: Spacing.xs,
-    fontVariant: ['tabular-nums'],
-  },
-  cardLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-  },
-  cardValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    marginTop: 2,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  breakdownItem: {
-    flex: 1,
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    justifyContent: 'center',
   },
-  breakdownLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.xs,
+  txBody: {
+    flex: 1,
+    gap: 2,
   },
-  breakdownValue: {
-    fontSize: 16,
+  txTitle: {
+    fontSize: 15,
     fontWeight: '600',
+    color: Colors.text,
+  },
+  txSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
+  },
+  emptyState: {
+    padding: Spacing['2xl'],
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: Colors.textColors.tertiary,
+    fontSize: 14,
   },
 });

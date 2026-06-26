@@ -22,7 +22,7 @@ import {
   X,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatCurrency } from '../utils/currency';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
@@ -57,6 +57,20 @@ interface CatalogNode {
   };
 }
 
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return undefined;
+}
+
+interface ScreenNavigation {
+  goBack: () => void;
+}
+
+interface CatalogHierarchyScreenProps {
+  navigation: ScreenNavigation;
+}
+
 type ModalType = 'family' | 'article' | 'brand' | 'reference' | null;
 
 interface FormData {
@@ -68,7 +82,7 @@ interface FormData {
   name?: string;
 }
 
-export default function CatalogHierarchyScreen({ navigation }: any) {
+export default function CatalogHierarchyScreen({ navigation }: CatalogHierarchyScreenProps) {
   const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,7 +124,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
       setProducts(enriched);
       console.log('Catalog loaded from local DB:', enriched.length, 'products');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading catalog:', error);
       Alert.alert('Erreur', 'Impossible de charger le catalogue');
     } finally {
@@ -256,7 +270,12 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
         if (modalType === 'reference') {
           // For reference, update single product
-          await updateProductOffline(formData.id!, { reference: value });
+          if (!formData.id) {
+            Alert.alert('Erreur', 'Produit introuvable');
+            setIsSaving(false);
+            return;
+          }
+          await updateProductOffline(formData.id, { reference: value });
           Alert.alert('Succes', 'Reference mise a jour');
         } else {
           // For family, article, brand: batch update locally
@@ -341,9 +360,9 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
 
       setShowModal(false);
       loadData(); // Recharger les donnees
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la sauvegarde:', error);
-      const errorMessage = error.message || 'Impossible de sauvegarder';
+      const errorMessage = getErrorMessage(error) ?? 'Impossible de sauvegarder';
       Alert.alert('Erreur', errorMessage);
     } finally {
       setIsSaving(false);
@@ -371,8 +390,8 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
             await deleteProductOffline(product.id);
             Alert.alert('Succes', 'Produit supprime');
             loadData();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer');
+          } catch (error: unknown) {
+            Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de supprimer');
           }
         },
       },
@@ -468,7 +487,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Catalogue Hiérarchique" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -482,7 +501,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity onPress={() => openAddModal('family')}>
-            <Plus size={24} color={Colors.primary[900]} />
+            <Plus size={24} color={Colors.action} />
           </TouchableOpacity>
         }
       />
@@ -497,9 +516,9 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
             >
               <View style={styles.familyLeft}>
                 {expandedFamilies.has(familyNode.family) ? (
-                  <ChevronDown size={20} color={Colors.primary[900]} />
+                  <ChevronDown size={20} color={Colors.action} />
                 ) : (
-                  <ChevronRight size={20} color={Colors.primary[900]} />
+                  <ChevronRight size={20} color={Colors.action} />
                 )}
                 <Text style={styles.familyTitle}>{familyNode.family}</Text>
               </View>
@@ -508,7 +527,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                   onPress={() => openEditModal('family', { family: familyNode.family })}
                   style={styles.iconButton}
                 >
-                  <Edit size={16} color={Colors.primary[900]} />
+                  <Edit size={16} color={Colors.action} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => openAddModal('article', { family: familyNode.family })}
@@ -533,11 +552,11 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                       >
                         <View style={styles.articleLeft}>
                           {expandedArticles.has(articleKey) ? (
-                            <ChevronDown size={18} color={Colors.text} />
+                            <ChevronDown size={18} color={Colors.action} />
                           ) : (
-                            <ChevronRight size={18} color={Colors.text} />
+                            <ChevronRight size={18} color={Colors.action} />
                           )}
-                          <Package size={16} color={Colors.muted.foreground} />
+                          <Package size={16} color={Colors.action} />
                           <Text style={styles.articleTitle}>{articleType}</Text>
                         </View>
                         <View style={styles.articleActions}>
@@ -550,7 +569,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                             }
                             style={styles.iconButton}
                           >
-                            <Edit size={14} color={Colors.text} />
+                            <Edit size={14} color={Colors.action} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() =>
@@ -580,9 +599,9 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                                 >
                                   <View style={styles.brandLeft}>
                                     {expandedBrands.has(brandKey) ? (
-                                      <ChevronDown size={16} color={Colors.text} />
+                                      <ChevronDown size={16} color={Colors.action} />
                                     ) : (
-                                      <ChevronRight size={16} color={Colors.text} />
+                                      <ChevronRight size={16} color={Colors.action} />
                                     )}
                                     <Text style={styles.brandTitle}>{brand}</Text>
                                   </View>
@@ -597,7 +616,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                                       }
                                       style={styles.iconButton}
                                     >
-                                      <Edit size={12} color={Colors.text} />
+                                      <Edit size={12} color={Colors.action} />
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                       onPress={() =>
@@ -646,7 +665,7 @@ export default function CatalogHierarchyScreen({ navigation }: any) {
                                             }
                                             style={styles.iconButton}
                                           >
-                                            <Edit size={12} color={Colors.text} />
+                                            <Edit size={12} color={Colors.action} />
                                           </TouchableOpacity>
                                           <TouchableOpacity
                                             onPress={() => handleDelete(product)}
@@ -717,12 +736,11 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   familyContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   familyHeader: {
     flexDirection: 'row',
@@ -831,7 +849,7 @@ const styles = StyleSheet.create({
   referencePrice: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
     marginLeft: Spacing.md,
   },
   referenceActions: {
@@ -892,14 +910,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    ...Shadows.md,
   },
   // Modal
   modalOverlay: {
@@ -936,10 +950,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 15,
@@ -966,7 +980,7 @@ const styles = StyleSheet.create({
   },
   modalSaveButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: Spacing.lg,
     alignItems: 'center',

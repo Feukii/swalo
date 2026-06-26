@@ -39,7 +39,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object') {
         const resp = exceptionResponse as Record<string, unknown>;
-        message = (resp.message as string | string[]) ?? exception.message;
+        const respMessage = resp.message as string | string[] | undefined;
+        message = respMessage ?? exception.message;
         details = resp.error as string | undefined;
       }
     }
@@ -107,8 +108,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     switch (error.code) {
       case 'P2002': {
         // Violation de contrainte unique
-        const target = (error.meta?.target as string[]) ?? [];
-        const fields = target.join(', ');
+        const target = error.meta?.target as string[] | undefined;
+        const fields = target?.join(', ') ?? '';
         return {
           status: HttpStatus.CONFLICT,
           message: `Une entrée avec ${fields || 'ces valeurs'} existe déjà`,

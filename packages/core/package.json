@@ -1,20 +1,25 @@
 {
   "name": "@swalo/core",
   "version": "1.0.0",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./schemas": "./src/schemas/index.ts",
-    "./types": "./src/types/index.ts",
-    "./utils": "./src/utils/index.ts",
-    "./modules/registry": "./src/modules/registry.ts"
+    ".": { "types": "./src/index.ts", "import": "./src/index.ts", "require": "./dist/index.js" },
+    "./schemas": { "types": "./src/schemas/index.ts", "import": "./src/schemas/index.ts", "require": "./dist/schemas/index.js" },
+    "./types": { "types": "./src/types/index.ts", "import": "./src/types/index.ts", "require": "./dist/types/index.js" },
+    "./utils": { "types": "./src/utils/index.ts", "import": "./src/utils/index.ts", "require": "./dist/utils/index.js" },
+    "./brand/tokens": { "types": "./src/brand/tokens.ts", "import": "./src/brand/tokens.ts", "require": "./dist/brand/tokens.js" },
+    "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" },
+    "./modules/permissions": { "types": "./src/modules/permissions.ts", "import": "./src/modules/permissions.ts", "require": "./dist/modules/permissions.js" },
+    "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
     "lint": "eslint src/",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "validate": "pnpm run lint && pnpm run type-check && pnpm run test"
   },
   "dependencies": {
     "uuid": "^9.0.1",
@@ -22,11 +27,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",
     "@types/uuid": "^9.0.8",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.45.0"
   }

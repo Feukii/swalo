@@ -13,18 +13,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Building, Plus, Eye } from '../components/icons/SimpleIcons';
 import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useLocalSuppliers } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import { createSupplierOffline, createSupplierDebtOffline } from '../db/offlineWrite';
 
+interface SuppliersScreenNavigation {
+  goBack: () => void;
+  navigate: {
+    (screen: 'SupplierBalancesSummary'): void;
+    (screen: 'SupplierDetails', params: { id: string }): void;
+  };
+}
+
 interface SuppliersScreenProps {
-  navigation: any;
+  navigation: SuppliersScreenNavigation;
 }
 
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const { shop } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateSupplier = can('suppliers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -36,6 +47,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const [name, setName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
+  const [borrowingLimit, setBorrowingLimit] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -43,6 +55,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setBorrowingLimit('');
     setInitialBalance('');
     setShowModal(true);
   };
@@ -52,6 +65,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     setName('');
     setFirstName('');
     setPhone('');
+    setBorrowingLimit('');
     setInitialBalance('');
   };
 
@@ -80,12 +94,23 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       return;
     }
 
-    // Valider le solde initial si fourni
+    // Valider la limite d'endettement si fournie (0 ou vide = illimité)
+    let borrowingLimitFCFA: number | undefined;
+    if (borrowingLimit.trim()) {
+      const limit = parseFloat(borrowingLimit);
+      if (isNaN(limit) || limit < 0) {
+        Alert.alert('Erreur', "La limite d'endettement doit être un nombre positif");
+        return;
+      }
+      borrowingLimitFCFA = Math.round(limit);
+    }
+
+    // Valider la dette de départ si fournie
     let initialBalanceFCFA: number | undefined;
     if (initialBalance.trim()) {
       const balance = parseFloat(initialBalance);
       if (isNaN(balance) || balance < 0) {
-        Alert.alert('Erreur', 'Le solde initial doit être un nombre positif');
+        Alert.alert('Erreur', 'La dette de départ doit être un nombre positif');
         return;
       }
       initialBalanceFCFA = Math.round(balance);
@@ -98,6 +123,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
         name: name.trim(),
         firstName: firstName.trim() || undefined,
         phone: phone.trim() || undefined,
+        borrowingLimit: borrowingLimitFCFA,
       });
 
       // If initial balance provided, create a supplier debt
@@ -113,9 +139,10 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       Alert.alert('Succes', 'Fournisseur cree avec succes');
       handleCloseModal();
       await refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la creation');
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Erreur lors de la creation');
     } finally {
       setIsSaving(false);
     }
@@ -149,11 +176,13 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
         rightAction={
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <IconButton onPress={() => navigation.navigate('SupplierBalancesSummary')}>
-              <Eye size={24} color={Colors.primary[900]} />
+              <Eye size={24} color={Colors.action} />
             </IconButton>
-            <IconButton onPress={handleOpenModal}>
-              <Plus size={24} color={Colors.primary[900]} />
-            </IconButton>
+            {canCreateSupplier && (
+              <IconButton onPress={handleOpenModal}>
+                <Plus size={24} color={Colors.action} />
+              </IconButton>
+            )}
           </View>
         }
       />
@@ -165,7 +194,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             <KPICard
               label="Total fournisseurs"
               value={String(stats.total)}
-              icon={<Building size={20} color={Colors.muted.foreground} />}
+              icon={<Building size={20} color={Colors.action} />}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -192,7 +221,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
           ) : filteredSuppliers.length === 0 ? (
             <View style={styles.emptyState}>
@@ -205,7 +234,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             filteredSuppliers.map(supplier => (
               <ListItem
                 key={supplier.id}
-                icon={<Building size={20} color={Colors.primary[900]} />}
+                icon={<Building size={20} color={Colors.action} />}
                 title={getPersonName(supplier)}
                 subtitle={
                   supplier.phone
@@ -268,7 +297,20 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Solde initial (FCFA)</Text>
+              <Text style={styles.label}>Limite d'endettement (FCFA)</Text>
+              <TextInput
+                style={styles.input}
+                value={borrowingLimit}
+                onChangeText={setBorrowingLimit}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+              />
+              <Text style={styles.hint}>0 ou vide = illimité</Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Dette de départ (optionnel)</Text>
               <TextInput
                 style={styles.input}
                 value={initialBalance}
@@ -277,9 +319,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                 placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
               />
-              <Text style={styles.hint}>
-                Montant de la dette initiale envers le fournisseur (optionnel)
-              </Text>
+              <Text style={styles.hint}>Crée une dette de départ — laisser vide si aucune</Text>
             </View>
 
             <View style={styles.modalButtons}>
@@ -327,9 +367,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    marginBottom: Spacing['2xl'],
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   searchInput: {
     fontSize: 16,
@@ -337,20 +379,17 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   cardHeader: {
     padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   loadingContainer: {
@@ -376,12 +415,13 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
+    ...Shadows.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.lg,
   },
@@ -398,10 +438,10 @@ const styles = StyleSheet.create({
     color: Colors.danger.main,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -420,9 +460,11 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: Spacing.lg,
+    paddingVertical: Spacing.lg,
     borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   cancelButton: {
     backgroundColor: Colors.muted.main,
@@ -433,7 +475,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
     color: Colors.primary.foreground,

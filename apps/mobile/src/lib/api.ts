@@ -1,10 +1,26 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+﻿import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { getDeviceInfo } from './deviceInfo';
 
+/**
+ * Forme JSON arbitraire renvoyée par l'API lorsqu'un type précis n'est pas
+ * encore modélisé. Plus sûr que `any` : force le consommateur à narrow.
+ */
+type JsonRecord = Record<string, unknown>;
+
+/**
+ * Manifest Expo (legacy) pouvant exposer `extra.apiUrl`. Utilisé comme
+ * fallback de configuration de l'URL d'API.
+ */
+interface ManifestWithExtra {
+  extra?: { apiUrl?: string } | null;
+}
+
+const legacyManifest = Constants.manifest as ManifestWithExtra | null;
+
 const API_URL =
   Constants.expoConfig?.extra?.apiUrl ??
-  (Constants.manifest as any)?.extra?.apiUrl ??
+  legacyManifest?.extra?.apiUrl ??
   process.env.EXPO_PUBLIC_API_URL ??
   'http://localhost:3000/api';
 
@@ -12,8 +28,23 @@ const API_URL =
 console.log('🔗 API URL configurée:', API_URL);
 
 interface ApiError {
-  message: string;
+  message: string | string[];
   statusCode?: number;
+}
+
+/** Erreur 403 renvoyée lorsqu'un module est désactivé pour la boutique. */
+interface ModuleDisabledError extends Error {
+  code: 'MODULE_DISABLED';
+  module?: string;
+  moduleName?: string;
+}
+
+/** Forme partielle d'une réponse d'erreur JSON de l'API. */
+interface ApiErrorResponse {
+  message?: string | string[];
+  code?: string;
+  module?: string;
+  moduleName?: string;
 }
 
 class ApiClient {
@@ -81,12 +112,13 @@ class ApiClient {
 
         // Gérer les modules désactivés (403)
         if (response.status === 403) {
-          const errorData: any = await response.json().catch(() => ({}));
+          const errorData: ApiErrorResponse = await response.json().catch(() => ({}));
           if (errorData?.code === 'MODULE_DISABLED') {
-            const err = new Error(errorData.message || 'Module non disponible');
-            (err as any).code = 'MODULE_DISABLED';
-            (err as any).module = errorData.module;
-            (err as any).moduleName = errorData.moduleName;
+            const message = typeof errorData.message === 'string' ? errorData.message : undefined;
+            const err = new Error(message || 'Module non disponible') as ModuleDisabledError;
+            err.code = 'MODULE_DISABLED';
+            err.module = errorData.module;
+            err.moduleName = errorData.moduleName;
             throw err;
           }
         }
@@ -94,17 +126,20 @@ class ApiClient {
         const error: ApiError = await response.json().catch(() => ({
           message: 'Une erreur est survenue',
         }));
-        throw new Error(error.message || 'Request failed');
+        const message = Array.isArray(error.message) ? error.message[0] : error.message;
+        throw new Error(message || 'Request failed');
       }
 
-      return response.json();
-    } catch (error: any) {
+      return response.json() as Promise<T>;
+    } catch (error: unknown) {
       // Retry logic pour timeouts et erreurs réseau (cold start)
+      const errorName = error instanceof Error ? error.name : undefined;
+      const errorMessage = error instanceof Error ? error.message : undefined;
       const shouldRetry =
         retryCount < MAX_RETRIES &&
-        (error.name === 'AbortError' || // Timeout
-          error.message?.includes('Network request failed') || // Erreur réseau
-          error.message?.includes('Failed to fetch')); // Serveur éteint
+        (errorName === 'AbortError' || // Timeout
+          errorMessage?.includes('Network request failed') || // Erreur réseau
+          errorMessage?.includes('Failed to fetch')); // Serveur éteint
 
       if (shouldRetry) {
         console.log(
@@ -122,7 +157,7 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET' });
   }
 
-  async post<T>(endpoint: string, data?: any, headers?: Record<string, string>): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -130,7 +165,7 @@ class ApiClient {
     });
   }
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
@@ -153,8 +188,8 @@ export const authApi = {
     const response = await api.post<{
       access_token: string;
       refresh_token: string;
-      user: any;
-      shop: any;
+      user: JsonRecord;
+      shop: JsonRecord;
       enterprise?: { id: string; code: string; name: string; logo_url?: string | null } | null;
       role: string;
     }>('/auth/pin', {
@@ -173,7 +208,7 @@ export const authApi = {
     await AsyncStorage.removeItem('user');
   },
   getMe: async () => {
-    return api.get<any>('/auth/me');
+    return api.get<JsonRecord>('/auth/me');
   },
   verifyShop: async (code: string) => {
     return api.get<{
@@ -226,7 +261,7 @@ export const cashApi = {
     if (params?.start_date) queryParams.append('start_date', params.start_date);
     if (params?.end_date) queryParams.append('end_date', params.end_date);
     const query = queryParams.toString();
-    return api.get<any[]>(`/cash/entries${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/cash/entries${query ? `?${query}` : ''}`);
   },
   createEntry: async (data: {
     type: 'IN' | 'OUT';
@@ -238,7 +273,7 @@ export const cashApi = {
   }) => {
     const deviceInfo = await getDeviceInfo();
     const clientOpId = `cash_${deviceInfo.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    return api.post<any>('/cash/entries', {
+    return api.post<JsonRecord>('/cash/entries', {
       ...data,
       device_id: deviceInfo.device_id,
       client_op_id: clientOpId,
@@ -254,7 +289,7 @@ export const cashApi = {
   }) => {
     const deviceInfo = await getDeviceInfo();
     const clientOpId = `purchase_${deviceInfo.device_id}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    return api.post<any>('/cash/merchandise-purchase', {
+    return api.post<JsonRecord>('/cash/merchandise-purchase', {
       ...data,
       device_id: deviceInfo.device_id,
       client_op_id: clientOpId,
@@ -270,10 +305,10 @@ export const suppliersApi = {
     if (params?.is_active !== undefined) queryParams.append('is_active', String(params.is_active));
 
     const query = queryParams.toString();
-    return api.get<any[]>(`/suppliers${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/suppliers${query ? `?${query}` : ''}`);
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/suppliers/${id}`);
+    return api.get<JsonRecord>(`/suppliers/${id}`);
   },
   create: async (data: {
     name: string;
@@ -282,7 +317,7 @@ export const suppliersApi = {
     email?: string;
     address?: string;
   }) => {
-    return api.post<any>('/suppliers', data);
+    return api.post<JsonRecord>('/suppliers', data);
   },
   update: async (
     id: string,
@@ -295,7 +330,7 @@ export const suppliersApi = {
       is_active?: boolean;
     }
   ) => {
-    return api.put<any>(`/suppliers/${id}`, data);
+    return api.put<JsonRecord>(`/suppliers/${id}`, data);
   },
   // API pour les paiements de dettes fournisseurs
   payDebt: async (
@@ -307,7 +342,7 @@ export const suppliersApi = {
       cash_exit_id?: string;
     }
   ) => {
-    return api.post<any>(`/debts/${debtId}/payments`, data);
+    return api.post<JsonRecord>(`/debts/${debtId}/payments`, data);
   },
   // New: Claim refund from supplier
   claimRefund: async (
@@ -318,17 +353,17 @@ export const suppliersApi = {
       note?: string;
     }
   ) => {
-    return api.post<any>(`/suppliers/${supplierId}/claim-refund`, data);
+    return api.post<JsonRecord>(`/suppliers/${supplierId}/claim-refund`, data);
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/suppliers/${id}`);
+    return api.delete<JsonRecord>(`/suppliers/${id}`);
   },
   // Duplicates management
   getDuplicates: async () => {
-    return api.get<any>('/suppliers/duplicates');
+    return api.get<JsonRecord>('/suppliers/duplicates');
   },
   merge: async (keepId: string, mergeId: string) => {
-    return api.post<any>('/suppliers/merge', { keep_id: keepId, merge_id: mergeId });
+    return api.post<JsonRecord>('/suppliers/merge', { keep_id: keepId, merge_id: mergeId });
   },
 };
 
@@ -340,10 +375,10 @@ export const customersApi = {
     if (params?.is_active !== undefined) queryParams.append('is_active', String(params.is_active));
 
     const query = queryParams.toString();
-    return api.get<any[]>(`/customers${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/customers${query ? `?${query}` : ''}`);
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/customers/${id}`);
+    return api.get<JsonRecord>(`/customers/${id}`);
   },
   create: async (data: {
     name: string;
@@ -353,7 +388,7 @@ export const customersApi = {
     address?: string;
     credit_limit?: number;
   }) => {
-    return api.post<any>('/customers', data);
+    return api.post<JsonRecord>('/customers', data);
   },
   update: async (
     id: string,
@@ -367,10 +402,10 @@ export const customersApi = {
       is_active?: boolean;
     }
   ) => {
-    return api.put<any>(`/customers/${id}`, data);
+    return api.put<JsonRecord>(`/customers/${id}`, data);
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/customers/${id}`);
+    return api.delete<JsonRecord>(`/customers/${id}`);
   },
   // New: Customer refund methods
   createRefund: async (
@@ -381,17 +416,17 @@ export const customersApi = {
       note?: string;
     }
   ) => {
-    return api.post<any>(`/customers/${customerId}/refund`, data);
+    return api.post<JsonRecord>(`/customers/${customerId}/refund`, data);
   },
   getRefunds: async (customerId: string) => {
-    return api.get<any[]>(`/customers/${customerId}/refunds`);
+    return api.get<JsonRecord[]>(`/customers/${customerId}/refunds`);
   },
   // Duplicates management
   getDuplicates: async () => {
-    return api.get<any>('/customers/duplicates');
+    return api.get<JsonRecord>('/customers/duplicates');
   },
   merge: async (keepId: string, mergeId: string) => {
-    return api.post<any>('/customers/merge', { keep_id: keepId, merge_id: mergeId });
+    return api.post<JsonRecord>('/customers/merge', { keep_id: keepId, merge_id: mergeId });
   },
 };
 
@@ -403,10 +438,10 @@ export const receivablesApi = {
     if (params?.status) queryParams.append('status', params.status);
 
     const query = queryParams.toString();
-    return api.get<any[]>(`/receivables${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/receivables${query ? `?${query}` : ''}`);
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/receivables/${id}`);
+    return api.get<JsonRecord>(`/receivables/${id}`);
   },
   create: async (data: {
     customer_id: string;
@@ -420,7 +455,7 @@ export const receivablesApi = {
       ...data,
       description: data.description || data.notes,
     };
-    return api.post<any>('/receivables', payload);
+    return api.post<JsonRecord>('/receivables', payload);
   },
   addPayment: async (
     receivableId: string,
@@ -431,16 +466,16 @@ export const receivablesApi = {
       cash_entry_id?: string;
     }
   ) => {
-    return api.post<any>(`/receivables/${receivableId}/payments`, data);
+    return api.post<JsonRecord>(`/receivables/${receivableId}/payments`, data);
   },
   cancel: async (id: string) => {
-    return api.put<any>(`/receivables/${id}/cancel`, {});
+    return api.put<JsonRecord>(`/receivables/${id}/cancel`, {});
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/receivables/${id}`);
+    return api.delete<JsonRecord>(`/receivables/${id}`);
   },
   getStats: async () => {
-    return api.get<any>('/receivables/stats');
+    return api.get<JsonRecord>('/receivables/stats');
   },
 };
 
@@ -452,10 +487,10 @@ export const debtsApi = {
     if (params?.status) queryParams.append('status', params.status);
 
     const query = queryParams.toString();
-    return api.get<any[]>(`/debts${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/debts${query ? `?${query}` : ''}`);
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/debts/${id}`);
+    return api.get<JsonRecord>(`/debts/${id}`);
   },
   create: async (data: {
     supplier_id: string;
@@ -469,7 +504,7 @@ export const debtsApi = {
       ...data,
       description: data.description || data.notes,
     };
-    return api.post<any>('/debts', payload);
+    return api.post<JsonRecord>('/debts', payload);
   },
   addPayment: async (
     debtId: string,
@@ -480,29 +515,104 @@ export const debtsApi = {
       cash_exit_id?: string;
     }
   ) => {
-    return api.post<any>(`/debts/${debtId}/payments`, data);
+    return api.post<JsonRecord>(`/debts/${debtId}/payments`, data);
   },
   cancel: async (id: string) => {
-    return api.put<any>(`/debts/${id}/cancel`, {});
+    return api.put<JsonRecord>(`/debts/${id}/cancel`, {});
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/debts/${id}`);
+    return api.delete<JsonRecord>(`/debts/${id}`);
   },
   getStats: async () => {
-    return api.get<any>('/debts/stats');
+    return api.get<JsonRecord>('/debts/stats');
+  },
+};
+
+// Seller Tasks API (Tâches vendeur : relances de créances / échéances)
+/** Canaux de notification d'une relance (alignés sur l'enum Prisma). */
+export type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
+export interface SellerTask {
+  id: string;
+  title: string;
+  message?: string;
+  due_date?: string | null;
+  customer_id?: string;
+  receivable_id?: string;
+  status: string;
+  /** Client associé (enrichi par l'API), avec nom + téléphone. */
+  customer?: { id?: string; name: string; phone?: string | null } | null;
+  /** Solde restant dû (FCFA), null si aucune créance liée. */
+  amount?: number | null;
+  /** Canaux activés par le client pour cette relance. */
+  channels?: ReminderChannel[];
+  /** Message courtois prêt à envoyer (généré par l'API). */
+  preview_message?: string | null;
+}
+
+/** Résultat d'un envoi manuel de relance. */
+export interface RemindResult {
+  ok: boolean;
+  channelsSent?: ReminderChannel[];
+  error?: string;
+}
+
+export const sellerTasksApi = {
+  getTasks: async (): Promise<SellerTask[]> => {
+    return api.get<SellerTask[]>('/seller-tasks');
+  },
+  getCount: async (): Promise<{ count: number }> => {
+    return api.get<{ count: number }>('/seller-tasks/count');
+  },
+  markDone: async (id: string): Promise<SellerTask> => {
+    return api.post<SellerTask>(`/seller-tasks/${id}/done`, {});
+  },
+  /**
+   * Envoie une relance maintenant pour la tâche donnée.
+   * @param channel - canal unique à utiliser ; si omis, tous les canaux
+   *   activés par le client sont utilisés.
+   */
+  remind: async (id: string, channel?: ReminderChannel): Promise<RemindResult> => {
+    return api.post<RemindResult>(`/seller-tasks/${id}/remind`, channel ? { channel } : {});
+  },
+};
+
+// Reminder Settings API (Réglages relances de créances)
+/** Réglages des relances automatiques de créances pour la boutique courante. */
+export interface ReminderSettings {
+  payment_reminders_enabled: boolean;
+  notification_email: string | null;
+  payment_reminder_cadence_days: number;
+  /** Décalages (en jours) auxquels les relances sont envoyées, ex: [-7, -3, 0]. */
+  offsets: number[];
+}
+
+/** Champs modifiables des réglages de relances (mise à jour partielle). */
+export interface ReminderSettingsUpdate {
+  payment_reminders_enabled?: boolean;
+  notification_email?: string | null;
+  payment_reminder_cadence_days?: number;
+}
+
+export const reminderSettingsApi = {
+  get: async (): Promise<ReminderSettings> => {
+    return api.get<ReminderSettings>('/shops/me/reminder-settings');
+  },
+  update: async (payload: ReminderSettingsUpdate): Promise<ReminderSettings> => {
+    return api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
   },
 };
 
 // Import API
 export const importApi = {
-  previewCatalog: async (fileContent: string, fileName: string) => {
-    return api.post<any>('/import/catalog/preview', {
+  previewCatalog: async <T = JsonRecord>(fileContent: string, fileName: string): Promise<T> => {
+    return api.post<T>('/import/catalog/preview', {
       file_content: fileContent,
       file_name: fileName,
     });
   },
   confirmCatalog: async (fileContent: string, fileName: string) => {
-    return api.post<any>('/import/catalog/confirm', {
+    return api.post<JsonRecord>('/import/catalog/confirm', {
       file_content: fileContent,
       file_name: fileName,
     });
@@ -512,29 +622,29 @@ export const importApi = {
 // Packaging Types API (Conditionnement)
 export const packagingTypesApi = {
   getAll: async () => {
-    return api.get<any[]>('/packaging-types');
+    return api.get<JsonRecord[]>('/packaging-types');
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/packaging-types/${id}`);
+    return api.get<JsonRecord>(`/packaging-types/${id}`);
   },
   create: async (data: { name: string; symbol?: string; is_default?: boolean }) => {
-    return api.post<any>('/packaging-types', data);
+    return api.post<JsonRecord>('/packaging-types', data);
   },
   update: async (id: string, data: { name?: string; symbol?: string; is_default?: boolean }) => {
-    return api.put<any>(`/packaging-types/${id}`, data);
+    return api.put<JsonRecord>(`/packaging-types/${id}`, data);
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/packaging-types/${id}`);
+    return api.delete<JsonRecord>(`/packaging-types/${id}`);
   },
   initDefaults: async () => {
-    return api.post<any>('/packaging-types/init-defaults', {});
+    return api.post<JsonRecord>('/packaging-types/init-defaults', {});
   },
 };
 
 // Product Prices API
 export const productPricesApi = {
   getAvailablePrices: async (productId: string) => {
-    return api.get<any>(`/products/${productId}/prices`);
+    return api.get<JsonRecord>(`/products/${productId}/prices`);
   },
 };
 
@@ -558,13 +668,13 @@ export const productsApi = {
     if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
     const query = queryParams.toString();
-    return api.get<any[]>(`/products${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/products${query ? `?${query}` : ''}`);
   },
   getOne: async (id: string) => {
-    return api.get<any>(`/products/${id}`);
+    return api.get<JsonRecord>(`/products/${id}`);
   },
   getBySku: async (sku: string) => {
-    return api.get<any>(`/products/sku/${sku}`);
+    return api.get<JsonRecord>(`/products/sku/${sku}`);
   },
   create: async (data: {
     sku: string;
@@ -583,7 +693,7 @@ export const productsApi = {
     alert_threshold?: number;
     image_url?: string;
   }) => {
-    return api.post<any>('/products', data);
+    return api.post<JsonRecord>('/products', data);
   },
   update: async (
     id: string,
@@ -615,10 +725,10 @@ export const productsApi = {
       cost_price: data.cost_price ?? data.unit_price,
       sell_price: data.sell_price ?? data.selling_price,
     };
-    return api.put<any>(`/products/${id}`, payload);
+    return api.put<JsonRecord>(`/products/${id}`, payload);
   },
   delete: async (id: string) => {
-    return api.delete<any>(`/products/${id}`);
+    return api.delete<JsonRecord>(`/products/${id}`);
   },
   getStats: async () => {
     return api.get<{
@@ -651,7 +761,7 @@ export const productsApi = {
     return api.get<string[]>('/products/article-types');
   },
   getLowStock: async () => {
-    return api.get<any[]>('/products/low-stock');
+    return api.get<JsonRecord[]>('/products/low-stock');
   },
   // New: Batch update hierarchy
   batchUpdateHierarchy: async (data: {
@@ -669,16 +779,16 @@ export const productsApi = {
 // Admin API
 export const adminApi = {
   getAllShops: async () => {
-    return api.get<any[]>('/admin/shops');
+    return api.get<JsonRecord[]>('/admin/shops');
   },
-  getShopUsers: async () => {
-    return api.get<any[]>('/admin/users');
+  getShopUsers: async <T = JsonRecord>(): Promise<T[]> => {
+    return api.get<T[]>('/admin/users');
   },
   getUserDevices: async (userId: string) => {
-    return api.get<any[]>(`/admin/users/${userId}/devices`);
+    return api.get<JsonRecord[]>(`/admin/users/${userId}/devices`);
   },
   revokeDevice: async (deviceId: string) => {
-    return api.delete<any>(`/admin/devices/${deviceId}`);
+    return api.delete<JsonRecord>(`/admin/devices/${deviceId}`);
   },
   updateUserRole: async (
     userId: string,
@@ -689,10 +799,10 @@ export const adminApi = {
       work_days?: string;
     }
   ) => {
-    return api.put<any>(`/admin/users/${userId}/role`, data);
+    return api.put<JsonRecord>(`/admin/users/${userId}/role`, data);
   },
   deactivateUser: async (userId: string) => {
-    return api.delete<any>(`/admin/users/${userId}`);
+    return api.delete<JsonRecord>(`/admin/users/${userId}`);
   },
 };
 
@@ -721,7 +831,7 @@ export const pinInvitesApi = {
       queryParams.append('is_expired', String(params.is_expired));
 
     const query = queryParams.toString();
-    return api.get<any[]>(`/pin-invites${query ? `?${query}` : ''}`);
+    return api.get<JsonRecord[]>(`/pin-invites${query ? `?${query}` : ''}`);
   },
   getStats: async () => {
     return api.get<{
@@ -732,7 +842,7 @@ export const pinInvitesApi = {
     }>('/pin-invites/stats');
   },
   revoke: async (id: string) => {
-    return api.delete<any>(`/pin-invites/${id}`);
+    return api.delete<JsonRecord>(`/pin-invites/${id}`);
   },
 };
 
@@ -748,14 +858,14 @@ export const inventoryApi = {
     unit_cost?: number;
   }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/movements', {
+    return api.post<JsonRecord>('/inventory/movements', {
       ...data,
       device_id: deviceInfo.device_id,
     });
   },
   saleOut: async (data: { product_id: string; quantity: number; sale_id?: string }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/sale-out', {
+    return api.post<JsonRecord>('/inventory/sale-out', {
       ...data,
       device_id: deviceInfo.device_id,
     });
@@ -767,7 +877,7 @@ export const inventoryApi = {
     reason?: string;
   }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/stock-in', {
+    return api.post<JsonRecord>('/inventory/stock-in', {
       ...data,
       device_id: deviceInfo.device_id,
     });
@@ -782,18 +892,18 @@ export const inventoryApi = {
   }) => {
     const deviceInfo = await getDeviceInfo();
     console.log('📦 Creating stock batch:', { ...data, device_id: deviceInfo.device_id });
-    const result = await api.post<any>('/inventory/batches', data, {
+    const result = await api.post<JsonRecord>('/inventory/batches', data, {
       'x-device-id': deviceInfo.device_id,
     });
     console.log('✅ Stock batch created:', result);
     return result;
   },
   getProductBatches: async (productId: string) => {
-    return api.get<any>(`/inventory/products/${productId}/batches`);
+    return api.get<JsonRecord>(`/inventory/products/${productId}/batches`);
   },
   saleFIFO: async (data: { product_id: string; quantity: number; sale_id?: string }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/sale-fifo', {
+    return api.post<JsonRecord>('/inventory/sale-fifo', {
       ...data,
       device_id: deviceInfo.device_id,
     });
@@ -805,7 +915,7 @@ export const inventoryApi = {
     sale_id?: string;
   }) => {
     const deviceInfo = await getDeviceInfo();
-    return api.post<any>('/inventory/sale-from-batch', {
+    return api.post<JsonRecord>('/inventory/sale-from-batch', {
       ...data,
       device_id: deviceInfo.device_id,
     });
@@ -822,7 +932,7 @@ export const syncApi = {
     entity_versions?: Record<string, number>;
   }) => {
     return api.post<{
-      changes: Record<string, any[]>;
+      changes: Record<string, JsonRecord[]>;
       newCursor: string;
       serverTime: string;
     }>('/sync/pull', data);
@@ -830,7 +940,7 @@ export const syncApi = {
 
   push: async (data: {
     device_id: string;
-    changes: Record<string, any[]>;
+    changes: Record<string, JsonRecord[]>;
     base_cursor?: string;
   }) => {
     return api.post<{
@@ -848,36 +958,36 @@ export const syncApi = {
   },
 
   status: async (deviceId: string) => {
-    return api.get<any>(`/sync/status?device_id=${deviceId}`);
+    return api.get<JsonRecord>(`/sync/status?device_id=${deviceId}`);
   },
 };
 
 export const enterpriseApi = {
   getAll: async () => {
-    return api.get<any[]>('/enterprises');
+    return api.get<JsonRecord[]>('/enterprises');
   },
 
   getOne: async (id: string) => {
-    return api.get<any>(`/enterprises/${id}`);
+    return api.get<JsonRecord>(`/enterprises/${id}`);
   },
 
   getShops: async (id: string) => {
-    return api.get<any[]>(`/enterprises/${id}/shops`);
+    return api.get<JsonRecord[]>(`/enterprises/${id}/shops`);
   },
 
   getStats: async (id: string) => {
-    return api.get<any>(`/enterprises/${id}/stats`);
+    return api.get<JsonRecord>(`/enterprises/${id}/stats`);
   },
 };
 
 export const transfersApi = {
-  getAll: async (enterpriseId?: string) => {
+  getAll: async <T = JsonRecord>(enterpriseId?: string): Promise<T[]> => {
     const params = enterpriseId ? `?enterprise_id=${enterpriseId}` : '';
-    return api.get<any[]>(`/transfers${params}`);
+    return api.get<T[]>(`/transfers${params}`);
   },
 
   getOne: async (id: string) => {
-    return api.get<any>(`/transfers/${id}`);
+    return api.get<JsonRecord>(`/transfers/${id}`);
   },
 
   create: async (data: {
@@ -892,49 +1002,49 @@ export const transfersApi = {
     }>;
     notes?: string;
   }) => {
-    return api.post<any>('/transfers', data);
+    return api.post<JsonRecord>('/transfers', data);
   },
 
   confirm: async (id: string) => {
-    return api.put<any>(`/transfers/${id}/confirm`, {});
+    return api.put<JsonRecord>(`/transfers/${id}/confirm`, {});
   },
 
   ship: async (id: string) => {
-    return api.put<any>(`/transfers/${id}/ship`, {});
+    return api.put<JsonRecord>(`/transfers/${id}/ship`, {});
   },
 
   receive: async (id: string) => {
-    return api.put<any>(`/transfers/${id}/receive`, {});
+    return api.put<JsonRecord>(`/transfers/${id}/receive`, {});
   },
 
   cancel: async (id: string) => {
-    return api.put<any>(`/transfers/${id}/cancel`, {});
+    return api.put<JsonRecord>(`/transfers/${id}/cancel`, {});
   },
 };
 
 // Invoices API (Factures)
 export const invoicesApi = {
   createFromSale: async (saleId: string, notes?: string) => {
-    return api.post<any>(`/invoices/from-sale/${saleId}`, { notes });
+    return api.post<JsonRecord>(`/invoices/from-sale/${saleId}`, { notes });
   },
 
-  getAll: async (params?: {
+  getAll: async <T = JsonRecord>(params?: {
     customer_id?: string;
     status?: string;
     start_date?: string;
     end_date?: string;
-  }) => {
+  }): Promise<T[]> => {
     const queryParams = new URLSearchParams();
     if (params?.customer_id) queryParams.append('customer_id', params.customer_id);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.start_date) queryParams.append('start_date', params.start_date);
     if (params?.end_date) queryParams.append('end_date', params.end_date);
     const query = queryParams.toString();
-    return api.get<any[]>(`/invoices${query ? `?${query}` : ''}`);
+    return api.get<T[]>(`/invoices${query ? `?${query}` : ''}`);
   },
 
   getOne: async (id: string) => {
-    return api.get<any>(`/invoices/${id}`);
+    return api.get<JsonRecord>(`/invoices/${id}`);
   },
 
   getPdfBase64: async (id: string) => {
@@ -942,11 +1052,11 @@ export const invoicesApi = {
   },
 
   regeneratePdf: async (id: string) => {
-    return api.post<any>(`/invoices/${id}/regenerate-pdf`);
+    return api.post<JsonRecord>(`/invoices/${id}/regenerate-pdf`);
   },
 
   cancel: async (id: string) => {
-    return api.put<any>(`/invoices/${id}/cancel`);
+    return api.put<JsonRecord>(`/invoices/${id}/cancel`);
   },
 };
 
@@ -969,8 +1079,8 @@ export const shopSwitchApi = {
 
   switchShop: async (shopId: string) => {
     return api.post<{
-      user: any;
-      shop: any;
+      user: JsonRecord;
+      shop: JsonRecord;
       role: string;
       access_token: string;
       refresh_token: string;

@@ -67,9 +67,9 @@ export default function TransactionHistory() {
       case 'CANCELLED':
         return <span className="badge badge-danger">Annulee</span>;
       case 'DRAFT':
-        return <span className="badge bg-gray-100 text-gray-600">Brouillon</span>;
+        return <span className="badge bg-slate-100 text-slate-600">Brouillon</span>;
       default:
-        return <span className="badge bg-gray-100 text-gray-600">{status}</span>;
+        return <span className="badge bg-slate-100 text-slate-600">{status}</span>;
     }
   };
 
@@ -107,16 +107,16 @@ export default function TransactionHistory() {
           <p className="text-3xl font-bold mt-1">{formatCurrency(totalRevenue)}</p>
         </div>
         <div className="card">
-          <p className="text-gray-500 text-sm">Total ventes</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{sales.length}</p>
+          <p className="text-slate-500 text-sm">Total ventes</p>
+          <p className="text-3xl font-bold text-slate-900 mt-1">{sales.length}</p>
         </div>
         <div className="card">
-          <p className="text-gray-500 text-sm">Completees</p>
+          <p className="text-slate-500 text-sm">Completees</p>
           <p className="text-3xl font-bold text-success-600 mt-1">{completedSales.length}</p>
         </div>
         <div className="card">
-          <p className="text-gray-500 text-sm">Aujourd'hui</p>
-          <p className="text-3xl font-bold text-primary-600 mt-1">{todaySales.length}</p>
+          <p className="text-slate-500 text-sm">Aujourd'hui</p>
+          <p className="text-3xl font-bold text-action-600 mt-1">{todaySales.length}</p>
         </div>
       </div>
 
@@ -134,14 +134,14 @@ export default function TransactionHistory() {
             <option value="DRAFT">Brouillons</option>
           </select>
           <div className="flex gap-2 items-center">
-            <label className="text-sm text-gray-500">Du</label>
+            <label className="text-sm text-slate-500">Du</label>
             <input
               type="date"
               value={startDate}
               onChange={e => setStartDate(e.target.value)}
               className="input w-auto"
             />
-            <label className="text-sm text-gray-500">au</label>
+            <label className="text-sm text-slate-500">au</label>
             <input
               type="date"
               value={endDate}
@@ -154,7 +154,7 @@ export default function TransactionHistory() {
 
       {/* Sales List */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Historique des ventes</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Historique des ventes</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -162,46 +162,46 @@ export default function TransactionHistory() {
           </div>
         ) : sales.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">Aucune vente trouvee</p>
+            <p className="text-slate-500">Aucune vente trouvee</p>
           </div>
         ) : (
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Client
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Articles
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Total
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Statut
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {sales.map(sale => (
-                  <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-slate-900">
                         {formatDate(sale.created_at)}
                       </p>
-                      <p className="text-xs text-gray-500">{formatTime(sale.created_at)}</p>
+                      <p className="text-xs text-slate-500">{formatTime(sale.created_at)}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{getCustomerName(sale.customer)}</p>
+                      <p className="text-sm text-slate-900">{getCustomerName(sale.customer)}</p>
                       {sale.notes && (
-                        <p className="text-xs text-gray-500 truncate max-w-xs">{sale.notes}</p>
+                        <p className="text-xs text-slate-500 truncate max-w-xs">{sale.notes}</p>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -210,7 +210,7 @@ export default function TransactionHistory() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <p className="text-sm font-bold text-gray-900">
+                      <p className="text-sm font-bold text-slate-900">
                         {formatCurrency(sale.total)}
                       </p>
                       {sale.discount && sale.discount > 0 && (
@@ -221,7 +221,7 @@ export default function TransactionHistory() {
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => setDetailView(sale)}
-                        className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                        className="text-action-600 hover:text-action-700 font-medium text-sm"
                       >
                         Details
                       </button>
@@ -237,7 +237,7 @@ export default function TransactionHistory() {
       {/* Detail Modal */}
       {detailView && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-elevated animate-scale-in max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 bg-gradient-to-r from-success-500 to-success-600 text-white rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <div>
@@ -264,20 +264,20 @@ export default function TransactionHistory() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Client</p>
+                  <p className="text-sm text-slate-500">Client</p>
                   <p className="font-medium">{getCustomerName(detailView.customer)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Statut</p>
+                  <p className="text-sm text-slate-500">Statut</p>
                   {getStatusBadge(detailView.status)}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Total</p>
+                  <p className="text-sm text-slate-500">Total</p>
                   <p className="font-bold text-lg">{formatCurrency(detailView.total)}</p>
                 </div>
                 {detailView.user?.display_name && (
                   <div>
-                    <p className="text-sm text-gray-500">Vendeur</p>
+                    <p className="text-sm text-slate-500">Vendeur</p>
                     <p className="font-medium">{detailView.user.display_name}</p>
                   </div>
                 )}
@@ -285,44 +285,44 @@ export default function TransactionHistory() {
 
               {detailView.notes && (
                 <div>
-                  <p className="text-sm text-gray-500">Notes</p>
-                  <p className="text-gray-700">{detailView.notes}</p>
+                  <p className="text-sm text-slate-500">Notes</p>
+                  <p className="text-slate-700">{detailView.notes}</p>
                 </div>
               )}
 
               {/* Items */}
               {detailView.items && detailView.items.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-gray-500 mb-2">Articles</p>
+                  <p className="text-sm font-medium text-slate-500 mb-2">Articles</p>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-gray-100">
-                          <th className="py-2 text-left text-xs font-medium text-gray-500">
+                        <tr className="border-b border-slate-100">
+                          <th className="py-2 text-left text-xs font-medium text-slate-500">
                             Produit
                           </th>
-                          <th className="py-2 text-center text-xs font-medium text-gray-500">
+                          <th className="py-2 text-center text-xs font-medium text-slate-500">
                             Qte
                           </th>
-                          <th className="py-2 text-right text-xs font-medium text-gray-500">
+                          <th className="py-2 text-right text-xs font-medium text-slate-500">
                             Prix unit.
                           </th>
-                          <th className="py-2 text-right text-xs font-medium text-gray-500">
+                          <th className="py-2 text-right text-xs font-medium text-slate-500">
                             Total
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-50">
+                      <tbody className="divide-y divide-slate-50">
                         {detailView.items.map(item => (
                           <tr key={item.id}>
-                            <td className="py-2 text-sm text-gray-900">
+                            <td className="py-2 text-sm text-slate-900">
                               {item.product?.name || item.product_name || '-'}
                             </td>
-                            <td className="py-2 text-center text-sm text-gray-600">{item.qty}</td>
-                            <td className="py-2 text-right text-sm text-gray-600">
+                            <td className="py-2 text-center text-sm text-slate-600">{item.qty}</td>
+                            <td className="py-2 text-right text-sm text-slate-600">
                               {formatCurrency(item.unit_price)}
                             </td>
-                            <td className="py-2 text-right text-sm font-medium text-gray-900">
+                            <td className="py-2 text-right text-sm font-medium text-slate-900">
                               {formatCurrency(item.total)}
                             </td>
                           </tr>
@@ -333,7 +333,7 @@ export default function TransactionHistory() {
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
                 {detailView.status === 'COMPLETED' && (
                   <button
                     onClick={() => handleCancel(detailView.id)}

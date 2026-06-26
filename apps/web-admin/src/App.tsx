@@ -12,6 +12,15 @@ import AdminConfig from './pages/AdminConfig';
 import AuditLogs from './pages/AuditLogs';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import LicenseConfig from './pages/LicenseConfig';
+import AdminModules from './pages/AdminModules';
+import EnterpriseConsoleLayout from './components/EnterpriseConsoleLayout';
+import EnterpriseConsoleRedirect from './pages/console/EnterpriseConsoleRedirect';
+import EnterprisePos from './pages/console/EnterprisePos';
+import EnterpriseProducts from './pages/console/EnterpriseProducts';
+import EnterpriseClients from './pages/console/EnterpriseClients';
+import EnterpriseSuppliers from './pages/console/EnterpriseSuppliers';
+import EnterpriseReports from './pages/console/EnterpriseReports';
+import EnterprisePermissions from './pages/console/EnterprisePermissions';
 import './App.css';
 
 function App() {
@@ -89,6 +98,16 @@ function App() {
           }
         />
         <Route
+          path="/modules"
+          element={
+            <AdminRoute>
+              <AdminLayout>
+                <AdminModules />
+              </AdminLayout>
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/config"
           element={
             <AdminRoute>
@@ -108,6 +127,41 @@ function App() {
             </AdminRoute>
           }
         />
+
+        {/* Enterprise drill-down console (super-admin) */}
+        {/* Bare /console resolves the first shop then redirects into the layout. */}
+        <Route
+          path="/enterprises/:enterpriseId/console"
+          element={
+            <AdminRoute>
+              <EnterpriseConsoleRedirect />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/enterprises/:enterpriseId/console/reports"
+          element={
+            <AdminRoute>
+              <EnterpriseConsoleLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<EnterpriseReports />} />
+        </Route>
+        <Route
+          path="/enterprises/:enterpriseId/console/:shopId"
+          element={
+            <AdminRoute>
+              <EnterpriseConsoleLayout />
+            </AdminRoute>
+          }
+        >
+          <Route path="pos" element={<EnterprisePos />} />
+          <Route path="products" element={<EnterpriseProducts />} />
+          <Route path="clients" element={<EnterpriseClients />} />
+          <Route path="suppliers" element={<EnterpriseSuppliers />} />
+          <Route path="permissions" element={<EnterprisePermissions />} />
+        </Route>
 
         {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />

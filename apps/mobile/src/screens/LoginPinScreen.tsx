@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -16,13 +15,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../lib/api';
 import { cacheAuthCredentials, verifyOfflinePin } from '../db/authCache';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { WifiOff } from '../components/icons/SimpleIcons';
 
-const { width } = Dimensions.get('window');
-
 interface LoginPinScreenProps {
-  navigation: any;
+  navigation: {
+    replace: (screen: string) => void;
+  };
+}
+
+// Champs supplémentaires de la réponse de connexion (licence/modules) qui ne
+// sont pas déclarés dans le type de retour de authApi.loginWithPin.
+interface PinLoginExtras {
+  enabled_modules?: string[];
+  license_tier?: string;
+  // Matrice effective des permissions fines (présente si l'API la renvoie au login).
+  permissions?: Record<string, string[]>;
+}
+
+// Erreur réseau/HTTP avec message optionnel
+interface ApiError {
+  message?: string;
 }
 
 export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
@@ -30,106 +43,16 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOfflineLogin, setIsOfflineLogin] = useState(false);
+  // Visuel uniquement : champ actuellement focus (bordure sky)
+  const [focusedField, setFocusedField] = useState<'shopCode' | 'pin' | null>(null);
 
   // Ref to prevent multiple auto-submit attempts
   const hasAutoSubmittedRef = useRef(false);
 
-  // Auto-submit when PIN reaches 4 digits and shop code is complete
-  useEffect(() => {
-    if (pin.length === 4 && shopCode.length === 6 && !isLoading && !hasAutoSubmittedRef.current) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit();
-    }
-  }, [pin, shopCode, isLoading]);
-
-  // Reset auto-submit flag when PIN is cleared (e.g., after error)
-  useEffect(() => {
-    if (pin.length === 0) {
-      hasAutoSubmittedRef.current = false;
-    }
-  }, [pin]);
-
-  /**
-   * Try online login first. On network error, fallback to offline PIN verification.
-   */
-  const handleSubmit = async () => {
-    if (shopCode.length !== 6) {
-      Alert.alert('Erreur', 'Le code boutique doit contenir 6 chiffres');
-      return;
-    }
-
-    if (pin.length !== 4) {
-      Alert.alert('Erreur', 'Le code PIN doit contenir 4 chiffres');
-      return;
-    }
-
-    setIsLoading(true);
-    setIsOfflineLogin(false);
-
-    try {
-      // 1. Try online login
-      const response = await authApi.loginWithPin(shopCode, pin);
-
-      // Save tokens and user info
-      await AsyncStorage.setItem('access_token', response.access_token);
-      await AsyncStorage.setItem('refresh_token', response.refresh_token);
-      await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
-      await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
-      if (response.enterprise) {
-        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
-      }
-      if ((response as any).enabled_modules) {
-        await AsyncStorage.setItem(
-          'enabled_modules',
-          JSON.stringify((response as any).enabled_modules)
-        );
-      }
-      if ((response as any).license_tier) {
-        await AsyncStorage.setItem('license_tier', (response as any).license_tier);
-      }
-
-      // 2. Cache credentials for future offline login (non-blocking)
-      try {
-        await cacheAuthCredentials({
-          userId: response.user.id,
-          shopId: response.shop.id,
-          shopCode,
-          pin,
-          name: response.user.name,
-          role: response.role,
-          enabledModules: response.shop.enabled_modules ?? [],
-        });
-      } catch (cacheErr) {
-        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
-      }
-
-      navigation.replace('Main');
-    } catch (error: any) {
-      // 3. On network error, try offline login
-      const isNetworkError =
-        error?.message?.includes('Network') ||
-        error?.message?.includes('fetch') ||
-        error?.message?.includes('timeout') ||
-        error?.message?.includes('réseau');
-
-      if (isNetworkError) {
-        await handleOfflineLogin();
-      } else {
-        console.error('Erreur de connexion:', error);
-        const errorMessage = error?.message || 'Code boutique ou PIN invalide';
-        Alert.alert('Erreur', errorMessage);
-        setShopCode('');
-        setPin('');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   /**
    * Verify PIN against local cache for offline login.
    */
-  const handleOfflineLogin = async () => {
+  const handleOfflineLogin = useCallback(async () => {
     try {
       const cached = await verifyOfflinePin(shopCode, pin);
 
@@ -169,7 +92,107 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
       setShopCode('');
       setPin('');
     }
-  };
+  }, [shopCode, pin, navigation]);
+
+  /**
+   * Try online login first. On network error, fallback to offline PIN verification.
+   */
+  const handleSubmit = useCallback(async () => {
+    if (shopCode.length < 4 || shopCode.length > 10) {
+      Alert.alert('Erreur', 'Le code boutique doit contenir entre 4 et 10 caractères');
+      return;
+    }
+
+    if (pin.length !== 4) {
+      Alert.alert('Erreur', 'Le code PIN doit contenir 4 chiffres');
+      return;
+    }
+
+    setIsLoading(true);
+    setIsOfflineLogin(false);
+
+    try {
+      // 1. Try online login
+      const response = await authApi.loginWithPin(shopCode, pin);
+      const user = response.user as { id: string; name: string };
+      const shop = response.shop as { id: string; enabled_modules?: string[] };
+      const extras = response as PinLoginExtras;
+
+      // Save tokens and user info
+      await AsyncStorage.setItem('access_token', response.access_token);
+      await AsyncStorage.setItem('refresh_token', response.refresh_token);
+      await AsyncStorage.setItem('user', JSON.stringify({ ...response.user, role: response.role }));
+      await AsyncStorage.setItem('shop', JSON.stringify(response.shop));
+      if (response.enterprise) {
+        await AsyncStorage.setItem('enterprise', JSON.stringify(response.enterprise));
+      }
+      if (extras.enabled_modules) {
+        await AsyncStorage.setItem('enabled_modules', JSON.stringify(extras.enabled_modules));
+      }
+      if (extras.license_tier) {
+        await AsyncStorage.setItem('license_tier', extras.license_tier);
+      }
+      // Permissions fines : mises en cache si l'API les renvoie au login.
+      // Sinon, elles seront rafraîchies par /auth/me (HomeScreen.refreshUserData).
+      if (extras.permissions) {
+        await AsyncStorage.setItem('permissions', JSON.stringify(extras.permissions));
+      }
+
+      // 2. Cache credentials for future offline login (non-blocking)
+      try {
+        await cacheAuthCredentials({
+          userId: user.id,
+          shopId: shop.id,
+          shopCode,
+          pin,
+          name: user.name,
+          role: response.role,
+          enabledModules: shop.enabled_modules ?? [],
+        });
+      } catch (cacheErr) {
+        console.warn('⚠️ Impossible de cacher les identifiants hors-ligne:', cacheErr);
+      }
+
+      navigation.replace('Main');
+    } catch (error: unknown) {
+      // 3. On network error, try offline login
+      const message = error instanceof Error ? error.message : (error as ApiError)?.message;
+      const isNetworkError =
+        !!message &&
+        (message.includes('Network') ||
+          message.includes('fetch') ||
+          message.includes('timeout') ||
+          message.includes('réseau'));
+
+      if (isNetworkError) {
+        await handleOfflineLogin();
+      } else {
+        console.error('Erreur de connexion:', error);
+        const errorMessage = message || 'Code boutique ou PIN invalide';
+        Alert.alert('Erreur', errorMessage);
+        setShopCode('');
+        setPin('');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [shopCode, pin, navigation, handleOfflineLogin]);
+
+  // Auto-submit when PIN is complete and the shop code respects the policy length
+  useEffect(() => {
+    const isShopCodeValid = shopCode.length >= 4 && shopCode.length <= 10;
+    if (pin.length === 4 && isShopCodeValid && !isLoading && !hasAutoSubmittedRef.current) {
+      hasAutoSubmittedRef.current = true;
+      handleSubmit();
+    }
+  }, [pin, shopCode, isLoading, handleSubmit]);
+
+  // Reset auto-submit flag when PIN is cleared (e.g., after error)
+  useEffect(() => {
+    if (pin.length === 0) {
+      hasAutoSubmittedRef.current = false;
+    }
+  }, [pin]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -177,13 +200,14 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
       >
-        {/* Logo SWALO */}
+        {/* Logo Swalo */}
         <View style={styles.logoContainer}>
           <Image
-            source={require('../../assets/full_icon.png')}
+            source={require('../../assets/swalo_mark_light.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />
+          <Text style={styles.brandWordmark}>Swalo</Text>
           <Text style={styles.appSubtitle}>Gérez, Vendez, Prospérez</Text>
         </View>
 
@@ -194,15 +218,26 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
 
           {/* Code Boutique */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Code Boutique (6 chiffres)</Text>
+            <Text style={styles.inputLabel}>Code Boutique</Text>
             <TextInput
-              style={styles.input}
-              placeholder="123456"
+              style={[styles.input, focusedField === 'shopCode' && styles.inputFocused]}
+              placeholder="BTQ01"
               placeholderTextColor={Colors.textColors.tertiary}
               value={shopCode}
-              onChangeText={text => setShopCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
-              keyboardType="numeric"
-              maxLength={6}
+              onChangeText={text =>
+                setShopCode(
+                  text
+                    .replace(/[^A-Za-z0-9]/g, '')
+                    .toUpperCase()
+                    .slice(0, 10)
+                )
+              }
+              onFocus={() => setFocusedField('shopCode')}
+              onBlur={() => setFocusedField(null)}
+              keyboardType="default"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={10}
               autoFocus
               editable={!isLoading}
             />
@@ -212,11 +247,13 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Code PIN (4 chiffres)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, focusedField === 'pin' && styles.inputFocused]}
               placeholder="••••"
               placeholderTextColor={Colors.textColors.tertiary}
               value={pin}
               onChangeText={text => setPin(text.replace(/[^0-9]/g, '').slice(0, 4))}
+              onFocus={() => setFocusedField('pin')}
+              onBlur={() => setFocusedField(null)}
               keyboardType="numeric"
               maxLength={4}
               secureTextEntry
@@ -230,10 +267,10 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
             onPress={handleSubmit}
-            disabled={isLoading || shopCode.length !== 6 || pin.length !== 4}
+            disabled={isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={Colors.primary.foreground} />
             ) : (
               <Text style={styles.loginButtonText}>SE CONNECTER</Text>
             )}
@@ -242,7 +279,7 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
           {/* Offline indicator */}
           {isOfflineLogin && (
             <View style={styles.offlineIndicator}>
-              <WifiOff size={14} color="#EA580C" />
+              <WifiOff size={14} color={Colors.warning.text} />
               <Text style={styles.offlineText}>Mode hors-ligne</Text>
             </View>
           )}
@@ -258,38 +295,42 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing['2xl'],
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[900],
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: Spacing['3xl'] + Spacing.lg,
   },
   logoImage: {
-    width: 200,
-    height: 80,
+    width: 88,
+    height: 88,
     marginBottom: Spacing.lg,
+  },
+  brandWordmark: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
   },
   appSubtitle: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.primary[200],
+    letterSpacing: 0.3,
   },
   formContainer: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: BorderRadius.sheet,
     padding: Spacing['2xl'],
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
+    ...Shadows.lg,
   },
   welcomeText: {
     fontSize: 24,
@@ -315,24 +356,29 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
+    paddingVertical: Spacing.lg,
     fontSize: 18,
     color: Colors.text,
     letterSpacing: 2,
     textAlign: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
   },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
+  },
   loginButton: {
-    backgroundColor: Colors.primary[900],
-    borderRadius: 12,
+    backgroundColor: Colors.action,
+    borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
     minHeight: 56,
+    ...Shadows.sm,
   },
   loginButtonDisabled: {
     backgroundColor: Colors.muted.main,
@@ -348,24 +394,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: Spacing.xs + 2,
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    backgroundColor: '#FFF7ED',
-    borderRadius: 8,
+    backgroundColor: Colors.warning.background,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: Colors.warning.main,
   },
   offlineText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#EA580C',
+    color: Colors.warning.text,
   },
   infoText: {
     fontSize: 12,
     color: Colors.muted.foreground,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: Spacing.lg,
   },
 });

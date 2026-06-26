@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 import { BalanceIndicator } from '../../src/components/ui/BalanceIndicator';
 
 // TODO: Configure Jest with react-native preset and proper mocks for Expo
@@ -154,20 +154,20 @@ describe.skip('BalanceIndicator Component', () => {
 
   describe('Icon Display', () => {
     it('should show trending-up icon for positive balance', () => {
-      const { UNSAFE_getByType } = render(<BalanceIndicator balance={10000} type="customer" />);
+      render(<BalanceIndicator balance={10000} type="customer" />);
 
       // Would check for Ionicons with name="trending-up"
       // This requires more complex setup with Ionicons mocking
     });
 
     it('should show warning icon for negative balance', () => {
-      const { UNSAFE_getByType } = render(<BalanceIndicator balance={-5000} type="customer" />);
+      render(<BalanceIndicator balance={-5000} type="customer" />);
 
       // Would check for Ionicons with name="warning"
     });
 
     it('should show checkmark icon for zero balance', () => {
-      const { UNSAFE_getByType } = render(<BalanceIndicator balance={0} type="customer" />);
+      render(<BalanceIndicator balance={0} type="customer" />);
 
       // Would check for Ionicons with name="checkmark-circle"
     });

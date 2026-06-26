@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f5f7; color: #1f2937;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f5f7; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #92400e; padding: 24px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700;">{{shop_name}}</h1>
+              <p style="margin: 4px 0 0; color: #fde68a; font-size: 13px;">Alerte stock faible</p>
+            </td>
+          </tr>
+
+          <!-- Intro -->
+          <tr>
+            <td style="padding: 24px 32px 16px;">
+              <p style="margin: 0; font-size: 15px; color: #374151;">
+                Bonjour,
+              </p>
+              <p style="margin: 12px 0 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
+                Les produits suivants de <strong>{{shop_name}}</strong> ont atteint ou franchi leur seuil d'alerte de stock. Pensez a vous reapprovisionner.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Products table -->
+          <tr>
+            <td style="padding: 0 32px 24px;">
+              <p style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #374151;">Produits en stock faible ({{product_count}})</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                <tr style="background-color: #f9fafb;">
+                  <th style="padding: 10px 12px; text-align: left; font-size: 12px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Produit</th>
+                  <th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Stock actuel</th>
+                  <th style="padding: 10px 12px; text-align: right; font-size: 12px; color: #6b7280; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Seuil</th>
+                </tr>
+                {{#each products}}
+                <tr>
+                  <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; color: #374151;">{{this.name}}</td>
+                  <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; text-align: right; color: #dc2626; font-weight: 600;">{{this.current_stock}}</td>
+                  <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; text-align: right; color: #6b7280;">{{this.alert_threshold}}</td>
+                </tr>
+                {{/each}}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px 32px; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                Cette alerte est generee automatiquement par <strong>{{shop_name}}</strong>.
+              </p>
+              {{#if shop_phone}}
+              <p style="margin: 4px 0 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                Contact : {{shop_phone}}{{#if shop_email}} | {{shop_email}}{{/if}}
+              </p>
+              {{/if}}
+              <p style="margin: 12px 0 0; font-size: 11px; color: #d1d5db; text-align: center;">
+                Pour desactiver ces alertes, modifiez les parametres de notification de votre boutique.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

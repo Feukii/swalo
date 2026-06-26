@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePinInviteDto } from './dto/create-pin-invite.dto';
 
@@ -41,7 +42,7 @@ export class PinInvitesService {
       is_expired?: boolean;
     }
   ) {
-    const where: any = {
+    const where: Prisma.PinInviteWhereInput = {
       shop_id: shopId,
       deleted: false,
     };

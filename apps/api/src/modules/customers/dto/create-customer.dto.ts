@@ -33,6 +33,14 @@ export class CreateCustomerDto {
   @IsOptional()
   email_notifications_enabled?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  sms_notifications_enabled?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  whatsapp_notifications_enabled?: boolean;
+
   @IsInt()
   @Min(0)
   @IsOptional()

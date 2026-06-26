@@ -1,0 +1,28 @@
+/* Swalo — Design tokens (CSS custom properties)
+   Source de vérité : swalo_tokens.json. À importer à la racine de l'app web. */
+:root {
+  /* Couleurs de marque */
+  --swalo-marine:    #102A43; /* Couleur reine : fonds, en-têtes, texte de marque */
+  --swalo-sky-blue:  #0EA5E9; /* Action : boutons, liens, interactif */
+  --swalo-sky-light: #38BDF8; /* Accent logo : ruban du S, touches lumineuses */
+
+  /* Couleurs fonctionnelles (sens strict, jamais décoratif) */
+  --swalo-green: #10B981; /* Entrées, payé, dette réglée */
+  --swalo-red:   #EF4444; /* Sorties, dettes dues */
+  --swalo-amber: #F59E0B; /* Crédit, alerte, rupture */
+
+  /* Neutres */
+  --swalo-text-primary:   #111827;
+  --swalo-text-secondary: #6B7280;
+  --swalo-section-bg:     #F3F4F6;
+  --swalo-border:         #E5E7EB;
+  --swalo-surface:        #FFFFFF;
+
+  /* Typographie */
+  --swalo-font-app:  system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --swalo-font-docs: Arial, Helvetica, sans-serif;
+
+  /* Rayons */
+  --swalo-radius-card:   12px;
+  --swalo-radius-button: 8px;
+}

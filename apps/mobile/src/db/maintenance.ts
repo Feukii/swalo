@@ -4,6 +4,7 @@
  * Reference data (products, customers, suppliers) is NEVER pruned.
  */
 
+import * as SQLite from 'expo-sqlite';
 import { getDatabase } from './schema';
 
 const DEFAULT_RETENTION_DAYS = 90;
@@ -71,7 +72,7 @@ export async function pruneOldData(
       ].includes(table);
 
       let query: string;
-      let params: unknown[];
+      let params: SQLite.SQLiteBindParams;
 
       if (hasShopId) {
         query = `SELECT id FROM ${table}
@@ -85,7 +86,7 @@ export async function pruneOldData(
         params = [cutoffISO];
       }
 
-      const rows = await tx.getAllAsync<{ id: string }>(query, params as any[]);
+      const rows = await tx.getAllAsync<{ id: string }>(query, params);
 
       // Filter out records with pending mutations
       const toPrune = rows.filter(r => !pendingIds.has(r.id));

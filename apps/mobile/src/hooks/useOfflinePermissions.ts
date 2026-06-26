@@ -7,11 +7,14 @@
 import { useMemo } from 'react';
 import { useCurrentUser } from './useCurrentUser';
 
-type Role = 'SUPERADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'EMPLOYEE' | 'ADMIN';
+// Rôles réels: EMPLOYEE | MANAGER | BOSS | SUPERADMIN (PDG = BOSS).
+// OWNER/ADMIN/CASHIER gardés en alias par compat ascendante.
+type Role = 'SUPERADMIN' | 'ADMIN' | 'BOSS' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'EMPLOYEE';
 
 const ROLE_HIERARCHY: Record<Role, number> = {
   SUPERADMIN: 6,
   ADMIN: 5,
+  BOSS: 4,
   OWNER: 4,
   MANAGER: 3,
   CASHIER: 2,
@@ -62,7 +65,7 @@ export function useOfflinePermissions(): UseOfflinePermissionsResult {
     hasRole,
     hasModule,
     canManage: hasRole('MANAGER'),
-    canAdmin: hasRole('OWNER'),
+    canAdmin: hasRole('BOSS'),
     loading,
   };
 }

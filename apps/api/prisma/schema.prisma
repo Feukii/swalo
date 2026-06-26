@@ -20,6 +20,8 @@ model Enterprise {
   logo_url       String?
   license_tier   String              @default("STARTER")
   licensed_until DateTime?
+  monthly_price  Int                 @default(0)
+  default_module_permissions Json?
   max_shops      Int                 @default(1)
   max_users_per_shop Int             @default(5)
   created_at     DateTime            @default(now())
@@ -51,6 +53,11 @@ model Shop {
   blocked_at            DateTime?
   blocked_by            String?
   enabled_modules       String[]            @default(["auth","products","customers","sales","cash","inventory"])
+  module_permissions    Json?
+  low_stock_alerts_enabled    Boolean       @default(false)
+  payment_reminders_enabled   Boolean       @default(false)
+  notification_email          String?
+  payment_reminder_cadence_days Int         @default(7)
   created_at            DateTime            @default(now())
   updated_at            DateTime            @updatedAt
   deleted               Boolean             @default(false)
@@ -75,6 +82,8 @@ model Shop {
   suppliers             Supplier[]
   user_roles            UserRole[]
   packaging_types       PackagingType[]
+  notification_logs     NotificationLog[]
+  seller_tasks          SellerTask[]
   outgoing_transfers    InterShopTransfer[] @relation("SourceShop")
   incoming_transfers    InterShopTransfer[] @relation("TargetShop")
 
@@ -311,6 +320,8 @@ model Customer {
   notes        String?
   is_active                  Boolean            @default(true)
   email_notifications_enabled Boolean           @default(true)
+  sms_notifications_enabled  Boolean            @default(false)
+  whatsapp_notifications_enabled Boolean        @default(false)
   created_at                 DateTime           @default(now())
   updated_at                 DateTime           @updatedAt
   deleted                    Boolean            @default(false)
@@ -337,6 +348,7 @@ model ClientReceivable {
   description String?
   notes       String?
   status      ReceivableStatus          @default(PENDING)
+  due_date    DateTime?
   created_at  DateTime                  @default(now())
   updated_at  DateTime                  @updatedAt
   deleted     Boolean                   @default(false)
@@ -846,6 +858,80 @@ enum CashEntryType {
 enum CashSessionStatus {
   OPEN
   CLOSED
+}
+
+enum NotificationType {
+  LOW_STOCK
+  PAYMENT_REMINDER
+  MONTHLY_SUMMARY
+  RECEIPT
+  DEBT_CREATED
+  DEBT_PAYMENT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+  SKIPPED
+  QUEUED
+}
+
+enum SellerTaskType {
+  DEBT_REMINDER
+}
+
+enum SellerTaskStatus {
+  PENDING
+  DONE
+  DISMISSED
+}
+
+model NotificationLog {
+  id          String              @id @default(uuid())
+  shop_id     String
+  type        NotificationType
+  channel     NotificationChannel @default(EMAIL)
+  target_type String?
+  target_id   String?
+  recipient   String
+  status      NotificationStatus  @default(SENT)
+  error       String?
+  dedup_key   String?
+  sent_at     DateTime            @default(now())
+  created_at  DateTime            @default(now())
+  shop        Shop                @relation(fields: [shop_id], references: [id])
+
+  @@index([shop_id, type, target_id])
+  @@index([shop_id, type, sent_at])
+  @@index([dedup_key])
+  @@map("notification_logs")
+}
+
+model SellerTask {
+  id            String           @id @default(uuid())
+  shop_id       String
+  type          SellerTaskType   @default(DEBT_REMINDER)
+  customer_id   String?
+  receivable_id String?
+  title         String
+  message       String?
+  due_date      DateTime?
+  status        SellerTaskStatus @default(PENDING)
+  dedup_key     String?
+  created_at    DateTime         @default(now())
+  done_at       DateTime?
+  done_by       String?
+  shop          Shop             @relation(fields: [shop_id], references: [id])
+
+  @@index([shop_id, status])
+  @@index([dedup_key])
+  @@map("seller_tasks")
 }
 
 model AuditLog {

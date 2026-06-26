@@ -6,6 +6,12 @@ import { TransfersService } from './transfers.service';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
 
+interface AuthenticatedUser {
+  userId: string;
+  shopId: string;
+  role: Role;
+}
+
 @Controller('transfers')
 @RequireModule('transfers')
 export class TransfersController {
@@ -13,13 +19,13 @@ export class TransfersController {
 
   @Post()
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  create(@CurrentUser() user: any, @Body() dto: CreateTransferDto) {
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTransferDto) {
     return this.transfersService.create(user.userId, dto);
   }
 
   @Get()
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE, Role.SUPERADMIN)
-  findAll(@CurrentUser() user: any, @Query('enterprise_id') enterpriseId?: string) {
+  findAll(@CurrentUser() user: AuthenticatedUser, @Query('enterprise_id') enterpriseId?: string) {
     if (enterpriseId) {
       return this.transfersService.findAllByEnterprise(enterpriseId);
     }
@@ -34,25 +40,25 @@ export class TransfersController {
 
   @Put(':id/confirm')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  confirm(@Param('id') id: string, @CurrentUser() user: any) {
+  confirm(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.transfersService.confirm(id, user.userId);
   }
 
   @Put(':id/ship')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  ship(@Param('id') id: string, @CurrentUser() user: any) {
+  ship(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.transfersService.ship(id, user.userId);
   }
 
   @Put(':id/receive')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  receive(@Param('id') id: string, @CurrentUser() user: any) {
+  receive(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.transfersService.receive(id, user.userId);
   }
 
   @Put(':id/cancel')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  cancel(@Param('id') id: string, @CurrentUser() user: any) {
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.transfersService.cancel(id, user.userId);
   }
 }

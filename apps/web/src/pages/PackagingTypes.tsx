@@ -113,11 +113,11 @@ export default function PackagingTypes() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="card bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+      <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Conditionnements</h1>
-            <p className="text-primary-100 text-sm mt-1">
+            <p className="text-white/80 text-sm mt-1">
               Gérez les types de conditionnement pour vos produits
             </p>
           </div>
@@ -137,7 +137,7 @@ export default function PackagingTypes() {
       {/* Actions */}
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-          <p className="text-gray-600 text-sm">
+          <p className="text-slate-600 text-sm">
             {packagingTypes.length} conditionnement{packagingTypes.length !== 1 ? 's' : ''}{' '}
             enregistré{packagingTypes.length !== 1 ? 's' : ''}
           </p>
@@ -171,7 +171,7 @@ export default function PackagingTypes() {
 
       {/* Table */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Liste des conditionnements</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Liste des conditionnements</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -179,9 +179,9 @@ export default function PackagingTypes() {
           </div>
         ) : packagingTypes.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-gray-400"
+                className="w-8 h-8 text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -194,8 +194,8 @@ export default function PackagingTypes() {
                 />
               </svg>
             </div>
-            <p className="text-gray-500">Aucun conditionnement enregistré</p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-slate-500">Aucun conditionnement enregistré</p>
+            <p className="text-slate-400 text-sm mt-1">
               Cliquez sur "Initialiser par défaut" ou ajoutez-en un manuellement
             </p>
           </div>
@@ -203,42 +203,42 @@ export default function PackagingTypes() {
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Nom
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Symbole
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Par défaut
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {packagingTypes.map(type => (
-                  <tr key={type.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={type.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{type.name}</p>
+                      <p className="font-medium text-slate-900">{type.name}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-gray-600">{type.symbol || '-'}</p>
+                      <p className="text-sm text-slate-600">{type.symbol || '-'}</p>
                     </td>
                     <td className="px-6 py-4">
                       {type.is_default ? (
                         <span className="badge badge-success">Par défaut</span>
                       ) : (
-                        <span className="text-sm text-gray-400">-</span>
+                        <span className="text-sm text-slate-400">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-3">
                         <button
                           onClick={() => handleOpenModal(type)}
-                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                          className="text-action-600 hover:text-action-700 font-medium text-sm"
                         >
                           Modifier
                         </button>
@@ -247,7 +247,7 @@ export default function PackagingTypes() {
                           disabled={type.is_default}
                           className={`font-medium text-sm ${
                             type.is_default
-                              ? 'text-gray-300 cursor-not-allowed'
+                              ? 'text-slate-300 cursor-not-allowed'
                               : 'text-danger-600 hover:text-danger-700'
                           }`}
                           title={
@@ -273,13 +273,13 @@ export default function PackagingTypes() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-t-3xl">
+            <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-action-500 to-action-600 text-white rounded-t-3xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold">
                     {selectedType ? 'Modifier le conditionnement' : 'Nouveau conditionnement'}
                   </h2>
-                  <p className="text-sm text-primary-100 mt-1">
+                  <p className="text-sm text-white/80 mt-1">
                     {selectedType
                       ? 'Mettre à jour les informations'
                       : 'Ajouter un nouveau type de conditionnement'}
@@ -304,7 +304,7 @@ export default function PackagingTypes() {
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Nom <span className="text-danger-500">*</span>
                 </label>
                 <input
@@ -318,7 +318,7 @@ export default function PackagingTypes() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Symbole</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Symbole</label>
                 <input
                   type="text"
                   value={formData.symbol}
@@ -326,13 +326,13 @@ export default function PackagingTypes() {
                   className="input"
                   placeholder="Ex: CTN, SCH, BLS..."
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Abréviation courte utilisée dans les documents
                 </p>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={handleCloseModal} className="btn-secondary flex-1">
                   Annuler
                 </button>
@@ -365,8 +365,8 @@ export default function PackagingTypes() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Confirmer la suppression</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirmer la suppression</h3>
+              <p className="text-slate-600 mb-6">
                 Voulez-vous vraiment supprimer ce conditionnement ? Cette action est irréversible.
               </p>
               <div className="flex gap-3">

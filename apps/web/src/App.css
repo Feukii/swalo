@@ -1,8 +1,9 @@
-/* Styles spécifiques à l'application SWALO */
+/* Styles spécifiques à l'application Swalo */
 
 /* Animations personnalisées */
 @keyframes pulse-soft {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

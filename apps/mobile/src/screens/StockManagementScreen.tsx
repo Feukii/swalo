@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,25 +11,21 @@ import {
   Modal,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  Package,
-  Search,
-  Plus,
-  TrendingDown,
-  AlertTriangle,
-  DollarSign,
-} from '../components/icons/SimpleIcons';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Package, Search, AlertTriangle } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
+import type { RootStackParamList } from '../../App';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { productRepo, stockBatchRepo } from '../db/repositories';
 import { createStockBatchOffline } from '../db/offlineWrite';
 
 interface StockItem {
   id: string;
+  name: string;
+  category?: string;
   reference: string;
   family: string;
   article_type: string;
@@ -40,9 +36,14 @@ interface StockItem {
   sell_price?: number;
 }
 
-export default function StockManagementScreen({ navigation }: any) {
+interface StockManagementScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'StockManagement'>;
+}
+
+export default function StockManagementScreen(_props: StockManagementScreenProps) {
   const { shopId } = useCurrentUser();
   const [products, setProducts] = useState<StockItem[]>([]);
+  const productsCountRef = useRef(0);
   const [filteredProducts, setFilteredProducts] = useState<StockItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -78,10 +79,11 @@ export default function StockManagementScreen({ navigation }: any) {
           })
         );
         setProducts(enriched);
+        productsCountRef.current = enriched.length;
         setFilteredProducts(enriched);
       } catch (error) {
         console.error('Erreur chargement produits:', error);
-        if (products.length === 0) {
+        if (productsCountRef.current === 0) {
           Alert.alert('Erreur', 'Impossible de charger les produits');
         }
       } finally {
@@ -180,9 +182,10 @@ export default function StockManagementScreen({ navigation }: any) {
         `Prix de vente: ${formatMoney(sellPrice)}/unité`;
 
       Alert.alert('Approvisionnement enregistré', message);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'approvisionnement:", error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer l'approvisionnement");
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || "Impossible d'enregistrer l'approvisionnement");
     } finally {
       setIsSubmitting(false);
     }
@@ -197,162 +200,117 @@ export default function StockManagementScreen({ navigation }: any) {
     return 'ok';
   };
 
-  const getStockStatusColor = (status: string) => {
-    switch (status) {
-      case 'out':
-        return Colors.danger.main;
-      case 'low':
-        return Colors.warning.main;
-      case 'ok':
-        return Colors.success.main;
-      default:
-        return Colors.muted.foreground;
-    }
-  };
-
-  const getStockStatusLabel = (status: string) => {
-    switch (status) {
-      case 'out':
-        return 'Rupture';
-      case 'low':
-        return 'Stock faible';
-      case 'ok':
-        return 'En stock';
-      default:
-        return 'Inconnu';
-    }
-  };
-
-  const lowStockCount = products.filter(p => getStockStatus(p) === 'low').length;
-  const outOfStockCount = products.filter(p => getStockStatus(p) === 'out').length;
-  const totalValue = products.reduce(
-    (sum, p) => sum + (p.current_stock || 0) * (p.cost_price || 0),
-    0
-  );
+  const lowStockCount = products.filter(p => {
+    const status = getStockStatus(p);
+    return status === 'low' || status === 'out';
+  }).length;
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ScreenHeader title="Gestion du stock" showBack onBack={() => navigation.goBack()} />
+      <View style={styles.container}>
+        <ScreenHeader title="Stock" subtitle="Chargement…" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Gestion du stock" showBack onBack={() => navigation.goBack()} />
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Stock"
+        subtitle={`${products.length} référence${products.length > 1 ? 's' : ''}`}
+      />
 
-      <View style={styles.content}>
-        {/* Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, styles.statCardWarning]}>
-            <AlertTriangle size={20} color={Colors.warning.main} />
-            <Text style={styles.statValue}>{lowStockCount}</Text>
-            <Text style={styles.statLabel}>Stock faible</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.statCardDanger]}>
-            <TrendingDown size={20} color={Colors.danger.main} />
-            <Text style={styles.statValue}>{outOfStockCount}</Text>
-            <Text style={styles.statLabel}>Rupture</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.statCardSuccess]}>
-            <DollarSign size={20} color={Colors.success.main} />
-            <Text style={styles.statValue}>{formatMoney(totalValue)}</Text>
-            <Text style={styles.statLabel}>Valeur totale</Text>
-          </View>
-        </View>
-
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadProducts(true)}
+            tintColor={Colors.action}
+          />
+        }
+      >
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Search size={20} color={Colors.muted.foreground} />
+        <View style={styles.searchCard}>
+          <Search size={20} color={Colors.action} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher un produit..."
+            placeholder="Rechercher un produit…"
             placeholderTextColor={Colors.muted.foreground}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
 
-        {/* Products List */}
-        <ScrollView
-          style={styles.productsList}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={() => loadProducts(true)}
-              tintColor={Colors.primary[900]}
-            />
-          }
-        >
-          {filteredProducts.map(product => {
-            const status = getStockStatus(product);
-            const statusColor = getStockStatusColor(status);
-            const statusLabel = getStockStatusLabel(status);
-
-            return (
-              <View key={product.id} style={styles.productCard}>
-                <View style={styles.productHeader}>
-                  <View style={styles.productInfo}>
-                    <Text style={styles.productReference}>{product.reference}</Text>
-                    <Text style={styles.productName}>{product.family}</Text>
-                    <Text style={styles.productDetails}>
-                      {product.article_type} - {product.brand}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                    <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.productFooter}>
-                  <View style={styles.stockInfo}>
-                    <Text style={styles.stockLabel}>Stock actuel</Text>
-                    <Text style={[styles.stockValue, { color: statusColor }]}>
-                      {product.current_stock || 0} unités
-                    </Text>
-                  </View>
-
-                  {product.cost_price != null && product.sell_price != null && (
-                    <View style={styles.priceInfo}>
-                      <Text style={styles.priceLabel}>
-                        Achat: {formatMoney(product.cost_price)}
-                      </Text>
-                      <Text style={styles.priceLabel}>
-                        Vente: {formatMoney(product.sell_price)}
-                      </Text>
-                    </View>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.addStockButton}
-                    onPress={() => openStockModal(product)}
-                  >
-                    <Plus size={16} color={Colors.primary.foreground} />
-                    <Text style={styles.addStockButtonText}>Approvisionner</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-
-          {filteredProducts.length === 0 && (
-            <View style={styles.emptyState}>
-              <Package size={48} color={Colors.muted.foreground} />
-              <Text style={styles.emptyText}>
-                {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit dans le catalogue'}
-              </Text>
+        {/* Low stock alert banner */}
+        {lowStockCount > 0 && (
+          <View style={styles.alertBanner}>
+            <View style={styles.alertIcon}>
+              <AlertTriangle size={20} color={Colors.warning.foreground} />
             </View>
-          )}
-        </ScrollView>
-      </View>
+            <View style={styles.alertTextBlock}>
+              <Text style={styles.alertTitle}>
+                {lowStockCount} produit{lowStockCount > 1 ? 's' : ''} en stock bas
+              </Text>
+              <Text style={styles.alertSubtitle}>Pensez à réapprovisionner</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Products List */}
+        {filteredProducts.length > 0 ? (
+          <View style={styles.listCard}>
+            {filteredProducts.map((product, index) => {
+              const status = getStockStatus(product);
+              const isLow = status === 'low' || status === 'out';
+              const stock = product.current_stock || 0;
+
+              return (
+                <TouchableOpacity
+                  key={product.id}
+                  style={[styles.row, index > 0 && styles.rowDivider]}
+                  onPress={() => openStockModal(product)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.rowIcon}>
+                    <Package size={22} color={Colors.muted.foreground} />
+                  </View>
+
+                  <View style={styles.rowInfo}>
+                    <Text style={styles.rowName} numberOfLines={1}>
+                      {product.name || product.family}
+                    </Text>
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      {[product.category || product.family, formatMoney(product.sell_price ?? 0)]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.unitBadge, isLow && styles.unitBadgeLow]}>
+                    <Text style={[styles.unitBadgeText, isLow && styles.unitBadgeTextLow]}>
+                      {stock} u.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Package size={48} color={Colors.muted.foreground} />
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'Aucun produit trouvé' : 'Aucun produit dans le catalogue'}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
       {/* Stock Modal */}
       <Modal
@@ -470,7 +428,7 @@ export default function StockManagementScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -491,144 +449,115 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
     fontWeight: '500',
   },
-  content: {
+  scroll: {
     flex: 1,
+  },
+  scrollContent: {
     padding: Spacing.lg,
-  },
-  statsRow: {
-    flexDirection: 'row',
+    paddingBottom: Spacing['3xl'],
     gap: Spacing.md,
-    marginBottom: Spacing.lg,
   },
-  statCard: {
-    flex: 1,
-    borderRadius: 12,
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  statCardWarning: {
-    backgroundColor: Colors.warning.main + '15',
-  },
-  statCardDanger: {
-    backgroundColor: Colors.danger.main + '15',
-  },
-  statCardSuccess: {
-    backgroundColor: Colors.success.main + '15',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: Colors.muted.foreground,
-    textAlign: 'center',
-  },
-  searchContainer: {
+  searchCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: Colors.text,
+    padding: 0,
   },
-  productsList: {
-    flex: 1,
-  },
-  productCard: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  productHeader: {
+  alertBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    alignItems: 'center',
+    backgroundColor: Colors.warning.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: Spacing.md,
   },
-  productInfo: {
+  alertIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.warning.main,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertTextBlock: {
     flex: 1,
   },
-  productReference: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary[900],
-    marginBottom: 2,
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.warning.text,
   },
-  productName: {
-    fontSize: 16,
-    fontWeight: '600',
+  alertSubtitle: {
+    fontSize: 12.5,
+    color: Colors.warning.text,
+    marginTop: 1,
+  },
+  listCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  rowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.muted.main,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowInfo: {
+    flex: 1,
+  },
+  rowName: {
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: 2,
   },
-  productDetails: {
+  rowMeta: {
     fontSize: 13,
     color: Colors.muted.foreground,
   },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: 8,
-    height: 'fit-content' as any,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  productFooter: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.md,
-    gap: Spacing.sm,
-  },
-  stockInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  unitBadge: {
+    backgroundColor: Colors.muted.main,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    minWidth: 48,
     alignItems: 'center',
   },
-  stockLabel: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
+  unitBadgeLow: {
+    backgroundColor: Colors.warning.background,
   },
-  stockValue: {
-    fontSize: 16,
+  unitBadgeText: {
+    fontSize: 13,
     fontWeight: '700',
+    color: Colors.textColors.secondary,
   },
-  priceInfo: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  priceLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-  },
-  addStockButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.primary[900],
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
-    marginTop: Spacing.xs,
-  },
-  addStockButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
+  unitBadgeTextLow: {
+    color: Colors.warning.text,
   },
   emptyState: {
     flex: 1,
@@ -690,10 +619,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
@@ -748,7 +677,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: 12,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   modalConfirmButtonDisabled: {
     opacity: 0.6,

@@ -5,25 +5,20 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ArrowLeftRight,
-  ArrowLeft,
-  Package,
-  Store,
-  CheckCircle,
-  XCircle,
-  Clock,
-} from '../components/icons/SimpleIcons';
-import { ScreenHeader, KPICard, StatusBadge } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { ArrowLeftRight, Package, CheckCircle, XCircle } from '../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge } from '../components/ui';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { transfersApi } from '../lib/api';
+import type { RootStackParamList } from '../../App';
 
 interface Transfer {
   id: string;
@@ -55,18 +50,31 @@ const STATUS_CONFIG: Record<
   CANCELLED: { label: 'Annule', variant: 'danger' },
 };
 
-export default function TransfersScreen({ navigation }: any) {
+interface TransfersScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Transfers'>;
+}
+
+type TransferFilter = 'all' | 'pending' | 'completed';
+
+const FILTER_TABS: Array<{ key: TransferFilter; label: string }> = [
+  { key: 'all', label: 'Tous' },
+  { key: 'pending', label: 'En cours' },
+  { key: 'completed', label: 'Terminés' },
+];
+
+export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<TransferFilter>('all');
 
   const loadTransfers = useCallback(async () => {
     try {
-      const data = await transfersApi.getAll();
+      const data = await transfersApi.getAll<Transfer>();
       setTransfers(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement transferts:', error);
-      if (error.message === 'Unauthorized') {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         Alert.alert('Session expiree', 'Veuillez vous reconnecter.', [
           { text: 'OK', onPress: () => navigation.replace('LoginPin') },
         ]);
@@ -126,8 +134,9 @@ export default function TransfersScreen({ navigation }: any) {
             await transfersApi[action](transfer.id);
             Alert.alert('Succes', `Transfert ${config.title.toLowerCase()} avec succes`);
             loadTransfers();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || "Erreur lors de l'operation");
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || "Erreur lors de l'operation");
           }
         },
       },
@@ -161,18 +170,23 @@ export default function TransfersScreen({ navigation }: any) {
     return (
       <View key={transfer.id} style={styles.transferCard}>
         <View style={styles.transferHeader}>
+          <View style={styles.transferIcon}>
+            <ArrowLeftRight size={20} color={Colors.action} />
+          </View>
           <View style={styles.transferDirection}>
-            <Text style={styles.shopName}>{transfer.source_shop.name}</Text>
-            <ArrowLeftRight size={16} color={Colors.muted.foreground} />
-            <Text style={styles.shopName}>{transfer.target_shop.name}</Text>
+            <Text style={styles.shopName} numberOfLines={1}>
+              {transfer.source_shop.name}
+              <Text style={styles.shopArrow}> → </Text>
+              {transfer.target_shop.name}
+            </Text>
+            <Text style={styles.transferDate}>{formatDate(transfer.created_at)}</Text>
           </View>
           <StatusBadge text={statusConfig.label} variant={statusConfig.variant} />
         </View>
 
         <View style={styles.transferInfo}>
-          <Text style={styles.transferDate}>{formatDate(transfer.created_at)}</Text>
           <Text style={styles.transferMeta}>
-            {transfer.items.length} article{transfer.items.length > 1 ? 's' : ''} - {itemCount}{' '}
+            {transfer.items.length} article{transfer.items.length > 1 ? 's' : ''} · {itemCount}{' '}
             unite{itemCount > 1 ? 's' : ''}
           </Text>
           <Text style={styles.transferTotal}>{formatMoney(total)}</Text>
@@ -191,14 +205,14 @@ export default function TransfersScreen({ navigation }: any) {
                 style={[styles.actionBtn, styles.confirmBtn]}
                 onPress={() => handleAction(transfer, 'confirm')}
               >
-                <CheckCircle size={14} color="#fff" />
+                <CheckCircle size={16} color="#fff" />
                 <Text style={styles.actionBtnText}>Confirmer</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.cancelBtn]}
                 onPress={() => handleAction(transfer, 'cancel')}
               >
-                <XCircle size={14} color="#fff" />
+                <XCircle size={16} color="#fff" />
                 <Text style={styles.actionBtnText}>Annuler</Text>
               </TouchableOpacity>
             </>
@@ -209,14 +223,14 @@ export default function TransfersScreen({ navigation }: any) {
                 style={[styles.actionBtn, styles.shipBtn]}
                 onPress={() => handleAction(transfer, 'ship')}
               >
-                <Package size={14} color="#fff" />
+                <Package size={16} color="#fff" />
                 <Text style={styles.actionBtnText}>Expedier</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.cancelBtn]}
                 onPress={() => handleAction(transfer, 'cancel')}
               >
-                <XCircle size={14} color="#fff" />
+                <XCircle size={16} color="#fff" />
                 <Text style={styles.actionBtnText}>Annuler</Text>
               </TouchableOpacity>
             </>
@@ -226,7 +240,7 @@ export default function TransfersScreen({ navigation }: any) {
               style={[styles.actionBtn, styles.receiveBtn]}
               onPress={() => handleAction(transfer, 'receive')}
             >
-              <CheckCircle size={14} color="#fff" />
+              <CheckCircle size={16} color="#fff" />
               <Text style={styles.actionBtnText}>Confirmer reception</Text>
             </TouchableOpacity>
           )}
@@ -235,62 +249,92 @@ export default function TransfersScreen({ navigation }: any) {
     );
   };
 
+  const filteredTransfers = transfers.filter(t => {
+    if (filter === 'pending') {
+      return ['DRAFT', 'CONFIRMED', 'SHIPPED'].includes(t.status);
+    }
+    if (filter === 'completed') {
+      return t.status === 'RECEIVED';
+    }
+    return true;
+  });
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Transferts" showBack={true} onBack={() => navigation.goBack()} />
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <ScreenHeader
+        title="Transferts"
+        subtitle="Échanges inter-boutiques"
+        showBack={true}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
-        style={styles.content}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary[900]}
+          />
+        }
       >
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={{ flex: 1 }}>
-            <KPICard
-              label="Total"
-              value={String(stats.total)}
-              icon={<ArrowLeftRight size={20} color={Colors.muted.foreground} />}
-            />
+        {/* HERO MARINE — Transferts en attente */}
+        <View style={styles.hero}>
+          <Text style={styles.heroLabel}>Transferts en attente</Text>
+          <Text style={styles.heroAmount}>{stats.pending}</Text>
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Total</Text>
+              <Text style={styles.heroStatValue}>{stats.total}</Text>
+            </View>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Terminés</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>{stats.completed}</Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <KPICard
-              label="En cours"
-              value={String(stats.pending)}
-              icon={<Clock size={20} color={Colors.muted.foreground} />}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <KPICard
-              label="Termines"
-              value={String(stats.completed)}
-              icon={<CheckCircle size={20} color={Colors.muted.foreground} />}
-            />
-          </View>
+        </View>
+
+        {/* SEGMENTS */}
+        <View style={styles.chipsRow}>
+          {FILTER_TABS.map(tab => {
+            const active = filter === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => setFilter(tab.key)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{tab.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Transfer List */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Historique des transferts</Text>
-
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary[900]} />
+              <ActivityIndicator size="large" color={Colors.action} />
             </View>
-          ) : transfers.length === 0 ? (
+          ) : filteredTransfers.length === 0 ? (
             <View style={styles.emptyState}>
-              <ArrowLeftRight size={48} color={Colors.muted.foreground} />
+              <View style={styles.emptyIcon}>
+                <ArrowLeftRight size={32} color={Colors.action} />
+              </View>
               <Text style={styles.emptyText}>Aucun transfert</Text>
               <Text style={styles.emptySubtext}>
                 Les transferts inter-boutiques apparaitront ici
               </Text>
             </View>
           ) : (
-            transfers.map(renderTransferCard)
+            filteredTransfers.map(renderTransferCard)
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -299,23 +343,86 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  content: {
+  scroll: {
     flex: 1,
-    padding: Spacing.lg,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing['2xl'],
+  content: {
+    paddingTop: Spacing.lg,
+    paddingBottom: 96,
+    gap: Spacing.xl,
   },
-  section: {
-    marginBottom: Spacing['2xl'],
+  // HERO MARINE
+  hero: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
   },
-  sectionTitle: {
-    fontSize: 18,
+  heroLabel: {
+    fontSize: 14,
     fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.lg,
+    color: Colors.action,
+  },
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xl,
+  },
+  heroStatCol: {
+    flex: 1,
+    gap: 4,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+  },
+  heroStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
+  },
+  heroStatPositive: {
+    color: Colors.success.main,
+  },
+  // SEGMENTS / CHIPS
+  chipsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  chip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.info.background,
+    borderColor: Colors.action,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  chipTextActive: {
+    color: Colors.action,
+  },
+  // LIST
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
   },
   loadingContainer: {
     paddingVertical: Spacing['3xl'],
@@ -325,6 +432,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing['3xl'],
     gap: Spacing.md,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyText: {
     fontSize: 16,
@@ -338,28 +453,36 @@ const styles = StyleSheet.create({
   },
   transferCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    ...Shadows.sm,
   },
   transferHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  transferIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   transferDirection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
     flex: 1,
+    gap: 2,
   },
   shopName: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: '600',
     color: Colors.text,
+  },
+  shopArrow: {
+    color: Colors.action,
+    fontWeight: '700',
   },
   transferInfo: {
     flexDirection: 'row',
@@ -369,17 +492,18 @@ const styles = StyleSheet.create({
   },
   transferDate: {
     fontSize: 12,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   transferMeta: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
   },
   transferTotal: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.primary[900],
     marginLeft: 'auto',
+    fontVariant: ['tabular-nums'],
   },
   transferNotes: {
     fontSize: 12,
@@ -397,23 +521,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+    minHeight: 48,
+    paddingVertical: Spacing.sm,
+    borderRadius: 12,
+    gap: 6,
   },
   actionBtnText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
   },
   confirmBtn: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   shipBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: Colors.action,
   },
   receiveBtn: {
-    backgroundColor: '#16A34A',
+    backgroundColor: Colors.success.main,
   },
   cancelBtn: {
     backgroundColor: Colors.danger.main,

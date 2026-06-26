@@ -5,8 +5,15 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { BatchUpdateHierarchyDto } from './dto/batch-update-hierarchy.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
+
+interface AuthUser {
+  userId: string;
+  shopId: string;
+  role: Role;
+}
 
 @Controller('products')
 export class ProductsController {
@@ -17,7 +24,7 @@ export class ProductsController {
    * Récupérer tous les produits avec filtres optionnels
    */
   @Get()
-  findAll(@CurrentUser() user: any, @Query() query: SearchProductDto) {
+  findAll(@CurrentUser() user: AuthUser, @Query() query: SearchProductDto) {
     return this.productsService.findAll(user.shopId, query);
   }
 
@@ -26,7 +33,7 @@ export class ProductsController {
    * Obtenir les statistiques des produits
    */
   @Get('stats')
-  getStats(@CurrentUser() user: any) {
+  getStats(@CurrentUser() user: AuthUser) {
     return this.productsService.getStats(user.shopId);
   }
 
@@ -35,7 +42,7 @@ export class ProductsController {
    * Récupérer les catégories uniques
    */
   @Get('categories')
-  getCategories(@CurrentUser() user: any) {
+  getCategories(@CurrentUser() user: AuthUser) {
     return this.productsService.getCategories(user.shopId);
   }
 
@@ -46,7 +53,7 @@ export class ProductsController {
    */
   @Get('filters')
   getFilters(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Query('family') family?: string,
     @Query('article_type') articleType?: string,
     @Query('brand') brand?: string
@@ -63,7 +70,7 @@ export class ProductsController {
    * Récupérer les familles uniques
    */
   @Get('families')
-  getFamilies(@CurrentUser() user: any) {
+  getFamilies(@CurrentUser() user: AuthUser) {
     return this.productsService.getFamilies(user.shopId);
   }
 
@@ -72,7 +79,7 @@ export class ProductsController {
    * Récupérer les marques uniques
    */
   @Get('brands')
-  getBrands(@CurrentUser() user: any) {
+  getBrands(@CurrentUser() user: AuthUser) {
     return this.productsService.getBrands(user.shopId);
   }
 
@@ -81,7 +88,7 @@ export class ProductsController {
    * Récupérer les types d'article uniques
    */
   @Get('article-types')
-  getArticleTypes(@CurrentUser() user: any) {
+  getArticleTypes(@CurrentUser() user: AuthUser) {
     return this.productsService.getArticleTypes(user.shopId);
   }
 
@@ -90,7 +97,7 @@ export class ProductsController {
    * Récupérer les produits en stock faible
    */
   @Get('low-stock')
-  getLowStock(@CurrentUser() user: any) {
+  getLowStock(@CurrentUser() user: AuthUser) {
     return this.productsService.getLowStockProducts(user.shopId);
   }
 
@@ -99,7 +106,7 @@ export class ProductsController {
    * Récupérer un produit par SKU
    */
   @Get('sku/:sku')
-  findBySku(@Param('sku') sku: string, @CurrentUser() user: any) {
+  findBySku(@Param('sku') sku: string, @CurrentUser() user: AuthUser) {
     return this.productsService.findBySku(sku, user.shopId);
   }
 
@@ -108,7 +115,7 @@ export class ProductsController {
    * Récupérer les prix de vente disponibles depuis les lots actifs
    */
   @Get(':id/prices')
-  getAvailablePrices(@Param('id') id: string, @CurrentUser() user: any) {
+  getAvailablePrices(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.productsService.getAvailablePrices(id, user.shopId);
   }
 
@@ -117,7 +124,7 @@ export class ProductsController {
    * Récupérer un produit par ID avec son stock
    */
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.productsService.findOne(id, user.shopId);
   }
 
@@ -129,7 +136,7 @@ export class ProductsController {
   @Roles(Role.BOSS, Role.MANAGER)
   create(
     @Body() dto: CreateProductDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.productsService.create(user.shopId, dto, deviceId);
@@ -141,7 +148,7 @@ export class ProductsController {
    */
   @Post('batch-update-hierarchy')
   @Roles(Role.BOSS, Role.MANAGER)
-  batchUpdateHierarchy(@Body() dto: BatchUpdateHierarchyDto, @CurrentUser() user: any) {
+  batchUpdateHierarchy(@Body() dto: BatchUpdateHierarchyDto, @CurrentUser() user: AuthUser) {
     return this.productsService.batchUpdateHierarchy(user.shopId, dto);
   }
 
@@ -154,7 +161,7 @@ export class ProductsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthUser,
     @Headers('x-device-id') deviceId?: string
   ) {
     return this.productsService.update(id, user.shopId, dto, deviceId);
@@ -166,7 +173,8 @@ export class ProductsController {
    */
   @Delete(':id')
   @Roles(Role.BOSS)
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
+  @RequireCapability('products', 'delete')
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.productsService.remove(id, user.shopId);
   }
 }

@@ -6,7 +6,8 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'swalo.db';
-const DB_VERSION = 5;
+/** Current target schema version (see runMigrations). Kept for documentation. */
+const _DB_VERSION = 6;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -454,6 +455,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         description TEXT,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'PENDING',
+        due_date TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted INTEGER NOT NULL DEFAULT 0,
@@ -686,6 +688,17 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       }
     }
     await db.runAsync('UPDATE _schema_version SET version = 5');
+  }
+
+  if (currentVersion < 6) {
+    // Migration v6: Add due_date to client_receivables (échéances/relances)
+    // Using try/catch because the column may already exist on newer installs
+    try {
+      await db.execAsync('ALTER TABLE client_receivables ADD COLUMN due_date TEXT;');
+    } catch {
+      // Column already exists, ignore
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 6');
   }
 }
 

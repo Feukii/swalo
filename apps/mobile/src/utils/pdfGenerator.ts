@@ -5,7 +5,7 @@
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import { generateInvoiceHTML, type InvoiceData } from './invoiceTemplate';
 export type { InvoiceData } from './invoiceTemplate';
 
@@ -21,7 +21,7 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<string | nu
       base64: false,
     });
     return uri;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur generation PDF:', error);
     Alert.alert('Erreur', 'Impossible de generer le PDF de la facture');
     return null;
@@ -35,7 +35,7 @@ export async function printInvoice(data: InvoiceData): Promise<void> {
   try {
     const html = generateInvoiceHTML(data);
     await Print.printAsync({ html });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur impression:', error);
     Alert.alert('Erreur', "Impossible d'imprimer la facture");
   }
@@ -63,7 +63,7 @@ export async function shareInvoicePDF(data: InvoiceData): Promise<void> {
       dialogTitle: `Facture ${data.number}`,
       UTI: 'com.adobe.pdf',
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur partage PDF:', error);
     Alert.alert('Erreur', 'Impossible de partager la facture');
   }

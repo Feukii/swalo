@@ -13,6 +13,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { syncEngine } from '../db/sync';
 
+function getErrorMessage(e: unknown): string | undefined {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  return undefined;
+}
+
 interface UseOfflineFirstQueryOptions<TLocal, TRemote> {
   /** Read data from local SQLite DB */
   localQuery: () => Promise<TLocal[]>;
@@ -61,9 +67,9 @@ export function useOfflineFirstQuery<TLocal, TRemote = TLocal>(
         setError(null);
       }
       return localData;
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (mountedRef.current) {
-        setError(e.message || 'Erreur de lecture locale');
+        setError(getErrorMessage(e) ?? 'Erreur de lecture locale');
       }
       return [];
     }
@@ -82,9 +88,9 @@ export function useOfflineFirstQuery<TLocal, TRemote = TLocal>(
         setData(updatedLocal);
         setIsFromCache(false);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Silent fail for background refresh - local data is still valid
-      console.log('Background sync failed:', e.message);
+      console.log('Background sync failed:', getErrorMessage(e));
     }
   }, [remoteQuery, syncToLocal, localQuery]);
 
@@ -191,9 +197,9 @@ export function useOfflineFirstSingle<TLocal, TRemote = TLocal>(
           // Silent fail
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (mountedRef.current) {
-        setError(e.message);
+        setError(getErrorMessage(e) ?? null);
       }
     }
   }, [localQuery, remoteQuery, syncToLocal]);

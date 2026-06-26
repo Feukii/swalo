@@ -3,6 +3,65 @@ import { BadRequestException } from '@nestjs/common';
 import { CustomersService } from '../src/modules/customers/customers.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 
+type CustomerWithStats = Awaited<ReturnType<CustomersService['getOne']>>;
+
+interface CapturedCashEntry {
+  category: string;
+  type: string;
+  amount: number;
+}
+
+interface CapturedReceivable {
+  amount: number;
+  balance: number;
+  status: string;
+}
+
+const SHOP_ID = 'shop-123';
+const CUSTOMER_ID = 'customer-123';
+
+function buildCustomerWithStats(totalBalance: number): CustomerWithStats {
+  return {
+    id: CUSTOMER_ID,
+    shop_id: SHOP_ID,
+    code: null,
+    name: 'Test Customer',
+    phone: null,
+    email: null,
+    address: null,
+    credit_limit: 0,
+    notes: null,
+    is_active: true,
+    email_notifications_enabled: true,
+    sms_notifications_enabled: false,
+    whatsapp_notifications_enabled: false,
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted: false,
+    deleted_at: null,
+    version: 1,
+    first_name: null,
+    receivables: [],
+    sales: [],
+    cash_entries: [],
+    stats: {
+      total_receivables: 0,
+      total_balance: totalBalance,
+      total_paid: 0,
+      receivables_count: 0,
+      sales_count: 0,
+      cash_refunds_count: 0,
+      total_cash_refunds: 0,
+    },
+    notifications_summary: {
+      total: 0,
+      by_status: {},
+      by_channel: {},
+      recent: [],
+    },
+  };
+}
+
 describe('CustomersService - Refund Functionality', () => {
   let service: CustomersService;
   let _prismaService: PrismaService;
@@ -45,26 +104,11 @@ describe('CustomersService - Refund Functionality', () => {
     const shopId = 'shop-123';
     const customerId = 'customer-123';
     const userId = 'user-123';
-    const mockCustomer = {
-      id: customerId,
-      name: 'Test Customer',
-      shop_id: shopId,
-      deleted: false,
-    };
 
     it('should successfully create a refund when customer has negative balance', async () => {
       // Mock customer with negative balance (we owe them 10000 centimes = 100 FCFA)
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: -10000,
-          total_receivables: 0,
-          total_paid: 0,
-        },
-      };
-
       // Mock the getOne method to return customer with stats
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(-10000));
 
       // Mock transaction implementation
       const mockCashEntry = {
@@ -83,12 +127,12 @@ describe('CustomersService - Refund Functionality', () => {
         balance: -5000,
       };
 
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue(mockCashEntry) },
           clientReceivable: { create: jest.fn().mockResolvedValue(mockReceivable) },
-        });
-      });
+        })
+      );
 
       const refundDto = {
         amount: 5000, // 50 FCFA
@@ -105,14 +149,7 @@ describe('CustomersService - Refund Functionality', () => {
 
     it('should throw BadRequestException when customer has no refund owed (positive balance)', async () => {
       // Mock customer with positive balance (they owe us)
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: 10000, // They owe us 100 FCFA
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(10000)); // They owe us 100 FCFA
 
       const refundDto = {
         amount: 5000,
@@ -128,14 +165,7 @@ describe('CustomersService - Refund Functionality', () => {
     });
 
     it('should throw BadRequestException when customer has zero balance', async () => {
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: 0,
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(0));
 
       const refundDto = {
         amount: 5000,
@@ -149,14 +179,7 @@ describe('CustomersService - Refund Functionality', () => {
 
     it('should throw BadRequestException when refund amount exceeds amount owed', async () => {
       // Customer balance: -5000 (we owe them 50 FCFA)
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: -5000,
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(-5000));
 
       const refundDto = {
         amount: 10000, // Trying to refund 100 FCFA when we only owe 50 FCFA
@@ -172,20 +195,13 @@ describe('CustomersService - Refund Functionality', () => {
     });
 
     it('should create cash entry with correct category', async () => {
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: -10000,
-        },
-      };
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(-10000));
 
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
-
-      let capturedCashEntry: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedCashEntry!: CapturedCashEntry;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedCashEntry }) => {
               capturedCashEntry = data.data;
               return Promise.resolve({ id: 'cash-123', ...data.data });
             }),
@@ -193,8 +209,8 @@ describe('CustomersService - Refund Functionality', () => {
           clientReceivable: {
             create: jest.fn().mockResolvedValue({ id: 'receivable-123' }),
           },
-        });
-      });
+        })
+      );
 
       await service.createRefund(shopId, customerId, userId, {
         amount: 5000,
@@ -209,29 +225,22 @@ describe('CustomersService - Refund Functionality', () => {
     it('should create positive receivable to offset negative balance', async () => {
       // With -10000 balance (we owe them), a refund of 5000 creates a +5000 receivable
       // Result: -10000 + 5000 = -5000 (we still owe 5000)
-      const mockCustomerWithStats = {
-        ...mockCustomer,
-        stats: {
-          total_balance: -10000,
-        },
-      };
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildCustomerWithStats(-10000));
 
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockCustomerWithStats as any);
-
-      let capturedReceivable: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedReceivable!: CapturedReceivable;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
             create: jest.fn().mockResolvedValue({ id: 'cash-123' }),
           },
           clientReceivable: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedReceivable }) => {
               capturedReceivable = data.data;
               return Promise.resolve({ id: 'receivable-123', ...data.data });
             }),
           },
-        });
-      });
+        })
+      );
 
       await service.createRefund(shopId, customerId, userId, {
         amount: 5000,

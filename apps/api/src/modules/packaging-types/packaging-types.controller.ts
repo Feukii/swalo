@@ -1,10 +1,15 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { PackagingTypesService } from './packaging-types.service';
 import { CreatePackagingTypeDto } from './dto/create-packaging-type.dto';
 import { UpdatePackagingTypeDto } from './dto/update-packaging-type.dto';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
+
+type AuthenticatedRequest = Request & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('packaging-types')
 @RequireModule('packaging-types')
@@ -17,7 +22,7 @@ export class PackagingTypesController {
    */
   @Post()
   @Roles(Role.BOSS, Role.MANAGER)
-  async create(@Req() req: any, @Body() dto: CreatePackagingTypeDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreatePackagingTypeDto) {
     return this.packagingTypesService.create(req.user.shopId, dto);
   }
 
@@ -26,7 +31,10 @@ export class PackagingTypesController {
    * Récupérer tous les types de conditionnement
    */
   @Get()
-  async getAll(@Req() req: any, @Query('include_product_count') includeProductCount?: string) {
+  async getAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('include_product_count') includeProductCount?: string
+  ) {
     return this.packagingTypesService.getAll(req.user.shopId, includeProductCount === 'true');
   }
 
@@ -36,7 +44,7 @@ export class PackagingTypesController {
    */
   @Post('init-defaults')
   @Roles(Role.BOSS, Role.MANAGER)
-  async initDefaults(@Req() req: any) {
+  async initDefaults(@Req() req: AuthenticatedRequest) {
     return this.packagingTypesService.initDefaults(req.user.shopId);
   }
 
@@ -45,7 +53,7 @@ export class PackagingTypesController {
    * Récupérer un type de conditionnement par ID
    */
   @Get(':id')
-  async getOne(@Req() req: any, @Param('id') id: string) {
+  async getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.packagingTypesService.getOne(req.user.shopId, id);
   }
 
@@ -55,7 +63,11 @@ export class PackagingTypesController {
    */
   @Put(':id')
   @Roles(Role.BOSS, Role.MANAGER)
-  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdatePackagingTypeDto) {
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdatePackagingTypeDto
+  ) {
     return this.packagingTypesService.update(req.user.shopId, id, dto);
   }
 
@@ -65,7 +77,7 @@ export class PackagingTypesController {
    */
   @Delete(':id')
   @Roles(Role.BOSS, Role.MANAGER)
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.packagingTypesService.delete(req.user.shopId, id);
   }
 }

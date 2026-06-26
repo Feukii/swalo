@@ -161,55 +161,55 @@ export default function UserManagement() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-        <p className="text-gray-600 mt-1">Gérez les accès et permissions des utilisateurs</p>
+        <h1 className="text-2xl font-bold text-slate-900">Gestion des utilisateurs</h1>
+        <p className="text-slate-600 mt-1">Gérez les accès et permissions des utilisateurs</p>
       </div>
 
       {isLoading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-action-500 mx-auto"></div>
         </div>
       ) : (
         <div className="card overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Utilisateur
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Rôle
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Horaires
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Appareils
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Statut
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-slate-200">
               {users.map(userRole => (
                 <tr key={userRole.id}>
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-slate-900">
                         {userRole.user.display_name}
                       </div>
                       {userRole.user.email && (
-                        <div className="text-sm text-gray-500">{userRole.user.email}</div>
+                        <div className="text-sm text-slate-500">{userRole.user.email}</div>
                       )}
                       {userRole.user.phone && (
-                        <div className="text-sm text-gray-500">{userRole.user.phone}</div>
+                        <div className="text-sm text-slate-500">{userRole.user.phone}</div>
                       )}
                       {userRole.user.pin_code && (
-                        <div className="text-xs text-gray-400">PIN: {userRole.user.pin_code}</div>
+                        <div className="text-xs text-slate-400">PIN: {userRole.user.pin_code}</div>
                       )}
                     </div>
                   </td>
@@ -218,7 +218,7 @@ export default function UserManagement() {
                       className={`badge ${
                         userRole.role === 'MANAGER' || userRole.role === 'BOSS'
                           ? 'badge-primary'
-                          : 'badge-secondary'
+                          : 'badge bg-slate-100 text-slate-700'
                       }`}
                     >
                       {userRole.role === 'EMPLOYEE' && 'Employé'}
@@ -227,19 +227,19 @@ export default function UserManagement() {
                       {userRole.role === 'SUPERADMIN' && 'Super Admin'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4 text-sm text-slate-500">
                     {userRole.work_start_time && userRole.work_end_time ? (
                       <div>
                         {userRole.work_start_time} - {userRole.work_end_time}
                       </div>
                     ) : (
-                      <span className="text-gray-400">Non défini</span>
+                      <span className="text-slate-400">Non défini</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <button
                       onClick={() => handleOpenDevicesModal(userRole)}
-                      className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                      className="text-action-600 hover:text-action-700 text-sm font-medium"
                     >
                       {userRole.user.devices.length} appareil(s)
                     </button>
@@ -257,7 +257,7 @@ export default function UserManagement() {
                     <div className="flex items-center justify-end gap-3">
                       <button
                         onClick={() => handleOpenEditModal(userRole)}
-                        className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                        className="text-action-600 hover:text-action-700 font-medium text-sm"
                       >
                         Modifier
                       </button>
@@ -265,7 +265,7 @@ export default function UserManagement() {
                         onClick={() =>
                           handleDeactivateUser(userRole.user.id, userRole.user.display_name)
                         }
-                        className="text-red-600 hover:text-red-700 font-medium text-sm"
+                        className="text-danger-600 hover:text-danger-700 font-medium text-sm"
                       >
                         Désactiver
                       </button>
@@ -292,7 +292,7 @@ export default function UserManagement() {
             <div className="modal-body space-y-4">
               <div>
                 <label className="form-label">Utilisateur</label>
-                <div className="text-gray-900 font-medium">{selectedUser.user.display_name}</div>
+                <div className="text-slate-900 font-medium">{selectedUser.user.display_name}</div>
               </div>
 
               <div>
@@ -336,8 +336,8 @@ export default function UserManagement() {
                       onClick={() => toggleDay(day)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         workDays.includes(day)
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-action-500 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
                       {DAY_LABELS[day]}
@@ -372,7 +372,7 @@ export default function UserManagement() {
 
             <div className="modal-body">
               {selectedUser.user.devices.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Aucun appareil enregistré</p>
+                <p className="text-slate-500 text-center py-8">Aucun appareil enregistré</p>
               ) : (
                 <div className="space-y-3">
                   {selectedUser.user.devices.map(device => (
@@ -380,14 +380,14 @@ export default function UserManagement() {
                       key={device.id}
                       className={`p-4 rounded-lg border ${
                         device.is_active
-                          ? 'border-green-200 bg-green-50'
-                          : 'border-red-200 bg-red-50'
+                          ? 'border-success-200 bg-success-50'
+                          : 'border-danger-200 bg-danger-50'
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-slate-900">
                               {device.device_name || device.device_type || 'Appareil'}
                             </span>
                             <span
@@ -398,16 +398,16 @@ export default function UserManagement() {
                               {device.is_active ? 'Actif' : 'Révoqué'}
                             </span>
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
+                          <div className="text-sm text-slate-600 mt-1">
                             ID: {device.device_id.substring(0, 16)}...
                           </div>
                           {device.last_login_at && (
-                            <div className="text-sm text-gray-500 mt-1">
+                            <div className="text-sm text-slate-500 mt-1">
                               Dernière connexion: {formatDate(device.last_login_at)}
                             </div>
                           )}
                           {device.revoked_at && (
-                            <div className="text-sm text-red-600 mt-1">
+                            <div className="text-sm text-danger-600 mt-1">
                               Révoqué le: {formatDate(device.revoked_at)}
                             </div>
                           )}

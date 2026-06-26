@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="180" viewBox="0 0 320 90">
+  <rect x="0" y="0" width="320" height="90" fill="#102A43"/>
+  <g transform="translate(8,13)">
+    <rect x="0" y="0" width="64" height="64" rx="18" fill="#38BDF8"/>
+    <path d="M19 23 Q19 16 29 16 L37 16 Q47 16 47 23 Q47 30 37 30 L27 30 Q17 30 17 40 Q17 47 27 47 L37 47 Q47 47 47 40" fill="none" stroke="#102A43" stroke-width="6" stroke-linecap="round" transform="translate(0,1)"/>
+  </g>
+  <text x="86" y="58" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="600" fill="#FFFFFF" letter-spacing="-0.5">Swalo</text>
+</svg>

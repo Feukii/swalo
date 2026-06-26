@@ -11,7 +11,7 @@ export const PositiveInt = z.number().int().nonnegative();
 export const Currency = z.number().int().nonnegative(); // En centimes
 
 // Enums
-export const UserRole = z.enum(['OWNER', 'MANAGER', 'CASHIER']);
+export const UserRole = z.enum(['EMPLOYEE', 'MANAGER', 'BOSS', 'SUPERADMIN']);
 export type UserRoleType = z.infer<typeof UserRole>;
 
 export const PaymentMethod = z.enum(['CASH', 'CARD', 'MOBILE', 'CREDIT']);

@@ -3,6 +3,56 @@ import { BadRequestException } from '@nestjs/common';
 import { SuppliersService } from '../src/modules/suppliers/suppliers.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 
+type SupplierWithStats = Awaited<ReturnType<SuppliersService['getOne']>>;
+
+interface CapturedCashEntry {
+  category: string;
+  type: string;
+  amount: number;
+}
+
+interface CapturedDebt {
+  amount: number;
+  balance: number;
+  status: string;
+}
+
+const SHOP_ID = 'shop-123';
+const SUPPLIER_ID = 'supplier-123';
+
+function buildSupplierWithStats(totalBalance: number): SupplierWithStats {
+  return {
+    id: SUPPLIER_ID,
+    shop_id: SHOP_ID,
+    code: null,
+    name: 'Test Supplier',
+    phone: null,
+    email: null,
+    address: null,
+    borrowing_limit: 0,
+    notes: null,
+    is_active: true,
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted: false,
+    deleted_at: null,
+    version: 1,
+    first_name: null,
+    debts: [],
+    invoices: [],
+    cash_entries: [],
+    stats: {
+      total_debts: 0,
+      total_balance: totalBalance,
+      total_paid: 0,
+      debts_count: 0,
+      invoices_count: 0,
+      cash_payments_count: 0,
+      total_cash_payments: 0,
+    },
+  };
+}
+
 describe('SuppliersService - Refund Claim Functionality', () => {
   let service: SuppliersService;
   let _prismaService: PrismaService;
@@ -42,25 +92,10 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     const shopId = 'shop-123';
     const supplierId = 'supplier-123';
     const userId = 'user-123';
-    const mockSupplier = {
-      id: supplierId,
-      name: 'Test Supplier',
-      shop_id: shopId,
-      deleted: false,
-    };
 
     it('should successfully claim refund when supplier has negative balance', async () => {
       // Mock supplier with negative balance (supplier owes us 10000 centimes = 100 FCFA)
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: -10000,
-          total_debts: 0,
-          total_paid: 0,
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(-10000));
 
       const mockCashEntry = {
         id: 'cash-123',
@@ -78,12 +113,12 @@ describe('SuppliersService - Refund Claim Functionality', () => {
         balance: -5000,
       };
 
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: { create: jest.fn().mockResolvedValue(mockCashEntry) },
           supplierDebt: { create: jest.fn().mockResolvedValue(mockDebt) },
-        });
-      });
+        })
+      );
 
       const refundDto = {
         amount: 5000, // 50 FCFA
@@ -99,14 +134,7 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     });
 
     it('should throw BadRequestException when supplier balance is positive (we owe them)', async () => {
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: 10000, // We owe them 100 FCFA
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(10000)); // We owe them 100 FCFA
 
       const refundDto = {
         amount: 5000,
@@ -122,14 +150,7 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     });
 
     it('should throw BadRequestException when supplier balance is zero', async () => {
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: 0,
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(0));
 
       const refundDto = {
         amount: 5000,
@@ -142,14 +163,7 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     });
 
     it('should throw BadRequestException when refund amount exceeds amount owed by supplier', async () => {
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: -5000, // Supplier owes us 50 FCFA
-        },
-      };
-
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(-5000)); // Supplier owes us 50 FCFA
 
       const refundDto = {
         amount: 10000, // Trying to claim 100 FCFA when they only owe 50 FCFA
@@ -165,20 +179,13 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     });
 
     it('should create cash entry with correct category and type', async () => {
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: -10000,
-        },
-      };
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(-10000));
 
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
-
-      let capturedCashEntry: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedCashEntry!: CapturedCashEntry;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedCashEntry }) => {
               capturedCashEntry = data.data;
               return Promise.resolve({ id: 'cash-123', ...data.data });
             }),
@@ -186,8 +193,8 @@ describe('SuppliersService - Refund Claim Functionality', () => {
           supplierDebt: {
             create: jest.fn().mockResolvedValue({ id: 'debt-123' }),
           },
-        });
-      });
+        })
+      );
 
       await service.claimRefund(shopId, supplierId, userId, {
         amount: 5000,
@@ -202,29 +209,22 @@ describe('SuppliersService - Refund Claim Functionality', () => {
     it('should create positive debt to offset negative supplier balance', async () => {
       // With -10000 balance (supplier owes us), a refund of 5000 creates a +5000 debt
       // Result: -10000 + 5000 = -5000 (supplier still owes 5000)
-      const mockSupplierWithStats = {
-        ...mockSupplier,
-        stats: {
-          total_balance: -10000,
-        },
-      };
+      jest.spyOn(service, 'getOne').mockResolvedValue(buildSupplierWithStats(-10000));
 
-      jest.spyOn(service, 'getOne').mockResolvedValue(mockSupplierWithStats as any);
-
-      let capturedDebt: any;
-      mockPrismaService.$transaction.mockImplementation(async callback => {
-        return callback({
+      let capturedDebt!: CapturedDebt;
+      mockPrismaService.$transaction.mockImplementation(callback =>
+        callback({
           cashEntry: {
             create: jest.fn().mockResolvedValue({ id: 'cash-123' }),
           },
           supplierDebt: {
-            create: jest.fn().mockImplementation(data => {
+            create: jest.fn().mockImplementation((data: { data: CapturedDebt }) => {
               capturedDebt = data.data;
               return Promise.resolve({ id: 'debt-123', ...data.data });
             }),
           },
-        });
-      });
+        })
+      );
 
       await service.claimRefund(shopId, supplierId, userId, {
         amount: 5000,

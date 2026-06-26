@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { DebtNotificationsService } from '../notifications/debt-notifications.service';
 import { CreateReceivableDto } from './dto/create-receivable.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Injectable()
 export class ReceivablesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private debtNotifications: DebtNotificationsService
+  ) {}
 
   async create(shopId: string, dto: CreateReceivableDto) {
     // Pour les montants négatifs (remboursements/ajustements de solde),
@@ -13,7 +17,11 @@ export class ReceivablesService {
     const isNegativeAmount = dto.amount < 0;
     const status = isNegativeAmount ? 'PAID' : 'PENDING';
     const description =
-      dto.description || (isNegativeAmount ? 'Remboursement - Ajustement de solde' : undefined);
+      dto.description && dto.description.length > 0
+        ? dto.description
+        : isNegativeAmount
+          ? 'Remboursement - Ajustement de solde'
+          : undefined;
 
     // Vérifier la limite de crédit pour les montants positifs (nouvelles créances)
     if (!isNegativeAmount && dto.amount > 0) {
@@ -35,13 +43,15 @@ export class ReceivablesService {
 
         if (currentBalance + dto.amount > customer.credit_limit) {
           throw new BadRequestException(
-            `Limite de crédit dépassée. Solde actuel : ${currentBalance} FCFA, ` +
-              `nouvelle créance : ${dto.amount} FCFA, ` +
-              `limite : ${customer.credit_limit} FCFA`
+            `Limite de crédit dépassée. Solde actuel : ${String(currentBalance)} FCFA, ` +
+              `nouvelle créance : ${String(dto.amount)} FCFA, ` +
+              `limite : ${String(customer.credit_limit)} FCFA`
           );
         }
       }
     }
+
+    const dueDate = new Date(dto.due_date);
 
     const receivable = await this.prisma.clientReceivable.create({
       data: {
@@ -51,6 +61,7 @@ export class ReceivablesService {
         description,
         notes: dto.notes,
         status,
+        due_date: dueDate,
         shop: {
           connect: { id: shopId },
         },
@@ -69,6 +80,17 @@ export class ReceivablesService {
         },
       },
     });
+
+    // Transparence client : notifier la nouvelle dette (jamais bloquant).
+    if (!isNegativeAmount && dto.amount > 0) {
+      await this.debtNotifications.notifyDebtCreated({
+        shopId,
+        customerId: dto.customer_id,
+        receivableId: receivable.id,
+        amount: receivable.amount,
+        dueDate,
+      });
+    }
 
     return receivable;
   }
@@ -199,6 +221,16 @@ export class ReceivablesService {
         receivable: updatedReceivable,
         overpayment: newBalance < 0 ? Math.abs(newBalance) : 0,
       };
+    });
+
+    // Transparence client : notifier le paiement (jamais bloquant).
+    await this.debtNotifications.notifyDebtPayment({
+      shopId,
+      customerId: result.receivable.customer.id,
+      receivableId: result.receivable.id,
+      paymentId: result.payment.id,
+      amount: result.payment.amount,
+      balance: result.receivable.balance,
     });
 
     return result;

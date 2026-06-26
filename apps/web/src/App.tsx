@@ -8,7 +8,7 @@ import Home from './pages/Home';
 import Sale from './pages/Sale';
 import POS from './pages/POS';
 import Products from './pages/Products';
-import ProductBatches from './pages/ProductBatches';
+import ProductDetail from './pages/ProductDetail';
 import CatalogHierarchy from './pages/CatalogHierarchy';
 import StockManagement from './pages/StockManagement';
 import Customers from './pages/Customers';
@@ -16,6 +16,8 @@ import CustomerDetails from './pages/CustomerDetails';
 import Suppliers from './pages/Suppliers';
 import SupplierDetails from './pages/SupplierDetails';
 import Receivables from './pages/Receivables';
+import Relances from './pages/Relances';
+import ReminderSettings from './pages/ReminderSettings';
 import Debts from './pages/Debts';
 import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
@@ -113,11 +115,21 @@ function App() {
           }
         />
         <Route
+          path="/products/:productId"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ProductDetail />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/products/:productId/batches"
           element={
             <ProtectedRoute>
               <MainLayout>
-                <ProductBatches />
+                <ProductDetail />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -192,6 +204,26 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/relances"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Relances />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reminder-settings"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ReminderSettings />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/invoices"
@@ -260,7 +292,7 @@ function App() {
         <Route
           path="/settings/packaging-types"
           element={
-            <ProtectedRoute requireRole="OWNER">
+            <ProtectedRoute requireRole="BOSS">
               <MainLayout>
                 <PackagingTypes />
               </MainLayout>

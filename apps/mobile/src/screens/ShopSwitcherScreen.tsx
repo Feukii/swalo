@@ -10,11 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Store, CheckCircle, Building } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { shopSwitchApi } from '../lib/api';
+import type { RootStackParamList } from '../../App';
 
 interface AccessibleShop {
   shop: {
@@ -28,7 +30,11 @@ interface AccessibleShop {
   role: string;
 }
 
-export default function ShopSwitcherScreen({ navigation }: any) {
+interface ShopSwitcherScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'ShopSwitcher'>;
+}
+
+export default function ShopSwitcherScreen({ navigation }: ShopSwitcherScreenProps) {
   const [shops, setShops] = useState<AccessibleShop[]>([]);
   const [currentShopId, setCurrentShopId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,9 +50,9 @@ export default function ShopSwitcherScreen({ navigation }: any) {
 
       const data = await shopSwitchApi.getAccessibleShops();
       setShops(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement boutiques:', error);
-      if (error.message === 'Unauthorized') {
+      if (error instanceof Error && error.message === 'Unauthorized') {
         Alert.alert('Session expiree', 'Veuillez vous reconnecter.', [
           { text: 'OK', onPress: () => navigation.replace('LoginPin') },
         ]);
@@ -81,16 +87,26 @@ export default function ShopSwitcherScreen({ navigation }: any) {
             await AsyncStorage.setItem('user', JSON.stringify(result.user));
             await AsyncStorage.setItem('role', result.role);
 
+            // Mettre à jour l'entreprise active (sinon le nom d'entreprise reste périmé)
+            if (shop.shop.enterprise) {
+              await AsyncStorage.setItem('enterprise', JSON.stringify(shop.shop.enterprise));
+            } else {
+              await AsyncStorage.removeItem('enterprise');
+            }
+
             setCurrentShopId(shop.shop.id);
 
             Alert.alert('Succes', `Vous etes maintenant sur "${shop.shop.name}"`, [
               {
                 text: 'OK',
-                onPress: () => navigation.goBack(),
+                // Réinitialiser vers l'app principale: tous les écrans (qui lisent le
+                // contexte boutique au montage) rechargent ainsi la nouvelle boutique.
+                onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }),
               },
             ]);
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de changer de boutique');
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || 'Impossible de changer de boutique');
           } finally {
             setIsSwitching(false);
           }
@@ -135,7 +151,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary[900]} />
+            <ActivityIndicator size="large" color={Colors.action} />
           </View>
         ) : shops.length <= 1 ? (
           <View style={styles.emptyState}>
@@ -148,7 +164,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
             {Object.entries(groupedShops).map(([enterpriseId, group]) => (
               <View key={enterpriseId} style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Building size={18} color={Colors.primary[900]} />
+                  <Building size={18} color={Colors.action} />
                   <Text style={styles.sectionTitle}>{group.name}</Text>
                 </View>
                 {group.shops.map(item => (
@@ -165,9 +181,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
                       <Store
                         size={24}
                         color={
-                          item.shop.id === currentShopId
-                            ? Colors.primary[900]
-                            : Colors.muted.foreground
+                          item.shop.id === currentShopId ? Colors.action : Colors.muted.foreground
                         }
                       />
                     </View>
@@ -179,7 +193,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
                       </Text>
                     </View>
                     {item.shop.id === currentShopId && (
-                      <CheckCircle size={20} color={Colors.primary[900]} />
+                      <CheckCircle size={20} color={Colors.action} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -203,9 +217,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
                       <Store
                         size={24}
                         color={
-                          item.shop.id === currentShopId
-                            ? Colors.primary[900]
-                            : Colors.muted.foreground
+                          item.shop.id === currentShopId ? Colors.action : Colors.muted.foreground
                         }
                       />
                     </View>
@@ -216,7 +228,7 @@ export default function ShopSwitcherScreen({ navigation }: any) {
                       </Text>
                     </View>
                     {item.shop.id === currentShopId && (
-                      <CheckCircle size={20} color={Colors.primary[900]} />
+                      <CheckCircle size={20} color={Colors.action} />
                     )}
                   </TouchableOpacity>
                 ))}
@@ -274,30 +286,29 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.text,
   },
   shopCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
   },
   shopCardActive: {
-    borderColor: Colors.primary[900],
+    borderColor: Colors.action,
     borderWidth: 2,
-    backgroundColor: `${Colors.primary[900]}08`,
+    backgroundColor: `${Colors.action}0F`,
   },
   shopIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,

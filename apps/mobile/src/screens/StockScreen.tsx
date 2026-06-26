@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Package, Plus, Check, Trash, Edit } from '../components/icons/SimpleIcons';
+import { Package, Plus, Check, Trash } from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { Product, ProductCategory } from '../types/stock';
 import { getProducts, initializeDefaultProducts, saveProducts } from '../utils/stockManager';
 
@@ -29,7 +29,7 @@ interface EditableProduct {
   isEditing?: boolean;
 }
 
-export default function StockScreen({ navigation }: any) {
+export default function StockScreen() {
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -166,7 +166,7 @@ export default function StockScreen({ navigation }: any) {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Articles" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -179,7 +179,7 @@ export default function StockScreen({ navigation }: any) {
         rightAction={
           <View style={styles.headerActions}>
             <IconButton onPress={addNewRow}>
-              <Plus size={24} color={Colors.primary[900]} />
+              <Plus size={24} color={Colors.action} />
             </IconButton>
             {hasChanges && (
               <TouchableOpacity
@@ -318,7 +318,7 @@ export default function StockScreen({ navigation }: any) {
 
         {/* Add row button at bottom */}
         <TouchableOpacity style={styles.addRowButton} onPress={addNewRow}>
-          <Plus size={20} color={Colors.primary[900]} />
+          <Plus size={20} color={Colors.action} />
           <Text style={styles.addRowText}>Ajouter un article</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -376,14 +376,16 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.surfaceAlt,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   headerCell: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
     paddingHorizontal: 4,
   },
   tableRow: {
@@ -442,14 +444,14 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: Colors.border,
+    borderColor: Colors.action,
     margin: Spacing.lg,
     borderRadius: 12,
   },
   addRowText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: Colors.primary[900],
+    fontWeight: '600',
+    color: Colors.action,
   },
   legend: {
     flexDirection: 'row',
@@ -457,8 +459,7 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    ...Shadows.sm,
   },
   legendItem: {
     flexDirection: 'row',

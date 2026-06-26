@@ -51,9 +51,12 @@ export function SearchableSelect({
     <View>
       {label && <Text style={styles.label}>{label}</Text>}
 
-      <TouchableOpacity style={styles.selectButton} onPress={() => setShowModal(true)}>
+      <TouchableOpacity
+        style={[styles.selectButton, !!value && styles.selectButtonActive]}
+        onPress={() => setShowModal(true)}
+      >
         <Text style={[styles.selectText, !value && styles.placeholder]}>{displayText}</Text>
-        <ChevronDown size={20} color={Colors.muted.foreground} />
+        <ChevronDown size={20} color={value ? Colors.action : Colors.textColors.tertiary} />
       </TouchableOpacity>
 
       <Modal
@@ -68,7 +71,7 @@ export function SearchableSelect({
 
             {/* Search Input */}
             <View style={styles.searchContainer}>
-              <Search size={20} color={Colors.muted.foreground} />
+              <Search size={20} color={Colors.action} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Rechercher..."
@@ -101,7 +104,7 @@ export function SearchableSelect({
                       <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                         {fullName}
                       </Text>
-                      {isSelected && <Check size={20} color={Colors.primary[900]} />}
+                      {isSelected && <Check size={20} color={Colors.action} />}
                     </TouchableOpacity>
                   );
                 })
@@ -136,13 +139,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     minHeight: 48,
+  },
+  selectButtonActive: {
+    borderColor: Colors.action,
   },
   selectText: {
     fontSize: 16,
@@ -150,7 +156,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   placeholder: {
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   modalOverlay: {
     flex: 1,
@@ -174,10 +180,10 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     marginHorizontal: Spacing['2xl'],
@@ -200,15 +206,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 48,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
+    borderRadius: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   optionSelected: {
@@ -221,19 +229,19 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   closeButton: {
     marginHorizontal: Spacing['2xl'],
     marginVertical: Spacing.lg,
     padding: Spacing.lg,
-    backgroundColor: Colors.muted.main,
-    borderRadius: 12,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
     alignItems: 'center',
   },
   closeButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textColors.secondary,
   },
 });

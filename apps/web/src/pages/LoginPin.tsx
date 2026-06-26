@@ -13,9 +13,10 @@ export default function LoginPin() {
   const hasAutoSubmittedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Auto-submit when PIN reaches 4 digits and shop code is complete
+  // Auto-submit when PIN is complete and the shop code respects the policy length
   useEffect(() => {
-    if (pin.length === 4 && shopCode.length === 6 && !isLoading && !hasAutoSubmittedRef.current) {
+    const isShopCodeValid = shopCode.length >= 4 && shopCode.length <= 10;
+    if (pin.length === 4 && isShopCodeValid && !isLoading && !hasAutoSubmittedRef.current) {
       hasAutoSubmittedRef.current = true;
       // Trigger form submission programmatically
       formRef.current?.requestSubmit();
@@ -33,7 +34,7 @@ export default function LoginPin() {
     e.preventDefault();
 
     // Validation
-    if (shopCode.length !== 6) {
+    if (shopCode.length < 4 || shopCode.length > 10) {
       return;
     }
 
@@ -53,7 +54,10 @@ export default function LoginPin() {
   };
 
   const handleShopCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+    const value = e.target.value
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 10);
     setShopCode(value);
   };
 
@@ -72,7 +76,7 @@ export default function LoginPin() {
             <div className="mx-auto mb-4 flex items-center justify-center">
               <Logo variant="icon" size="lg" />
             </div>
-            <h1 className="text-3xl font-bold text-primary-900 mb-2">SWALO</h1>
+            <h1 className="text-3xl font-bold text-primary-900 mb-2">Swalo</h1>
             <p className="text-gray-600 text-sm">Gerez, Vendez, Prosperez</p>
           </div>
 
@@ -87,19 +91,19 @@ export default function LoginPin() {
               {/* Code Boutique */}
               <div className="mb-5">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Code Boutique (6 chiffres)
+                  Code Boutique
                 </label>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
                   value={shopCode}
                   onChange={handleShopCodeChange}
-                  placeholder="123456"
-                  maxLength={6}
+                  placeholder="BTQ01"
+                  maxLength={10}
                   autoFocus
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-action-500 focus:ring-2 focus:ring-action-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -117,7 +121,7 @@ export default function LoginPin() {
                   placeholder="••••"
                   maxLength={4}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-primary-700 focus:ring-2 focus:ring-primary-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-center text-lg font-mono tracking-widest bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-action-500 focus:ring-2 focus:ring-action-200 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -131,8 +135,10 @@ export default function LoginPin() {
               {/* Bouton de connexion */}
               <button
                 type="submit"
-                disabled={isLoading || shopCode.length !== 6 || pin.length !== 4}
-                className="w-full py-3 bg-gradient-to-r from-primary-900 to-primary-700 hover:from-primary-800 hover:to-primary-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                disabled={
+                  isLoading || shopCode.length < 4 || shopCode.length > 10 || pin.length !== 4
+                }
+                className="w-full py-3 bg-action-500 hover:bg-action-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -165,7 +171,7 @@ export default function LoginPin() {
           <div className="text-center">
             <Link
               to="/create-shop"
-              className="text-primary-700 text-sm font-medium hover:text-primary-900 hover:underline transition-colors"
+              className="text-action-600 text-sm font-medium hover:text-action-700 hover:underline transition-colors"
             >
               Créer une nouvelle boutique (Admin)
             </Link>
@@ -174,7 +180,7 @@ export default function LoginPin() {
 
         {/* Footer */}
         <div className="mt-6 text-center animate-slide-in">
-          <p className="text-sm text-white font-medium opacity-90">SWALO v1.0 - Gestion Retail</p>
+          <p className="text-sm text-white font-medium opacity-90">Swalo v1.0 - Gestion Retail</p>
         </div>
       </div>
     </div>

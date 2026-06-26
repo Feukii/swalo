@@ -1,53 +1,56 @@
 /**
- * SWALO Web Design System
+ * Swalo Web Design System
  * Miroir du thème mobile (theme-v2.ts) pour cohérence cross-platform
  */
 
 export const Colors = {
   primary: {
-    900: '#0F2A44', // Bleu pétrole
-    700: '#183B5A', // Bleu accent (hover)
-    500: '#1E4D6E',
-    300: '#6B9DBF',
-    100: '#C8DFF0',
-    50: '#EEF5FB', // Fonds bleutés discrets
-    main: '#0F2A44',
+    900: '#0B2A45', // Marine (couleur reine)
+    700: '#154B75', // Marine accent (hover)
+    500: '#2474AD',
+    300: '#8FBEDD',
+    100: '#DCE9F4',
+    50: '#EFF5FA', // Fonds bleutés discrets
+    main: '#0B2A45',
     foreground: '#ffffff',
   },
-  background: '#F8FAFC',
+  // Couleur d'action / interactive (boutons, liens) et accent logo
+  action: '#0EA5E9', // Sky Blue (action)
+  accent: '#38BDF8', // Sky Light (accent)
+  background: '#F5F8FC',
   surface: '#FFFFFF',
-  text: '#0B1220',
+  text: '#0F172A',
   textColors: {
-    primary: '#0B1220',
-    secondary: '#374151',
-    tertiary: '#6B7280',
-    disabled: '#9CA3AF',
+    primary: '#0F172A',
+    secondary: '#475569',
+    tertiary: '#64748B',
+    disabled: '#94A3B8',
     inverse: '#FFFFFF',
   },
   muted: {
-    main: '#E5E7EB',
-    foreground: '#6B7280',
+    main: '#E2E8F0',
+    foreground: '#64748B',
   },
-  border: '#E5E7EB',
+  border: '#E2E8F0',
   success: {
-    main: '#1EB980',
+    main: '#10B981', // Vert fonctionnel (brand)
     background: '#ECFDF5',
     text: '#065F46',
   },
   warning: {
-    main: '#F59E0B',
+    main: '#F59E0B', // Ambre fonctionnel (brand)
     background: '#FFFBEB',
     text: '#92400E',
   },
   danger: {
-    main: '#DC2626',
+    main: '#EF4444', // Rouge fonctionnel (brand)
     background: '#FEF2F2',
     text: '#991B1B',
   },
   info: {
-    main: '#2563EB',
-    background: '#EFF6FF',
-    text: '#1E40AF',
+    main: '#0EA5E9', // Sky Blue (action)
+    background: '#F0F9FF',
+    text: '#075985',
   },
 
   // Couleurs contextuelles
@@ -71,16 +74,16 @@ export const Colors = {
       gradient: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
     },
     products: {
-      main: '#0F2A44', // Bleu pétrole
-      light: '#EEF5FB',
-      dark: '#0B1220',
-      gradient: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
+      main: '#0B2A45', // Marine
+      light: '#EFF5FA',
+      dark: '#07203A',
+      gradient: 'linear-gradient(135deg, #0B2A45 0%, #154B75 100%)',
     },
     sales: {
-      main: '#1EB980', // Green
+      main: '#10B981', // Green (brand)
       light: '#ECFDF5',
       dark: '#065F46',
-      gradient: 'linear-gradient(135deg, #1EB980 0%, #059669 100%)',
+      gradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
     },
   },
 
@@ -89,7 +92,7 @@ export const Colors = {
     SUPERADMIN: { bg: '#F5F3FF', text: '#5B21B6', badge: '#7C3AED' },
     BOSS: { bg: '#FEF2F2', text: '#991B1B', badge: '#DC2626' },
     MANAGER: { bg: '#F0F9FF', text: '#075985', badge: '#0284C7' },
-    EMPLOYEE: { bg: '#EFF6FF', text: '#1E40AF', badge: '#2563EB' },
+    EMPLOYEE: { bg: '#F0F9FF', text: '#075985', badge: '#0EA5E9' },
   },
 
   // Status badges
@@ -99,7 +102,7 @@ export const Colors = {
     blocked: { bg: '#FEF2F2', text: '#991B1B' },
     pending: { bg: '#FFFBEB', text: '#92400E' },
     paid: { bg: '#ECFDF5', text: '#065F46' },
-    partial: { bg: '#EFF6FF', text: '#1E40AF' },
+    partial: { bg: '#F0F9FF', text: '#075985' },
     cancelled: { bg: '#F3F4F6', text: '#6B7280' },
   },
 };
@@ -135,7 +138,7 @@ export const Typography = {
 };
 
 export const Gradients = {
-  primary: 'linear-gradient(135deg, #0F2A44 0%, #183B5A 100%)',
+  primary: 'linear-gradient(135deg, #0B2A45 0%, #154B75 100%)',
   customers: Colors.context.customers.gradient,
   suppliers: Colors.context.suppliers.gradient,
   cash: Colors.context.cash.gradient,

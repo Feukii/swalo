@@ -85,16 +85,16 @@ export default function StockManagement() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+          <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
             <p className="text-sm text-white/80">Valeur totale stock</p>
             <p className="text-3xl font-bold mt-1">{formatCurrency(stats.total_inventory_value)}</p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">Produits actifs</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{stats.active_products}</p>
+            <p className="text-slate-500 text-sm">Produits actifs</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">{stats.active_products}</p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">Stock faible</p>
+            <p className="text-slate-500 text-sm">Stock faible</p>
             <p
               className={`text-3xl font-bold mt-1 ${lowStockProducts.length > 0 ? 'text-warning-600' : 'text-success-600'}`}
             >
@@ -102,7 +102,7 @@ export default function StockManagement() {
             </p>
           </div>
           <div className="card">
-            <p className="text-gray-500 text-sm">Rupture de stock</p>
+            <p className="text-slate-500 text-sm">Rupture de stock</p>
             <p
               className={`text-3xl font-bold mt-1 ${outOfStockProducts.length > 0 ? 'text-danger-600' : 'text-success-600'}`}
             >
@@ -117,7 +117,7 @@ export default function StockManagement() {
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
           <div className="relative flex-1 w-full">
             <svg
-              className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+              className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -155,8 +155,8 @@ export default function StockManagement() {
                 onClick={() => setStockFilter(f.value)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   stockFilter === f.value
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-action-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {f.label} ({f.count})
@@ -168,7 +168,7 @@ export default function StockManagement() {
 
       {/* Stock Table */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Etat du stock</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Etat du stock</h2>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -176,50 +176,52 @@ export default function StockManagement() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">Aucun produit dans cette categorie</p>
+            <p className="text-slate-500">Aucun produit dans cette categorie</p>
           </div>
         ) : (
           <div className="overflow-x-auto -mx-6">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-100">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     SKU
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Produit
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Categorie
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Stock
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Seuil
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Prix achat
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Valeur stock
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filteredProducts.map(product => {
                   const stock = product.current_stock ?? 0;
                   const stockValue = stock * product.cost_price;
                   return (
-                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm text-gray-900">{product.sku}</td>
+                    <tr key={product.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-sm text-slate-900">{product.sku}</td>
                       <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{product.name}</p>
+                        <p className="font-medium text-slate-900">{product.name}</p>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{product.category || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {product.category || '-'}
+                      </td>
                       <td className="px-6 py-4 text-center">
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${getStockColor(product)}`}
@@ -227,19 +229,19 @@ export default function StockManagement() {
                           {stock}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td className="px-6 py-4 text-center text-sm text-slate-500">
                         {product.alert_threshold}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-600">
+                      <td className="px-6 py-4 text-right text-sm text-slate-600">
                         {formatCurrency(product.cost_price)}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-right text-sm font-medium text-slate-900">
                         {formatCurrency(stockValue)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => navigate(`/products/${product.id}/batches`)}
-                          className="text-primary-600 hover:text-primary-700 font-medium text-sm"
+                          className="text-action-600 hover:text-action-700 font-medium text-sm"
                         >
                           Voir lots
                         </button>

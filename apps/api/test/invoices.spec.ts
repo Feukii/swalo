@@ -105,7 +105,9 @@ describe('InvoicesService', () => {
     service = module.get<InvoicesService>(InvoicesService);
     jest.resetAllMocks();
     // Re-set $transaction mock after resetAllMocks (callback pattern)
-    mockPrismaService.$transaction.mockImplementation((cb: any) => cb(mockPrismaService));
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService)
+    );
   });
 
   describe('createFromSale', () => {

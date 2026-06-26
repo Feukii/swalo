@@ -383,11 +383,11 @@ async function main() {
 
   // Recuperer l'entreprise existante (creee par le seed principal)
   const enterprise = await prisma.enterprise.findFirst({
-    where: { code: 'ENT-SWALO' },
+    where: { code: 'ENT-Swalo' },
   });
 
   if (!enterprise) {
-    console.error('Erreur: Entreprise ENT-SWALO non trouvee. Lancez le seed principal d abord.');
+    console.error('Erreur: Entreprise ENT-Swalo non trouvee. Lancez le seed principal d abord.');
     process.exit(1);
   }
 

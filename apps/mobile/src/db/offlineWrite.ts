@@ -40,6 +40,12 @@ import {
   LocalInvoice,
   LocalCashSession,
   LocalInventorySession,
+  LocalStockBatch,
+  LocalInventoryMovement,
+  LocalSupplierDebtPayment,
+  LocalClientReceivablePayment,
+  LocalInvoiceItem,
+  LocalInventoryCount,
 } from './repositories';
 import { enqueueMutation, MutationOp } from './queue';
 import { SyncableEntity } from './schema';
@@ -97,6 +103,8 @@ export interface OfflineSaleInput {
   note?: string;
   expectedTotal?: number;
   pricingNotes?: string;
+  /** Date d'échéance ISO — obligatoire côté serveur pour une vente à crédit. */
+  dueDate?: string;
 }
 
 export async function createSaleOffline(input: OfflineSaleInput): Promise<{ saleId: string }> {
@@ -185,6 +193,9 @@ export async function createSaleOffline(input: OfflineSaleInput): Promise<{ sale
       notes: input.note || null,
       expected_total: input.expectedTotal || null,
       pricing_notes: input.pricingNotes || null,
+      // Échéance de la vente à crédit — requise côté serveur (déclenche les notifications).
+      // Non stockée localement (la table `sales` n'a pas cette colonne), seulement dans le payload de sync.
+      due_date: input.dueDate || null,
       device_id: deviceId,
       client_op_id: clientOpId,
       items: saleItems.map(si => ({
@@ -272,6 +283,8 @@ export interface OfflineStockBatchInput {
   costPrice: number;
   sellPrice: number;
   notes?: string;
+  /** Date de prise en compte du lot (ISO). Par défaut: maintenant. Propagée au serveur (price_valid_from). */
+  priceValidFrom?: string;
 }
 
 export async function createStockBatchOffline(
@@ -280,6 +293,8 @@ export async function createStockBatchOffline(
   const { clientOpId, deviceId } = await generateClientOpId('batch');
   const batchId = generateId();
   const now = nowISO();
+  // Date de prise en compte du lot (réception datée) — défaut: maintenant
+  const validFrom = input.priceValidFrom ?? now;
 
   // Create stock batch locally
   await stockBatchRepo.create({
@@ -290,10 +305,11 @@ export async function createStockBatchOffline(
     remaining_quantity: input.quantity,
     cost_price: input.costPrice,
     sell_price: input.sellPrice,
-    price_valid_from: now,
+    price_valid_from: validFrom,
+    created_at: validFrom,
     price_valid_until: null,
     notes: input.notes || null,
-  } as any);
+  } as Partial<LocalStockBatch>);
 
   // Also create inventory movement locally
   const movementId = generateId();
@@ -312,7 +328,7 @@ export async function createStockBatchOffline(
     device_id: deviceId,
     client_op_id: movClientOpId,
     version: 1,
-  } as any);
+  } as Partial<LocalInventoryMovement>);
 
   // Enqueue batch mutation
   await enqueueAndSync({
@@ -327,7 +343,8 @@ export async function createStockBatchOffline(
       remaining_quantity: input.quantity,
       cost_price: input.costPrice,
       sell_price: input.sellPrice,
-      price_valid_from: now,
+      price_valid_from: validFrom,
+      created_at: validFrom,
       notes: input.notes || null,
       device_id: deviceId,
       client_op_id: clientOpId,
@@ -500,7 +517,7 @@ export async function paySupplierDebtOffline(input: {
     cashier_id: input.cashierId,
     cash_exit_id: null,
     version: 1,
-  } as any);
+  } as Partial<LocalSupplierDebtPayment>);
 
   // Update debt balance locally
   const debt = await supplierDebtRepo.getById(input.debtId);
@@ -544,6 +561,8 @@ export interface OfflineReceivableInput {
   amount: number;
   description?: string;
   notes?: string;
+  /** Date d'échéance ISO — obligatoire côté serveur pour une créance. */
+  dueDate?: string;
 }
 
 export async function createReceivableOffline(
@@ -578,6 +597,9 @@ export async function createReceivableOffline(
       balance: input.amount,
       description: input.description || null,
       notes: input.notes || null,
+      // Échéance — requise côté serveur (déclenche les notifications).
+      // Non stockée localement (la table `client_receivables` n'a pas cette colonne).
+      due_date: input.dueDate || null,
       status: 'PENDING',
     },
     clientOpId: `recv_${receivableId}`,
@@ -606,7 +628,7 @@ export async function payReceivableOffline(input: {
     cashier_id: input.cashierId,
     cash_entry_id: null,
     version: 1,
-  } as any);
+  } as Partial<LocalClientReceivablePayment>);
 
   // Update receivable balance locally
   const receivable = await clientReceivableRepo.getById(input.receivableId);
@@ -857,7 +879,7 @@ export async function createInvoiceOffline(
       tax_total: itemTaxTotal,
       total: itemTotal,
       version: 1,
-    } as any);
+    } as Partial<LocalInvoiceItem>);
   }
 
   await enqueueAndSync({
@@ -950,7 +972,7 @@ export async function addInventoryCountOffline(input: {
     difference: input.countedQty - input.expectedQty,
     notes: input.notes || null,
     version: 1,
-  } as any);
+  } as Partial<LocalInventoryCount>);
 
   await enqueueAndSync({
     entity: 'inventory_counts',
@@ -1159,6 +1181,10 @@ export interface OfflineCustomerInput {
   address?: string;
   creditLimit?: number;
   notes?: string;
+  /** Canaux de notification d'échéance/relance (gérés côté serveur). */
+  smsNotificationsEnabled?: boolean;
+  whatsappNotificationsEnabled?: boolean;
+  emailNotificationsEnabled?: boolean;
 }
 
 export async function createCustomerOffline(
@@ -1198,6 +1224,17 @@ export async function createCustomerOffline(
       credit_limit: input.creditLimit ?? 0,
       notes: input.notes || null,
       is_active: true,
+      // Préférences de notification — appliquées côté serveur à la synchro.
+      // Non stockées localement (la table `customers` n'a pas ces colonnes).
+      ...(input.smsNotificationsEnabled !== undefined && {
+        sms_notifications_enabled: input.smsNotificationsEnabled,
+      }),
+      ...(input.whatsappNotificationsEnabled !== undefined && {
+        whatsapp_notifications_enabled: input.whatsappNotificationsEnabled,
+      }),
+      ...(input.emailNotificationsEnabled !== undefined && {
+        email_notifications_enabled: input.emailNotificationsEnabled,
+      }),
     },
     clientOpId: `cust_${customerId}`,
     deviceId,
@@ -1220,6 +1257,17 @@ export async function updateCustomerOffline(
   if (data.creditLimit !== undefined) updateData.credit_limit = data.creditLimit;
   if (data.notes !== undefined) updateData.notes = data.notes;
 
+  // Préférences de notification — appliquées côté serveur uniquement.
+  // Les colonnes n'existent pas dans la table locale `customers`, on ne les
+  // envoie donc que dans le payload de sync (pas dans customerRepo.update).
+  const notificationData: Record<string, unknown> = {};
+  if (data.smsNotificationsEnabled !== undefined)
+    notificationData.sms_notifications_enabled = data.smsNotificationsEnabled;
+  if (data.whatsappNotificationsEnabled !== undefined)
+    notificationData.whatsapp_notifications_enabled = data.whatsappNotificationsEnabled;
+  if (data.emailNotificationsEnabled !== undefined)
+    notificationData.email_notifications_enabled = data.emailNotificationsEnabled;
+
   await customerRepo.update(customerId, updateData as Partial<LocalCustomer>);
 
   const { deviceId } = await generateClientOpId('cust_upd');
@@ -1227,7 +1275,7 @@ export async function updateCustomerOffline(
     entity: 'customers',
     op: 'update',
     entityId: customerId,
-    data: { id: customerId, ...updateData },
+    data: { id: customerId, ...updateData, ...notificationData },
     clientOpId: `cust_upd_${customerId}_${Date.now()}`,
     deviceId,
   });

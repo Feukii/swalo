@@ -11,6 +11,29 @@ import {
   CreateShopDto,
   UpdateShopCodeDto,
 } from './dto/auth.dto';
+import { normalizeShopCode, SHOP_CODE_MIN_LENGTH, SHOP_CODE_MAX_LENGTH } from '@swalo/core/schemas';
+import {
+  resolveEffectivePermissions,
+  type Role as PermissionRole,
+} from '@swalo/core/modules/permissions';
+
+/** Alphabet utilisé pour générer un code boutique (alphanumérique majuscule). */
+const SHOP_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+/** Longueur des codes boutique générés automatiquement. */
+const GENERATED_SHOP_CODE_LENGTH = 6;
+
+/**
+ * Génère un code boutique aléatoire alphanumérique majuscule.
+ * Longueur bornée par la politique (min/max).
+ */
+function generateShopCode(length: number = GENERATED_SHOP_CODE_LENGTH): string {
+  const size = Math.min(Math.max(length, SHOP_CODE_MIN_LENGTH), SHOP_CODE_MAX_LENGTH);
+  let code = '';
+  for (let i = 0; i < size; i++) {
+    code += SHOP_CODE_ALPHABET[Math.floor(Math.random() * SHOP_CODE_ALPHABET.length)];
+  }
+  return code;
+}
 
 @Injectable()
 export class AuthService {
@@ -78,6 +101,9 @@ export class AuthService {
     // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    // Normaliser le code boutique (majuscules) avant écriture / dérivation
+    const shopCode = normalizeShopCode(dto.shop_code);
+
     // Créer l'utilisateur et la boutique dans une transaction
     const result = await this.prisma.$transaction(async tx => {
       // Créer l'utilisateur
@@ -91,7 +117,7 @@ export class AuthService {
       });
 
       // Créer l'entreprise automatiquement
-      const enterpriseCode = `ENT-${dto.shop_code}`;
+      const enterpriseCode = `ENT-${shopCode}`;
       const enterprise = await tx.enterprise.create({
         data: {
           code: enterpriseCode,
@@ -106,9 +132,9 @@ export class AuthService {
       // Créer la boutique rattachée à l'entreprise
       const shop = await tx.shop.create({
         data: {
-          code: dto.shop_code,
+          code: shopCode,
           name: dto.shop_name,
-          currency: dto.currency || 'XOF',
+          currency: dto.currency && dto.currency.length > 0 ? dto.currency : 'XOF',
           owner_id: user.id,
           enterprise_id: enterprise.id,
         },
@@ -156,14 +182,15 @@ export class AuthService {
     }
 
     // Vérifier si l'utilisateur est bloqué
-    if ((user as any).is_blocked) {
+    if (user.is_blocked) {
       throw new UnauthorizedException(
-        `Votre compte est bloqué. Raison : ${(user as any).blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `Votre compte est bloqué. Raison : ${user.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
     // Sélectionner la boutique (première par défaut)
-    const shopId = dto.shop_id || user.user_roles[0]?.shop_id;
+    const shopId =
+      dto.shop_id && dto.shop_id.length > 0 ? dto.shop_id : user.user_roles[0]?.shop_id;
 
     if (!shopId) {
       throw new UnauthorizedException('Aucune boutique associée à cet utilisateur');
@@ -178,7 +205,7 @@ export class AuthService {
     // Vérifier si la boutique est bloquée
     if (userRole.shop.is_blocked) {
       throw new UnauthorizedException(
-        `Cette boutique est bloquée. Raison : ${userRole.shop.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `Cette boutique est bloquée. Raison : ${userRole.shop.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
@@ -188,7 +215,7 @@ export class AuthService {
     });
     if (enterprise?.is_blocked) {
       throw new UnauthorizedException(
-        `L'entreprise est bloquée. Raison : ${enterprise.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `L'entreprise est bloquée. Raison : ${enterprise.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
@@ -222,7 +249,7 @@ export class AuthService {
 
   /**
    * Authentification par code Boutique + PIN (6 chiffres + 4 chiffres)
-   * Conforme au CDC SWALO - Section 2 & 3.8
+   * Conforme au CDC Swalo - Section 2 & 3.8
    * Avec vérification d'appareil pour les employés
    */
   async loginWithPin(
@@ -230,9 +257,12 @@ export class AuthService {
     deviceInfo?: { device_id: string; device_name?: string; device_type?: string }
   ) {
     // 1. Vérifier que la boutique existe
+    // Normalisation défensive : la casse doit correspondre exactement au stockage
+    // (le lookup Postgres est sensible à la casse), même si le DTO normalise déjà.
+    const shopCode = normalizeShopCode(dto.shop_code);
     const shop = await this.prisma.shop.findUnique({
       where: {
-        code: dto.shop_code,
+        code: shopCode,
         deleted: false,
       },
     });
@@ -274,14 +304,14 @@ export class AuthService {
     // Vérifier si l'utilisateur est bloqué
     if (user.is_blocked) {
       throw new UnauthorizedException(
-        `Votre compte est bloqué. Raison : ${user.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `Votre compte est bloqué. Raison : ${user.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
     // Vérifier si la boutique est bloquée
     if (shop.is_blocked) {
       throw new UnauthorizedException(
-        `Cette boutique est bloquée. Raison : ${shop.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `Cette boutique est bloquée. Raison : ${shop.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
@@ -291,7 +321,7 @@ export class AuthService {
     });
     if (shopEnterprise?.is_blocked) {
       throw new UnauthorizedException(
-        `L'entreprise est bloquée. Raison : ${shopEnterprise.blocked_reason || 'Non spécifiée'}. Contactez votre administrateur.`
+        `L'entreprise est bloquée. Raison : ${shopEnterprise.blocked_reason ?? 'Non spécifiée'}. Contactez votre administrateur.`
       );
     }
 
@@ -362,7 +392,10 @@ export class AuthService {
             shop_id: shop.id,
             device_id: deviceInfo.device_id,
             device_name: deviceInfo.device_name,
-            device_type: deviceInfo.device_type || 'mobile',
+            device_type:
+              deviceInfo.device_type && deviceInfo.device_type.length > 0
+                ? deviceInfo.device_type
+                : 'mobile',
             last_login_at: new Date(),
             is_active: true,
           },
@@ -394,7 +427,7 @@ export class AuthService {
           }
         : null,
       role: userRole.role,
-      enabled_modules: shop.enabled_modules ?? [],
+      enabled_modules: shop.enabled_modules,
       license_tier: shopEnterprise?.license_tier ?? null,
       ...tokens,
     };
@@ -448,12 +481,12 @@ export class AuthService {
    * Génère automatiquement shop_code (6 chiffres) et PIN propriétaire (4 chiffres)
    */
   async createShop(dto: CreateShopDto) {
-    // Générer un code boutique unique (6 chiffres)
+    // Générer un code boutique unique (alphanumérique majuscule)
     let shopCode: string;
     let isUnique = false;
 
     while (!isUnique) {
-      shopCode = Math.floor(100000 + Math.random() * 900000).toString();
+      shopCode = generateShopCode();
       const existing = await this.prisma.shop.findUnique({
         where: { code: shopCode },
       });
@@ -506,7 +539,7 @@ export class AuthService {
         data: {
           code: shopCode,
           name: dto.shop_name,
-          currency: dto.currency || 'XOF',
+          currency: dto.currency && dto.currency.length > 0 ? dto.currency : 'XOF',
           owner_id: owner.id,
           enterprise_id: enterprise.id,
         },
@@ -560,6 +593,7 @@ export class AuthService {
                     logo_url: true,
                     license_tier: true,
                     licensed_until: true,
+                    default_module_permissions: true,
                   },
                 },
               },
@@ -573,23 +607,36 @@ export class AuthService {
       throw new UnauthorizedException('Utilisateur non trouvé');
     }
 
-    const primaryRole = user.user_roles[0] ?? null;
+    const primaryRole = user.user_roles.at(0);
     const { password_hash: _passwordHash2, user_roles, ...userWithoutPassword } = user;
 
     const shop = primaryRole ? primaryRole.shop : null;
-    const enterprise = primaryRole?.shop?.enterprise ?? null;
+    const enterprise = primaryRole?.shop.enterprise ?? null;
+
+    // Permissions effectives du rôle pour la boutique courante :
+    // config boutique > défaut entreprise > défauts intégrés.
+    // Robuste si l'utilisateur n'a pas de boutique (renvoie les défauts du rôle).
+    const role = primaryRole ? primaryRole.role : null;
+    const permissions = role
+      ? resolveEffectivePermissions(
+          role as PermissionRole,
+          shop?.module_permissions ?? null,
+          enterprise?.default_module_permissions ?? null
+        )
+      : null;
 
     return {
       user: userWithoutPassword,
       shop,
       enterprise,
-      role: primaryRole ? primaryRole.role : null,
+      role,
       roles: user_roles.map(role => ({
         role: role.role,
         shop: role.shop,
       })),
       enabled_modules: shop?.enabled_modules ?? [],
       license_tier: enterprise?.license_tier ?? null,
+      permissions,
     };
   }
 
@@ -615,7 +662,7 @@ export class AuthService {
       throw new UnauthorizedException('Utilisateur non trouvé');
     }
 
-    const userRole = user.user_roles[0];
+    const userRole = user.user_roles.at(0);
     if (!userRole) {
       throw new UnauthorizedException("Vous n'avez pas accès à cette boutique");
     }
@@ -630,12 +677,12 @@ export class AuthService {
       throw new UnauthorizedException('Code PIN incorrect');
     }
 
-    // 4. Générer un nouveau code boutique unique (6 chiffres)
+    // 4. Générer un nouveau code boutique unique (alphanumérique majuscule)
     let newShopCode = '';
     let isUnique = false;
 
     while (!isUnique) {
-      newShopCode = Math.floor(100000 + Math.random() * 900000).toString();
+      newShopCode = generateShopCode();
       const existing = await this.prisma.shop.findUnique({
         where: { code: newShopCode },
       });
@@ -755,7 +802,7 @@ export class AuthService {
    */
   async verifyShopExists(code: string) {
     const shop = await this.prisma.shop.findUnique({
-      where: { code, deleted: false },
+      where: { code: normalizeShopCode(code), deleted: false },
       select: {
         id: true,
         name: true,

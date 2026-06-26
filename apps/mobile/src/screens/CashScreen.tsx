@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { DollarSign, Plus, Minus } from '../components/icons/SimpleIcons';
-import { ScreenHeader, ListItem, SearchableSelect } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Plus, Minus, ArrowDown, ArrowUp } from '../components/icons/SimpleIcons';
+import { ScreenHeader, SearchableSelect } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
@@ -24,9 +24,6 @@ import {
   supplierDebtRepo,
   customerRepo,
   supplierRepo,
-  LocalCashEntry,
-  LocalClientReceivable,
-  LocalSupplierDebt,
   LocalCustomer,
   LocalSupplier,
 } from '../db/repositories';
@@ -36,6 +33,7 @@ import {
   createSupplierDebtOffline,
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
+import { checkBorrowingLimit } from '../utils/borrowingCheck';
 
 // Interface pour les transactions de caisse (cash + crédit)
 interface CashTransaction {
@@ -79,7 +77,7 @@ const getCategoryLabel = (category: string, isCredit?: boolean): string => {
   return baseLabel;
 };
 
-export default function CashScreen({ navigation }: any) {
+export default function CashScreen() {
   const { shopId, userId } = useCurrentUser();
   const [refreshing, setRefreshing] = useState(false);
   const [cashStats, setCashStats] = useState({
@@ -472,6 +470,20 @@ export default function CashScreen({ navigation }: any) {
     try {
       // Si achat à crédit, créer une dette fournisseur au lieu d'une sortie de caisse
       if (exitCategory === 'achats_marchandises' && exitPaymentMode === 'credit') {
+        // Vérifier le plafond d'endettement du fournisseur
+        const creditSupplier = suppliers.find(s => s.id === selectedSupplierId);
+        const borrowingError = await checkBorrowingLimit(
+          shopId,
+          selectedSupplierId,
+          creditSupplier?.borrowing_limit || 0,
+          exitAmount
+        );
+        if (borrowingError) {
+          Alert.alert('Plafond d endettement atteint', borrowingError);
+          setIsSubmitting(false);
+          return;
+        }
+
         await createSupplierDebtOffline({
           shopId,
           supplierId: selectedSupplierId,
@@ -560,81 +572,72 @@ export default function CashScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScreenHeader title="Caisse" />
+      <ScreenHeader title="Caisse" subtitle="Mouvements du jour" />
 
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Solde Header */}
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceLabel}>Solde de caisse</Text>
-          <Text style={styles.balanceAmount}>{formatMoney(cashStats.balance)}</Text>
-        </View>
+        {/* Carte HERO marine — solde de caisse */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Solde de caisse</Text>
+          <Text style={styles.heroAmount}>
+            {formatMoney(cashStats.balance)
+              .replace(/\s?F(CFA)?$/i, '')
+              .trim()}
+            <Text style={styles.heroAmountUnit}> F</Text>
+          </Text>
 
-        {/* Bloc Entrées/Sorties/Net du jour */}
-        <View style={styles.dailySummaryCard}>
-          <View style={styles.dailySummaryRow}>
-            <View style={styles.dailySummaryItem}>
-              <Text style={styles.dailySummaryLabel}>Entrées du jour</Text>
-              <Text style={[styles.dailySummaryValue, { color: Colors.success.main }]}>
+          <View style={styles.heroSummaryRow}>
+            <View style={styles.heroSummaryItem}>
+              <Text style={styles.heroSummaryLabel}>Entrées du jour</Text>
+              <Text style={[styles.heroSummaryValue, { color: Colors.success.main }]}>
                 +{formatMoney(cashStats.entries)}
               </Text>
             </View>
-            <View style={styles.dailySummaryDivider} />
-            <View style={styles.dailySummaryItem}>
-              <Text style={styles.dailySummaryLabel}>Sorties du jour</Text>
-              <Text style={[styles.dailySummaryValue, { color: Colors.danger.main }]}>
-                -{formatMoney(cashStats.exits)}
+            <View style={styles.heroSummaryItem}>
+              <Text style={styles.heroSummaryLabel}>Sorties du jour</Text>
+              <Text style={[styles.heroSummaryValue, { color: Colors.danger.main }]}>
+                {formatMoney(cashStats.exits)}
               </Text>
             </View>
           </View>
-          <View style={styles.dailySummaryNetRow}>
-            <Text style={styles.dailySummaryNetLabel}>Net du jour</Text>
-            <Text
-              style={[
-                styles.dailySummaryNetValue,
-                { color: cashStats.net >= 0 ? Colors.success.main : Colors.danger.main },
-              ]}
-            >
-              {cashStats.net >= 0 ? '+' : '-'}
-              {formatMoney(Math.abs(cashStats.net))}
-            </Text>
-          </View>
         </View>
 
-        {/* Action Buttons */}
+        {/* Boutons Entrée / Sortie */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+            style={[styles.actionButton, styles.actionButtonIn]}
             onPress={handleOpenEntryModal}
+            activeOpacity={0.85}
           >
-            <Plus size={20} color={Colors.primary.foreground} />
-            <Text style={styles.actionButtonText}>Entrée</Text>
+            <View style={[styles.actionIconBadge, { backgroundColor: Colors.success.main }]}>
+              <Plus size={16} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.actionButtonText, { color: Colors.success.main }]}>Entrée</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: Colors.danger.main }]}
+            style={[styles.actionButton, styles.actionButtonOut]}
             onPress={handleOpenExitModal}
+            activeOpacity={0.85}
           >
-            <Minus size={20} color={Colors.primary.foreground} />
-            <Text style={styles.actionButtonText}>Sortie</Text>
+            <View style={[styles.actionIconBadge, { backgroundColor: Colors.danger.main }]}>
+              <Minus size={16} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.actionButtonText, { color: Colors.danger.main }]}>Sortie</Text>
           </TouchableOpacity>
         </View>
 
         {/* Journal du jour */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Journal du jour</Text>
-          </View>
-          <View>
+        <View>
+          <Text style={styles.sectionTitle}>Journal du jour</Text>
+          <View style={styles.journalCard}>
             {todayTransactions.length === 0 ? (
-              <View style={{ padding: Spacing['3xl'], alignItems: 'center' }}>
-                <Text style={{ color: Colors.muted.foreground, fontSize: 14 }}>
-                  Aucune transaction aujourd'hui
-                </Text>
+              <View style={styles.journalEmpty}>
+                <Text style={styles.journalEmptyText}>Aucune transaction aujourd'hui</Text>
               </View>
             ) : (
-              todayTransactions.map(transaction => {
+              todayTransactions.map((transaction, index) => {
                 // Look up customer/supplier name from local state
                 const customerMatch = transaction.customer_id
                   ? customers.find(c => c.id === transaction.customer_id)
@@ -648,34 +651,44 @@ export default function CashScreen({ navigation }: any) {
                     ? `${supplierMatch.first_name || ''} ${supplierMatch.name}`.trim()
                     : '';
 
-                const subtitle = `${formatTransactionTime(transaction.created_at)}${personName ? ` - ${personName}` : ''}${transaction.note ? ` - ${transaction.note}` : ''}`;
-
-                // Couleur différente pour les transactions à crédit
-                const amountColor = transaction.isCredit
-                  ? 'warning'
-                  : transaction.type === 'IN'
-                    ? 'success'
-                    : 'danger';
+                const isIn = transaction.type === 'IN';
+                const tint = isIn ? Colors.success : Colors.danger;
+                const time = formatTransactionTime(transaction.created_at);
+                const modeLabel = transaction.isCredit ? 'Crédit' : 'Cash';
+                const title = personName
+                  ? `${getCategoryLabel(transaction.category, transaction.isCredit)} — ${personName}`
+                  : getCategoryLabel(transaction.category, transaction.isCredit);
 
                 return (
-                  <ListItem
+                  <TouchableOpacity
                     key={transaction.id}
-                    icon={
-                      <DollarSign
-                        size={20}
-                        color={transaction.isCredit ? Colors.warning.main : Colors.primary[900]}
-                      />
-                    }
-                    title={getCategoryLabel(transaction.category, transaction.isCredit)}
-                    subtitle={subtitle}
-                    amount={
-                      transaction.type === 'IN'
-                        ? `+${formatMoney(transaction.amount)}`
-                        : `-${formatMoney(transaction.amount)}`
-                    }
-                    amountColor={amountColor}
-                    onClick={() => handleTransactionClick(transaction)}
-                  />
+                    style={[
+                      styles.journalRow,
+                      index === todayTransactions.length - 1 && styles.journalRowLast,
+                    ]}
+                    onPress={() => handleTransactionClick(transaction)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.journalIcon, { backgroundColor: tint.background }]}>
+                      {isIn ? (
+                        <ArrowDown size={18} color={tint.main} />
+                      ) : (
+                        <ArrowUp size={18} color={tint.main} />
+                      )}
+                    </View>
+                    <View style={styles.journalInfo}>
+                      <Text style={styles.journalTitle} numberOfLines={1}>
+                        {title}
+                      </Text>
+                      <Text style={styles.journalSubtitle} numberOfLines={1}>
+                        {time} · {modeLabel}
+                      </Text>
+                    </View>
+                    <Text style={[styles.journalAmount, { color: tint.main }]}>
+                      {isIn ? '+' : '-'}
+                      {formatMoney(transaction.amount)}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -820,34 +833,32 @@ export default function CashScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      {/* Entry Modal */}
+      {/* Entry Modal — sheet "Entrée de caisse" */}
       <Modal
         visible={showEntryModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowEntryModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContent}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Entrée de caisse</Text>
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <ScrollView
+              contentContainerStyle={styles.sheetScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.sheetTitle}>Entrée de caisse</Text>
 
               {/* Catégories */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Catégorie</Text>
-                <View style={styles.categoryGrid}>
+                <View style={styles.chipRow}>
                   <TouchableOpacity
-                    style={[
-                      styles.categoryButton,
-                      entryCategory === 'ventes' && styles.categoryButtonActive,
-                    ]}
+                    style={[styles.chip, entryCategory === 'ventes' && styles.chipActive]}
                     onPress={() => setEntryCategory('ventes')}
                   >
                     <Text
-                      style={[
-                        styles.categoryButtonText,
-                        entryCategory === 'ventes' && styles.categoryButtonTextActive,
-                      ]}
+                      style={[styles.chipText, entryCategory === 'ventes' && styles.chipTextActive]}
                     >
                       Ventes
                     </Text>
@@ -855,15 +866,15 @@ export default function CashScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={[
-                      styles.categoryButton,
-                      entryCategory === 'remboursement_client' && styles.categoryButtonActive,
+                      styles.chip,
+                      entryCategory === 'remboursement_client' && styles.chipActive,
                     ]}
                     onPress={() => setEntryCategory('remboursement_client')}
                   >
                     <Text
                       style={[
-                        styles.categoryButtonText,
-                        entryCategory === 'remboursement_client' && styles.categoryButtonTextActive,
+                        styles.chipText,
+                        entryCategory === 'remboursement_client' && styles.chipTextActive,
                       ]}
                     >
                       Remb. client
@@ -871,17 +882,11 @@ export default function CashScreen({ navigation }: any) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.categoryButton,
-                      entryCategory === 'divers' && styles.categoryButtonActive,
-                    ]}
+                    style={[styles.chip, entryCategory === 'divers' && styles.chipActive]}
                     onPress={() => setEntryCategory('divers')}
                   >
                     <Text
-                      style={[
-                        styles.categoryButtonText,
-                        entryCategory === 'divers' && styles.categoryButtonTextActive,
-                      ]}
+                      style={[styles.chipText, entryCategory === 'divers' && styles.chipTextActive]}
                     >
                       Divers
                     </Text>
@@ -893,12 +898,9 @@ export default function CashScreen({ navigation }: any) {
               {entryCategory === 'ventes' && (
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Mode de paiement</Text>
-                  <View style={styles.categoryGrid}>
+                  <View style={styles.chipRow}>
                     <TouchableOpacity
-                      style={[
-                        styles.categoryButton,
-                        entryPaymentMode === 'cash' && styles.categoryButtonActive,
-                      ]}
+                      style={[styles.chip, entryPaymentMode === 'cash' && styles.chipActive]}
                       onPress={() => {
                         setEntryPaymentMode('cash');
                         setSelectedCustomerId('');
@@ -906,8 +908,8 @@ export default function CashScreen({ navigation }: any) {
                     >
                       <Text
                         style={[
-                          styles.categoryButtonText,
-                          entryPaymentMode === 'cash' && styles.categoryButtonTextActive,
+                          styles.chipText,
+                          entryPaymentMode === 'cash' && styles.chipTextActive,
                         ]}
                       >
                         Cash
@@ -915,16 +917,13 @@ export default function CashScreen({ navigation }: any) {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[
-                        styles.categoryButton,
-                        entryPaymentMode === 'credit' && styles.categoryButtonActive,
-                      ]}
+                      style={[styles.chip, entryPaymentMode === 'credit' && styles.chipActive]}
                       onPress={() => setEntryPaymentMode('credit')}
                     >
                       <Text
                         style={[
-                          styles.categoryButtonText,
-                          entryPaymentMode === 'credit' && styles.categoryButtonTextActive,
+                          styles.chipText,
+                          entryPaymentMode === 'credit' && styles.chipTextActive,
                         ]}
                       >
                         Crédit
@@ -961,11 +960,11 @@ export default function CashScreen({ navigation }: any) {
               )}
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Montant (FCFA) *</Text>
+                <Text style={styles.formLabel}>Montant (FCFA)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.amountInput}
                   placeholder="0"
-                  placeholderTextColor={Colors.muted.foreground}
+                  placeholderTextColor={Colors.textColors.disabled}
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="numeric"
@@ -990,58 +989,62 @@ export default function CashScreen({ navigation }: any) {
                 />
               </View>
 
-              <View style={styles.modalActions}>
+              <View style={styles.sheetActions}>
                 <TouchableOpacity
-                  style={styles.modalCancelButton}
+                  style={styles.sheetCancelButton}
                   onPress={() => setShowEntryModal(false)}
                   disabled={isSubmitting}
                 >
-                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                  <Text style={styles.sheetCancelButtonText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalSubmitButton, { backgroundColor: Colors.success.main }]}
+                  style={[styles.sheetSubmitButton, { backgroundColor: Colors.success.main }]}
                   onPress={handleSubmitEntry}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.modalSubmitButtonText}>Valider</Text>
+                    <Text style={styles.sheetSubmitButtonText}>Valider</Text>
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
-      {/* Exit Modal */}
+      {/* Exit Modal — sheet "Sortie de caisse" */}
       <Modal
         visible={showExitModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowExitModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContent}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Sortie de caisse</Text>
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <ScrollView
+              contentContainerStyle={styles.sheetScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.sheetTitle}>Sortie de caisse</Text>
 
               {/* Catégories */}
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Catégorie</Text>
-                <View style={styles.categoryGrid}>
+                <View style={styles.chipRow}>
                   <TouchableOpacity
                     style={[
-                      styles.categoryButton,
-                      exitCategory === 'achats_marchandises' && styles.categoryButtonActive,
+                      styles.chip,
+                      exitCategory === 'achats_marchandises' && styles.chipActive,
                     ]}
                     onPress={() => setExitCategory('achats_marchandises')}
                   >
                     <Text
                       style={[
-                        styles.categoryButtonText,
-                        exitCategory === 'achats_marchandises' && styles.categoryButtonTextActive,
+                        styles.chipText,
+                        exitCategory === 'achats_marchandises' && styles.chipTextActive,
                       ]}
                     >
                       Achats
@@ -1049,17 +1052,11 @@ export default function CashScreen({ navigation }: any) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.categoryButton,
-                      exitCategory === 'loyers' && styles.categoryButtonActive,
-                    ]}
+                    style={[styles.chip, exitCategory === 'loyers' && styles.chipActive]}
                     onPress={() => setExitCategory('loyers')}
                   >
                     <Text
-                      style={[
-                        styles.categoryButtonText,
-                        exitCategory === 'loyers' && styles.categoryButtonTextActive,
-                      ]}
+                      style={[styles.chipText, exitCategory === 'loyers' && styles.chipTextActive]}
                     >
                       Loyers
                     </Text>
@@ -1067,15 +1064,15 @@ export default function CashScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={[
-                      styles.categoryButton,
-                      exitCategory === 'reglement_fournisseur' && styles.categoryButtonActive,
+                      styles.chip,
+                      exitCategory === 'reglement_fournisseur' && styles.chipActive,
                     ]}
                     onPress={() => setExitCategory('reglement_fournisseur')}
                   >
                     <Text
                       style={[
-                        styles.categoryButtonText,
-                        exitCategory === 'reglement_fournisseur' && styles.categoryButtonTextActive,
+                        styles.chipText,
+                        exitCategory === 'reglement_fournisseur' && styles.chipTextActive,
                       ]}
                     >
                       Règl. fourn.
@@ -1084,15 +1081,15 @@ export default function CashScreen({ navigation }: any) {
 
                   <TouchableOpacity
                     style={[
-                      styles.categoryButton,
-                      exitCategory === 'depenses_courantes' && styles.categoryButtonActive,
+                      styles.chip,
+                      exitCategory === 'depenses_courantes' && styles.chipActive,
                     ]}
                     onPress={() => setExitCategory('depenses_courantes')}
                   >
                     <Text
                       style={[
-                        styles.categoryButtonText,
-                        exitCategory === 'depenses_courantes' && styles.categoryButtonTextActive,
+                        styles.chipText,
+                        exitCategory === 'depenses_courantes' && styles.chipTextActive,
                       ]}
                     >
                       Dépenses
@@ -1100,17 +1097,11 @@ export default function CashScreen({ navigation }: any) {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.categoryButton,
-                      exitCategory === 'divers' && styles.categoryButtonActive,
-                    ]}
+                    style={[styles.chip, exitCategory === 'divers' && styles.chipActive]}
                     onPress={() => setExitCategory('divers')}
                   >
                     <Text
-                      style={[
-                        styles.categoryButtonText,
-                        exitCategory === 'divers' && styles.categoryButtonTextActive,
-                      ]}
+                      style={[styles.chipText, exitCategory === 'divers' && styles.chipTextActive]}
                     >
                       Divers
                     </Text>
@@ -1122,12 +1113,9 @@ export default function CashScreen({ navigation }: any) {
               {exitCategory === 'achats_marchandises' && (
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Mode de paiement</Text>
-                  <View style={styles.categoryGrid}>
+                  <View style={styles.chipRow}>
                     <TouchableOpacity
-                      style={[
-                        styles.categoryButton,
-                        exitPaymentMode === 'cash' && styles.categoryButtonActive,
-                      ]}
+                      style={[styles.chip, exitPaymentMode === 'cash' && styles.chipActive]}
                       onPress={() => {
                         setExitPaymentMode('cash');
                         setSelectedSupplierId('');
@@ -1135,8 +1123,8 @@ export default function CashScreen({ navigation }: any) {
                     >
                       <Text
                         style={[
-                          styles.categoryButtonText,
-                          exitPaymentMode === 'cash' && styles.categoryButtonTextActive,
+                          styles.chipText,
+                          exitPaymentMode === 'cash' && styles.chipTextActive,
                         ]}
                       >
                         Cash
@@ -1144,16 +1132,13 @@ export default function CashScreen({ navigation }: any) {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[
-                        styles.categoryButton,
-                        exitPaymentMode === 'credit' && styles.categoryButtonActive,
-                      ]}
+                      style={[styles.chip, exitPaymentMode === 'credit' && styles.chipActive]}
                       onPress={() => setExitPaymentMode('credit')}
                     >
                       <Text
                         style={[
-                          styles.categoryButtonText,
-                          exitPaymentMode === 'credit' && styles.categoryButtonTextActive,
+                          styles.chipText,
+                          exitPaymentMode === 'credit' && styles.chipTextActive,
                         ]}
                       >
                         Crédit
@@ -1190,11 +1175,11 @@ export default function CashScreen({ navigation }: any) {
               )}
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Montant (FCFA) *</Text>
+                <Text style={styles.formLabel}>Montant (FCFA)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.amountInput}
                   placeholder="0"
-                  placeholderTextColor={Colors.muted.foreground}
+                  placeholderTextColor={Colors.textColors.disabled}
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="numeric"
@@ -1219,28 +1204,28 @@ export default function CashScreen({ navigation }: any) {
                 />
               </View>
 
-              <View style={styles.modalActions}>
+              <View style={styles.sheetActions}>
                 <TouchableOpacity
-                  style={styles.modalCancelButton}
+                  style={styles.sheetCancelButton}
                   onPress={() => setShowExitModal(false)}
                   disabled={isSubmitting}
                 >
-                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                  <Text style={styles.sheetCancelButtonText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalSubmitButton, { backgroundColor: Colors.danger.main }]}
+                  style={[styles.sheetSubmitButton, { backgroundColor: Colors.danger.main }]}
                   onPress={handleSubmitExit}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.modalSubmitButtonText}>Valider</Text>
+                    <Text style={styles.sheetSubmitButtonText}>Valider</Text>
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1255,80 +1240,50 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
     paddingBottom: 80,
-    gap: Spacing['2xl'],
+    gap: Spacing.xl,
   },
-  balanceHeader: {
+  // --- Carte HERO marine ---
+  heroCard: {
     backgroundColor: Colors.primary[900],
-    padding: Spacing['3xl'],
-    borderRadius: 18,
-    alignItems: 'center',
+    borderRadius: 20,
+    padding: Spacing.xl,
+    ...Shadows.md,
   },
-  balanceLabel: {
-    fontSize: 14,
-    color: Colors.primary.foreground,
-    marginBottom: Spacing.sm,
-    opacity: 0.9,
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.primary.foreground,
-    fontVariant: ['tabular-nums'],
-  },
-  dailySummaryCard: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  dailySummaryRow: {
-    flexDirection: 'row',
-    padding: Spacing.lg,
-  },
-  dailySummaryItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  dailySummaryDivider: {
-    width: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.md,
-  },
-  dailySummaryLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.xs,
-  },
-  dailySummaryValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  dailySummaryNetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  dailySummaryNetLabel: {
+  heroLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.text,
+    color: Colors.accent,
+    marginBottom: Spacing.xs,
   },
-  dailySummaryNetValue: {
-    fontSize: 20,
+  heroAmount: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
+  },
+  heroAmountUnit: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.accent,
+  },
+  heroSummaryRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xl,
+  },
+  heroSummaryItem: {
+    flex: 1,
+  },
+  heroSummaryLabel: {
+    fontSize: 12,
+    color: Colors.primary[300],
+    marginBottom: Spacing.xs,
+  },
+  heroSummaryValue: {
+    fontSize: 17,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
+  // --- Boutons Entrée / Sortie ---
   actionButtons: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -1342,38 +1297,82 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+  actionButtonIn: {
+    backgroundColor: Colors.success.background,
   },
-  quickAccessRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
+  actionButtonOut: {
+    backgroundColor: Colors.danger.background,
   },
-  quickAccessButton: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  quickAccessIcon: {
-    width: 44,
-    height: 44,
+  actionIconBadge: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickAccessText: {
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  // --- Journal du jour ---
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.md,
+  },
+  journalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  journalEmpty: {
+    padding: Spacing['3xl'],
+    alignItems: 'center',
+  },
+  journalEmptyText: {
+    color: Colors.muted.foreground,
     fontSize: 14,
-    fontWeight: '500',
+  },
+  journalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.md,
+  },
+  journalRowLast: {
+    borderBottomWidth: 0,
+  },
+  journalIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journalInfo: {
+    flex: 1,
+  },
+  journalTitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: Colors.text,
   },
+  journalSubtitle: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: 2,
+  },
+  journalAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  // --- Champs de formulaire (sheets) ---
   formGroup: {
     marginBottom: Spacing.lg,
   },
@@ -1384,87 +1383,114 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.text,
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.lg,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: Colors.muted.main,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  modalCancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  modalSubmitButton: {
-    flex: 1,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  modalSubmitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.foreground,
-  },
-  card: {
-    backgroundColor: Colors.surface,
+  amountInput: {
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  cardSubtitle: {
-    fontSize: 22,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    fontSize: 28,
     fontWeight: '700',
-    color: Colors.primary[900],
-    marginTop: Spacing.xs,
+    color: Colors.text,
     fontVariant: ['tabular-nums'],
   },
-  kpiBreakdownRow: {
-    flexDirection: 'row',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  kpiBreakdownItem: {
+  // --- Bottom sheet ---
+  sheetOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing.xl,
+    maxHeight: '88%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderStrong,
+    marginBottom: Spacing.lg,
+  },
+  sheetScroll: {
+    paddingBottom: Spacing.sm,
+  },
+  sheetTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: Spacing.lg,
+  },
+  sheetActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  sheetCancelButton: {
+    flex: 1,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
   },
-  kpiBreakdownLabel: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.xs,
-  },
-  kpiBreakdownValue: {
+  sheetCancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    fontVariant: ['tabular-nums'],
+    color: Colors.textColors.secondary,
   },
+  sheetSubmitButton: {
+    flex: 1.4,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // --- Chips catégories ---
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.muted.main,
+  },
+  chipActive: {
+    backgroundColor: Colors.action,
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+  },
+  // --- Modal détail transaction ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1513,36 +1539,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
-  detailSection: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-  },
-  detailSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  saleItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
-  },
-  saleItemName: {
-    fontSize: 14,
-    color: Colors.text,
-  },
-  saleItemQuantity: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.muted.foreground,
-  },
   modalCloseButton: {
     marginTop: Spacing.lg,
     padding: Spacing.lg,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -1550,97 +1550,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.primary.foreground,
-  },
-  modalScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: Spacing['2xl'],
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  categoryButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  categoryButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
-  },
-  categoryButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  categoryButtonTextActive: {
-    color: Colors.primary.foreground,
-  },
-  paymentMethodContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  paymentMethodButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.muted.foreground,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentMethodButtonActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
-  },
-  paymentMethodButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.muted.foreground,
-  },
-  paymentMethodButtonTextActive: {
-    color: Colors.primary.foreground,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Colors.muted.foreground,
-    marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
-  },
-  checkboxCheck: {
-    color: Colors.primary.foreground,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  checkboxLabel: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  helpText: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
-    marginLeft: 36,
-    fontStyle: 'italic',
   },
 });

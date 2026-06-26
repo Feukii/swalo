@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,17 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Plus, Smartphone, Lock } from '../components/icons/SimpleIcons';
+import { ScreenHeader, IconButton } from '../components/ui';
 import { pinInvitesApi, adminApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../utils/date';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 
 interface ShopAdminScreenProps {
-  navigation: any;
+  navigation: {
+    navigate: (screen: string) => void;
+    goBack: () => void;
+  };
 }
 
 interface PinInvite {
@@ -28,7 +34,7 @@ interface PinInvite {
   expires_at: string;
   is_used: boolean;
   used_at?: string;
-  used_by?: any;
+  used_by?: { id: string; name: string } | null;
   created_at: string;
 }
 
@@ -54,6 +60,28 @@ interface PinStats {
   expired: number;
 }
 
+// Appareil brut tel que renvoyé dans le payload /admin/users
+interface RawDevice {
+  id: string;
+  device_id: string;
+  device_name: string;
+  device_type: string;
+  last_used_at: string;
+  created_at: string;
+}
+
+// Élément user-role brut renvoyé par adminApi.getShopUsers()
+interface RawUserRole {
+  role: string;
+  user?: {
+    id: string;
+    name?: string;
+    display_name?: string;
+    first_name?: string;
+    devices?: RawDevice[];
+  };
+}
+
 export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   const [pinInvites, setPinInvites] = useState<PinInvite[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -63,17 +91,65 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   const [displayName, setDisplayName] = useState('');
   const [selectedRole, setSelectedRole] = useState('EMPLOYEE');
   const [isCreating, setIsCreating] = useState(false);
+  const [isNameFocused, setIsNameFocused] = useState(false);
 
   const roles = [
     { value: 'EMPLOYEE', label: 'Employé' },
     { value: 'MANAGER', label: 'Manager' },
   ];
 
-  useEffect(() => {
-    checkAccess();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [invitesData, statsData, usersData] = await Promise.all([
+        pinInvitesApi.getAll(),
+        pinInvitesApi.getStats(),
+        adminApi.getShopUsers(),
+      ]);
+
+      const invites: PinInvite[] = invitesData.map(raw => {
+        const invite = raw as Partial<PinInvite>;
+        return {
+          id: String(invite.id ?? ''),
+          pin_code: String(invite.pin_code ?? ''),
+          invited_name: String(invite.invited_name ?? ''),
+          role: String(invite.role ?? ''),
+          expires_at: String(invite.expires_at ?? ''),
+          is_used: Boolean(invite.is_used),
+          used_at: invite.used_at,
+          used_by: invite.used_by ?? null,
+          created_at: String(invite.created_at ?? ''),
+        };
+      });
+      setPinInvites(invites);
+      setPinStats(statsData);
+
+      // Get all devices from the payload
+      const allDevices: Device[] = usersData.flatMap(raw => {
+        const userRole = raw as Partial<RawUserRole>;
+        const user = userRole.user;
+        if (!user) return [];
+        const userDevices = user.devices ?? [];
+        return userDevices.map(device => ({
+          ...device,
+          user: {
+            id: user.id,
+            name: user.display_name || user.name || 'Utilisateur',
+            first_name: user.first_name,
+            role: userRole.role,
+          },
+        }));
+      });
+      setDevices(allDevices);
+    } catch (error) {
+      console.error('Erreur lors du chargement:', error);
+      Alert.alert('Erreur', 'Impossible de charger les données');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const checkAccess = async () => {
+  const checkAccess = useCallback(async () => {
     try {
       const userStr = await AsyncStorage.getItem('user');
       if (userStr) {
@@ -91,43 +167,11 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       console.error('Erreur lors de la vérification:', error);
       navigation.goBack();
     }
-  };
+  }, [navigation, loadData]);
 
-  // Empty useEffect placeholder - TODO: implement initialization logic if needed
-
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const [invitesData, statsData, usersData] = await Promise.all([
-        pinInvitesApi.getAll(),
-        pinInvitesApi.getStats(),
-        adminApi.getShopUsers(),
-      ]);
-
-      setPinInvites(invitesData);
-      setPinStats(statsData);
-
-      // Get all devices from the payload
-      const allDevices: Device[] = usersData.flatMap((userRole: any) => {
-        const userDevices = userRole.user?.devices || [];
-        return userDevices.map((device: any) => ({
-          ...device,
-          user: {
-            id: userRole.user.id,
-            name: userRole.user.display_name || userRole.user.name || 'Utilisateur',
-            first_name: userRole.user.first_name,
-            role: userRole.role,
-          },
-        }));
-      });
-      setDevices(allDevices);
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-      Alert.alert('Erreur', 'Impossible de charger les données');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    checkAccess();
+  }, [checkAccess]);
 
   const handleCreatePinInvite = async () => {
     if (!displayName.trim()) {
@@ -150,7 +194,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
             text: 'Partager',
             onPress: () => {
               Share.share({
-                message: `Code PIN SWALO\n\nCode: ${result.pin_code}\nPour: ${result.invited_name}\nRôle: ${result.role}\nValide jusqu'au: ${formatDate(result.expires_at)}`,
+                message: `Code PIN Swalo\n\nCode: ${result.pin_code}\nPour: ${result.invited_name}\nRôle: ${result.role}\nValide jusqu'au: ${formatDate(result.expires_at)}`,
               });
             },
           },
@@ -162,9 +206,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
       setDisplayName('');
       setSelectedRole('EMPLOYEE');
       loadData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la création:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la création');
+      const message = error instanceof Error ? error.message : 'Erreur lors de la création';
+      Alert.alert('Erreur', message);
     } finally {
       setIsCreating(false);
     }
@@ -184,8 +229,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               await pinInvitesApi.revoke(invite.id);
               Alert.alert('Succès', 'Code PIN révoqué');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la révocation');
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : 'Erreur lors de la révocation';
+              Alert.alert('Erreur', message);
             }
           },
         },
@@ -207,8 +254,10 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               await adminApi.revokeDevice(device.id);
               Alert.alert('Succès', 'Appareil révoqué');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la révocation');
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error ? error.message : 'Erreur lors de la révocation';
+              Alert.alert('Erreur', message);
             }
           },
         },
@@ -247,27 +296,23 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Administration</Text>
-          <Text style={styles.headerSubtitle}>Gestion de la boutique</Text>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={() => setShowCreateModal(true)} style={styles.addButton}>
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader
+        title="Administration"
+        subtitle="Boutique"
+        showBack={true}
+        onBack={() => navigation.goBack()}
+        rightAction={
+          <IconButton onPress={() => setShowCreateModal(true)}>
+            <Plus size={22} color={Colors.action} />
+          </IconButton>
+        }
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#0F2A44" />
+            <ActivityIndicator size="large" color={Colors.action} />
           </View>
         ) : (
           <>
@@ -294,7 +339,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               <Text style={styles.sectionTitle}>Codes PIN d'invitation</Text>
               {pinInvites.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyIcon}>🔑</Text>
+                  <Lock size={40} color={Colors.muted.foreground} />
                   <Text style={styles.emptyText}>Aucun code PIN créé</Text>
                 </View>
               ) : (
@@ -334,7 +379,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               <Text style={styles.sectionTitle}>Appareils connectés</Text>
               {devices.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyIcon}>📱</Text>
+                  <Smartphone size={40} color={Colors.muted.foreground} />
                   <Text style={styles.emptyText}>Aucun appareil connecté</Text>
                 </View>
               ) : (
@@ -368,15 +413,16 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
         )}
       </ScrollView>
 
-      {/* Create PIN Modal */}
+      {/* Create PIN Modal — bottom sheet */}
       <Modal
         visible={showCreateModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowCreateModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>Créer un code PIN</Text>
 
             <View style={styles.formGroup}>
@@ -384,11 +430,13 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
                 Nom d'affichage <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, isNameFocused && styles.inputFocused]}
                 value={displayName}
                 onChangeText={setDisplayName}
+                onFocus={() => setIsNameFocused(true)}
+                onBlur={() => setIsNameFocused(false)}
                 placeholder="Ex: Jean Dupont"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={Colors.textColors.disabled}
               />
             </View>
 
@@ -451,122 +499,69 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0F2A44',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 28,
-    color: '#fff',
-    lineHeight: 32,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backText: {
-    fontSize: 24,
-    color: '#374151',
+    backgroundColor: Colors.background,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: Spacing.lg,
   },
   loadingContainer: {
-    paddingVertical: 32,
+    paddingVertical: Spacing['3xl'],
     alignItems: 'center',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    padding: Spacing.lg,
+    ...Shadows.sm,
   },
   statCardPrimary: {
-    backgroundColor: '#0F2A44',
-    borderColor: '#0F2A44',
+    backgroundColor: Colors.primary[50],
   },
   statLabel: {
     fontSize: 11,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
     marginBottom: 4,
   },
   statValue: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '700',
+    color: Colors.text,
   },
   sectionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.lg,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+    paddingVertical: Spacing['3xl'],
+    gap: Spacing.md,
   },
   emptyText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   listItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: Colors.border,
   },
   listItemLeft: {
     flex: 1,
@@ -574,17 +569,17 @@ const styles = StyleSheet.create({
   listItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
     marginBottom: 4,
   },
   listItemSubtitle: {
     fontSize: 13,
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
     marginTop: 2,
   },
   listItemRight: {
     alignItems: 'flex-end',
-    gap: 8,
+    gap: Spacing.sm,
   },
   badge: {
     paddingHorizontal: 10,
@@ -592,126 +587,144 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   badgeEmployee: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: Colors.info.background,
   },
   badgeAdmin: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: Colors.warning.background,
   },
   badgeManager: {
-    backgroundColor: '#e9d5ff',
+    backgroundColor: Colors.warning.background,
   },
   badgeOwner: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: Colors.danger.background,
   },
   badgeUsed: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
   },
   revokeButton: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: '#fee2e2',
+    backgroundColor: Colors.danger.background,
   },
   revokeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#dc2626',
+    color: Colors.danger.main,
   },
-  // Modal styles
+  // Modal styles — bottom sheet
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['3xl'],
+    ...Shadows.lg,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 20,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    color: Colors.textColors.secondary,
+    marginBottom: Spacing.sm,
   },
   required: {
-    color: '#ef4444',
+    color: Colors.danger.main,
   },
   input: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: Spacing.md,
     fontSize: 16,
-    color: '#111827',
+    color: Colors.text,
+  },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   roleButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   roleButton: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Spacing.md,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   roleButtonActive: {
-    backgroundColor: '#0F2A44',
-    borderColor: '#0F2A44',
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   roleButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6b7280',
+    color: Colors.textColors.tertiary,
   },
   roleButtonTextActive: {
-    color: '#fff',
+    color: Colors.onMarine,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
+    padding: Spacing.md,
+    borderRadius: 12,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   cancelButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
   },
   cancelButtonText: {
-    color: '#374151',
+    color: Colors.textColors.secondary,
     fontSize: 16,
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: '#0F2A44',
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
-    color: '#fff',
+    color: Colors.onMarine,
     fontSize: 16,
     fontWeight: '600',
   },

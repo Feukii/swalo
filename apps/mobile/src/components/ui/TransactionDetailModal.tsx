@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { formatMoney } from '../../utils/money';
 import { formatDate } from '../../utils/date';
 
@@ -183,11 +183,12 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: Spacing['2xl'],
     width: '90%',
     maxWidth: 500,
     maxHeight: '80%',
+    ...Shadows.lg,
   },
   modalTitle: {
     fontSize: 20,
@@ -196,28 +197,30 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   closeButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     marginTop: Spacing.lg,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   closeButtonText: {
-    color: Colors.primary.foreground,
+    color: Colors.surface,
     fontSize: 16,
     fontWeight: '600',
   },
   amountSection: {
     paddingVertical: Spacing.lg,
     alignItems: 'center',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     marginBottom: Spacing.md,
   },
   amountLabel: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
     marginBottom: Spacing.xs,
   },
   amountValue: {
@@ -232,12 +235,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   detailLabel: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
     flex: 1,
   },
   detailValue: {
@@ -250,7 +253,7 @@ const styles = StyleSheet.create({
   itemsSection: {
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
   },
   sectionTitle: {
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   itemName: {
@@ -273,7 +276,7 @@ const styles = StyleSheet.create({
   },
   itemQuantity: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
     fontWeight: '500',
   },
 });

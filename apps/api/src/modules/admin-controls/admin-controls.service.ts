@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   MODULE_DEFINITIONS,
@@ -282,16 +283,17 @@ export class AdminControlsService {
     const limit = filters?.limit ?? 50;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
 
     if (filters?.action) where.action = filters.action;
     if (filters?.entity_type) where.entity_type = filters.entity_type;
     if (filters?.admin_id) where.admin_id = filters.admin_id;
 
     if (filters?.start_date || filters?.end_date) {
-      where.created_at = {};
-      if (filters?.start_date) where.created_at.gte = new Date(filters.start_date);
-      if (filters?.end_date) where.created_at.lte = new Date(filters.end_date);
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (filters.start_date) createdAt.gte = new Date(filters.start_date);
+      if (filters.end_date) createdAt.lte = new Date(filters.end_date);
+      where.created_at = createdAt;
     }
 
     const [logs, total] = await Promise.all([
@@ -321,6 +323,12 @@ export class AdminControlsService {
   // ==================== SYSTEM STATS ====================
 
   async getEnhancedSystemStats() {
+    const now = new Date();
+    const last15min = new Date(Date.now() - 15 * 60 * 1000);
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const last7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const next7d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
     const [
       totalUsers,
       activeUsers,
@@ -329,6 +337,11 @@ export class AdminControlsService {
       blockedShops,
       totalEnterprises,
       blockedEnterprises,
+      devicesLast15min,
+      devicesLast24h,
+      devicesLast7d,
+      expiredLicenses,
+      expiringSoonLicenses,
       recentAuditLogs,
     ] = await Promise.all([
       this.prisma.user.count({ where: { deleted: false } }),
@@ -338,6 +351,29 @@ export class AdminControlsService {
       this.prisma.shop.count({ where: { deleted: false, is_blocked: true } }),
       this.prisma.enterprise.count({ where: { deleted: false } }),
       this.prisma.enterprise.count({ where: { deleted: false, is_blocked: true } }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last15min } },
+      }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last24h } },
+      }),
+      this.prisma.userDevice.count({
+        where: { is_active: true, last_login_at: { gte: last7d } },
+      }),
+      this.prisma.enterprise.count({
+        where: {
+          deleted: false,
+          is_blocked: false,
+          licensed_until: { not: null, lt: now },
+        },
+      }),
+      this.prisma.enterprise.count({
+        where: {
+          deleted: false,
+          is_blocked: false,
+          licensed_until: { gte: now, lt: next7d },
+        },
+      }),
       this.prisma.auditLog.findMany({
         include: {
           admin: { select: { id: true, display_name: true } },
@@ -354,6 +390,15 @@ export class AdminControlsService {
         total: totalEnterprises,
         blocked: blockedEnterprises,
         active: totalEnterprises - blockedEnterprises,
+      },
+      connectedDevices: {
+        last15min: devicesLast15min,
+        last24h: devicesLast24h,
+        last7d: devicesLast7d,
+      },
+      licenses: {
+        expired: expiredLicenses,
+        expiringSoon: expiringSoonLicenses,
       },
       recentAuditLogs,
     };

@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Package, Plus, Edit, Trash, Check, ChevronDown } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing } from '../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { Product, Category } from '../types/stock';
+import type { RootStackParamList } from '../../App';
 import {
   getProducts,
   initializeDefaultProducts,
@@ -41,7 +43,11 @@ interface EditableProduct {
 
 const UNITS = ['unité', 'sac', 'bouteille', 'carton', 'kg', 'pièce'];
 
-export default function ShopSettingsScreen({ navigation }: any) {
+interface ShopSettingsScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'ShopSettings'>;
+}
+
+export default function ShopSettingsScreen({ navigation }: ShopSettingsScreenProps) {
   const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -59,6 +65,9 @@ export default function ShopSettingsScreen({ navigation }: any) {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryName, setCategoryName] = useState('');
   const [isCategoryNew, setIsCategoryNew] = useState(false);
+
+  // Champ de saisie actuellement focalisé (rendu uniquement — bordure sky).
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -225,8 +234,9 @@ export default function ShopSettingsScreen({ navigation }: any) {
       setCategoryName('');
       setEditingCategory(null);
       await loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      Alert.alert('Erreur', message || 'Impossible de sauvegarder');
     } finally {
       setIsSaving(false);
     }
@@ -248,8 +258,9 @@ export default function ShopSettingsScreen({ navigation }: any) {
             await deleteCategory(category.id);
             Alert.alert('Succès', 'Catégorie supprimée');
             await loadData();
-          } catch (error: any) {
-            Alert.alert('Erreur', error.message || 'Impossible de supprimer');
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            Alert.alert('Erreur', message || 'Impossible de supprimer');
           }
         },
       },
@@ -323,7 +334,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
                 style={styles.editButton}
                 onPress={() => openEditProductModal(product)}
               >
-                <Edit size={16} color={Colors.primary[900]} />
+                <Edit size={16} color={Colors.action} />
                 <Text style={styles.editButtonText}>Modifier</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -343,9 +354,14 @@ export default function ShopSettingsScreen({ navigation }: any) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <ScreenHeader title="Paramètres Boutique" showBack onBack={() => navigation.goBack()} />
+        <ScreenHeader
+          title="Paramètres"
+          subtitle="Boutique & préférences"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
       </SafeAreaView>
     );
@@ -354,7 +370,8 @@ export default function ShopSettingsScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
-        title="Paramètres Boutique"
+        title="Paramètres"
+        subtitle="Boutique & préférences"
         showBack
         onBack={() => navigation.goBack()}
         rightAction={
@@ -401,7 +418,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
         <ScrollView contentContainerStyle={styles.content}>
           {/* Add product button */}
           <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.addButtonText}>Ajouter un produit</Text>
           </TouchableOpacity>
 
@@ -413,25 +430,36 @@ export default function ShopSettingsScreen({ navigation }: any) {
               <Text style={styles.emptySubtext}>Ajoutez des produits à votre catalogue</Text>
             </View>
           ) : (
-            products.map(renderProductItem)
+            <>
+              <Text style={styles.sectionTitle}>Catalogue</Text>
+              {products.map(renderProductItem)}
+            </>
           )}
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {/* Add category button */}
           <TouchableOpacity style={styles.addButton} onPress={openAddCategoryModal}>
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.addButtonText}>Ajouter une catégorie</Text>
           </TouchableOpacity>
 
           {/* Categories list */}
+          <Text style={styles.sectionTitle}>Catégories disponibles</Text>
           <View style={styles.categoriesCard}>
-            <Text style={styles.categoriesTitle}>Catégories disponibles</Text>
-            <Text style={styles.categoriesSubtitle}>Organisez vos produits par catégories</Text>
-            {categories.map(cat => {
+            {categories.map((cat, index) => {
               const count = products.filter(p => p.category === cat.key).length;
               return (
-                <View key={cat.id} style={styles.categoryItem}>
+                <View
+                  key={cat.id}
+                  style={[
+                    styles.categoryItem,
+                    index === categories.length - 1 && styles.categoryItemLast,
+                  ]}
+                >
+                  <View style={styles.categoryIconSquare}>
+                    <Package size={20} color={Colors.action} />
+                  </View>
                   <View style={styles.categoryInfo}>
                     <Text style={styles.categoryName}>{cat.label}</Text>
                     <Text style={styles.categoryCount}>
@@ -445,7 +473,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
                         style={styles.categoryActionButton}
                         onPress={() => openEditCategoryModal(cat)}
                       >
-                        <Edit size={16} color={Colors.primary[900]} />
+                        <Edit size={16} color={Colors.action} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.categoryActionButton}
@@ -471,6 +499,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {editingProduct?.isNew ? 'Nouveau produit' : 'Modifier le produit'}
             </Text>
@@ -480,11 +509,13 @@ export default function ShopSettingsScreen({ navigation }: any) {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Nom du produit *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'name' && styles.inputFocused]}
                   value={editingProduct?.name || ''}
                   onChangeText={text =>
                     setEditingProduct(prev => (prev ? { ...prev, name: text } : null))
                   }
+                  onFocus={() => setFocusedInput('name')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="Ex: Riz 25kg"
                   placeholderTextColor={Colors.muted.foreground}
                 />
@@ -522,13 +553,15 @@ export default function ShopSettingsScreen({ navigation }: any) {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Prix de vente (FCFA)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'price' && styles.inputFocused]}
                   value={editingProduct?.price || ''}
                   onChangeText={text =>
                     setEditingProduct(prev =>
                       prev ? { ...prev, price: text.replace(/[^0-9]/g, '') } : null
                     )
                   }
+                  onFocus={() => setFocusedInput('price')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="0"
                   placeholderTextColor={Colors.muted.foreground}
                   keyboardType="numeric"
@@ -540,13 +573,15 @@ export default function ShopSettingsScreen({ navigation }: any) {
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <Text style={styles.formLabel}>Stock actuel</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, focusedInput === 'stockQuantity' && styles.inputFocused]}
                     value={editingProduct?.stockQuantity || ''}
                     onChangeText={text =>
                       setEditingProduct(prev =>
                         prev ? { ...prev, stockQuantity: text.replace(/[^0-9]/g, '') } : null
                       )
                     }
+                    onFocus={() => setFocusedInput('stockQuantity')}
+                    onBlur={() => setFocusedInput(null)}
                     placeholder="0"
                     placeholderTextColor={Colors.muted.foreground}
                     keyboardType="numeric"
@@ -555,13 +590,15 @@ export default function ShopSettingsScreen({ navigation }: any) {
                 <View style={[styles.formGroup, { flex: 1 }]}>
                   <Text style={styles.formLabel}>Seuil d'alerte</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, focusedInput === 'stockThreshold' && styles.inputFocused]}
                     value={editingProduct?.stockThreshold || ''}
                     onChangeText={text =>
                       setEditingProduct(prev =>
                         prev ? { ...prev, stockThreshold: text.replace(/[^0-9]/g, '') } : null
                       )
                     }
+                    onFocus={() => setFocusedInput('stockThreshold')}
+                    onBlur={() => setFocusedInput(null)}
                     placeholder="10"
                     placeholderTextColor={Colors.muted.foreground}
                     keyboardType="numeric"
@@ -602,6 +639,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
                 onPress={() => {
                   setShowProductModal(false);
                   setEditingProduct(null);
+                  setFocusedInput(null);
                 }}
               >
                 <Text style={styles.modalCancelButtonText}>Annuler</Text>
@@ -625,6 +663,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {isCategoryNew ? 'Nouvelle catégorie' : 'Modifier la catégorie'}
             </Text>
@@ -633,9 +672,11 @@ export default function ShopSettingsScreen({ navigation }: any) {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Nom de la catégorie *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, focusedInput === 'categoryName' && styles.inputFocused]}
                   value={categoryName}
                   onChangeText={setCategoryName}
+                  onFocus={() => setFocusedInput('categoryName')}
+                  onBlur={() => setFocusedInput(null)}
                   placeholder="Ex: Cosmétiques"
                   placeholderTextColor={Colors.muted.foreground}
                   autoFocus
@@ -650,6 +691,7 @@ export default function ShopSettingsScreen({ navigation }: any) {
                   setShowCategoryModal(false);
                   setCategoryName('');
                   setEditingCategory(null);
+                  setFocusedInput(null);
                 }}
               >
                 <Text style={styles.modalCancelButtonText}>Annuler</Text>
@@ -689,7 +731,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.success.main,
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: 8,
@@ -713,7 +755,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: Colors.primary[900],
+    borderBottomColor: Colors.action,
   },
   tabText: {
     fontSize: 14,
@@ -721,12 +763,21 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
   },
   tabTextActive: {
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '600',
   },
   content: {
     padding: Spacing.lg,
     paddingBottom: 100,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   addButton: {
     flexDirection: 'row',
@@ -736,23 +787,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary[50],
     padding: Spacing.lg,
     borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.primary[200],
     marginBottom: Spacing.lg,
+    minHeight: 48,
   },
   addButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   productCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    marginBottom: Spacing.md,
+    borderRadius: 16,
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
+    ...Shadows.sm,
   },
   productHeader: {
     flexDirection: 'row',
@@ -839,7 +887,7 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   deleteButton: {
     flex: 1,
@@ -873,29 +921,30 @@ const styles = StyleSheet.create({
   // Categories tab
   categoriesCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: Spacing.lg,
-  },
-  categoriesTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  categoriesSubtitle: {
-    fontSize: 13,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.lg,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   categoryItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.md,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    minHeight: 60,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
+  },
+  categoryItemLast: {
+    borderBottomWidth: 0,
+  },
+  categoryIconSquare: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: `${Colors.action}1A`,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryInfo: {
     flex: 1,
@@ -934,6 +983,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '90%',
   },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.muted.main,
+    marginTop: Spacing.md,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -966,11 +1023,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.text,
+  },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   categoryButtons: {
     flexDirection: 'row',
@@ -986,8 +1047,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   categoryButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   categoryButtonText: {
     fontSize: 13,
@@ -1011,8 +1072,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   unitButtonActive: {
-    backgroundColor: Colors.primary[900],
-    borderColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
   },
   unitButtonText: {
     fontSize: 13,
@@ -1043,10 +1104,12 @@ const styles = StyleSheet.create({
   },
   modalSaveButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     borderRadius: 12,
     padding: Spacing.lg,
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   modalSaveButtonText: {
     fontSize: 16,

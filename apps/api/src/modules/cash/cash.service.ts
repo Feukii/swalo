@@ -4,9 +4,10 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role, SupplierDebt } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCashEntryDto } from './dto/create-cash-entry.dto';
+import { CreateMerchandisePurchaseDto } from './dto/create-merchandise-purchase.dto';
 
 @Injectable()
 export class CashService {
@@ -25,8 +26,9 @@ export class CashService {
 
     // G?n?rer un client_op_id unique
     const client_op_id =
-      dto.client_op_id || `cash_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-    const device_id = dto.device_id || 'web';
+      dto.client_op_id ??
+      `cash_${String(Date.now())}_${Math.random().toString(36).substring(2, 11)}`;
+    const device_id = dto.device_id ?? 'web';
 
     const normalizedAmount = dto.amount;
 
@@ -41,7 +43,7 @@ export class CashService {
     }
 
     // Pr?parer les donn?es de cr?ation
-    const entryData: any = {
+    const entryData: Prisma.CashEntryCreateInput = {
       type: dto.type,
       category: dto.category,
       amount: normalizedAmount,
@@ -125,7 +127,7 @@ export class CashService {
             data: {
               debt_id: debt.id,
               amount: paymentAmount,
-              notes: dto.note || 'Règlement via caisse',
+              notes: dto.note ?? 'Règlement via caisse',
               cashier_id: userId,
               cash_exit_id: cashEntry.id,
             },
@@ -185,7 +187,7 @@ export class CashService {
             data: {
               receivable_id: receivable.id,
               amount: paymentAmount,
-              notes: dto.note || 'Remboursement via caisse',
+              notes: dto.note ?? 'Remboursement via caisse',
               cashier_id: userId,
               cash_entry_id: cashEntry.id,
             },
@@ -223,7 +225,7 @@ export class CashService {
       end_date?: string;
     }
   ) {
-    const where: any = {
+    const where: Prisma.CashEntryWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -234,14 +236,14 @@ export class CashService {
 
     if (filters?.start_date) {
       where.created_at = {
-        ...where.created_at,
+        ...(where.created_at as Prisma.DateTimeFilter),
         gte: new Date(filters.start_date),
       };
     }
 
     if (filters?.end_date) {
       where.created_at = {
-        ...where.created_at,
+        ...(where.created_at as Prisma.DateTimeFilter),
         lte: new Date(filters.end_date),
       };
     }
@@ -302,8 +304,8 @@ export class CashService {
       },
     });
 
-    const totalIn = entries._sum.amount || 0;
-    const totalOut = exits._sum.amount || 0;
+    const totalIn = entries._sum.amount ?? 0;
+    const totalOut = exits._sum.amount ?? 0;
     const balance = totalIn - totalOut;
 
     return {
@@ -320,47 +322,47 @@ export class CashService {
       end_date?: string;
     }
   ) {
-    const where: any = {
+    const where: Prisma.CashEntryWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
 
-    const receivableWhere: any = {
+    const receivableWhere: Prisma.ClientReceivableWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
 
-    const debtWhere: any = {
+    const debtWhere: Prisma.SupplierDebtWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
 
     if (filters?.start_date) {
       where.created_at = {
-        ...where.created_at,
+        ...(where.created_at as Prisma.DateTimeFilter),
         gte: new Date(filters.start_date),
       };
       receivableWhere.created_at = {
-        ...receivableWhere.created_at,
+        ...(receivableWhere.created_at as Prisma.DateTimeFilter),
         gte: new Date(filters.start_date),
       };
       debtWhere.created_at = {
-        ...debtWhere.created_at,
+        ...(debtWhere.created_at as Prisma.DateTimeFilter),
         gte: new Date(filters.start_date),
       };
     }
 
     if (filters?.end_date) {
       where.created_at = {
-        ...where.created_at,
+        ...(where.created_at as Prisma.DateTimeFilter),
         lte: new Date(filters.end_date),
       };
       receivableWhere.created_at = {
-        ...receivableWhere.created_at,
+        ...(receivableWhere.created_at as Prisma.DateTimeFilter),
         lte: new Date(filters.end_date),
       };
       debtWhere.created_at = {
-        ...debtWhere.created_at,
+        ...(debtWhere.created_at as Prisma.DateTimeFilter),
         lte: new Date(filters.end_date),
       };
     }
@@ -441,18 +443,18 @@ export class CashService {
       _count: true,
     });
 
-    const todayEntries = entriesStats._sum.amount || 0;
-    const todayExits = exitsStats._sum.amount || 0;
+    const todayEntries = entriesStats._sum.amount ?? 0;
+    const todayExits = exitsStats._sum.amount ?? 0;
     const todayNet = todayEntries - todayExits;
 
     // Ventes totales = ventes cash + ventes crédit
-    const salesCash = salesCashStats._sum.amount || 0;
-    const salesCredit = salesCreditStats._sum.amount || 0;
+    const salesCash = salesCashStats._sum.amount ?? 0;
+    const salesCredit = salesCreditStats._sum.amount ?? 0;
     const totalSales = salesCash + salesCredit;
 
     // Achats totaux = achats cash + achats crédit
-    const purchasesCash = purchasesCashStats._sum.amount || 0;
-    const purchasesCredit = purchasesCreditStats._sum.amount || 0;
+    const purchasesCash = purchasesCashStats._sum.amount ?? 0;
+    const purchasesCredit = purchasesCreditStats._sum.amount ?? 0;
     const totalPurchases = purchasesCash + purchasesCredit;
 
     // Balance total (tous les temps)
@@ -537,7 +539,13 @@ export class CashService {
    * Créer un achat de marchandise auprès d'un fournisseur
    * Crée une sortie de caisse et optionnellement une dette fournisseur
    */
-  async createMerchandisePurchase(userId: string, shopId: string, dto: any) {
+  async createMerchandisePurchase(
+    userId: string,
+    shopId: string,
+    dto: Omit<CreateMerchandisePurchaseDto, 'payment_method'> & {
+      payment_method: 'CASH' | 'MOBILE_MONEY';
+    }
+  ) {
     // Vérifier que le fournisseur existe
     const supplier = await this.prisma.supplier.findFirst({
       where: {
@@ -570,18 +578,18 @@ export class CashService {
           type: 'OUT',
           category: 'Achats Marchandises',
           amount: dto.amount,
-          note: dto.description || `Achat marchandise de ${supplier.name}`,
+          note: dto.description ?? `Achat marchandise de ${supplier.name}`,
           supplier_id: dto.supplier_id,
           cashier_id: userId,
-          device_id: dto.device_id || 'web',
+          device_id: dto.device_id ?? 'web',
           client_op_id:
-            dto.client_op_id ||
-            `purchase_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+            dto.client_op_id ??
+            `purchase_${String(Date.now())}_${Math.random().toString(36).substring(2, 11)}`,
         },
       });
 
       // Si create_debt est true, créer une dette fournisseur
-      let debt = null;
+      let debt: SupplierDebt | null = null;
       if (dto.create_debt) {
         debt = await tx.supplierDebt.create({
           data: {
@@ -591,7 +599,7 @@ export class CashService {
             balance: dto.amount,
             paid_amount: 0,
             status: 'PENDING',
-            description: dto.description || `Dette pour achat marchandise`,
+            description: dto.description ?? `Dette pour achat marchandise`,
             notes: `Lié à l'achat caisse #${cashEntry.id}`,
           },
         });

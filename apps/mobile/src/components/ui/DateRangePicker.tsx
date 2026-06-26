@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Calendar, X } from '../icons/SimpleIcons';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, BorderRadius } from '../../constants/theme-v2';
 
 interface DateRangePickerProps {
   startDate: Date | null;
@@ -132,7 +132,7 @@ export default function DateRangePicker({
   return (
     <>
       <TouchableOpacity style={styles.trigger} onPress={() => setShowModal(true)}>
-        <Calendar size={20} color={Colors.primary[900]} />
+        <Calendar size={20} color={Colors.action} />
         <View style={styles.dateTexts}>
           <Text style={styles.dateText}>{formatDate(startDate)}</Text>
           <Text style={styles.dateSeparator}>→</Text>
@@ -258,9 +258,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    minHeight: 44,
   },
   dateTexts: {
     flexDirection: 'row',
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
   },
   dateSeparator: {
     fontSize: 12,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   modalOverlay: {
     flex: 1,
@@ -313,7 +314,7 @@ const styles = StyleSheet.create({
   },
   navButtonText: {
     fontSize: 24,
-    color: Colors.primary[900],
+    color: Colors.action,
     fontWeight: '600',
   },
   monthTitle: {
@@ -333,7 +334,7 @@ const styles = StyleSheet.create({
   weekDayText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   calendarGrid: {
     flexDirection: 'row',
@@ -352,7 +353,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary[50],
   },
   dayCellSelected: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
+    borderRadius: BorderRadius.sm,
   },
   dayCellDisabled: {
     opacity: 0.3,
@@ -365,14 +367,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dayTextInRange: {
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   dayTextSelected: {
-    color: Colors.primary.foreground,
+    color: Colors.surface,
     fontWeight: '700',
   },
   dayTextDisabled: {
-    color: Colors.muted.foreground,
+    color: Colors.textColors.disabled,
   },
   dataDot: {
     position: 'absolute',
@@ -380,7 +382,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   selectionInfo: {
     padding: Spacing.md,
@@ -404,20 +406,20 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     flex: 1,
-    backgroundColor: Colors.muted.main,
-    borderRadius: 12,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
     padding: Spacing.md,
     alignItems: 'center',
   },
   resetButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textColors.secondary,
   },
   applyButton: {
     flex: 1,
-    backgroundColor: Colors.primary[900],
-    borderRadius: 12,
+    backgroundColor: Colors.action,
+    borderRadius: 10,
     padding: Spacing.md,
     alignItems: 'center',
   },
@@ -428,6 +430,6 @@ const styles = StyleSheet.create({
   applyButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.primary.foreground,
+    color: Colors.surface,
   },
 });

@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateRefundDto } from './dto/create-refund.dto';
 
 @Injectable()
 export class CustomersService {
@@ -9,7 +11,7 @@ export class CustomersService {
 
   /**
    * Créer un nouveau client
-   * Conforme au CDC SWALO - Section 3.2
+   * Conforme au CDC Swalo - Section 3.2
    */
   async create(shopId: string, dto: CreateCustomerDto) {
     // Vérifier si un client avec le même nom existe déjà (case-insensitive)
@@ -55,10 +57,12 @@ export class CustomersService {
           phone: dto.phone,
           email: dto.email,
           address: dto.address,
-          credit_limit: dto.credit_limit || 0,
+          credit_limit: dto.credit_limit ?? 0,
           notes: dto.notes,
           is_active: true,
           email_notifications_enabled: dto.email_notifications_enabled ?? true,
+          sms_notifications_enabled: dto.sms_notifications_enabled ?? false,
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled ?? false,
         },
       });
 
@@ -91,7 +95,7 @@ export class CustomersService {
       is_active?: boolean;
     }
   ) {
-    const where: any = {
+    const where: Prisma.CustomerWhereInput = {
       shop_id: shopId,
       deleted: false,
     };
@@ -189,6 +193,56 @@ export class CustomersService {
       throw new NotFoundException('Client non trouvé');
     }
 
+    // Historique des notifications envoyées : celles ciblant une créance du
+    // client, ou adressées à son email / téléphone (canaux SMS/WhatsApp).
+    const receivableIds = customer.receivables.map(r => r.id);
+    const recipientFilters: string[] = [];
+    if (customer.email) recipientFilters.push(customer.email);
+    if (customer.phone) recipientFilters.push(customer.phone);
+
+    const notificationWhere: Prisma.NotificationLogWhereInput = {
+      shop_id: shopId,
+      OR: [
+        ...(receivableIds.length > 0
+          ? [{ target_type: 'receivable', target_id: { in: receivableIds } }]
+          : []),
+        ...(recipientFilters.length > 0 ? [{ recipient: { in: recipientFilters } }] : []),
+      ],
+    };
+
+    const notifications =
+      notificationWhere.OR && notificationWhere.OR.length > 0
+        ? await this.prisma.notificationLog.findMany({
+            where: notificationWhere,
+            select: {
+              id: true,
+              type: true,
+              channel: true,
+              status: true,
+              recipient: true,
+              target_type: true,
+              target_id: true,
+              error: true,
+              sent_at: true,
+            },
+            orderBy: { sent_at: 'desc' },
+            take: 50,
+          })
+        : [];
+
+    const notifications_summary = {
+      total: notifications.length,
+      by_status: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.status] = (acc[n.status] ?? 0) + 1;
+        return acc;
+      }, {}),
+      by_channel: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.channel] = (acc[n.channel] ?? 0) + 1;
+        return acc;
+      }, {}),
+      recent: notifications,
+    };
+
     // Calculer les statistiques du client
     const stats = {
       total_receivables: customer.receivables.reduce((sum, r) => sum + r.amount, 0),
@@ -203,6 +257,7 @@ export class CustomersService {
     return {
       ...customer,
       stats,
+      notifications_summary,
     };
   }
 
@@ -262,6 +317,12 @@ export class CustomersService {
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
         ...(dto.email_notifications_enabled !== undefined && {
           email_notifications_enabled: dto.email_notifications_enabled,
+        }),
+        ...(dto.sms_notifications_enabled !== undefined && {
+          sms_notifications_enabled: dto.sms_notifications_enabled,
+        }),
+        ...(dto.whatsapp_notifications_enabled !== undefined && {
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled,
         }),
         updated_at: new Date(),
       },
@@ -341,12 +402,12 @@ export class CustomersService {
    * Créer un remboursement client
    * Crée une sortie de caisse et une créance négative pour tracer le remboursement
    */
-  async createRefund(shopId: string, customerId: string, userId: string, dto: any) {
+  async createRefund(shopId: string, customerId: string, userId: string, dto: CreateRefundDto) {
     // Vérifier que le client existe
     const customer = await this.getOne(shopId, customerId);
 
     // Valider que le montant ne dépasse pas le remboursement dû (solde négatif)
-    const currentBalance = customer.stats?.total_balance || 0;
+    const currentBalance = customer.stats.total_balance;
     if (currentBalance >= 0) {
       throw new BadRequestException("Ce client n'a pas de remboursement dû");
     }
@@ -354,7 +415,7 @@ export class CustomersService {
     const refundOwed = Math.abs(currentBalance);
     if (dto.amount > refundOwed) {
       throw new BadRequestException(
-        `Le montant du remboursement (${dto.amount}) dépasse le montant dû (${refundOwed})`
+        `Le montant du remboursement (${String(dto.amount)}) dépasse le montant dû (${String(refundOwed)})`
       );
     }
 
@@ -367,7 +428,7 @@ export class CustomersService {
           type: 'OUT',
           category: 'Remboursement client',
           amount: dto.amount,
-          note: dto.note || `Remboursement à ${customer.name}`,
+          note: dto.note && dto.note.length > 0 ? dto.note : `Remboursement à ${customer.name}`,
           customer_id: customerId,
           cashier_id: userId,
         },
@@ -445,18 +506,20 @@ export class CustomersService {
     });
 
     // Grouper par nom (case-insensitive)
-    const grouped: Record<string, typeof customers> = {};
+    const grouped = new Map<string, typeof customers>();
     for (const customer of customers) {
       const normalizedName = customer.name.toLowerCase().trim();
-      if (!grouped[normalizedName]) {
-        grouped[normalizedName] = [];
+      const group = grouped.get(normalizedName);
+      if (group) {
+        group.push(customer);
+      } else {
+        grouped.set(normalizedName, [customer]);
       }
-      grouped[normalizedName].push(customer);
     }
 
     // Filtrer pour ne garder que les groupes avec plus d'un client
-    const duplicates = Object.entries(grouped)
-      .filter(([_, group]) => group.length > 1)
+    const duplicates = Array.from(grouped.entries())
+      .filter(([, group]) => group.length > 1)
       .map(([name, group]) => ({
         name,
         count: group.length,

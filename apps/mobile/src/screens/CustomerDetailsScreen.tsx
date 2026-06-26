@@ -9,28 +9,34 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Linking,
+  Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
-  ScreenHeader,
-  KPICard,
-  ListItem,
-  StatusBadge,
-  TransactionDetailModal,
-  IconButton,
-} from '../components/ui';
-import { BalanceIndicator } from '../components/ui/BalanceIndicator';
-import { Colors, Spacing } from '../constants/theme-v2';
+  DollarSign,
+  Edit,
+  Trash,
+  Plus,
+  Smartphone,
+  Mail,
+  MapPin,
+  ArrowUp,
+  ArrowDown,
+  X,
+  Calendar,
+  Bell,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   customerRepo,
   clientReceivableRepo,
   clientReceivablePaymentRepo,
-  LocalCustomer,
   LocalClientReceivable,
   LocalClientReceivablePayment,
   LocalCashEntry,
@@ -43,14 +49,210 @@ import {
   payReceivableOffline,
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
+import { customersApi, sellerTasksApi, ReminderChannel } from '../lib/api';
+
+interface CustomerDetailsNavigation {
+  goBack: () => void;
+  addListener: (type: 'focus', callback: () => void) => () => void;
+}
 
 interface CustomerDetailsScreenProps {
-  navigation: any;
+  navigation: CustomerDetailsNavigation;
   route: {
     params: {
       id: string;
     };
   };
+}
+
+interface SelectedTransaction {
+  type: string;
+  date: string;
+  amount: number;
+  note?: string;
+  status?: string;
+  isCredit?: boolean;
+  category?: string;
+  customerName?: string;
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
+}
+
+// ─── Notifications (transparence dettes) ─────────────────────────────
+type NotificationStatus = 'SENT' | 'QUEUED' | 'FAILED' | string;
+
+interface NotificationEntry {
+  channel: string;
+  type: string;
+  status: NotificationStatus;
+  created_at?: string | null;
+  error?: string | null;
+}
+
+interface NotificationsSummary {
+  total: number;
+  by_status?: Record<string, number>;
+  by_channel?: Record<string, number>;
+  recent?: NotificationEntry[];
+}
+
+function parseNotificationsSummary(raw: unknown): NotificationsSummary | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const total = typeof obj.total === 'number' ? obj.total : 0;
+  const recentRaw = Array.isArray(obj.recent) ? obj.recent : [];
+  const recent: NotificationEntry[] = recentRaw
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map(e => ({
+      channel: typeof e.channel === 'string' ? e.channel : '—',
+      type: typeof e.type === 'string' ? e.type : '—',
+      status: typeof e.status === 'string' ? e.status : '—',
+      // L'API renvoie `sent_at` ; on accepte aussi `created_at` par robustesse.
+      created_at:
+        typeof e.sent_at === 'string'
+          ? e.sent_at
+          : typeof e.created_at === 'string'
+            ? e.created_at
+            : null,
+      error: typeof e.error === 'string' ? e.error : null,
+    }));
+  return {
+    total,
+    by_status:
+      obj.by_status && typeof obj.by_status === 'object'
+        ? (obj.by_status as Record<string, number>)
+        : undefined,
+    by_channel:
+      obj.by_channel && typeof obj.by_channel === 'object'
+        ? (obj.by_channel as Record<string, number>)
+        : undefined,
+    recent,
+  };
+}
+
+const NOTIF_CHANNEL_LABELS: Record<string, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  whatsapp: 'WhatsApp',
+};
+
+// Étiquette courte d'un canal (badges "SMS Livré", "WA Livré"...)
+const NOTIF_CHANNEL_SHORT: Record<string, string> = {
+  EMAIL: 'E-mail',
+  SMS: 'SMS',
+  WHATSAPP: 'WA',
+};
+
+// Libellé lisible du type de notification (historique & transparence).
+const NOTIF_TYPE_LABELS: Record<string, string> = {
+  PAYMENT_REMINDER: 'Relance de paiement',
+  PAYMENT_RECEIVED: 'Paiement reçu',
+  DEBT_REMINDER: 'Relance de dette',
+};
+
+function getNotifTypeLabel(type: string): string {
+  return NOTIF_TYPE_LABELS[type] ?? 'Notification';
+}
+
+// Libellé de livraison par statut (badge à côté du canal).
+function getDeliveryLabel(status: string): string {
+  switch (status) {
+    case 'SENT':
+      return 'Livré';
+    case 'QUEUED':
+    case 'PENDING':
+      return 'En file';
+    case 'FAILED':
+      return 'Échec';
+    default:
+      return status;
+  }
+}
+
+const NOTIF_STATUS_META: Record<
+  string,
+  { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }
+> = {
+  SENT: { label: 'Envoyé', variant: 'success' },
+  QUEUED: { label: 'En file', variant: 'warning' },
+  PENDING: { label: 'En file', variant: 'warning' },
+  FAILED: { label: 'Échec', variant: 'danger' },
+};
+
+function getNotifStatusMeta(status: string): {
+  label: string;
+  variant: 'success' | 'warning' | 'danger' | 'default';
+} {
+  return NOTIF_STATUS_META[status] ?? { label: status, variant: 'default' };
+}
+
+// ─── Date d'échéance (sélecteur sans dépendance externe) ─────────────
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+function endOfMonth(base: Date): string {
+  const d = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return toISODate(d);
+}
+
+function formatDueDateLabel(iso: string): string {
+  const [y, m, day] = iso.split('-').map(Number);
+  if (!y || !m || !day) return iso;
+  const d = new Date(y, m - 1, day);
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// Échéance la plus proche parmi les créances en cours (PENDING/PARTIAL).
+function nearestDueDate(receivables: ReceivableWithPayments[]): string | null {
+  const dues = receivables
+    .filter(r => (r.status === 'PENDING' || r.status === 'PARTIAL') && r.due_date)
+    .map(r => r.due_date as string)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return dues.length > 0 ? dues[0] : null;
+}
+
+// Différence en jours calendaires entre une échéance et aujourd'hui.
+function diffInDays(due: string): number | null {
+  const d = new Date(due);
+  if (isNaN(d.getTime())) return null;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Libellé court de la puce échéance : "Dans Xj" / "Aujourd'hui" / "Retard Xj".
+function dueRelativeLabel(due: string): { text: string; overdue: boolean } {
+  const delta = diffInDays(due);
+  if (delta === null) return { text: '', overdue: false };
+  if (delta < 0) return { text: `Retard ${Math.abs(delta)}j`, overdue: true };
+  if (delta === 0) return { text: "Aujourd'hui", overdue: true };
+  return { text: `Dans ${delta}j`, overdue: false };
+}
+
+// Initiales (max 2 lettres) à partir du prénom + nom
+function getInitials(firstName: string | null, name: string): string {
+  const a = (firstName || '').trim();
+  const b = (name || '').trim();
+  if (a && b) return `${a[0]}${b[0]}`.toUpperCase();
+  const single = (b || a).trim();
+  if (!single) return '?';
+  const parts = single.split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return single.slice(0, 2).toUpperCase();
 }
 
 interface ReceivableWithPayments {
@@ -60,6 +262,7 @@ interface ReceivableWithPayments {
   paid_amount: number;
   status: string;
   created_at: string;
+  due_date: string | null;
   description: string | null;
   notes: string | null;
   payments: LocalClientReceivablePayment[];
@@ -76,6 +279,10 @@ interface CustomerDetails {
   is_active: number | boolean;
   receivables: ReceivableWithPayments[];
   cash_entries: LocalCashEntry[];
+  email_notifications_enabled: boolean;
+  sms_notifications_enabled: boolean;
+  whatsapp_notifications_enabled: boolean;
+  notifications_summary: NotificationsSummary | null;
   stats: {
     total_receivables: number;
     total_balance: number;
@@ -84,10 +291,31 @@ interface CustomerDetails {
   };
 }
 
+// Lecture défensive des préférences de notification du client local (les
+// champs peuvent ne pas exister selon l'état du schéma offline).
+function readNotificationPrefs(record: Record<string, unknown>): {
+  email: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+} {
+  const truthy = (v: unknown, fallback: boolean): boolean => {
+    if (v === undefined || v === null) return fallback;
+    return v === true || v === 1 || v === '1';
+  };
+  return {
+    email: truthy(record.email_notifications_enabled, true),
+    sms: truthy(record.sms_notifications_enabled, false),
+    whatsapp: truthy(record.whatsapp_notifications_enabled, false),
+  };
+}
+
 export default function CustomerDetailsScreen({ navigation, route }: CustomerDetailsScreenProps) {
   const { id } = route.params;
   const { user, shopId, userId } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
+  const { can } = usePermissions();
+  const canCreateReceivable = can('receivables', 'create');
+  const canRefundReceivable = can('receivables', 'refund');
 
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,9 +341,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [receivableAmount, setReceivableAmount] = useState('');
   const [receivableDescription, setReceivableDescription] = useState('');
   const [receivableNote, setReceivableNote] = useState('');
+  // Date d'échéance obligatoire (format ISO YYYY-MM-DD)
+  const [receivableDueDate, setReceivableDueDate] = useState('');
 
   // Transaction detail modal state
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Edit modal state
@@ -129,11 +359,21 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     credit_limit: '',
     notes: '',
   });
+  const [editNotifications, setEditNotifications] = useState({
+    email: true,
+    sms: false,
+    whatsapp: false,
+  });
 
   // Customer refund modal state (for refunding money TO customers)
   const [showCustomerRefundModal, setShowCustomerRefundModal] = useState(false);
   const [customerRefundAmount, setCustomerRefundAmount] = useState('');
   const [customerRefundNote, setCustomerRefundNote] = useState('');
+
+  // Relance manuelle (depuis la fiche client)
+  const [isReminding, setIsReminding] = useState(false);
+  // Bascule d'un canal de notification (préférence client) en cours
+  const [togglingChannel, setTogglingChannel] = useState<ReminderChannel | null>(null);
 
   const loadCustomer = useCallback(async () => {
     if (!shopId) return;
@@ -158,6 +398,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             paid_amount: r.paid_amount,
             status: r.status,
             created_at: r.created_at,
+            due_date: r.due_date,
             description: r.description,
             notes: r.notes,
             payments,
@@ -180,6 +421,21 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       const totalBalance = receivablesWithPayments.reduce((s, r) => s + r.balance, 0);
       const totalPaid = receivablesWithPayments.reduce((s, r) => s + r.paid_amount, 0);
 
+      // Préférences de notification (lecture défensive du record local)
+      const prefs = readNotificationPrefs(cust as unknown as Record<string, unknown>);
+
+      // Résumé des notifications de dettes — best-effort en ligne, n'empêche
+      // jamais l'affichage offline-first.
+      let notificationsSummary: NotificationsSummary | null = null;
+      try {
+        const remote = await customersApi.getOne(id);
+        notificationsSummary = parseNotificationsSummary(
+          (remote as Record<string, unknown>).notifications_summary
+        );
+      } catch {
+        // Hors ligne ou serveur indisponible : section masquée proprement.
+      }
+
       const customerDetails: CustomerDetails = {
         id: cust.id,
         name: cust.name,
@@ -191,6 +447,10 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         is_active: cust.is_active,
         receivables: receivablesWithPayments,
         cash_entries: cashEntries,
+        email_notifications_enabled: prefs.email,
+        sms_notifications_enabled: prefs.sms,
+        whatsapp_notifications_enabled: prefs.whatsapp,
+        notifications_summary: notificationsSummary,
         stats: {
           total_receivables: totalReceivables,
           total_balance: totalBalance,
@@ -307,7 +567,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId || !userId) return;
+    if (!shopId || !userId || !customer) return;
 
     const amountValue = Math.round(parseFloat(amount));
 
@@ -316,10 +576,10 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
-    const totalDebt = customer!.stats?.total_balance || 0;
+    const totalDebt = customer.stats?.total_balance ?? 0;
     const overpayment = amountValue - totalDebt;
 
-    const pendingReceivables = customer!.receivables
+    const pendingReceivables = customer.receivables
       .filter(r => r.status === 'PENDING' || r.status === 'PARTIAL')
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -365,17 +625,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   };
 
   const createNegativeReceivable = async (amountValue: number) => {
-    if (!shopId) return;
+    if (!shopId || !customer) return;
     setIsSubmitting(true);
     try {
       await createReceivableOffline({
         shopId,
-        customerId: customer!.id,
+        customerId: customer.id,
         amount: -amountValue,
-        description: note || `Remboursement a effectuer a ${getPersonName(customer!)}`,
+        description: note || `Remboursement a effectuer a ${getPersonName(customer)}`,
       });
 
-      const totalDebt = customer!.stats?.total_balance || 0;
+      const totalDebt = customer.stats?.total_balance ?? 0;
       const newBalance = totalDebt - amountValue;
 
       Alert.alert(
@@ -385,26 +645,26 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
       handleCloseRefundModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const processPayment = async (amountValue: number, receivableId: string) => {
-    if (!userId) return;
+    if (!userId || !customer) return;
     setIsSubmitting(true);
     try {
       await payReceivableOffline({
         receivableId,
         amount: amountValue,
         cashierId: userId,
-        notes: note || `Paiement de ${getPersonName(customer!)}`,
+        notes: note || `Paiement de ${getPersonName(customer)}`,
       });
 
-      const totalDebt = customer!.stats?.total_balance || 0;
+      const totalDebt = customer.stats?.total_balance ?? 0;
       const overpayment = amountValue - totalDebt;
 
       if (overpayment > 0) {
@@ -418,9 +678,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
       handleCloseRefundModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur lors de l'enregistrement:", error);
-      Alert.alert('Erreur', error.message || "Erreur lors de l'enregistrement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Erreur lors de l'enregistrement");
     } finally {
       setIsSubmitting(false);
     }
@@ -452,7 +712,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Erreur', 'Veuillez entrer un montant');
       return;
     }
-    if (!shopId) return;
+    if (!shopId || !customer) return;
 
     const amountValue = Math.round(parseFloat(customerRefundAmount));
 
@@ -461,7 +721,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
-    const currentBalance = customer?.stats?.total_balance || 0;
+    const currentBalance = customer.stats?.total_balance ?? 0;
     const refundOwed = Math.abs(currentBalance);
 
     if (amountValue > refundOwed) {
@@ -478,15 +738,15 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         shopId,
         customerId: id,
         amount: amountValue,
-        description: customerRefundNote || `Remboursement effectue a ${getPersonName(customer!)}`,
+        description: customerRefundNote || `Remboursement effectue a ${getPersonName(customer)}`,
       });
 
       Alert.alert('Succes', 'Remboursement enregistre avec succes');
       handleCloseCustomerRefundModal();
       await loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors du remboursement:', error);
-      Alert.alert('Erreur', error.message || "Impossible d'enregistrer le remboursement");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible d'enregistrer le remboursement");
     } finally {
       setIsSubmitting(false);
     }
@@ -498,6 +758,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     setReceivableAmount('');
     setReceivableDescription('');
     setReceivableNote('');
+    setReceivableDueDate('');
   };
 
   const handleCloseCreateReceivableModal = () => {
@@ -505,6 +766,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     setReceivableAmount('');
     setReceivableDescription('');
     setReceivableNote('');
+    setReceivableDueDate('');
   };
 
   const handleSubmitCreateReceivable = async () => {
@@ -546,9 +808,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Succes', 'Creance creee avec succes');
       handleCloseCreateReceivableModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la creation de la creance:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de creer la creance');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de creer la creance');
     } finally {
       setIsSubmitting(false);
     }
@@ -593,18 +855,19 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       Alert.alert('Succes', 'Client modifie avec succes');
       handleCloseEditModal();
       loadCustomer();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la modification:', error);
-      Alert.alert('Erreur', error.message || 'Erreur lors de la modification');
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la modification');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = () => {
+    if (!customer) return;
     Alert.alert(
       'Confirmer la suppression',
-      `Voulez-vous vraiment supprimer le client ${getPersonName(customer!)} ?`,
+      `Voulez-vous vraiment supprimer le client ${getPersonName(customer)} ?`,
       [
         {
           text: 'Annuler',
@@ -618,9 +881,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
               await deleteCustomerOffline(id);
               Alert.alert('Succes', 'Client supprime avec succes');
               navigation.goBack();
-            } catch (error: any) {
+            } catch (error: unknown) {
               console.error('Erreur lors de la suppression:', error);
-              Alert.alert('Erreur', error.message || 'Erreur lors de la suppression');
+              Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la suppression');
             }
           },
         },
@@ -634,17 +897,100 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     return firstName ? `${firstName} ${lastName}` : lastName;
   };
 
+  // Appel téléphonique direct au client.
+  const handleCall = () => {
+    if (!customer?.phone) {
+      Alert.alert('Aucun numéro', "Ce client n'a pas de téléphone enregistré.");
+      return;
+    }
+    Linking.openURL(`tel:${customer.phone}`).catch(() => undefined);
+  };
+
+  // Relance manuelle : retrouve la tâche vendeur liée à ce client puis envoie
+  // la relance sur tous ses canaux activés.
+  const handleRemindNow = async () => {
+    if (!customer) return;
+    setIsReminding(true);
+    try {
+      const tasks = await sellerTasksApi.getTasks();
+      const task = tasks.find(t => t.customer_id === customer.id || t.customer?.id === customer.id);
+      if (!task) {
+        Alert.alert(
+          'Aucune relance',
+          "Ce client n'a pas de tâche de relance en cours (créance échue)."
+        );
+        return;
+      }
+      const result = await sellerTasksApi.remind(task.id);
+      if (result.ok) {
+        Alert.alert('Relance envoyée', 'La relance a été envoyée au client.');
+      } else {
+        Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
+      }
+    } catch {
+      Alert.alert('Erreur', "Impossible d'envoyer la relance. Réessayez plus tard.");
+    } finally {
+      setIsReminding(false);
+    }
+  };
+
+  // Bascule la préférence d'un canal de notification du client (offline-first).
+  const handleToggleChannel = async (channel: ReminderChannel) => {
+    if (!customer) return;
+    setTogglingChannel(channel);
+    const next = {
+      SMS: !customer.sms_notifications_enabled,
+      WHATSAPP: !customer.whatsapp_notifications_enabled,
+      EMAIL: !customer.email_notifications_enabled,
+    }[channel];
+    try {
+      await updateCustomerOffline(id, {
+        smsNotificationsEnabled: channel === 'SMS' ? next : undefined,
+        whatsappNotificationsEnabled: channel === 'WHATSAPP' ? next : undefined,
+        emailNotificationsEnabled: channel === 'EMAIL' ? next : undefined,
+      });
+      // Mise à jour optimiste de l'état local (évite un rechargement complet).
+      setCustomer(prev =>
+        prev
+          ? {
+              ...prev,
+              sms_notifications_enabled: channel === 'SMS' ? next : prev.sms_notifications_enabled,
+              whatsapp_notifications_enabled:
+                channel === 'WHATSAPP' ? next : prev.whatsapp_notifications_enabled,
+              email_notifications_enabled:
+                channel === 'EMAIL' ? next : prev.email_notifications_enabled,
+            }
+          : prev
+      );
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de modifier le canal');
+    } finally {
+      setTogglingChannel(null);
+    }
+  };
+
   const canEditOrDelete = () => {
-    return userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'SUPERADMIN';
+    return (
+      userRole === 'OWNER' ||
+      userRole === 'BOSS' ||
+      userRole === 'MANAGER' ||
+      userRole === 'SUPERADMIN'
+    );
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Client"
+          subtitle="Créances & paiements"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0F2A44" />
+          <ActivityIndicator size="large" color={Colors.action} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -652,166 +998,323 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     return null;
   }
 
+  const totalBalance = customer.stats?.total_balance ?? 0;
+  const shopOwes = totalBalance < 0; // la boutique doit rembourser le client
+  const balanceLabel = shopOwes ? 'À rembourser au client' : 'Solde dû';
+
+  // Échéance la plus proche (pour la puce d'échéance de la carte client).
+  const dueDate = nearestDueDate(customer.receivables);
+  const dueInfo = dueDate ? dueRelativeLabel(dueDate) : null;
+
+  const canRemind =
+    userRole === 'OWNER' ||
+    userRole === 'BOSS' ||
+    userRole === 'MANAGER' ||
+    userRole === 'EMPLOYEE' ||
+    userRole === 'SUPERADMIN';
+
+  // Canaux de notification (préférence client + disponibilité côté boutique).
+  // Un canal est "disponible boutique" si la coordonnée requise existe :
+  // SMS/WhatsApp -> téléphone, E-mail -> email.
+  const channelRows: Array<{
+    key: ReminderChannel;
+    short: 'SMS' | 'WA' | '@';
+    label: string;
+    enabled: boolean;
+    shopAvailable: boolean;
+  }> = [
+    {
+      key: 'SMS',
+      short: 'SMS',
+      label: 'SMS',
+      enabled: customer.sms_notifications_enabled,
+      shopAvailable: !!customer.phone,
+    },
+    {
+      key: 'WHATSAPP',
+      short: 'WA',
+      label: 'WhatsApp',
+      enabled: customer.whatsapp_notifications_enabled,
+      shopAvailable: !!customer.phone,
+    },
+    {
+      key: 'EMAIL',
+      short: '@',
+      label: 'E-mail',
+      enabled: customer.email_notifications_enabled,
+      shopAvailable: !!customer.email,
+    },
+  ];
+
+  const recentNotifications = customer.notifications_summary?.recent ?? [];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <ScreenHeader
         title={getPersonName(customer)}
+        subtitle="Créances & paiements"
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
           <View style={styles.headerActions}>
             {canEditOrDelete() && (
               <>
-                <IconButton onPress={handleOpenEditModal}>
-                  <Edit size={20} color={Colors.primary[900]} />
-                </IconButton>
-                <IconButton onPress={handleDelete}>
-                  <Trash size={20} color={Colors.danger.main} />
-                </IconButton>
+                {can('customers', 'edit') && (
+                  <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
+                    <Edit size={20} color={Colors.action} />
+                  </IconButton>
+                )}
+                {can('customers', 'delete') && (
+                  <IconButton onPress={handleDelete}>
+                    <Trash size={20} color={Colors.danger.main} />
+                  </IconButton>
+                )}
               </>
             )}
-            <StatusBadge
-              text={customer.is_active ? 'Actif' : 'Inactif'}
-              variant={customer.is_active ? 'success' : 'danger'}
-            />
           </View>
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Contact Info */}
-        {!!(
-          customer.phone ||
-          customer.email ||
-          customer.address ||
-          (customer.credit_limit && customer.credit_limit > 0)
-        ) && (
-          <View style={styles.infoCard}>
-            {!!customer.phone && (
-              <Text style={styles.infoText}>
-                Tél: {formatCameroonPhone(String(customer.phone))}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* CARTE CLIENT — avatar + nom + tél + solde + échéance + actions */}
+        <View style={styles.clientCard}>
+          <View style={styles.clientHeaderRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {getInitials(customer.first_name, customer.name)}
               </Text>
-            )}
-            {!!customer.email && (
-              <Text style={styles.infoText}>Email: {String(customer.email)}</Text>
-            )}
-            {!!customer.address && (
-              <Text style={styles.infoText}>Adresse: {String(customer.address)}</Text>
-            )}
-            {!!(customer.credit_limit && customer.credit_limit > 0) && (
-              <View>
-                <Text style={styles.infoText}>
-                  Limite crédit: {formatMoney(customer.credit_limit)}
+            </View>
+            <View style={styles.clientHeaderText}>
+              <Text style={styles.clientName} numberOfLines={1}>
+                {getPersonName(customer)}
+              </Text>
+              {!!customer.phone && (
+                <Text style={styles.clientPhone} numberOfLines={1}>
+                  {formatCameroonPhone(String(customer.phone))}
                 </Text>
-                {(() => {
-                  const used = customer.stats?.total_balance || 0;
-                  const limit = customer.credit_limit!;
-                  const pct = Math.min(100, Math.round((used / limit) * 100));
-                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
-                  return (
-                    <View style={{ marginTop: 4 }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, color: Colors.muted.foreground }}>
-                          Utilisé: {formatMoney(used)}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: barColor, fontWeight: '600' }}>
-                          {pct}%
-                        </Text>
-                      </View>
-                      <View style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3 }}>
-                        <View
-                          style={{
-                            height: 6,
-                            backgroundColor: barColor,
-                            borderRadius: 3,
-                            width: `${pct}%`,
-                          }}
+              )}
+            </View>
+          </View>
+
+          <View style={styles.balanceRow}>
+            <View style={styles.balanceBlock}>
+              <Text style={styles.balanceLabel}>{balanceLabel}</Text>
+              <Text style={[styles.balanceAmount, shopOwes && styles.balanceAmountRefund]}>
+                {formatMoney(totalBalance)}
+              </Text>
+            </View>
+            {dueInfo ? (
+              <View
+                style={[
+                  styles.duePill,
+                  {
+                    backgroundColor: dueInfo.overdue
+                      ? Colors.danger.background
+                      : Colors.warning.background,
+                  },
+                ]}
+              >
+                <Calendar
+                  size={14}
+                  color={dueInfo.overdue ? Colors.danger.main : Colors.warning.main}
+                />
+                <Text
+                  style={[
+                    styles.duePillText,
+                    { color: dueInfo.overdue ? Colors.danger.main : Colors.warning.text },
+                  ]}
+                >
+                  {formatDate(dueDate as string, 'fr-FR', { day: 'numeric', month: 'long' })} ·{' '}
+                  {dueInfo.text}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.clientActions}>
+            <TouchableOpacity style={styles.callButton} onPress={handleCall} activeOpacity={0.85}>
+              <Smartphone size={18} color={Colors.action} />
+              <Text style={styles.callButtonText}>Appeler</Text>
+            </TouchableOpacity>
+            {canRemind && (
+              <TouchableOpacity
+                style={styles.remindButton}
+                onPress={handleRemindNow}
+                disabled={isReminding}
+                activeOpacity={0.85}
+              >
+                {isReminding ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Bell size={18} color="#FFFFFF" />
+                    <Text style={styles.remindButtonText}>Relancer maintenant</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* CANAUX DE NOTIFICATION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>CANAUX DE NOTIFICATION</Text>
+          <View style={styles.listCard}>
+            {channelRows.map((row, idx) => (
+              <View
+                key={row.key}
+                style={[
+                  styles.channelRow,
+                  idx < channelRows.length - 1 && styles.channelRowBordered,
+                ]}
+              >
+                <View style={styles.channelBadge}>
+                  <Text style={styles.channelBadgeText}>{row.short}</Text>
+                </View>
+                <View style={styles.channelInfo}>
+                  <Text style={styles.channelLabel}>{row.label}</Text>
+                  {!row.shopAvailable ? (
+                    <Text style={styles.channelDisabled}>Désactivé pour la boutique</Text>
+                  ) : null}
+                </View>
+                <Switch
+                  value={row.enabled && row.shopAvailable}
+                  disabled={!row.shopAvailable || togglingChannel === row.key}
+                  onValueChange={() => handleToggleChannel(row.key)}
+                  trackColor={{ false: Colors.muted.main, true: Colors.accent }}
+                  thumbColor={Colors.surface}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Coordonnées complémentaires (email / adresse) */}
+        {!!(customer.email || customer.address) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Coordonnées</Text>
+            <View style={styles.infoCard}>
+              {!!customer.email && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <Mail size={18} color={Colors.action} />
+                  </View>
+                  <Text style={styles.infoText}>{String(customer.email)}</Text>
+                </View>
+              )}
+              {!!customer.address && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIcon}>
+                    <MapPin size={18} color={Colors.action} />
+                  </View>
+                  <Text style={styles.infoText}>{String(customer.address)}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Action Buttons (paiement / créance / remboursement) */}
+        {(userRole === 'OWNER' ||
+          userRole === 'BOSS' ||
+          userRole === 'MANAGER' ||
+          userRole === 'EMPLOYEE') &&
+          (canRefundReceivable || canCreateReceivable) && (
+            <View style={styles.actionButtons}>
+              {canRefundReceivable && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+                  onPress={handleOpenRefundModal}
+                  activeOpacity={0.85}
+                >
+                  <DollarSign size={20} color={Colors.success.foreground} />
+                  <Text style={styles.actionButtonText}>Recevoir paiement</Text>
+                </TouchableOpacity>
+              )}
+
+              {canCreateReceivable && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
+                  onPress={handleOpenCreateReceivableModal}
+                  activeOpacity={0.85}
+                >
+                  <Plus size={20} color={Colors.warning.foreground} />
+                  <Text style={styles.actionButtonText}>Créer créance</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Show Refund button only when balance is negative */}
+              {shopOwes && canRefundReceivable && (
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.actionButtonFull,
+                    { backgroundColor: Colors.danger.main },
+                  ]}
+                  onPress={handleOpenCustomerRefundModal}
+                  activeOpacity={0.85}
+                >
+                  <DollarSign size={20} color={Colors.danger.foreground} />
+                  <Text style={styles.actionButtonText}>Rembourser le client</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+        {/* HISTORIQUE & TRANSPARENCE — statuts de notification */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>HISTORIQUE & TRANSPARENCE</Text>
+
+          {recentNotifications.length > 0 && (
+            <View style={styles.listCard}>
+              {recentNotifications.slice(0, 8).map((notif, idx) => {
+                const meta = getNotifStatusMeta(notif.status);
+                return (
+                  <View
+                    key={`notif-${idx}`}
+                    style={[
+                      styles.notifRow,
+                      idx < Math.min(recentNotifications.length, 8) - 1 && styles.notifRowBordered,
+                    ]}
+                  >
+                    <View style={styles.notifIcon}>
+                      <Bell size={16} color={Colors.action} />
+                    </View>
+                    <View style={styles.notifBody}>
+                      <Text style={styles.notifTitle} numberOfLines={1}>
+                        {getNotifTypeLabel(notif.type)}
+                      </Text>
+                      {notif.created_at ? (
+                        <Text style={styles.notifDate}>{formatDate(notif.created_at)}</Text>
+                      ) : null}
+                      <View style={styles.notifBadges}>
+                        <StatusBadge
+                          text={`${NOTIF_CHANNEL_SHORT[notif.channel] ?? notif.channel} ${getDeliveryLabel(notif.status)}`}
+                          variant={meta.variant}
                         />
                       </View>
                     </View>
-                  );
-                })()}
-              </View>
-            )}
-          </View>
-        )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
-        {/* Balance Indicator */}
-        <BalanceIndicator
-          balance={customer.stats?.total_balance || 0}
-          type="customer"
-          showAlert={true}
-        />
-
-        {/* Action Buttons */}
-        {(userRole === 'OWNER' || userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
-              onPress={handleOpenCreateReceivableModal}
-            >
-              <Plus size={20} color={Colors.primary.foreground} />
-              <Text style={styles.actionButtonText}>Créer créance</Text>
-            </TouchableOpacity>
-
-            {/* Show Refund button only when balance is negative */}
-            {(customer.stats?.total_balance || 0) < 0 && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: Colors.danger.main }]}
-                onPress={handleOpenCustomerRefundModal}
-              >
-                <DollarSign size={20} color={Colors.primary.foreground} />
-                <Text style={styles.actionButtonText}>Rembourser Client</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
-              onPress={handleOpenRefundModal}
-            >
-              <DollarSign size={20} color={Colors.primary.foreground} />
-              <Text style={styles.actionButtonText}>Recevoir paiement</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Transactions History */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Historique des opérations</Text>
-          </View>
-          <View>
+          <View style={styles.listCard}>
             {transactions.length === 0 ? (
-              <View style={{ padding: Spacing.lg }}>
-                <Text style={{ color: Colors.muted.foreground, textAlign: 'center' }}>
-                  Aucune transaction
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Aucune transaction</Text>
               </View>
             ) : (
               transactions.map((transaction, index) => {
                 // Detect if this is a refund (negative receivable)
                 const isRefund = transaction.type === 'receivable' && transaction.amount < 0;
                 const isCredit = transaction.type === 'receivable' && !isRefund;
-
-                const getIcon = () => {
-                  if (isRefund) {
-                    return <DollarSign size={20} color={Colors.danger.main} />;
-                  }
-                  switch (transaction.type) {
-                    case 'receivable':
-                      return <Receipt size={20} color={Colors.primary[900]} />;
-                    case 'payment':
-                      return <DollarSign size={20} color={Colors.primary[900]} />;
-                    default:
-                      return <Receipt size={20} color={Colors.primary[900]} />;
-                  }
-                };
+                const isPositive = transaction.amount > 0;
 
                 const getTitle = () => {
                   if (isRefund) {
@@ -843,20 +1346,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   return statusMap[transaction.status] || undefined;
                 };
 
+                const badge = getBadge();
                 const dateStr = transaction.date ? formatDate(transaction.date) : 'Date inconnue';
+                const amountColor = isCredit
+                  ? Colors.warning.main
+                  : isPositive
+                    ? Colors.success.main
+                    : Colors.danger.main;
+                const iconTint = isCredit
+                  ? Colors.warning.main
+                  : isPositive
+                    ? Colors.success.main
+                    : Colors.danger.main;
+                const iconBg = isCredit
+                  ? Colors.warning.background
+                  : isPositive
+                    ? Colors.success.background
+                    : Colors.danger.background;
 
                 return (
-                  <ListItem
+                  <TouchableOpacity
                     key={index}
-                    icon={getIcon()}
-                    title={getTitle()}
-                    subtitle={dateStr}
-                    amount={`${transaction.amount > 0 ? '+' : ''}${formatMoney(Math.abs(transaction.amount))}`}
-                    amountColor={
-                      isCredit ? 'warning' : transaction.amount > 0 ? 'success' : 'danger'
-                    }
-                    badge={getBadge()}
-                    onClick={() => {
+                    activeOpacity={0.7}
+                    style={[styles.txRow, index < transactions.length - 1 && styles.txRowBordered]}
+                    onPress={() => {
                       setSelectedTransaction({
                         type: transaction.type,
                         date: transaction.date,
@@ -869,7 +1382,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                       });
                       setShowDetailModal(true);
                     }}
-                  />
+                  >
+                    <View style={[styles.txIcon, { backgroundColor: iconBg }]}>
+                      {isPositive ? (
+                        <ArrowDown size={18} color={iconTint} />
+                      ) : (
+                        <ArrowUp size={18} color={iconTint} />
+                      )}
+                    </View>
+                    <View style={styles.txBody}>
+                      <View style={styles.txTitleRow}>
+                        <Text style={styles.txTitle} numberOfLines={1}>
+                          {getTitle()}
+                        </Text>
+                        {badge ? <StatusBadge text={badge.text} variant={badge.variant} /> : null}
+                      </View>
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {dateStr}
+                      </Text>
+                    </View>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>
+                      {isPositive ? '+' : '-'}
+                      {formatMoney(Math.abs(transaction.amount))}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -886,6 +1422,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -898,7 +1435,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 onPress={handleCloseCreateReceivableModal}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -981,6 +1518,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -990,7 +1528,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 </Text>
               </View>
               <TouchableOpacity onPress={handleCloseRefundModal} style={styles.modalCloseButton}>
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -1055,6 +1593,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1067,7 +1606,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 onPress={handleCloseCustomerRefundModal}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseButtonText}>✕</Text>
+                <X size={18} color={Colors.action} />
               </TouchableOpacity>
             </View>
 
@@ -1149,6 +1688,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         <View style={styles.modalOverlay}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View>
@@ -1158,7 +1698,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   </Text>
                 </View>
                 <TouchableOpacity onPress={handleCloseEditModal} style={styles.modalCloseButton}>
-                  <Text style={styles.modalCloseButtonText}>✕</Text>
+                  <X size={18} color={Colors.action} />
                 </TouchableOpacity>
               </View>
 
@@ -1265,7 +1805,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         onClose={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1274,582 +1814,495 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 14,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    minHeight: 56,
-  },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    padding: Spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  headerActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    gap: Spacing.xs,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerIconBtn: {
+    marginRight: Spacing.xs,
+  },
+  scroll: {
     flex: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  backText: {
-    fontSize: 24,
-    color: '#374151',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButtonText: {
-    fontSize: 20,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#dcfce7',
-  },
-  statusBadgeInactive: {
-    backgroundColor: '#fee2e2',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#16a34a',
-  },
-  statusTextInactive: {
-    color: '#dc2626',
   },
   content: {
-    flex: 1,
-    padding: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: 96,
+    gap: Spacing.xl,
   },
-  infoCard: {
+
+  // CARTE CLIENT (blanche)
+  clientCard: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    padding: Spacing.xl,
+    gap: Spacing.lg,
+    ...Shadows.sm,
+  },
+  clientHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    backgroundColor: Colors.warning.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.warning.main,
+    letterSpacing: 0.5,
+  },
+  clientHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
+  clientName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  clientPhone: {
+    fontSize: 13.5,
+    color: Colors.action,
+    fontWeight: '500',
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  balanceBlock: {
+    flexShrink: 1,
+  },
+  balanceLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  balanceAmount: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: Colors.danger.main,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  balanceAmountRefund: {
+    color: Colors.success.main,
+  },
+  duePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  duePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  clientActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  callButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 18,
+  },
+  callButtonText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  remindButton: {
+    flex: 1.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.action,
+  },
+  remindButtonText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // CANAUX DE NOTIFICATION
+  channelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  channelRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  channelBadge: {
+    minWidth: 36,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  channelBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.action,
+  },
+  channelInfo: { flex: 1, gap: 1 },
+  channelLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  channelDisabled: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning.main,
+  },
+
+  // NOTIFICATIONS (historique & transparence)
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  notifRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notifIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifBody: { flex: 1, gap: 4 },
+  notifTitle: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  notifDate: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  notifBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+
+  // SECTIONS
+  section: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sectionLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.6,
+  },
+
+  // INFOS CLIENT
+  infoCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   infoText: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 14.5,
     color: Colors.text,
-    marginBottom: Spacing.sm,
     lineHeight: 20,
   },
-  balanceCard: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  balanceCardDebt: {
-    backgroundColor: '#dc2626',
-  },
-  balanceCardPaid: {
-    backgroundColor: '#10b981',
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceValue: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDetails: {
+
+  // ACTION BUTTONS
+  actionButtons: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: 48,
+    ...Shadows.sm,
   },
-  balanceDetailItem: {
-    alignItems: 'center',
+  actionButtonFull: {
+    minWidth: '100%',
   },
-  balanceDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+  actionButtonText: {
+    color: Colors.onMarine,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  balanceDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  actionGradient: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    fontSize: 32,
-  },
-  actionText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  actionSubtext: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  historyCard: {
-    backgroundColor: '#fff',
+
+  // LISTE TRANSACTIONS
+  listCard: {
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  transactionsList: {
-    gap: 12,
-  },
-  transactionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   emptyState: {
+    padding: Spacing['2xl'],
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
   },
   emptyText: {
+    color: Colors.textColors.tertiary,
     fontSize: 14,
-    color: '#6b7280',
   },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  transactionLeft: {
-    flex: 1,
-  },
-  transactionHeader: {
+  txRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
-  transactionType: {
-    fontSize: 14,
+  txRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txBody: {
+    flex: 1,
+    gap: 2,
+  },
+  txTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  txTitle: {
+    flexShrink: 1,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
   },
-  statusBadgeSmall: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+  txSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
   },
-  statusBadgeSuccess: {
-    backgroundColor: '#dcfce7',
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  statusBadgeWarning: {
-    backgroundColor: '#fef3c7',
-  },
-  statusBadgePending: {
-    backgroundColor: '#dbeafe',
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 2,
-  },
-  transactionNote: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 12,
-  },
-  transactionAmountPositive: {
-    color: '#dc2626',
-  },
-  transactionAmountNegative: {
-    color: '#16a34a',
-  },
+
+  // MODALES
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    maxHeight: '85%',
+    paddingTop: Spacing.sm,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
+    marginVertical: Spacing.sm,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.lg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: Colors.primary[900],
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   modalHeaderTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.primary.foreground,
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
   },
   modalHeaderSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: Colors.textColors.tertiary,
   },
   modalCloseButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalCloseButtonText: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
   modalBody: {
-    padding: 20,
+    padding: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    color: Colors.textColors.secondary,
+    marginBottom: Spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
+    backgroundColor: Colors.surfaceAlt,
   },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.surfaceAlt,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
-    fontWeight: '600',
-    color: '#111827',
-    paddingVertical: 12,
+    fontWeight: '700',
+    color: Colors.text,
+    paddingVertical: Spacing.md,
+    fontVariant: ['tabular-nums'],
   },
   amountCurrency: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: '700',
+    color: Colors.action,
   },
   noteInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
     fontSize: 14,
-    color: '#111827',
+    color: Colors.text,
     height: 80,
     textAlignVertical: 'top',
+    backgroundColor: Colors.surfaceAlt,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: 14,
+    color: Colors.text,
+    height: 60,
+    textAlignVertical: 'top',
+    backgroundColor: Colors.surfaceAlt,
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: Colors.muted.main,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   modalCancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.textColors.secondary,
   },
   modalSubmitButton: {
     flex: 1,
-    backgroundColor: '#10b981',
+    backgroundColor: Colors.action,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   modalSubmitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-  },
-  // New balance display styles
-  balanceDisplayButton: {
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  balanceDisplayGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  balanceDisplayLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceDisplayAmount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDisplayDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  balanceDisplayDetailItem: {
-    alignItems: 'center',
-  },
-  balanceDisplayDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  balanceDisplayDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDisplayDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  // New action buttons row styles
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionButtonHalf: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionGradientHalf: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 120,
-    justifyContent: 'center',
-  },
-  actionIconLarge: {
-    fontSize: 36,
-    marginBottom: 4,
-  },
-  actionTextMedium: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  actionSubtextSmall: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-  },
-  overpaymentWarning: {
-    backgroundColor: Colors.warning.main + '20',
-    borderWidth: 1,
-    borderColor: Colors.warning.main,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  overpaymentWarningText: {
-    color: Colors.warning.main,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: '#111827',
-    height: 60,
-    textAlignVertical: 'top',
-  },
-  paymentMethodContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  paymentMethodButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.muted.foreground,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentMethodButtonActive: {
-    backgroundColor: Colors.primary.main,
-    borderColor: Colors.primary.main,
-  },
-  paymentMethodButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.muted.foreground,
-  },
-  paymentMethodButtonTextActive: {
-    color: Colors.primary.foreground,
+    color: Colors.onMarine,
   },
 });

@@ -514,6 +514,15 @@ class SupplierDebtRepository extends LocalRepository<LocalSupplierDebt> {
     );
     return row?.total ?? 0;
   }
+
+  async getSupplierBalance(shopId: string, supplierId: string): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ total: number }>(
+      `SELECT COALESCE(SUM(balance), 0) as total FROM supplier_debts WHERE shop_id = ? AND supplier_id = ? AND deleted = 0 AND status IN ('PENDING', 'PARTIAL')`,
+      [shopId, supplierId]
+    );
+    return row?.total ?? 0;
+  }
 }
 
 // ============================================================
@@ -620,6 +629,7 @@ export interface LocalClientReceivable extends LocalRecord {
   description: string | null;
   notes: string | null;
   status: string;
+  due_date: string | null;
   version: number;
 }
 

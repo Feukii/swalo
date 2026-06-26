@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Package } from '../../components/icons/SimpleIcons';
 import { ScreenHeader } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { formatMoney } from '../../utils/money';
 import { stockBatchRepo, LocalStockBatch } from '../../db/repositories';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -25,7 +25,9 @@ interface BatchStats {
 }
 
 interface ProductBatchesScreenProps {
-  navigation: any;
+  navigation: {
+    goBack: () => void;
+  };
   route: {
     params: {
       productId: string;
@@ -71,7 +73,7 @@ export default function ProductBatchesScreen({ navigation, route }: ProductBatch
             0
           ),
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Erreur chargement lots:', error);
         Alert.alert('Erreur', 'Impossible de charger les lots de stock');
       } finally {
@@ -203,7 +205,7 @@ export default function ProductBatchesScreen({ navigation, route }: ProductBatch
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Lots en stock" showBack onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </SafeAreaView>
@@ -232,7 +234,7 @@ export default function ProductBatchesScreen({ navigation, route }: ProductBatch
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={() => loadBatches(true)}
-              tintColor={Colors.primary[900]}
+              tintColor={Colors.action}
             />
           }
         />
@@ -316,11 +318,10 @@ const styles = StyleSheet.create({
   // Batch card
   batchCard: {
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   batchCardExhausted: {
     opacity: 0.6,
@@ -379,7 +380,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   sellPriceValue: {
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   marginValue: {
     color: Colors.success.main,

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SalesService } from '../src/modules/sales/sales.service';
+import { DebtNotificationsService } from '../src/modules/notifications/debt-notifications.service';
 import { InventoryService } from '../src/modules/inventory/inventory.service';
 import { PackagingTypesService } from '../src/modules/packaging-types/packaging-types.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
@@ -60,14 +61,26 @@ describe('SalesService - FIFO Destocking', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SalesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        SalesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: DebtNotificationsService,
+          useValue: {
+            notifyDebtCreated: jest.fn().mockResolvedValue(undefined),
+            notifyDebtPayment: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);
     jest.clearAllMocks();
 
     // Make $transaction execute the callback with the same mock
-    mockPrisma.$transaction.mockImplementation((cb: any) => cb(mockPrisma));
+    mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockPrisma) => unknown) =>
+      cb(mockPrisma)
+    );
   });
 
   describe('create - FIFO stock check', () => {
@@ -187,13 +200,20 @@ describe('SalesService - FIFO Destocking', () => {
       mockPrisma.inventoryMovement.create.mockResolvedValue({});
 
       // Capture the create call to verify batch_id in items
-      mockPrisma.sale.create.mockImplementation((args: any) => {
+      interface SaleItemCreate {
+        [key: string]: unknown;
+        batch_id: string | null;
+      }
+      interface SaleCreateArgs {
+        data: { items: { create: SaleItemCreate[] } };
+      }
+      mockPrisma.sale.create.mockImplementation((args: SaleCreateArgs) => {
         const items = args.data.items.create;
         expect(items[0].batch_id).toBe('batch-abc');
         return {
           id: 'sale-1',
           status: 'COMPLETED',
-          items: items.map((i: any) => ({ ...i, id: 'si-1' })),
+          items: items.map(i => ({ ...i, id: 'si-1' })),
           customer: null,
           cashier: { id: cashierId, display_name: 'Test' },
         };
@@ -536,12 +556,24 @@ describe('SalesService - Explicit batch_id', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SalesService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        SalesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: DebtNotificationsService,
+          useValue: {
+            notifyDebtCreated: jest.fn().mockResolvedValue(undefined),
+            notifyDebtPayment: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb: any) => cb(mockPrisma));
+    mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockPrisma) => unknown) =>
+      cb(mockPrisma)
+    );
   });
 
   it('should deduct from specific batch when batch_id is provided', async () => {
@@ -639,7 +671,9 @@ describe('InventoryService - Price Change Notification', () => {
 
     service = module.get<InventoryService>(InventoryService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb: any) => cb(mockPrisma));
+    mockPrisma.$transaction.mockImplementation((cb: (tx: typeof mockPrisma) => unknown) =>
+      cb(mockPrisma)
+    );
   });
 
   it('should return price_change when new batch has different prices', async () => {

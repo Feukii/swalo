@@ -62,3 +62,6 @@ web-build/
 *.db-shm
 *.db-wal
 nul
+
+# Reference screenshots (local only)
+apps/mobile/assets/lecalepin*.jpeg

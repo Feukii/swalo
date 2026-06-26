@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScreenHeader } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme-v2';
+import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { Plus, Edit, Trash, Package } from '../../components/icons/SimpleIcons';
 import { packagingTypesApi } from '../../lib/api';
 
@@ -35,9 +35,25 @@ interface FormData {
   symbol: string;
 }
 
+interface PackagingTypesScreenProps {
+  navigation: {
+    goBack: () => void;
+  };
+}
+
 const INITIAL_FORM: FormData = { name: '', symbol: '' };
 
-export default function PackagingTypesScreen({ navigation }: any) {
+/**
+ * Extract a user-facing message from an unknown error, falling back to a default.
+ * An empty message string falls back to the default (matches the original `|| ` behaviour).
+ */
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return fallback;
+}
+
+export default function PackagingTypesScreen({ navigation }: PackagingTypesScreenProps) {
   const [packagingTypes, setPackagingTypes] = useState<PackagingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,14 +62,19 @@ export default function PackagingTypesScreen({ navigation }: any) {
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [focusedField, setFocusedField] = useState<keyof FormData | null>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const response = await packagingTypesApi.getAll();
-      const data = (response as any).data ?? response;
-      setPackagingTypes(Array.isArray(data) ? data : []);
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de charger les conditionnements');
+      const response: unknown = await packagingTypesApi.getAll();
+      // The API may return the array directly or wrapped as { data: [...] }.
+      const data =
+        response && typeof response === 'object' && 'data' in response
+          ? (response as { data: unknown }).data
+          : response;
+      setPackagingTypes(Array.isArray(data) ? (data as PackagingType[]) : []);
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error, 'Impossible de charger les conditionnements'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,6 +112,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
     setShowModal(false);
     setEditingItem(null);
     setFormData(INITIAL_FORM);
+    setFocusedField(null);
   };
 
   const handleSave = async () => {
@@ -118,8 +140,8 @@ export default function PackagingTypesScreen({ navigation }: any) {
 
       closeModal();
       loadData();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder le conditionnement');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error, 'Impossible de sauvegarder le conditionnement'));
     } finally {
       setSaving(false);
     }
@@ -147,8 +169,11 @@ export default function PackagingTypesScreen({ navigation }: any) {
               await packagingTypesApi.delete(item.id);
               Alert.alert('Succes', 'Conditionnement supprime avec succes');
               loadData();
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Impossible de supprimer le conditionnement');
+            } catch (error: unknown) {
+              Alert.alert(
+                'Erreur',
+                getErrorMessage(error, 'Impossible de supprimer le conditionnement')
+              );
             }
           },
         },
@@ -170,10 +195,10 @@ export default function PackagingTypesScreen({ navigation }: any) {
               await packagingTypesApi.initDefaults();
               Alert.alert('Succes', 'Les conditionnements par defaut ont ete crees');
               loadData();
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert(
                 'Erreur',
-                error.message || "Impossible d'initialiser les conditionnements"
+                getErrorMessage(error, "Impossible d'initialiser les conditionnements")
               );
             } finally {
               setInitializing(false);
@@ -187,7 +212,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
   const renderItem = ({ item }: { item: PackagingType }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemIconBox}>
-        <Package size={20} color={Colors.primary[900]} />
+        <Package size={20} color={Colors.action} />
       </View>
 
       <View style={styles.itemContent}>
@@ -212,7 +237,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
           onPress={() => openEditModal(item)}
           activeOpacity={0.7}
         >
-          <Edit size={18} color={Colors.primary[900]} />
+          <Edit size={18} color={Colors.action} />
         </TouchableOpacity>
 
         {!item.is_default && (
@@ -230,7 +255,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Package size={48} color={Colors.muted.foreground} />
+      <Package size={48} color={Colors.action} />
       <Text style={styles.emptyTitle}>Aucun conditionnement</Text>
       <Text style={styles.emptySubtitle}>
         Commencez par initialiser les types par defaut ou creez-en un nouveau.
@@ -268,7 +293,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader title="Conditionnements" showBack={true} onBack={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary[900]} />
+          <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </SafeAreaView>
@@ -287,7 +312,7 @@ export default function PackagingTypesScreen({ navigation }: any) {
             style={styles.headerAddButton}
             activeOpacity={0.7}
           >
-            <Plus size={20} color={Colors.primary[900]} />
+            <Plus size={20} color={Colors.action} />
             <Text style={styles.headerAddText}>Ajouter</Text>
           </TouchableOpacity>
         }
@@ -304,19 +329,20 @@ export default function PackagingTypesScreen({ navigation }: any) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary[900]]}
-            tintColor={Colors.primary[900]}
+            colors={[Colors.action]}
+            tintColor={Colors.action}
           />
         }
       />
 
-      {/* Modal Formulaire */}
-      <Modal visible={showModal} transparent animationType="fade" onRequestClose={closeModal}>
+      {/* Modal Formulaire (bottom-sheet) */}
+      <Modal visible={showModal} transparent animationType="slide" onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {editingItem ? 'Modifier le conditionnement' : 'Nouveau conditionnement'}
             </Text>
@@ -326,9 +352,11 @@ export default function PackagingTypesScreen({ navigation }: any) {
                 Nom <Text style={styles.formRequired}>*</Text>
               </Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, focusedField === 'name' && styles.formInputFocused]}
                 value={formData.name}
                 onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
+                onFocus={() => setFocusedField('name')}
+                onBlur={() => setFocusedField(null)}
                 placeholder="Ex : Carton, Boite, Unite..."
                 placeholderTextColor={Colors.muted.foreground}
                 autoFocus={true}
@@ -339,9 +367,11 @@ export default function PackagingTypesScreen({ navigation }: any) {
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Symbole</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, focusedField === 'symbol' && styles.formInputFocused]}
                 value={formData.symbol}
                 onChangeText={text => setFormData(prev => ({ ...prev, symbol: text }))}
+                onFocus={() => setFocusedField('symbol')}
+                onBlur={() => setFocusedField(null)}
                 placeholder="Ex : ctn, bte, u..."
                 placeholderTextColor={Colors.muted.foreground}
                 maxLength={10}
@@ -400,11 +430,15 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   listHeader: {
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   listHeaderText: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   headerAddButton: {
     flexDirection: 'row',
@@ -414,24 +448,23 @@ const styles = StyleSheet.create({
   headerAddText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary[900],
+    color: Colors.action,
   },
   // Item card
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
   itemIconBox: {
     width: 40,
     height: 40,
-    borderRadius: 8,
-    backgroundColor: Colors.muted.main,
+    borderRadius: 10,
+    backgroundColor: `${Colors.action}1A`,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -476,10 +509,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: Colors.muted.main,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -504,30 +537,40 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   initButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: 12,
     minWidth: 200,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   initButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.primary.foreground,
   },
-  // Modal
+  // Modal (bottom-sheet)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: Spacing['2xl'],
+    paddingBottom: Spacing['3xl'],
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.muted.main,
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
     fontSize: 20,
@@ -557,6 +600,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text,
   },
+  formInputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
+  },
   formHint: {
     fontSize: 12,
     color: Colors.muted.foreground,
@@ -570,10 +617,10 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     paddingVertical: Spacing.md,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 48,
   },
   cancelButton: {
     backgroundColor: Colors.muted.main,
@@ -584,7 +631,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   submitButton: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: Colors.action,
   },
   submitButtonText: {
     fontSize: 16,

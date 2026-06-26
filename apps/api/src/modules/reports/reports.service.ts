@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Injectable()
@@ -9,17 +10,20 @@ export class ReportsService {
    * Rapport de ventes consolidé avec filtrage par date
    */
   async getSalesReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
-    const where: any = {
-      shop_id: shopId,
-      deleted: false,
-    };
-
+    const createdAtFilter: Prisma.DateTimeFilter = {};
     if (filters?.start_date) {
-      where.created_at = { ...where.created_at, gte: new Date(filters.start_date) };
+      createdAtFilter.gte = new Date(filters.start_date);
     }
     if (filters?.end_date) {
-      where.created_at = { ...where.created_at, lte: new Date(filters.end_date) };
+      createdAtFilter.lte = new Date(filters.end_date);
     }
+    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
+
+    const where: Prisma.SaleWhereInput = {
+      shop_id: shopId,
+      deleted: false,
+      ...(hasDateFilter ? { created_at: createdAtFilter } : {}),
+    };
 
     const [totalCount, completedCount, cancelledCount, completedRevenue, byPaymentMethod] =
       await Promise.all([
@@ -40,19 +44,19 @@ export class ReportsService {
 
     const avgTicket =
       completedCount > 0
-        ? Math.round((completedRevenue._sum.grand_total || 0) / completedCount)
+        ? Math.round((completedRevenue._sum.grand_total ?? 0) / completedCount)
         : 0;
 
     return {
       total_sales: totalCount,
       completed_sales: completedCount,
       cancelled_sales: cancelledCount,
-      total_revenue: completedRevenue._sum.grand_total || 0,
+      total_revenue: completedRevenue._sum.grand_total ?? 0,
       average_ticket: avgTicket,
       by_payment_method: byPaymentMethod.map(pm => ({
         method: pm.payment_method,
         count: pm._count,
-        total: pm._sum.grand_total || 0,
+        total: pm._sum.grand_total ?? 0,
       })),
     };
   }
@@ -119,17 +123,20 @@ export class ReportsService {
    * Rapport tresorerie consolidé avec filtrage par date
    */
   async getCashReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
-    const where: any = {
-      shop_id: shopId,
-      deleted: false,
-    };
-
+    const createdAtFilter: Prisma.DateTimeFilter = {};
     if (filters?.start_date) {
-      where.created_at = { ...where.created_at, gte: new Date(filters.start_date) };
+      createdAtFilter.gte = new Date(filters.start_date);
     }
     if (filters?.end_date) {
-      where.created_at = { ...where.created_at, lte: new Date(filters.end_date) };
+      createdAtFilter.lte = new Date(filters.end_date);
     }
+    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
+
+    const where: Prisma.CashEntryWhereInput = {
+      shop_id: shopId,
+      deleted: false,
+      ...(hasDateFilter ? { created_at: createdAtFilter } : {}),
+    };
 
     const [entriesStats, exitsStats, receivablesStats, debtsStats] = await Promise.all([
       this.prisma.cashEntry.aggregate({
@@ -166,8 +173,8 @@ export class ReportsService {
       }),
     ]);
 
-    const totalIn = entriesStats._sum.amount || 0;
-    const totalOut = exitsStats._sum.amount || 0;
+    const totalIn = entriesStats._sum.amount ?? 0;
+    const totalOut = exitsStats._sum.amount ?? 0;
 
     return {
       total_entries: totalIn,
@@ -175,10 +182,10 @@ export class ReportsService {
       net_flow: totalIn - totalOut,
       entries_count: entriesStats._count,
       exits_count: exitsStats._count,
-      cash_balance: (allIn._sum.amount || 0) - (allOut._sum.amount || 0),
-      pending_receivables: receivablesStats._sum.balance || 0,
+      cash_balance: (allIn._sum.amount ?? 0) - (allOut._sum.amount ?? 0),
+      pending_receivables: receivablesStats._sum.balance ?? 0,
       pending_receivables_count: receivablesStats._count,
-      pending_debts: debtsStats._sum.balance || 0,
+      pending_debts: debtsStats._sum.balance ?? 0,
       pending_debts_count: debtsStats._count,
     };
   }

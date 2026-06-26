@@ -274,7 +274,7 @@ export default function AdminShops() {
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
-          <p className="text-gray-600">Chargement des boutiques...</p>
+          <p className="text-slate-600">Chargement des boutiques...</p>
         </div>
       </div>
     );
@@ -283,8 +283,8 @@ export default function AdminShops() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">🏪 Gestion des Boutiques</h1>
-        <p className="text-gray-600">Administration des boutiques et magasins</p>
+        <h1 className="text-3xl font-bold text-primary-900 mb-2">🏪 Gestion des Boutiques</h1>
+        <p className="text-slate-600">Administration des boutiques et magasins</p>
       </div>
 
       {error && (
@@ -294,20 +294,20 @@ export default function AdminShops() {
       )}
 
       {/* Filters and Actions */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="bg-white rounded-2xl shadow-card p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <input
             type="text"
             placeholder="🔍 Rechercher (nom, code, propriétaire)..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           />
 
           <select
             value={filterEnterprise}
             onChange={e => setFilterEnterprise(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           >
             <option value="">🏢 Toutes les entreprises</option>
             {enterprises.map(ent => (
@@ -320,7 +320,7 @@ export default function AdminShops() {
           <select
             value={filterBlocked}
             onChange={e => setFilterBlocked(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
           >
             <option value="">📊 Tous les statuts</option>
             <option value="active">✅ Actives</option>
@@ -329,13 +329,13 @@ export default function AdminShops() {
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            className="bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition"
           >
             ➕ Créer une boutique
           </button>
         </div>
 
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-slate-600">
           {filteredShops.length} boutique(s) affichée(s) sur {shops.length} au total
         </div>
       </div>
@@ -343,13 +343,16 @@ export default function AdminShops() {
       {/* Shops List */}
       <div className="grid grid-cols-1 gap-4">
         {filteredShops.map(shop => (
-          <div key={shop.id} className="bg-white rounded-lg shadow hover:shadow-md transition">
+          <div
+            key={shop.id}
+            className="bg-white rounded-2xl shadow-card hover:shadow-elevated transition"
+          >
             <div className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-semibold text-gray-800">{shop.name}</h3>
-                    <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                    <h3 className="text-xl font-semibold text-primary-900">{shop.name}</h3>
+                    <span className="font-mono text-sm bg-slate-100 text-slate-700 px-2 py-1 rounded">
                       {shop.code}
                     </span>
                     <span
@@ -368,7 +371,7 @@ export default function AdminShops() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-slate-600">
                     {shop.owner?.display_name && (
                       <div>
                         <span className="font-semibold">👤 Propriétaire:</span>{' '}
@@ -406,7 +409,7 @@ export default function AdminShops() {
                   </div>
 
                   {expandedShopId === shop.id && (
-                    <div className="mt-4 pt-4 border-t">
+                    <div className="mt-4 pt-4 border-t border-slate-200">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         {shop.address && (
                           <div>
@@ -446,14 +449,14 @@ export default function AdminShops() {
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => setExpandedShopId(expandedShopId === shop.id ? null : shop.id)}
-                    className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded hover:bg-blue-50"
+                    className="text-action-600 hover:text-action-700 px-3 py-1 rounded hover:bg-action-50"
                     title="Voir les details"
                   >
                     {expandedShopId === shop.id ? '[-]' : '[+]'}
                   </button>
                   <button
                     onClick={() => openModulesModal(shop)}
-                    className="text-indigo-600 hover:text-indigo-800 px-3 py-1 rounded hover:bg-indigo-50 text-sm"
+                    className="text-action-600 hover:text-action-700 px-3 py-1 rounded hover:bg-action-50 text-sm"
                     title="Modifier les modules"
                   >
                     Modules
@@ -484,18 +487,20 @@ export default function AdminShops() {
       </div>
 
       {filteredShops.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-12 bg-white rounded-2xl shadow-card">
           <div className="text-6xl mb-4">🏪</div>
-          <p className="text-gray-600">Aucune boutique trouvée</p>
+          <p className="text-slate-600">Aucune boutique trouvée</p>
         </div>
       )}
 
       {/* Create Shop Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-elevated max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-4">➕ Créer une nouvelle boutique</h2>
+              <h2 className="text-2xl font-bold text-primary-900 mb-4">
+                ➕ Créer une nouvelle boutique
+              </h2>
               <form onSubmit={handleCreateShop} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1">
@@ -505,7 +510,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.shop_name}
                     onChange={e => setFormData({ ...formData, shop_name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     required
                   />
                 </div>
@@ -513,16 +518,24 @@ export default function AdminShops() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-1">
-                      Code boutique (6 chiffres)
+                      Code boutique (4-10 caractères, A-Z et 0-9)
                     </label>
                     <input
                       type="text"
                       value={formData.shop_code}
-                      onChange={e => setFormData({ ...formData, shop_code: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          shop_code: e.target.value
+                            .replace(/[^A-Za-z0-9]/g, '')
+                            .toUpperCase()
+                            .slice(0, 10),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500 font-mono"
                       placeholder="Auto-généré si vide"
-                      maxLength={6}
-                      pattern="[0-9]{6}"
+                      maxLength={10}
+                      pattern="[A-Z0-9]{4,10}"
                     />
                   </div>
 
@@ -538,7 +551,7 @@ export default function AdminShops() {
                           shop_type: e.target.value as 'BOUTIQUE' | 'MAGASIN',
                         })
                       }
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     >
                       <option value="BOUTIQUE">Boutique</option>
                       <option value="MAGASIN">Magasin</option>
@@ -553,7 +566,7 @@ export default function AdminShops() {
                       type="text"
                       value={formData.owner_name}
                       onChange={e => setFormData({ ...formData, owner_name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
 
@@ -565,7 +578,7 @@ export default function AdminShops() {
                       type="tel"
                       value={formData.owner_phone}
                       onChange={e => setFormData({ ...formData, owner_phone: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
                 </div>
@@ -575,7 +588,7 @@ export default function AdminShops() {
                   <select
                     value={formData.enterprise_id}
                     onChange={e => setFormData({ ...formData, enterprise_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                   >
                     <option value="">Aucune entreprise</option>
                     {enterprises.map(ent => (
@@ -592,7 +605,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                   />
                 </div>
 
@@ -603,7 +616,7 @@ export default function AdminShops() {
                       type="tel"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
 
@@ -613,7 +626,7 @@ export default function AdminShops() {
                       type="email"
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     />
                   </div>
                 </div>
@@ -626,7 +639,7 @@ export default function AdminShops() {
                     type="text"
                     value={formData.currency}
                     onChange={e => setFormData({ ...formData, currency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-action-500"
                     required
                   />
                 </div>
@@ -635,14 +648,14 @@ export default function AdminShops() {
                   <label className="block text-sm font-semibold mb-2">
                     Modules activés (vide = tous les modules)
                   </label>
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3">
                     {AVAILABLE_MODULES.map(module => (
                       <label key={module.value} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={formData.enabled_modules?.includes(module.value) || false}
                           onChange={() => toggleModule(module.value)}
-                          className="rounded text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          className="rounded text-action-500 focus:ring-2 focus:ring-action-500"
                         />
                         <span className="text-sm">{module.label}</span>
                       </label>
@@ -653,14 +666,14 @@ export default function AdminShops() {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                    className="flex-1 bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition"
                   >
                     ✅ Créer la boutique
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                    className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition"
                   >
                     ❌ Annuler
                   </button>
@@ -674,9 +687,9 @@ export default function AdminShops() {
       {/* Delete Confirmation Modal */}
       {shopToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6">
             <h2 className="text-2xl font-bold mb-4 text-red-600">🗑️ Confirmer la suppression</h2>
-            <p className="mb-4 text-gray-700">
+            <p className="mb-4 text-slate-700">
               Êtes-vous sûr de vouloir supprimer la boutique <strong>{shopToDelete.name}</strong>{' '}
               (code: {shopToDelete.code}) ?
             </p>
@@ -692,7 +705,7 @@ export default function AdminShops() {
               </button>
               <button
                 onClick={() => setShopToDelete(null)}
-                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition"
               >
                 ❌ Annuler
               </button>
@@ -704,11 +717,11 @@ export default function AdminShops() {
       {/* Block/Unblock Confirmation Modal */}
       {shopToBlock && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold mb-4">
+          <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold text-primary-900 mb-4">
               {shopToBlock.is_blocked ? '✅ Débloquer la boutique' : '🚫 Bloquer la boutique'}
             </h2>
-            <p className="mb-4 text-gray-700">
+            <p className="mb-4 text-slate-700">
               {shopToBlock.is_blocked
                 ? `Débloquer la boutique ${shopToBlock.name} ?`
                 : `Bloquer la boutique ${shopToBlock.name} ?`}
@@ -743,7 +756,7 @@ export default function AdminShops() {
                   setShopToBlock(null);
                   setBlockReason('');
                 }}
-                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition"
               >
                 ❌ Annuler
               </button>
@@ -755,10 +768,12 @@ export default function AdminShops() {
       {/* Modules Edit Modal */}
       {showModulesModal && modulesTarget && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-elevated max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-xl font-bold mb-2">Modules de "{modulesTarget.name}"</h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <h2 className="text-xl font-bold text-primary-900 mb-2">
+                Modules de "{modulesTarget.name}"
+              </h2>
+              <p className="text-sm text-slate-600 mb-4">
                 Cochez les modules a activer. Les modules non autorises par la licence sont
                 desactives.
               </p>
@@ -775,17 +790,17 @@ export default function AdminShops() {
                   const allowedByLicense = licenseConfig.tiers[licenseTier]?.modules || [];
                   return (
                     <div key={tierGroup} className="mb-4">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2">{tierLabel}</h3>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2">{tierLabel}</h3>
                       <div className="grid grid-cols-2 gap-2">
                         {mods.map(m => {
                           const allowed = allowedByLicense.includes(m.code);
                           return (
                             <label
                               key={m.code}
-                              className={`flex items-center gap-2 p-2 rounded border text-sm ${
+                              className={`flex items-center gap-2 p-2 rounded border border-slate-200 text-sm ${
                                 allowed
-                                  ? 'cursor-pointer hover:bg-gray-50'
-                                  : 'opacity-50 cursor-not-allowed bg-gray-100'
+                                  ? 'cursor-pointer hover:bg-slate-50'
+                                  : 'opacity-50 cursor-not-allowed bg-slate-100'
                               }`}
                             >
                               <input
@@ -793,7 +808,7 @@ export default function AdminShops() {
                                 checked={editModules.includes(m.code)}
                                 disabled={!allowed}
                                 onChange={() => toggleEditModule(m.code)}
-                                className="rounded text-blue-600"
+                                className="rounded text-action-500"
                               />
                               <span>{m.name}</span>
                             </label>
@@ -804,14 +819,14 @@ export default function AdminShops() {
                   );
                 })
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3">
                   {AVAILABLE_MODULES.map(module => (
                     <label key={module.value} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={editModules.includes(module.value)}
                         onChange={() => toggleEditModule(module.value)}
-                        className="rounded text-blue-600"
+                        className="rounded text-action-500"
                       />
                       <span className="text-sm">{module.label}</span>
                     </label>
@@ -821,14 +836,14 @@ export default function AdminShops() {
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={() => setShowModulesModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                  className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition"
                 >
                   Annuler
                 </button>
                 <button
                   onClick={handleSaveModules}
                   disabled={savingModules}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="flex-1 bg-action-500 text-white px-4 py-2 rounded-lg hover:bg-action-600 transition disabled:opacity-50"
                 >
                   {savingModules ? 'Enregistrement...' : 'Enregistrer'}
                 </button>

@@ -11,7 +11,7 @@ import {
   Request,
   ForbiddenException,
 } from '@nestjs/common';
-import { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
@@ -20,6 +20,11 @@ import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
 import { CreateShopAdminDto } from './dto/create-shop-admin.dto';
 import { UpdateLicenseDto } from './dto/update-license.dto';
 import { UpdateSystemConfigDto } from './dto/system-config.dto';
+import type { PermissionMatrix } from '@swalo/core/modules/permissions';
+
+type AuthenticatedRequest = ExpressRequest & {
+  user: { userId: string; shopId: string; role: Role };
+};
 
 @Controller('admin')
 export class AdminController {
@@ -31,7 +36,7 @@ export class AdminController {
 
   @Post('enterprises')
   @Roles(Role.SUPERADMIN)
-  async createEnterprise(@Body() dto: CreateEnterpriseDto, @Request() req: any) {
+  async createEnterprise(@Body() dto: CreateEnterpriseDto, @Request() req: AuthenticatedRequest) {
     return this.adminService.createEnterprise(req.user.userId, dto);
   }
 
@@ -52,14 +57,14 @@ export class AdminController {
   async updateEnterprise(
     @Param('id') id: string,
     @Body() dto: UpdateEnterpriseDto,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.updateEnterprise(id, req.user.userId, dto);
   }
 
   @Delete('enterprises/:id')
   @Roles(Role.SUPERADMIN)
-  async deleteEnterprise(@Param('id') id: string, @Request() req: any) {
+  async deleteEnterprise(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.adminService.deleteEnterprise(id, req.user.userId);
   }
 
@@ -72,7 +77,7 @@ export class AdminController {
   async addShopToEnterprise(
     @Param('id') enterpriseId: string,
     @Param('shopId') shopId: string,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.addShopToEnterprise(enterpriseId, shopId, req.user.userId);
   }
@@ -82,7 +87,7 @@ export class AdminController {
   async moveShopToEnterprise(
     @Param('shopId') shopId: string,
     @Param('enterpriseId') enterpriseId: string,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.moveShopToEnterprise(shopId, enterpriseId, req.user.userId);
   }
@@ -96,7 +101,7 @@ export class AdminController {
   async updateLicense(
     @Param('id') enterpriseId: string,
     @Body() dto: UpdateLicenseDto,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.updateLicense(enterpriseId, req.user.userId, dto);
   }
@@ -115,9 +120,45 @@ export class AdminController {
   @Roles(Role.SUPERADMIN)
   async updateLicenseConfig(
     @Body() body: { overrides: { code: string; minimumLicenseTier: string }[] },
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.updateLicenseConfig(req.user.userId, body.overrides);
+  }
+
+  // ============================================
+  // FINE-GRAINED PERMISSIONS (SUPERADMIN)
+  // ============================================
+
+  @Get('shops/:shopId/permissions')
+  @Roles(Role.SUPERADMIN)
+  async getShopPermissions(@Param('shopId') shopId: string) {
+    return this.adminService.getShopPermissions(shopId);
+  }
+
+  @Put('shops/:shopId/permissions')
+  @Roles(Role.SUPERADMIN)
+  async setShopPermissions(
+    @Param('shopId') shopId: string,
+    @Body() body: { matrix: PermissionMatrix },
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.adminService.setShopPermissions(shopId, req.user.userId, body.matrix);
+  }
+
+  @Get('enterprises/:id/default-permissions')
+  @Roles(Role.SUPERADMIN)
+  async getEnterpriseDefaultPermissions(@Param('id') id: string) {
+    return this.adminService.getEnterpriseDefaultPermissions(id);
+  }
+
+  @Put('enterprises/:id/default-permissions')
+  @Roles(Role.SUPERADMIN)
+  async setEnterpriseDefaultPermissions(
+    @Param('id') id: string,
+    @Body() body: { matrix: PermissionMatrix },
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.adminService.setEnterpriseDefaultPermissions(id, req.user.userId, body.matrix);
   }
 
   // ============================================
@@ -126,7 +167,7 @@ export class AdminController {
 
   @Post('shops')
   @Roles(Role.SUPERADMIN)
-  async createShop(@Body() dto: CreateShopAdminDto, @Request() req: any) {
+  async createShop(@Body() dto: CreateShopAdminDto, @Request() req: AuthenticatedRequest) {
     return this.adminService.createShopAdmin(req.user.userId, dto);
   }
 
@@ -144,8 +185,42 @@ export class AdminController {
 
   @Delete('shops/:shopId')
   @Roles(Role.SUPERADMIN)
-  async deleteShop(@Param('shopId') shopId: string, @Request() req: any) {
+  async deleteShop(@Param('shopId') shopId: string, @Request() req: AuthenticatedRequest) {
     return this.adminService.deleteShop(shopId, req.user.userId);
+  }
+
+  // ============================================
+  // SUPERADMIN DRILL-DOWN (read-only)
+  // ============================================
+
+  @Get('shops/:shopId/products')
+  @Roles(Role.SUPERADMIN)
+  async getShopProducts(@Param('shopId') shopId: string) {
+    return this.adminService.getShopProducts(shopId);
+  }
+
+  @Get('shops/:shopId/customers')
+  @Roles(Role.SUPERADMIN)
+  async getShopCustomers(@Param('shopId') shopId: string) {
+    return this.adminService.getShopCustomers(shopId);
+  }
+
+  @Get('shops/:shopId/suppliers')
+  @Roles(Role.SUPERADMIN)
+  async getShopSuppliers(@Param('shopId') shopId: string) {
+    return this.adminService.getShopSuppliers(shopId);
+  }
+
+  @Get('shops/:shopId/pos')
+  @Roles(Role.SUPERADMIN)
+  async getShopPos(@Param('shopId') shopId: string) {
+    return this.adminService.getShopPos(shopId);
+  }
+
+  @Get('enterprises/:id/reports')
+  @Roles(Role.SUPERADMIN)
+  async getEnterpriseReports(@Param('id') id: string) {
+    return this.adminService.getEnterpriseReports(id);
   }
 
   // ============================================
@@ -199,14 +274,14 @@ export class AdminController {
   async setSystemConfig(
     @Param('key') key: string,
     @Body() dto: UpdateSystemConfigDto,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.setSystemConfig(key, dto, req.user.userId);
   }
 
   @Delete('system-config/:key')
   @Roles(Role.SUPERADMIN)
-  async deleteSystemConfig(@Param('key') key: string, @Request() req: any) {
+  async deleteSystemConfig(@Param('key') key: string, @Request() req: AuthenticatedRequest) {
     return this.adminService.deleteSystemConfig(key, req.user.userId);
   }
 
@@ -241,19 +316,22 @@ export class AdminController {
 
   @Get('users')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  async getShopUsers(@Request() req: any) {
+  async getShopUsers(@Request() req: AuthenticatedRequest) {
     return this.adminService.getShopUsers(req.user.shopId);
   }
 
   @Get('users/:userId/devices')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  async getUserDevices(@Param('userId') userId: string, @Request() req: any) {
+  async getUserDevices(@Param('userId') userId: string, @Request() req: AuthenticatedRequest) {
     return this.adminService.getUserDevices(userId, req.user.shopId);
   }
 
   @Delete('devices/:deviceId')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  async revokeDeviceAccess(@Param('deviceId') deviceId: string, @Request() req: any) {
+  async revokeDeviceAccess(
+    @Param('deviceId') deviceId: string,
+    @Request() req: AuthenticatedRequest
+  ) {
     return this.adminService.revokeDeviceAccess(deviceId, req.user.shopId, req.user.userId);
   }
 
@@ -262,7 +340,7 @@ export class AdminController {
   async revokeAllUserDevices(
     @Param('userId') userId: string,
     @Body('currentDeviceId') currentDeviceId: string,
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.revokeAllUserDevices(
       userId,
@@ -283,7 +361,7 @@ export class AdminController {
       work_end_time?: string;
       work_days?: string;
     },
-    @Request() req: any
+    @Request() req: AuthenticatedRequest
   ) {
     if (data.role === Role.SUPERADMIN && req.user.role !== Role.SUPERADMIN) {
       throw new ForbiddenException('Only superadmins can create or modify superadmin roles');
@@ -293,7 +371,10 @@ export class AdminController {
 
   @Delete('users/:userId')
   @Roles(Role.BOSS, Role.MANAGER, Role.SUPERADMIN)
-  async deactivateUserAccess(@Param('userId') userId: string, @Request() req: any) {
+  async deactivateUserAccess(
+    @Param('userId') userId: string,
+    @Request() req: AuthenticatedRequest
+  ) {
     if (userId === req.user.userId) {
       throw new ForbiddenException('You cannot deactivate your own access');
     }

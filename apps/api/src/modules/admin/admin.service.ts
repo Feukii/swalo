@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
 import { CreateShopAdminDto } from './dto/create-shop-admin.dto';
@@ -17,6 +17,29 @@ import {
   type LicenseTier,
   type ModuleDefinition,
 } from '@swalo/core/modules/registry';
+import { normalizeShopCode } from '@swalo/core/schemas';
+import {
+  PERMISSION_MODULES,
+  MODULE_CAPABILITIES,
+  CONFIGURABLE_ROLES,
+  CAPABILITY_LABELS,
+  buildDefaultMatrix,
+  type PermissionMatrix,
+  type Role as PermissionRole,
+  type Capability,
+} from '@swalo/core/modules/permissions';
+
+/** Alphabet des codes boutique générés (alphanumérique majuscule). */
+const SHOP_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+/** Génère un code boutique aléatoire alphanumérique majuscule (6 caractères). */
+function generateShopCode(length = 6): string {
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += SHOP_CODE_ALPHABET[Math.floor(Math.random() * SHOP_CODE_ALPHABET.length)];
+  }
+  return code;
+}
 
 @Injectable()
 export class AdminService {
@@ -357,7 +380,9 @@ export class AdminService {
   // ============================================
 
   async createEnterprise(adminId: string, dto: CreateEnterpriseDto) {
-    const code = dto.code || 'ENT-' + Math.floor(100000 + Math.random() * 900000).toString();
+    const code = dto.code?.trim()
+      ? dto.code
+      : 'ENT-' + Math.floor(100000 + Math.random() * 900000).toString();
 
     // Verify unique code
     const existing = await this.prisma.enterprise.findFirst({
@@ -378,14 +403,15 @@ export class AdminService {
     }
 
     return this.prisma.$transaction(async tx => {
-      const createData: any = {
+      const createData: Prisma.EnterpriseCreateInput = {
         code,
         name: dto.name,
-        license_tier: dto.license_tier || 'STARTER',
-        max_shops: dto.max_shops || 1,
-        max_users_per_shop: dto.max_users_per_shop || 5,
+        license_tier: dto.license_tier ?? 'STARTER',
+        max_shops: dto.max_shops ?? 1,
+        max_users_per_shop: dto.max_users_per_shop ?? 5,
         licensed_until: dto.licensed_until ? new Date(dto.licensed_until) : null,
-        logo_url: dto.logo_url || null,
+        monthly_price: dto.monthly_price ?? 0,
+        logo_url: dto.logo_url ?? null,
       };
       if (dto.owner_id) {
         createData.owner = { connect: { id: dto.owner_id } };
@@ -504,32 +530,47 @@ export class AdminService {
       throw new NotFoundException('Entreprise non trouvee');
     }
 
-    const oldValue: any = {};
-    const updateData: any = {};
+    const oldValue: Prisma.JsonObject = {};
+    const newValue: Prisma.JsonObject = {};
+    const updateData: Prisma.EnterpriseUpdateInput = {};
 
     if (dto.name !== undefined) {
       oldValue.name = enterprise.name;
       updateData.name = dto.name;
+      newValue.name = dto.name;
     }
     if (dto.license_tier !== undefined) {
       oldValue.license_tier = enterprise.license_tier;
       updateData.license_tier = dto.license_tier;
+      newValue.license_tier = dto.license_tier;
     }
     if (dto.max_shops !== undefined) {
       oldValue.max_shops = enterprise.max_shops;
       updateData.max_shops = dto.max_shops;
+      newValue.max_shops = dto.max_shops;
     }
     if (dto.max_users_per_shop !== undefined) {
       oldValue.max_users_per_shop = enterprise.max_users_per_shop;
       updateData.max_users_per_shop = dto.max_users_per_shop;
+      newValue.max_users_per_shop = dto.max_users_per_shop;
     }
     if (dto.licensed_until !== undefined) {
-      oldValue.licensed_until = enterprise.licensed_until;
-      updateData.licensed_until = new Date(dto.licensed_until);
+      oldValue.licensed_until = enterprise.licensed_until
+        ? enterprise.licensed_until.toISOString()
+        : null;
+      const licensedUntil = new Date(dto.licensed_until);
+      updateData.licensed_until = licensedUntil;
+      newValue.licensed_until = licensedUntil.toISOString();
+    }
+    if (dto.monthly_price !== undefined) {
+      oldValue.monthly_price = enterprise.monthly_price;
+      updateData.monthly_price = dto.monthly_price;
+      newValue.monthly_price = dto.monthly_price;
     }
     if (dto.logo_url !== undefined) {
       oldValue.logo_url = enterprise.logo_url;
       updateData.logo_url = dto.logo_url;
+      newValue.logo_url = dto.logo_url;
     }
 
     return this.prisma.$transaction(async tx => {
@@ -545,7 +586,7 @@ export class AdminService {
           entity_type: 'ENTERPRISE',
           entity_id: id,
           old_value: oldValue,
-          new_value: updateData,
+          new_value: newValue,
         },
       });
 
@@ -570,7 +611,7 @@ export class AdminService {
     // Refuse deletion if enterprise has active shops
     if (enterprise.shops.length > 0) {
       throw new BadRequestException(
-        `Impossible de supprimer cette entreprise : ${enterprise.shops.length} boutique(s) active(s). Supprimez ou reassignez les boutiques d'abord.`
+        `Impossible de supprimer cette entreprise : ${String(enterprise.shops.length)} boutique(s) active(s). Supprimez ou reassignez les boutiques d'abord.`
       );
     }
 
@@ -604,12 +645,12 @@ export class AdminService {
   // ============================================
 
   async createShopAdmin(adminId: string, dto: CreateShopAdminDto) {
-    // Generate shop code if not provided
-    let shopCode: string = dto.shop_code || '';
+    // Generate shop code if not provided (normalize defensively otherwise)
+    let shopCode: string = dto.shop_code ? normalizeShopCode(dto.shop_code) : '';
     if (!shopCode) {
       let isUnique = false;
       while (!isUnique) {
-        shopCode = Math.floor(100000 + Math.random() * 900000).toString();
+        shopCode = generateShopCode();
         const existing = await this.prisma.shop.findUnique({
           where: { code: shopCode },
         });
@@ -633,7 +674,9 @@ export class AdminService {
       throw new NotFoundException('Entreprise non trouvee');
     }
     if (enterprise._count.shops >= enterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${enterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(enterprise.max_shops)})`
+      );
     }
 
     return this.prisma.$transaction(async tx => {
@@ -654,7 +697,7 @@ export class AdminService {
         const owner = await tx.user.create({
           data: {
             display_name: dto.owner_name,
-            phone: dto.owner_phone || null,
+            phone: dto.owner_phone?.trim() ? dto.owner_phone : null,
             pin_code: ownerPin,
             is_active: true,
           },
@@ -662,15 +705,22 @@ export class AdminService {
         ownerId = owner.id;
       }
 
-      const shopData: any = {
+      // Une boutique requiert obligatoirement un propriétaire (owner_id en base)
+      if (!ownerId) {
+        throw new BadRequestException(
+          'Un propriétaire est requis : fournissez owner_id ou owner_name'
+        );
+      }
+
+      const shopData: Prisma.ShopCreateInput = {
         code: shopCode,
         name: dto.shop_name,
-        shop_type: dto.shop_type || 'BOUTIQUE',
-        address: dto.address || null,
-        phone: dto.phone || null,
-        email: dto.email || null,
-        currency: dto.currency || 'XOF',
-        enabled_modules: dto.enabled_modules || [
+        shop_type: dto.shop_type ?? 'BOUTIQUE',
+        address: dto.address?.trim() ? dto.address : null,
+        phone: dto.phone?.trim() ? dto.phone : null,
+        email: dto.email?.trim() ? dto.email : null,
+        currency: dto.currency?.trim() ? dto.currency : 'XOF',
+        enabled_modules: dto.enabled_modules ?? [
           'auth',
           'products',
           'customers',
@@ -678,24 +728,20 @@ export class AdminService {
           'cash',
           'inventory',
         ],
+        enterprise: { connect: { id: dto.enterprise_id } },
+        owner: { connect: { id: ownerId } },
       };
-      if (ownerId) {
-        shopData.owner = { connect: { id: ownerId } };
-      }
-      shopData.enterprise = { connect: { id: dto.enterprise_id } };
 
       const shop = await tx.shop.create({ data: shopData });
 
-      // Create OWNER role if we have an owner
-      if (ownerId) {
-        await tx.userRole.create({
-          data: {
-            user_id: ownerId,
-            shop_id: shop.id,
-            role: 'BOSS',
-          },
-        });
-      }
+      // Create OWNER role
+      await tx.userRole.create({
+        data: {
+          user_id: ownerId,
+          shop_id: shop.id,
+          role: 'BOSS',
+        },
+      });
 
       await tx.auditLog.create({
         data: {
@@ -719,7 +765,7 @@ export class AdminService {
           shop_type: shop.shop_type,
           enterprise_id: shop.enterprise_id,
         },
-        owner: ownerId ? { id: ownerId, pin_code: ownerPin } : null,
+        owner: { id: ownerId, pin_code: ownerPin },
       };
     });
   }
@@ -742,20 +788,32 @@ export class AdminService {
       licensed_until: enterprise.licensed_until,
       max_shops: enterprise.max_shops,
       max_users_per_shop: enterprise.max_users_per_shop,
+      monthly_price: enterprise.monthly_price,
     };
 
-    const updateData: any = {
+    const updateData: Prisma.EnterpriseUpdateInput = {
+      license_tier: dto.license_tier,
+    };
+    const newValue: Prisma.JsonObject = {
       license_tier: dto.license_tier,
     };
 
     if (dto.licensed_until) {
-      updateData.licensed_until = new Date(dto.licensed_until);
+      const licensedUntil = new Date(dto.licensed_until);
+      updateData.licensed_until = licensedUntil;
+      newValue.licensed_until = licensedUntil.toISOString();
     }
     if (dto.max_shops !== undefined) {
       updateData.max_shops = dto.max_shops;
+      newValue.max_shops = dto.max_shops;
     }
     if (dto.max_users_per_shop !== undefined) {
       updateData.max_users_per_shop = dto.max_users_per_shop;
+      newValue.max_users_per_shop = dto.max_users_per_shop;
+    }
+    if (dto.monthly_price !== undefined) {
+      updateData.monthly_price = dto.monthly_price;
+      newValue.monthly_price = dto.monthly_price;
     }
 
     return this.prisma.$transaction(async tx => {
@@ -793,7 +851,7 @@ export class AdminService {
           entity_type: 'ENTERPRISE',
           entity_id: enterpriseId,
           old_value: oldValue,
-          new_value: updateData,
+          new_value: newValue,
           reason: `Licence: ${oldValue.license_tier} -> ${dto.license_tier}`,
         },
       });
@@ -816,7 +874,9 @@ export class AdminService {
     }
 
     if (enterprise._count.shops >= enterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${enterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(enterprise.max_shops)})`
+      );
     }
 
     const shop = await this.prisma.shop.findUnique({
@@ -877,7 +937,9 @@ export class AdminService {
       throw new NotFoundException('Entreprise cible non trouvee');
     }
     if (newEnterprise._count.shops >= newEnterprise.max_shops) {
-      throw new BadRequestException(`Limite de boutiques atteinte (${newEnterprise.max_shops})`);
+      throw new BadRequestException(
+        `Limite de boutiques atteinte (${String(newEnterprise.max_shops)})`
+      );
     }
 
     return this.prisma.$transaction(async tx => {
@@ -906,11 +968,11 @@ export class AdminService {
   // ============================================
 
   async getGlobalUsers(params: { search?: string; role?: string; page?: number; limit?: number }) {
-    const page = params.page || 1;
-    const limit = params.limit || 20;
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: any = { deleted: false };
+    const where: Prisma.UserWhereInput = { deleted: false };
 
     if (params.search) {
       where.OR = [
@@ -1002,11 +1064,11 @@ export class AdminService {
         create: {
           key,
           value: dto.value,
-          description: dto.description || null,
+          description: dto.description?.trim() ? dto.description : null,
         },
         update: {
           value: dto.value,
-          description: dto.description !== undefined ? dto.description : undefined,
+          description: dto.description ?? undefined,
         },
       });
 
@@ -1062,15 +1124,16 @@ export class AdminService {
     start_date?: string;
     end_date?: string;
   }) {
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
+    const createdAt: Prisma.DateTimeFilter = {};
 
     if (filters.action) where.action = filters.action;
     if (filters.entity_type) where.entity_type = filters.entity_type;
 
     if (filters.start_date || filters.end_date) {
-      where.created_at = {};
-      if (filters.start_date) where.created_at.gte = new Date(filters.start_date);
-      if (filters.end_date) where.created_at.lte = new Date(filters.end_date);
+      if (filters.start_date) createdAt.gte = new Date(filters.start_date);
+      if (filters.end_date) createdAt.lte = new Date(filters.end_date);
+      where.created_at = createdAt;
     }
 
     const logs = await this.prisma.auditLog.findMany({
@@ -1087,8 +1150,8 @@ export class AdminService {
     const rows = logs
       .map(log => {
         const date = log.created_at.toISOString();
-        const admin = log.admin?.display_name || 'N/A';
-        const reason = (log.reason || '').replace(/"/g, '""');
+        const admin = log.admin.display_name ? log.admin.display_name : 'N/A';
+        const reason = (log.reason ?? '').replace(/"/g, '""');
         return `"${date}","${admin}","${log.action}","${log.entity_type}","${log.entity_id}","${reason}"`;
       })
       .join('\n');
@@ -1114,12 +1177,12 @@ export class AdminService {
       where: { key: 'license_tier_overrides' },
     });
 
-    const overrides: Record<string, LicenseTier> = {};
+    const overrides: Record<string, LicenseTier | undefined> = {};
     if (config) {
       try {
-        const parsed = JSON.parse(config.value);
+        const parsed: unknown = JSON.parse(config.value);
         if (Array.isArray(parsed)) {
-          for (const o of parsed) {
+          for (const o of parsed as { code: string; minimumLicenseTier: LicenseTier }[]) {
             overrides[o.code] = o.minimumLicenseTier;
           }
         }
@@ -1202,7 +1265,7 @@ export class AdminService {
         if (this.LICENSE_TIER_ORDER[o.minimumLicenseTier] < this.LICENSE_TIER_ORDER[depTier]) {
           const depDef = MODULE_DEFINITIONS.find(m => m.code === dep);
           throw new BadRequestException(
-            `"${def.name}" (${o.minimumLicenseTier}) ne peut pas être plus bas que sa dépendance "${depDef?.name || dep}" (${depTier})`
+            `"${def.name}" (${o.minimumLicenseTier}) ne peut pas être plus bas que sa dépendance "${depDef?.name ?? dep}" (${depTier})`
           );
         }
       }
@@ -1241,8 +1304,7 @@ export class AdminService {
       let shopsUpdated = 0;
       for (const shop of shops) {
         if (shop.enabled_modules.length === 0) continue; // [] = all allowed
-        const licenseTier = shop.enterprise?.license_tier as LicenseTier;
-        if (!licenseTier) continue;
+        const licenseTier = shop.enterprise.license_tier as LicenseTier;
 
         const tierLevel = this.LICENSE_TIER_ORDER[licenseTier];
         const allowedCodes = MODULE_DEFINITIONS.map(m => {
@@ -1277,6 +1339,419 @@ export class AdminService {
         success: true,
         overrides: nonDefaultOverrides,
         shops_updated: shopsUpdated,
+      };
+    });
+  }
+
+  // ============================================
+  // SUPERADMIN DRILL-DOWN (read-only)
+  // ============================================
+
+  private async assertShopExists(shopId: string): Promise<void> {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+  }
+
+  /** Produits d'une boutique avec stock agrege, lots, valeur et flag multi-prix. */
+  async getShopProducts(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const products = await this.prisma.product.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        stock_batches: {
+          where: { deleted: false },
+          select: { remaining_quantity: true, sell_price: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return products.map(p => {
+      const batches = p.stock_batches;
+      const stock = batches.reduce((sum, b) => sum + b.remaining_quantity, 0);
+      const distinctSellPrices = new Set(batches.map(b => b.sell_price));
+      const multi_price = distinctSellPrices.size > 1;
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        sku: p.sku,
+        stock,
+        batch_count: batches.length,
+        cost_price: p.cost_price,
+        sell_price: p.sell_price,
+        value: stock * p.sell_price,
+        multi_price,
+        is_active: p.is_active,
+      };
+    });
+  }
+
+  /** Clients d'une boutique avec solde, limite de credit, derniere operation et statut. */
+  async getShopCustomers(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const customers = await this.prisma.customer.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        receivables: {
+          where: { deleted: false },
+          select: { balance: true, updated_at: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return customers.map(c => {
+      const balance = c.receivables.reduce((sum, r) => sum + r.balance, 0);
+      const lastReceivable = c.receivables.reduce<Date | null>((latest, r) => {
+        if (!latest || r.updated_at > latest) return r.updated_at;
+        return latest;
+      }, null);
+      let status: 'A jour' | 'Doit' | 'A rembourser';
+      if (balance > 0) status = 'Doit';
+      else if (balance < 0) status = 'A rembourser';
+      else status = 'A jour';
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        balance,
+        credit_limit: c.credit_limit,
+        last_operation: lastReceivable ? lastReceivable.toISOString() : null,
+        status,
+      };
+    });
+  }
+
+  /** Fournisseurs d'une boutique avec solde, limite d'emprunt, derniere operation et statut. */
+  async getShopSuppliers(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        debts: {
+          where: { deleted: false },
+          select: { balance: true, updated_at: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return suppliers.map(s => {
+      const balance = s.debts.reduce((sum, d) => sum + d.balance, 0);
+      const lastDebt = s.debts.reduce<Date | null>((latest, d) => {
+        if (!latest || d.updated_at > latest) return d.updated_at;
+        return latest;
+      }, null);
+      let status: 'A jour' | 'Doit' | 'A rembourser';
+      if (balance > 0) status = 'Doit';
+      else if (balance < 0) status = 'A rembourser';
+      else status = 'A jour';
+      return {
+        id: s.id,
+        name: s.name,
+        phone: s.phone,
+        balance,
+        borrowing_limit: s.borrowing_limit,
+        last_operation: lastDebt ? lastDebt.toISOString() : null,
+        status,
+      };
+    });
+  }
+
+  /** Contexte point de vente lecture seule : produits + ventes recentes. */
+  async getShopPos(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const [products, recentSales] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { shop_id: shopId, deleted: false, is_active: true },
+        include: {
+          stock_batches: {
+            where: { deleted: false },
+            select: { remaining_quantity: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.sale.findMany({
+        where: { shop_id: shopId, deleted: false },
+        include: { _count: { select: { items: true } } },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    return {
+      products: products.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.sell_price,
+        stock: p.stock_batches.reduce((sum, b) => sum + b.remaining_quantity, 0),
+        category: p.category,
+      })),
+      recent_sales: recentSales.map(s => ({
+        id: s.id,
+        short_id: s.id.slice(0, 8),
+        total: s.grand_total,
+        item_count: s._count.items,
+        created_at: s.created_at.toISOString(),
+      })),
+    };
+  }
+
+  /** Rapport reseau niveau entreprise : KPIs par boutique + totaux. */
+  async getEnterpriseReports(enterpriseId: string) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      include: {
+        shops: {
+          where: { deleted: false },
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const shopReports = await Promise.all(
+      enterprise.shops.map(async shop => {
+        const [salesToday, saleItemsToday, cashEntries, receivables] = await Promise.all([
+          // Ventes du jour (CA)
+          this.prisma.sale.findMany({
+            where: { shop_id: shop.id, deleted: false, created_at: { gte: startOfDay } },
+            select: { grand_total: true },
+          }),
+          // Items vendus du jour pour estimer la marge (revenu - cout)
+          this.prisma.saleItem.findMany({
+            where: {
+              deleted: false,
+              sale: { shop_id: shop.id, deleted: false, created_at: { gte: startOfDay } },
+            },
+            select: { total: true, qty: true, product: { select: { cost_price: true } } },
+          }),
+          // Mouvements de caisse pour solde tresorerie
+          this.prisma.cashEntry.findMany({
+            where: { shop_id: shop.id, deleted: false },
+            select: { type: true, amount: true },
+          }),
+          // Creances clients ouvertes
+          this.prisma.clientReceivable.findMany({
+            where: { shop_id: shop.id, deleted: false },
+            select: { balance: true },
+          }),
+        ]);
+
+        const ca_jour = salesToday.reduce((sum, s) => sum + s.grand_total, 0);
+
+        const marge = saleItemsToday.reduce(
+          (sum, item) => sum + (item.total - Math.round(item.product.cost_price * item.qty)),
+          0
+        );
+
+        const caisse = cashEntries.reduce((sum, e) => {
+          if (e.type === 'IN' || e.type === 'OPENING') return sum + e.amount;
+          return sum - e.amount;
+        }, 0);
+
+        const creances = receivables.reduce((sum, r) => sum + r.balance, 0);
+
+        // Etat derive du ratio creances / CA du jour
+        let etat: 'Sain' | 'A surveiller' | 'En difficulte';
+        if (ca_jour <= 0) {
+          etat = creances > 0 ? 'A surveiller' : 'Sain';
+        } else {
+          const ratio = creances / ca_jour;
+          if (ratio < 1) etat = 'Sain';
+          else if (ratio < 3) etat = 'A surveiller';
+          else etat = 'En difficulte';
+        }
+
+        return { id: shop.id, name: shop.name, ca_jour, marge, caisse, creances, etat };
+      })
+    );
+
+    const totals = shopReports.reduce(
+      (acc, s) => ({
+        ca_reseau: acc.ca_reseau + s.ca_jour,
+        tresorerie_reseau: acc.tresorerie_reseau + s.caisse,
+        creances_reseau: acc.creances_reseau + s.creances,
+        marge_reseau: acc.marge_reseau + s.marge,
+      }),
+      { ca_reseau: 0, tresorerie_reseau: 0, creances_reseau: 0, marge_reseau: 0 }
+    );
+
+    const marge_moyenne =
+      shopReports.length > 0 ? Math.round(totals.marge_reseau / shopReports.length) : 0;
+
+    return {
+      enterprise: { id: enterprise.id, name: enterprise.name },
+      shops: shopReports,
+      totals: { ...totals, marge_moyenne },
+    };
+  }
+
+  // ============================================
+  // FINE-GRAINED PERMISSIONS (SUPERADMIN)
+  // ============================================
+
+  /**
+   * Nettoie une matrice de permissions reçue : ne conserve que les modules,
+   * rôles et capacités connus. Ignore silencieusement le reste.
+   */
+  private sanitizePermissionMatrix(raw: unknown): PermissionMatrix {
+    const out: PermissionMatrix = {};
+    if (!raw || typeof raw !== 'object') {
+      return out;
+    }
+    const source = raw as Record<string, unknown>;
+    for (const module of PERMISSION_MODULES) {
+      const moduleEntry = source[module];
+      if (!moduleEntry || typeof moduleEntry !== 'object') {
+        continue;
+      }
+      const validCaps = MODULE_CAPABILITIES[module];
+      const roleMap = moduleEntry as Record<string, unknown>;
+      const cleanedModule: Partial<Record<PermissionRole, Capability[]>> = {};
+      for (const role of CONFIGURABLE_ROLES) {
+        const caps = roleMap[role];
+        if (!Array.isArray(caps)) {
+          continue;
+        }
+        const cleanedCaps = caps.filter(
+          (c): c is Capability => typeof c === 'string' && validCaps.includes(c as Capability)
+        );
+        cleanedModule[role] = cleanedCaps;
+      }
+      if (Object.keys(cleanedModule).length > 0) {
+        out[module] = cleanedModule;
+      }
+    }
+    return out;
+  }
+
+  /** Métadonnées communes (modules, capacités, rôles, libellés, défauts). */
+  private permissionMetadata() {
+    return {
+      modules: PERMISSION_MODULES,
+      capabilities: MODULE_CAPABILITIES,
+      roles: CONFIGURABLE_ROLES,
+      labels: CAPABILITY_LABELS,
+      defaults: buildDefaultMatrix(),
+    };
+  }
+
+  async getShopPermissions(shopId: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true, module_permissions: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+    return {
+      ...this.permissionMetadata(),
+      current: shop.module_permissions as PermissionMatrix | null,
+    };
+  }
+
+  async setShopPermissions(shopId: string, adminId: string, matrix: unknown) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true, module_permissions: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+
+    const sanitized = this.sanitizePermissionMatrix(matrix);
+
+    return this.prisma.$transaction(async tx => {
+      const updated = await tx.shop.update({
+        where: { id: shopId },
+        data: { module_permissions: sanitized as Prisma.InputJsonValue },
+        select: { id: true, module_permissions: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          admin_id: adminId,
+          action: 'UPDATE_SHOP_PERMISSIONS',
+          entity_type: 'SHOP',
+          entity_id: shopId,
+          old_value: (shop.module_permissions as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+          new_value: sanitized as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        ...this.permissionMetadata(),
+        current: updated.module_permissions as PermissionMatrix | null,
+      };
+    });
+  }
+
+  async getEnterpriseDefaultPermissions(enterpriseId: string) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      select: { id: true, default_module_permissions: true },
+    });
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+    return {
+      ...this.permissionMetadata(),
+      current: enterprise.default_module_permissions as PermissionMatrix | null,
+    };
+  }
+
+  async setEnterpriseDefaultPermissions(enterpriseId: string, adminId: string, matrix: unknown) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      select: { id: true, default_module_permissions: true },
+    });
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+
+    const sanitized = this.sanitizePermissionMatrix(matrix);
+
+    return this.prisma.$transaction(async tx => {
+      const updated = await tx.enterprise.update({
+        where: { id: enterpriseId },
+        data: { default_module_permissions: sanitized as Prisma.InputJsonValue },
+        select: { id: true, default_module_permissions: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          admin_id: adminId,
+          action: 'UPDATE_ENTERPRISE_DEFAULT_PERMISSIONS',
+          entity_type: 'ENTERPRISE',
+          entity_id: enterpriseId,
+          old_value:
+            (enterprise.default_module_permissions as Prisma.InputJsonValue | null) ??
+            Prisma.JsonNull,
+          new_value: sanitized as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        ...this.permissionMetadata(),
+        current: updated.default_module_permissions as PermissionMatrix | null,
       };
     });
   }

@@ -35,7 +35,7 @@ async function bootstrap() {
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0'); // Listen on all network interfaces
 
-  console.log(`SWALO API is running on:`);
+  console.log(`Swalo API is running on:`);
   console.log(`   Local:   http://localhost:${String(port)}/api`);
   console.log(`   Network: http://192.168.1.88:${String(port)}/api`);
 }

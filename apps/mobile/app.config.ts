@@ -10,13 +10,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'swalo-mobile',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/logo.png', // Icône de l'app (à créer depuis logo.svg)
+    icon: './assets/icon.png', // Icône de l'app (brand: ios_icon_1024x1024)
     userInterfaceStyle: 'light',
     jsEngine: 'hermes',
     splash: {
-      image: './assets/full_icon.png', // Écran de lancement (à créer depuis full_icon.svg)
+      image: './assets/splash-icon.png', // Écran de lancement (brand: swalo_icone_marine)
       resizeMode: 'contain',
-      backgroundColor: '#ffffff', // Fond blanc pour faire ressortir le logo
+      backgroundColor: '#FFFFFF', // Fond blanc pour faire ressortir le logo
     },
     ios: {
       supportsTablet: true,
@@ -25,8 +25,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/logo.png', // Icône adaptative Android (à créer depuis logo.svg)
-        backgroundColor: '#1E3A8A', // Bleu SWALO
+        foregroundImage: './assets/adaptive-icon.png', // Icône adaptative Android (brand: android_maskable_512)
+        backgroundColor: '#0B2A45', // Marine Swalo
       },
       package: 'com.swalo.mobile',
       versionCode: config.android?.versionCode ?? 1,

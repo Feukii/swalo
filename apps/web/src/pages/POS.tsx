@@ -286,9 +286,9 @@ export default function POS() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Balance Section - Hero Card */}
-      <div className="card bg-gradient-to-br from-primary-900 to-primary-700 text-white">
+      <div className="card bg-gradient-to-br from-sky-400 via-action-500 to-action-600 text-white">
         <div className="mb-4">
-          <p className="text-primary-100 text-sm mb-2">💰 Solde de caisse</p>
+          <p className="text-white/80 text-sm mb-2">💰 Solde de caisse</p>
           <h2 className="text-5xl font-bold tracking-tight">
             {formatCurrency(stats?.balance || 0)}
           </h2>
@@ -338,17 +338,17 @@ export default function POS() {
       {/* Operations List */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">📊 Opérations du jour</h3>
+          <h3 className="text-lg font-semibold text-slate-900">📊 Opérations du jour</h3>
           <span className="badge-primary">{entries.length}</span>
         </div>
 
         {entries.length === 0 ? (
           <div className="py-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
               <span className="text-3xl">📝</span>
             </div>
-            <p className="text-sm text-gray-500">Aucune opération aujourd'hui</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-sm text-slate-500">Aucune opération aujourd'hui</p>
+            <p className="text-xs text-slate-400 mt-1">
               Commencez par enregistrer une entrée ou sortie
             </p>
           </div>
@@ -369,16 +369,16 @@ export default function POS() {
                         {entry.type === 'IN' ? '↗️ ' : '↙️ '}
                         {entry.category}
                       </span>
-                      <span className="text-xs text-gray-400">{formatTime(entry.created_at)}</span>
+                      <span className="text-xs text-slate-400">{formatTime(entry.created_at)}</span>
                     </div>
                     {(entry.supplier || entry.customer) && (
-                      <p className="text-sm font-medium text-gray-700 mt-1">
+                      <p className="text-sm font-medium text-slate-700 mt-1">
                         {entry.supplier && `🏭 ${getPersonName(entry.supplier)}`}
                         {entry.customer && `👤 ${getPersonName(entry.customer)}`}
                       </p>
                     )}
                     {entry.note && (
-                      <p className="text-sm text-gray-600 truncate mt-1">{entry.note}</p>
+                      <p className="text-sm text-slate-600 truncate mt-1">{entry.note}</p>
                     )}
                   </div>
                   <div className="ml-4 text-right">
@@ -446,28 +446,28 @@ export default function POS() {
                   {selectedEntry.type === 'IN' ? '+' : '-'}
                   {formatCurrency(selectedEntry.amount)}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">FCFA</p>
+                <p className="text-sm text-slate-500 mt-1">FCFA</p>
               </div>
-              <div className="space-y-3 pt-4 border-t border-gray-200">
+              <div className="space-y-3 pt-4 border-t border-slate-200">
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Type</span>
+                  <span className="text-sm text-slate-500">Type</span>
                   <span className="text-sm font-medium">
                     {selectedEntry.type === 'IN' ? 'Entree' : 'Sortie'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Categorie</span>
+                  <span className="text-sm text-slate-500">Categorie</span>
                   <span className="text-sm font-medium">{selectedEntry.category}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Date/Heure</span>
+                  <span className="text-sm text-slate-500">Date/Heure</span>
                   <span className="text-sm font-medium">
                     {new Date(selectedEntry.created_at).toLocaleString('fr-FR')}
                   </span>
                 </div>
                 {selectedEntry.supplier && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-500">Fournisseur</span>
+                    <span className="text-sm text-slate-500">Fournisseur</span>
                     <span className="text-sm font-medium">
                       {getPersonName(selectedEntry.supplier)}
                     </span>
@@ -475,7 +475,7 @@ export default function POS() {
                 )}
                 {selectedEntry.customer && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-500">Client</span>
+                    <span className="text-sm text-slate-500">Client</span>
                     <span className="text-sm font-medium">
                       {getPersonName(selectedEntry.customer)}
                     </span>
@@ -483,7 +483,7 @@ export default function POS() {
                 )}
                 {selectedEntry.note && (
                   <div>
-                    <span className="text-sm text-gray-500">Note</span>
+                    <span className="text-sm text-slate-500">Note</span>
                     <p className="text-sm font-medium mt-1">{selectedEntry.note}</p>
                   </div>
                 )}
@@ -537,7 +537,7 @@ export default function POS() {
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {/* Category Select */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Catégorie</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Catégorie</label>
                 <select
                   value={category}
                   onChange={e => {
@@ -561,7 +561,7 @@ export default function POS() {
               {/* Supplier Select with autocomplete (if Règlement fournisseur) */}
               {showSupplierSelect && (
                 <div className="animate-slide-in relative">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
                     Fournisseur <span className="text-danger-600">*</span>
                   </label>
                   <input
@@ -574,11 +574,11 @@ export default function POS() {
                   />
                   {/* Suggestions dropdown */}
                   {supplierSearch && filteredSuppliers.length > 0 && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {filteredSuppliers.map(supplier => (
                         <div
                           key={supplier.id}
-                          className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-0"
+                          className="px-4 py-3 hover:bg-action-50 cursor-pointer border-b border-slate-100 last:border-0"
                           onClick={() => {
                             setSelectedSupplierId(supplier.id);
                             setSupplierSearch(getPersonName(supplier));
@@ -590,12 +590,12 @@ export default function POS() {
                     </div>
                   )}
                   {suppliers.length === 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Aucun fournisseur actif. Ajoutez-en un dans l'onglet Fournisseurs.
                     </p>
                   )}
                   {supplierSearch && filteredSuppliers.length === 0 && suppliers.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Aucun résultat pour "{supplierSearch}"
                     </p>
                   )}
@@ -605,7 +605,7 @@ export default function POS() {
               {/* Customer Select with autocomplete (if Remboursement client) */}
               {showCustomerSelect && (
                 <div className="animate-slide-in relative">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">
                     Client <span className="text-danger-600">*</span>
                   </label>
                   <input
@@ -618,11 +618,11 @@ export default function POS() {
                   />
                   {/* Suggestions dropdown */}
                   {customerSearch && filteredCustomers.length > 0 && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {filteredCustomers.map(customer => (
                         <div
                           key={customer.id}
-                          className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-0"
+                          className="px-4 py-3 hover:bg-action-50 cursor-pointer border-b border-slate-100 last:border-0"
                           onClick={() => {
                             setSelectedCustomerId(customer.id);
                             setCustomerSearch(getPersonName(customer));
@@ -634,12 +634,12 @@ export default function POS() {
                     </div>
                   )}
                   {customers.length === 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Aucun client actif. Ajoutez-en un dans l'onglet Clients.
                     </p>
                   )}
                   {customerSearch && filteredCustomers.length === 0 && customers.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Aucun résultat pour "{customerSearch}"
                     </p>
                   )}
@@ -648,7 +648,7 @@ export default function POS() {
 
               {/* Amount Input */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Montant (FCFA)
                 </label>
                 <div className="relative">
@@ -662,12 +662,12 @@ export default function POS() {
                     required
                     autoFocus
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium text-gray-400">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium text-slate-400">
                     FCFA
                   </span>
                 </div>
                 {userRole === 'BOSS' && (
-                  <p className="text-sm text-primary-700 mt-2 italic">
+                  <p className="text-sm text-action-700 mt-2 italic">
                     💡 Propriétaires: vous pouvez entrer des montants négatifs pour corriger des
                     erreurs
                   </p>
@@ -676,7 +676,7 @@ export default function POS() {
 
               {/* Note Input */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
                   Note (optionnelle)
                 </label>
                 <textarea

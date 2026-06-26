@@ -1,0 +1,55 @@
+{
+  "$description": "Design tokens Swalo — source unique de vérité pour l'application et tous les supports.",
+  "color": {
+    "brand": {
+      "marine": {
+        "value": "#102A43",
+        "comment": "Couleur reine. Fonds principaux, en-têtes, texte de marque."
+      },
+      "skyBlue": {
+        "value": "#0EA5E9",
+        "comment": "Couleur d'action. Boutons, liens, éléments interactifs."
+      },
+      "skyLight": {
+        "value": "#38BDF8",
+        "comment": "Accent du logo. Ruban du S, touches lumineuses."
+      }
+    },
+    "functional": {
+      "green": { "value": "#10B981", "comment": "Entrées d'argent, paiement reçu, dette réglée." },
+      "red": { "value": "#EF4444", "comment": "Sorties d'argent, dettes dues." },
+      "amber": { "value": "#F59E0B", "comment": "Vente à crédit, alerte, rupture de stock." }
+    },
+    "neutral": {
+      "textPrimary": { "value": "#111827", "comment": "Texte principal." },
+      "textSecondary": { "value": "#6B7280", "comment": "Texte secondaire, légendes." },
+      "sectionBg": { "value": "#F3F4F6", "comment": "Fonds de section." },
+      "border": { "value": "#E5E7EB", "comment": "Bordures, séparateurs." },
+      "surface": { "value": "#FFFFFF", "comment": "Fond de carte, blanc." }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "app": {
+        "value": "system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif",
+        "comment": "Police système : SF sur iOS, Roboto sur Android, system UI sur web."
+      },
+      "docs": {
+        "value": "Arial, Helvetica, sans-serif",
+        "comment": "Substitut universel pour documents et supports."
+      }
+    },
+    "scale": {
+      "titleLarge": { "value": "28", "weight": "700", "comment": "Titres de page (24-32pt)." },
+      "subtitle": { "value": "19", "weight": "600", "comment": "Têtes de bloc (18-20pt)." },
+      "cardTitle": { "value": "17", "weight": "500", "comment": "Cartes, encadrés (16-18pt)." },
+      "body": { "value": "15", "weight": "400", "comment": "Texte courant (14-16pt)." },
+      "caption": { "value": "13", "weight": "400", "comment": "Légendes, aides (12-14pt)." }
+    }
+  },
+  "radius": {
+    "icon": { "value": "20%", "comment": "Carré arrondi du logo (rx≈19/96)." },
+    "card": { "value": "12", "comment": "Rayon des cartes dans l'app." },
+    "button": { "value": "8", "comment": "Rayon des boutons." }
+  }
+}

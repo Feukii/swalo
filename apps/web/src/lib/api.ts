@@ -256,6 +256,7 @@ export const salesApi = {
     discount?: number;
     notes?: string;
     status?: 'DRAFT' | 'COMPLETED' | 'CANCELLED';
+    due_date?: string;
   }) => {
     const response = await api.post('/sales', data);
     return response.data;
@@ -389,6 +390,8 @@ export const customersApi = {
     address?: string;
     credit_limit?: number;
     notes?: string;
+    sms_notifications_enabled?: boolean;
+    whatsapp_notifications_enabled?: boolean;
   }) => {
     const response = await api.post('/customers', data);
     return response.data;
@@ -406,6 +409,8 @@ export const customersApi = {
       credit_limit?: number;
       notes?: string;
       is_active: boolean;
+      sms_notifications_enabled?: boolean;
+      whatsapp_notifications_enabled?: boolean;
     }>
   ) => {
     const response = await api.put(`/customers/${id}`, data);
@@ -520,6 +525,43 @@ export const productBatchesApi = {
   },
 };
 
+// Inventory API (Mouvements de stock : réceptions & sorties)
+export const inventoryApi = {
+  /** Entrée de stock (réception). Montants en centimes. */
+  stockIn: async (data: { product_id: string; quantity: number; unit_cost?: number; reason?: string }) => {
+    const response = await api.post('/inventory/stock-in', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+  /** Réception créant un lot daté (prix de revient + date de prise en compte). Montants en centimes. */
+  createBatch: async (data: {
+    product_id: string;
+    quantity: number;
+    cost_price: number;
+    sell_price: number;
+    received_at?: string;
+  }) => {
+    const response = await api.post('/inventory/batches', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+  /** Mouvement de stock générique (sortie : qty négative). */
+  createMovement: async (data: {
+    product_id: string;
+    type: 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'INVENTORY';
+    qty: number;
+    reason?: string;
+    unit_cost?: number;
+  }) => {
+    const response = await api.post('/inventory/movements', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+};
+
 // Invoices API
 export const invoicesApi = {
   getAll: async (params?: {
@@ -587,6 +629,14 @@ export const enterpriseApi = {
 
   getStats: async (id: string) => {
     const response = await api.get(`/enterprises/${id}/stats`);
+    return response.data;
+  },
+
+  getFinancialSummary: async (id: string, filters?: { start_date?: string; end_date?: string }) => {
+    const params: Record<string, string> = {};
+    if (filters?.start_date) params.start_date = filters.start_date;
+    if (filters?.end_date) params.end_date = filters.end_date;
+    const response = await api.get(`/enterprises/${id}/financial-summary`, { params });
     return response.data;
   },
 };
@@ -883,6 +933,65 @@ export const adminApi = {
 
   updateShopModules: async (shopId: string, modules: string[]) => {
     const response = await api.post(`/admin/shops/${shopId}/modules`, { modules });
+    return response.data;
+  },
+};
+
+// Seller Tasks API (Taches vendeur — relances dettes/creances)
+export interface SellerTask {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  status: 'PENDING' | 'DONE';
+  due_date?: string;
+  customer_id?: string;
+  receivable_id?: string;
+  created_at: string;
+  done_at?: string;
+}
+
+export interface SellerTaskCount {
+  count: number;
+}
+
+export const sellerTasksApi = {
+  getTasks: async (): Promise<SellerTask[]> => {
+    const response = await api.get<SellerTask[]>('/seller-tasks');
+    return response.data;
+  },
+  getCount: async (): Promise<SellerTaskCount> => {
+    const response = await api.get<SellerTaskCount>('/seller-tasks/count');
+    return response.data;
+  },
+  markDone: async (id: string): Promise<SellerTask> => {
+    const response = await api.post<SellerTask>(`/seller-tasks/${id}/done`);
+    return response.data;
+  },
+};
+
+// Reminder Settings API (Réglages relances de créances)
+export interface ReminderSettings {
+  payment_reminders_enabled: boolean;
+  notification_email: string | null;
+  payment_reminder_cadence_days: number;
+  /** Décalages (en jours) auxquels les relances sont envoyées, ex: [-7, -3, 0]. */
+  offsets: number[];
+}
+
+export interface ReminderSettingsUpdate {
+  payment_reminders_enabled?: boolean;
+  notification_email?: string | null;
+  payment_reminder_cadence_days?: number;
+}
+
+export const reminderSettingsApi = {
+  get: async (): Promise<ReminderSettings> => {
+    const response = await api.get<ReminderSettings>('/shops/me/reminder-settings');
+    return response.data;
+  },
+  update: async (payload: ReminderSettingsUpdate): Promise<ReminderSettings> => {
+    const response = await api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
     return response.data;
   },
 };
