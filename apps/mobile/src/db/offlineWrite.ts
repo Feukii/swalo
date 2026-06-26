@@ -283,6 +283,8 @@ export interface OfflineStockBatchInput {
   costPrice: number;
   sellPrice: number;
   notes?: string;
+  /** Date de prise en compte du lot (ISO). Par défaut: maintenant. Propagée au serveur (price_valid_from). */
+  priceValidFrom?: string;
 }
 
 export async function createStockBatchOffline(
@@ -291,6 +293,8 @@ export async function createStockBatchOffline(
   const { clientOpId, deviceId } = await generateClientOpId('batch');
   const batchId = generateId();
   const now = nowISO();
+  // Date de prise en compte du lot (réception datée) — défaut: maintenant
+  const validFrom = input.priceValidFrom ?? now;
 
   // Create stock batch locally
   await stockBatchRepo.create({
@@ -301,7 +305,8 @@ export async function createStockBatchOffline(
     remaining_quantity: input.quantity,
     cost_price: input.costPrice,
     sell_price: input.sellPrice,
-    price_valid_from: now,
+    price_valid_from: validFrom,
+    created_at: validFrom,
     price_valid_until: null,
     notes: input.notes || null,
   } as Partial<LocalStockBatch>);
@@ -338,7 +343,8 @@ export async function createStockBatchOffline(
       remaining_quantity: input.quantity,
       cost_price: input.costPrice,
       sell_price: input.sellPrice,
-      price_valid_from: now,
+      price_valid_from: validFrom,
+      created_at: validFrom,
       notes: input.notes || null,
       device_id: deviceId,
       client_op_id: clientOpId,
