@@ -153,6 +153,40 @@ export class AdminController {
   }
 
   // ============================================
+  // SUPERADMIN DRILL-DOWN (read-only)
+  // ============================================
+
+  @Get('shops/:shopId/products')
+  @Roles(Role.SUPERADMIN)
+  async getShopProducts(@Param('shopId') shopId: string) {
+    return this.adminService.getShopProducts(shopId);
+  }
+
+  @Get('shops/:shopId/customers')
+  @Roles(Role.SUPERADMIN)
+  async getShopCustomers(@Param('shopId') shopId: string) {
+    return this.adminService.getShopCustomers(shopId);
+  }
+
+  @Get('shops/:shopId/suppliers')
+  @Roles(Role.SUPERADMIN)
+  async getShopSuppliers(@Param('shopId') shopId: string) {
+    return this.adminService.getShopSuppliers(shopId);
+  }
+
+  @Get('shops/:shopId/pos')
+  @Roles(Role.SUPERADMIN)
+  async getShopPos(@Param('shopId') shopId: string) {
+    return this.adminService.getShopPos(shopId);
+  }
+
+  @Get('enterprises/:id/reports')
+  @Roles(Role.SUPERADMIN)
+  async getEnterpriseReports(@Param('id') id: string) {
+    return this.adminService.getEnterpriseReports(id);
+  }
+
+  // ============================================
   // GLOBAL USERS (SUPERADMIN)
   // ============================================
 

@@ -17,4 +17,9 @@ export class UpdateLicenseDto {
   @IsInt()
   @Min(1)
   max_users_per_shop?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  monthly_price?: number;
 }

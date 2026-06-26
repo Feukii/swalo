@@ -31,6 +31,11 @@ export class CreateEnterpriseDto {
   licensed_until?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  monthly_price?: number;
+
+  @IsOptional()
   @IsString()
   logo_url?: string;
 }

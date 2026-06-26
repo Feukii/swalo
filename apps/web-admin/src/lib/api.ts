@@ -66,6 +66,88 @@ export const authApi = {
   },
 };
 
+// ---- Drill-down return types (read-only) ----
+export interface AdminShopProduct {
+  id: string;
+  name: string;
+  category: string | null;
+  sku: string;
+  stock: number;
+  batch_count: number;
+  cost_price: number;
+  sell_price: number;
+  value: number;
+  multi_price: boolean;
+  is_active: boolean;
+}
+
+export type AdminPartyStatus = 'A jour' | 'Doit' | 'A rembourser';
+
+export interface AdminShopCustomer {
+  id: string;
+  name: string;
+  phone: string | null;
+  balance: number;
+  credit_limit: number;
+  last_operation: string | null;
+  status: AdminPartyStatus;
+}
+
+export interface AdminShopSupplier {
+  id: string;
+  name: string;
+  phone: string | null;
+  balance: number;
+  borrowing_limit: number;
+  last_operation: string | null;
+  status: AdminPartyStatus;
+}
+
+export interface AdminPosProduct {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  category: string | null;
+}
+
+export interface AdminPosSale {
+  id: string;
+  short_id: string;
+  total: number;
+  item_count: number;
+  created_at: string;
+}
+
+export interface AdminShopPos {
+  products: AdminPosProduct[];
+  recent_sales: AdminPosSale[];
+}
+
+export type AdminShopHealth = 'Sain' | 'A surveiller' | 'En difficulte';
+
+export interface AdminEnterpriseShopReport {
+  id: string;
+  name: string;
+  ca_jour: number;
+  marge: number;
+  caisse: number;
+  creances: number;
+  etat: AdminShopHealth;
+}
+
+export interface AdminEnterpriseReports {
+  enterprise: { id: string; name: string };
+  shops: AdminEnterpriseShopReport[];
+  totals: {
+    ca_reseau: number;
+    tresorerie_reseau: number;
+    creances_reseau: number;
+    marge_reseau: number;
+    marge_moyenne: number;
+  };
+}
+
 // Admin API
 export const adminApi = {
   // ---- Enterprise CRUD ----
@@ -77,6 +159,7 @@ export const adminApi = {
     max_shops?: number;
     max_users_per_shop?: number;
     licensed_until?: string;
+    monthly_price?: number;
   }) => {
     const response = await api.post('/admin/enterprises', data);
     return response.data;
@@ -100,6 +183,7 @@ export const adminApi = {
       max_shops?: number;
       max_users_per_shop?: number;
       licensed_until?: string;
+      monthly_price?: number;
     }
   ) => {
     const response = await api.put(`/admin/enterprises/${id}`, data);
@@ -130,6 +214,7 @@ export const adminApi = {
       licensed_until?: string;
       max_shops?: number;
       max_users_per_shop?: number;
+      monthly_price?: number;
     }
   ) => {
     const response = await api.put(`/admin/enterprises/${enterpriseId}/license`, data);
@@ -291,6 +376,34 @@ export const adminApi = {
 
   updateLicenseConfig: async (overrides: Array<{ code: string; minimumLicenseTier: string }>) => {
     const response = await api.put('/admin/license-config', { overrides });
+    return response.data;
+  },
+
+  // ---- Drill-down (read-only) ----
+  getShopProducts: async (shopId: string): Promise<AdminShopProduct[]> => {
+    const response = await api.get<AdminShopProduct[]>(`/admin/shops/${shopId}/products`);
+    return response.data;
+  },
+
+  getShopCustomers: async (shopId: string): Promise<AdminShopCustomer[]> => {
+    const response = await api.get<AdminShopCustomer[]>(`/admin/shops/${shopId}/customers`);
+    return response.data;
+  },
+
+  getShopSuppliers: async (shopId: string): Promise<AdminShopSupplier[]> => {
+    const response = await api.get<AdminShopSupplier[]>(`/admin/shops/${shopId}/suppliers`);
+    return response.data;
+  },
+
+  getShopPos: async (shopId: string): Promise<AdminShopPos> => {
+    const response = await api.get<AdminShopPos>(`/admin/shops/${shopId}/pos`);
+    return response.data;
+  },
+
+  getEnterpriseReports: async (enterpriseId: string): Promise<AdminEnterpriseReports> => {
+    const response = await api.get<AdminEnterpriseReports>(
+      `/admin/enterprises/${enterpriseId}/reports`
+    );
     return response.data;
   },
 };

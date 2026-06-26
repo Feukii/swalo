@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { adminApi } from '../lib/api';
 
 interface Enterprise {
@@ -9,6 +10,7 @@ interface Enterprise {
   max_shops: number;
   max_users_per_shop: number;
   licensed_until: string | null;
+  monthly_price?: number | null;
   is_blocked: boolean;
   blocked_reason: string | null;
   created_at: string;
@@ -31,9 +33,11 @@ interface CreateEnterpriseData {
   max_shops: number;
   max_users_per_shop: number;
   licensed_until?: string;
+  monthly_price: number;
 }
 
 export default function AdminEnterprises() {
+  const navigate = useNavigate();
   const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
   const [selectedEnterprise, setSelectedEnterprise] = useState<Enterprise | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,6 +70,7 @@ export default function AdminEnterprises() {
     max_shops: 1,
     max_users_per_shop: 5,
     licensed_until: '',
+    monthly_price: 0,
   });
 
   const [licenseData, setLicenseData] = useState({
@@ -73,6 +78,7 @@ export default function AdminEnterprises() {
     licensed_until: '',
     max_shops: 1,
     max_users_per_shop: 5,
+    monthly_price: 0,
   });
 
   useEffect(() => {
@@ -180,6 +186,7 @@ export default function AdminEnterprises() {
         licensed_until: licenseData.licensed_until || undefined,
         max_shops: licenseData.max_shops,
         max_users_per_shop: licenseData.max_users_per_shop,
+        monthly_price: licenseData.monthly_price,
       };
       await adminApi.updateLicense(selectedEnterprise.id, payload);
       setSuccess('Licence mise à jour avec succès');
@@ -258,6 +265,7 @@ export default function AdminEnterprises() {
       max_shops: 1,
       max_users_per_shop: 5,
       licensed_until: '',
+      monthly_price: 0,
     });
   };
 
@@ -270,6 +278,7 @@ export default function AdminEnterprises() {
       max_shops: enterprise.max_shops,
       max_users_per_shop: enterprise.max_users_per_shop,
       licensed_until: enterprise.licensed_until ? enterprise.licensed_until.split('T')[0] : '',
+      monthly_price: enterprise.monthly_price ?? 0,
     });
     setShowEditModal(true);
   };
@@ -280,6 +289,7 @@ export default function AdminEnterprises() {
       licensed_until: enterprise.licensed_until ? enterprise.licensed_until.split('T')[0] : '',
       max_shops: enterprise.max_shops,
       max_users_per_shop: enterprise.max_users_per_shop,
+      monthly_price: enterprise.monthly_price ?? 0,
     });
     setShowLicenseModal(true);
   };
@@ -371,13 +381,38 @@ export default function AdminEnterprises() {
                       <h3 className="font-semibold text-primary-900">{enterprise.name}</h3>
                       <p className="text-sm text-slate-600">Code: {enterprise.code}</p>
                     </div>
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded ${getLicenseBadgeColor(
-                        enterprise.license_tier
-                      )}`}
-                    >
-                      {enterprise.license_tier}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          navigate(`/enterprises/${enterprise.id}/console`);
+                        }}
+                        title="Ouvrir la console"
+                        aria-label={`Ouvrir la console de ${enterprise.name}`}
+                        className="inline-flex items-center gap-1 rounded-md bg-action-50 px-2 py-1 text-xs font-medium text-action-600 transition-colors hover:bg-action-100"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        >
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                        Console
+                      </button>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded ${getLicenseBadgeColor(
+                          enterprise.license_tier
+                        )}`}
+                      >
+                        {enterprise.license_tier}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mb-2">
                     <div>
@@ -470,6 +505,27 @@ export default function AdminEnterprises() {
                       </p>
                     </div>
                   )}
+
+                  {/* Console drill-down */}
+                  <button
+                    onClick={() => navigate(`/enterprises/${selectedEnterprise.id}/console`)}
+                    className="w-full mt-2 px-3 py-2 bg-primary-900 text-white text-sm rounded hover:bg-primary-800 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="4" width="18" height="14" rx="2" />
+                      <path d="M8 21h8M12 18v3" />
+                    </svg>
+                    Ouvrir la console
+                  </button>
 
                   {/* Actions */}
                   <div className="flex flex-wrap gap-2 mt-4">
@@ -685,6 +741,25 @@ export default function AdminEnterprises() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Prix mensuel (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.monthly_price}
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          monthly_price: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -803,6 +878,25 @@ export default function AdminEnterprises() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Prix mensuel (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.monthly_price}
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          monthly_price: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -901,6 +995,25 @@ export default function AdminEnterprises() {
                         })
                       }
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Prix mensuel (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={licenseData.monthly_price}
+                      onChange={e =>
+                        setLicenseData({
+                          ...licenseData,
+                          monthly_price: Math.max(0, parseInt(e.target.value) || 0),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500"
+                      placeholder="0"
                     />
                   </div>
                 </div>
