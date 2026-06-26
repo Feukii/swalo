@@ -18,6 +18,16 @@ import {
   type ModuleDefinition,
 } from '@swalo/core/modules/registry';
 import { normalizeShopCode } from '@swalo/core/schemas';
+import {
+  PERMISSION_MODULES,
+  MODULE_CAPABILITIES,
+  CONFIGURABLE_ROLES,
+  CAPABILITY_LABELS,
+  buildDefaultMatrix,
+  type PermissionMatrix,
+  type Role as PermissionRole,
+  type Capability,
+} from '@swalo/core/modules/permissions';
 
 /** Alphabet des codes boutique générés (alphanumérique majuscule). */
 const SHOP_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1592,5 +1602,157 @@ export class AdminService {
       shops: shopReports,
       totals: { ...totals, marge_moyenne },
     };
+  }
+
+  // ============================================
+  // FINE-GRAINED PERMISSIONS (SUPERADMIN)
+  // ============================================
+
+  /**
+   * Nettoie une matrice de permissions reçue : ne conserve que les modules,
+   * rôles et capacités connus. Ignore silencieusement le reste.
+   */
+  private sanitizePermissionMatrix(raw: unknown): PermissionMatrix {
+    const out: PermissionMatrix = {};
+    if (!raw || typeof raw !== 'object') {
+      return out;
+    }
+    const source = raw as Record<string, unknown>;
+    for (const module of PERMISSION_MODULES) {
+      const moduleEntry = source[module];
+      if (!moduleEntry || typeof moduleEntry !== 'object') {
+        continue;
+      }
+      const validCaps = MODULE_CAPABILITIES[module];
+      const roleMap = moduleEntry as Record<string, unknown>;
+      const cleanedModule: Partial<Record<PermissionRole, Capability[]>> = {};
+      for (const role of CONFIGURABLE_ROLES) {
+        const caps = roleMap[role];
+        if (!Array.isArray(caps)) {
+          continue;
+        }
+        const cleanedCaps = caps.filter(
+          (c): c is Capability => typeof c === 'string' && validCaps.includes(c as Capability)
+        );
+        cleanedModule[role] = cleanedCaps;
+      }
+      if (Object.keys(cleanedModule).length > 0) {
+        out[module] = cleanedModule;
+      }
+    }
+    return out;
+  }
+
+  /** Métadonnées communes (modules, capacités, rôles, libellés, défauts). */
+  private permissionMetadata() {
+    return {
+      modules: PERMISSION_MODULES,
+      capabilities: MODULE_CAPABILITIES,
+      roles: CONFIGURABLE_ROLES,
+      labels: CAPABILITY_LABELS,
+      defaults: buildDefaultMatrix(),
+    };
+  }
+
+  async getShopPermissions(shopId: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true, module_permissions: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+    return {
+      ...this.permissionMetadata(),
+      current: shop.module_permissions as PermissionMatrix | null,
+    };
+  }
+
+  async setShopPermissions(shopId: string, adminId: string, matrix: unknown) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true, module_permissions: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+
+    const sanitized = this.sanitizePermissionMatrix(matrix);
+
+    return this.prisma.$transaction(async tx => {
+      const updated = await tx.shop.update({
+        where: { id: shopId },
+        data: { module_permissions: sanitized as Prisma.InputJsonValue },
+        select: { id: true, module_permissions: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          admin_id: adminId,
+          action: 'UPDATE_SHOP_PERMISSIONS',
+          entity_type: 'SHOP',
+          entity_id: shopId,
+          old_value: (shop.module_permissions as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+          new_value: sanitized as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        ...this.permissionMetadata(),
+        current: updated.module_permissions as PermissionMatrix | null,
+      };
+    });
+  }
+
+  async getEnterpriseDefaultPermissions(enterpriseId: string) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      select: { id: true, default_module_permissions: true },
+    });
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+    return {
+      ...this.permissionMetadata(),
+      current: enterprise.default_module_permissions as PermissionMatrix | null,
+    };
+  }
+
+  async setEnterpriseDefaultPermissions(enterpriseId: string, adminId: string, matrix: unknown) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      select: { id: true, default_module_permissions: true },
+    });
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+
+    const sanitized = this.sanitizePermissionMatrix(matrix);
+
+    return this.prisma.$transaction(async tx => {
+      const updated = await tx.enterprise.update({
+        where: { id: enterpriseId },
+        data: { default_module_permissions: sanitized as Prisma.InputJsonValue },
+        select: { id: true, default_module_permissions: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          admin_id: adminId,
+          action: 'UPDATE_ENTERPRISE_DEFAULT_PERMISSIONS',
+          entity_type: 'ENTERPRISE',
+          entity_id: enterpriseId,
+          old_value:
+            (enterprise.default_module_permissions as Prisma.InputJsonValue | null) ??
+            Prisma.JsonNull,
+          new_value: sanitized as Prisma.InputJsonValue,
+        },
+      });
+
+      return {
+        ...this.permissionMetadata(),
+        current: updated.default_module_permissions as PermissionMatrix | null,
+      };
+    });
   }
 }

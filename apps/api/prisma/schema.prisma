@@ -21,6 +21,7 @@ model Enterprise {
   license_tier   String              @default("STARTER")
   licensed_until DateTime?
   monthly_price  Int                 @default(0)
+  default_module_permissions Json?
   max_shops      Int                 @default(1)
   max_users_per_shop Int             @default(5)
   created_at     DateTime            @default(now())
@@ -52,6 +53,7 @@ model Shop {
   blocked_at            DateTime?
   blocked_by            String?
   enabled_modules       String[]            @default(["auth","products","customers","sales","cash","inventory"])
+  module_permissions    Json?
   low_stock_alerts_enabled    Boolean       @default(false)
   payment_reminders_enabled   Boolean       @default(false)
   notification_email          String?

@@ -3,6 +3,7 @@ import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SearchSaleDto } from './dto/search-sale.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 
@@ -42,6 +43,7 @@ export class SalesController {
 
   @Put(':id/cancel')
   @Roles(Role.BOSS, Role.MANAGER)
+  @RequireCapability('sales', 'refund')
   cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.salesService.cancel(user.shopId, id);
   }

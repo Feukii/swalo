@@ -72,7 +72,7 @@ export const UserRoleSchema = z
     id: UUID,
     user_id: UUID,
     shop_id: UUID,
-    role: z.enum(['OWNER', 'MANAGER', 'CASHIER']),
+    role: z.enum(['EMPLOYEE', 'MANAGER', 'BOSS', 'SUPERADMIN']),
   })
   .merge(SyncFields);
 

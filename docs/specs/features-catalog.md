@@ -1,6 +1,6 @@
-# SWALO - Catalogue Exhaustif des Fonctionnalités
+# Swalo - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-06-25
+> **Dernière mise à jour** : 2026-06-26
 > **Version application** : 1.0.0
 > **Branche** : develop
 >
@@ -34,7 +34,7 @@
 
 ## 1. Vue d'ensemble
 
-**SWALO** est un mini-ERP de commerce de détail conçu pour les boutiques d'accessoires téléphoniques en Afrique Centrale. Il fonctionne en mode **offline-first** et cible toute entreprise de commerce, du petit commerçant à la PME.
+**Swalo** est un mini-ERP de commerce de détail conçu pour les boutiques d'accessoires téléphoniques en Afrique Centrale. Il fonctionne en mode **offline-first** et cible toute entreprise de commerce, du petit commerçant à la PME.
 
 ### Stack technique
 
@@ -105,7 +105,7 @@ Tous les montants sont stockés en **entiers FCFA** (francs CFA). Aucune décima
 | **Module**      | Coeur                                                   |
 | **Endpoints**   | `POST /api/auth/register`, `POST /api/auth/create-shop` |
 
-- `register` : crée un utilisateur + boutique + rôle OWNER
+- `register` : crée un utilisateur + boutique + rôle BOSS
 - `create-shop` : création rapide admin avec code boutique et PIN auto-générés
 
 ### 2.5 Vérification de boutique
@@ -142,9 +142,27 @@ Tous les montants sont stockés en **entiers FCFA** (francs CFA). Aucune décima
 | `MANAGER`    | Boutique   | Gestion du personnel, produits, caisse, rapports, admin boutique       |
 | `EMPLOYEE`   | Boutique   | Opérations de base (ventes, caisse, inventaire, clients, fournisseurs) |
 
-> **Plan 026** : Simplification de 6 rôles à 4. `OWNER` renommé `BOSS`, `ADMIN` fusionné dans `MANAGER`, `CASHIER` fusionné dans `EMPLOYEE`.
+> **Plan 026** : Simplification de 6 rôles à 4. `OWNER` renommé `BOSS`, `ADMIN` fusionné dans `MANAGER`, `CASHIER` fusionné dans `EMPLOYEE`. L'enum est harmonisé `EMPLOYEE | MANAGER | BOSS | SUPERADMIN` (PDG = `BOSS`) sur l'ensemble API / core / mobile / web / web-admin.
 
 Chaque rôle est attribué **par boutique** via le modèle `UserRole`. Un utilisateur peut avoir des rôles différents dans des boutiques différentes.
+
+### 2.7b Permissions fines (module × rôle × capacités)
+
+| Propriété         | Valeur                                                                                                                                                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Matrice de permissions configurable croisant **module × rôle × capacités** (Voir / Créer / Modifier / Supprimer / Rembourser / Valider / Exporter). Affine le RBAC par rôle : au-delà de l'accès au module, on contrôle l'action. |
+| **Plateformes**   | Web Admin (configuration), API (enforcement), Mobile / Web (lecture des permissions effectives)                                                                                                                               |
+| **Module**        | Coeur (transversal)                                                                                                                                                                                                           |
+| **Endpoints**     | `GET /auth/me` (permissions effectives), `GET/PUT /admin/shops/:shopId/permissions`, `GET/PUT /admin/enterprises/:id/default-permissions`                                                                                      |
+| **Fichiers clés** | `packages/core/src/modules/permissions.ts`, `apps/api/src/common/decorators/require-capability.decorator.ts`, `apps/api/src/common/guards/capability.guard.ts`, `apps/web-admin/src/pages/console/EnterprisePermissions.tsx`   |
+| **Champs**        | `Shop.module_permissions` (Json?), `Enterprise.default_module_permissions` (Json?)                                                                                                                                            |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                                                                     |
+
+- Source de vérité partagée dans `@swalo/core/modules/permissions` : type `Role`, type `Capability` (`view`, `create`, `edit`, `delete`, `refund`, `validate`, `export`), liste `PERMISSION_MODULES` (13 modules : products, customers, sales, cash, inventory, suppliers, receivables, debts, reports, transfers, invoices, packaging-types, notifications), table `MODULE_CAPABILITIES` (capacités disponibles par module) et `CAPABILITY_LABELS` (libellés FR).
+- **Rôles configurables** : `EMPLOYEE`, `MANAGER`, `BOSS` (`CONFIGURABLE_ROLES`). `SUPERADMIN` n'apparaît pas dans la matrice : accès total inconditionnel.
+- **Résolution effective** (`resolveEffectivePermissions`) : config boutique (`Shop.module_permissions`) > défaut entreprise (`Enterprise.default_module_permissions`) > défaut intégré (`defaultCapabilities`). Les permissions effectives sont renvoyées par `/auth/me` dans `permissions` (record module → capacités) et exploitées par les frontends pour masquer/désactiver les actions.
+- **Enforcement API** : décorateur `@RequireCapability(module, capability)` + `CapabilityGuard` (`CanActivate`). Le guard résout les permissions effectives et renvoie `403 CAPABILITY_DENIED` si la capacité n'est pas accordée. `SUPERADMIN` passe toujours. Appliqué notamment sur `products` (delete), `sales` (refund), `customers`, etc.
+- **Configuration web-admin** : page `EnterprisePermissions` (matrice à cocher 13 modules × 3 rôles, capacités cochables par module) configurable **par boutique** ; les défauts d'entreprise pré-remplissent la matrice via `/admin/enterprises/:id/default-permissions`.
 
 ### 2.8 Suivi des appareils (Device Tracking)
 
@@ -181,6 +199,7 @@ Chaque rôle est attribué **par boutique** via le modèle `UserRole`. Un utilis
 | **Module**        | Coeur                                                           |
 | **Endpoints**     | `POST /api/auth/switch-shop`, `GET /api/auth/accessible-shops`  |
 | **Fichiers clés** | `apps/mobile/src/screens/ShopSwitcherScreen.tsx`                |
+| **Statut**        | **Implémenté** — le changement de boutique recharge intégralement le contexte (token, boutique/entreprise, rôle, modules et permissions effectifs, données locales) pour éviter tout résidu de l'ancienne boutique. |
 
 ### 2.11 Système d'invitations PIN
 
@@ -570,7 +589,7 @@ Catégories prédéfinies : Achat marchandise, Paiement fournisseur, Rembourseme
 | **Endpoints**     | `GET/POST/PUT/DELETE /api/customers`                                              |
 | **Fichiers clés** | `apps/mobile/src/screens/CustomersScreen.tsx`, `apps/web/src/pages/Customers.tsx` |
 
-Champs client : `name`, `first_name`, `phone`, `email`, `address`, `credit_limit`, `notes`, `is_active`, `email_notifications_enabled`
+Champs client : `name`, `first_name`, `phone`, `email`, `address`, `credit_limit`, `notes`, `is_active`, `email_notifications_enabled`, `sms_notifications_enabled`, `whatsapp_notifications_enabled` (préférences de canaux de notification par client)
 
 ### 6.2 Fiche client détaillée
 
@@ -586,7 +605,9 @@ Affiche :
 - Informations personnelles
 - Solde total (créances en cours)
 - KPIs : total créances, total payé, nombre de ventes
-- Historique des transactions (créances, paiements, remboursements, ventes)
+- Historique des transactions (créances, paiements, remboursements, ventes) complet
+- Résumé des notifications (`notifications_summary` : total, ventilation par statut et par canal, 50 dernières notifications) retourné par `GET /api/customers/:id`
+- Préférences de canaux (email / SMS / WhatsApp) éditables
 - Actions : créer créance, recevoir paiement, rembourser
 
 ### 6.3 Créances client (Receivables)
@@ -600,8 +621,10 @@ Affiche :
 | **Modèle**      | `ClientReceivable` (amount, paid_amount, balance, status: PENDING/PARTIAL/PAID/CANCELLED)                                          |
 
 - Montants négatifs acceptés (pour les corrections/remboursements)
+- **Date d'échéance obligatoire** (`due_date`) à la création (`@IsDateString` requis dans `create-receivable.dto.ts`) : sert d'ancre aux relances automatiques J-7/J-3/J-0 et aux tâches vendeur
 - Statut automatique : PENDING → PARTIAL → PAID
 - Chaque paiement crée un `ClientReceivablePayment` avec lien vers l'entrée de caisse
+- **Notifications de transparence** : émission automatique d'une notification `DEBT_CREATED` à la création et `DEBT_PAYMENT` à chaque paiement, vers le client sur tous les canaux auxquels il a souscrit (voir §11.5)
 
 ### 6.4 Paiements de créance
 
@@ -1125,6 +1148,66 @@ Chaque opération :
 - Cible : créances `PENDING`/`PARTIAL`, `balance > 0`, `due_date` dépassée ; destinataire = email client (si `email_notifications_enabled`)
 - Cadence `Shop.payment_reminder_cadence_days`, plancher 24 h, maximum 5 relances ; suivi via `NotificationLog`
 
+### 11.5 Dispatcher de notifications multi-canal
+
+| Propriété         | Valeur                                                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Service central qui envoie une notification sur **3 canaux** : **Email** (réel, via SMTP/MailerService), **SMS** et **WhatsApp** (adaptateurs prêts à brancher). Résout les canaux selon les préférences du client, journalise systématiquement, déduplique et ne lève jamais d'exception. |
+| **Plateformes**   | API                                                                                                                                                                                                          |
+| **Module**        | Premium (notifications)                                                                                                                                                                                      |
+| **Fichiers clés** | `apps/api/src/modules/notifications/notification-dispatcher.service.ts`, `adapters/notification-channel.adapter.ts`, `adapters/logging-sms.adapter.ts`, `adapters/logging-whatsapp.adapter.ts`                |
+| **Modèles**       | `NotificationLog`, enums `NotificationChannel` (EMAIL/SMS/WHATSAPP), `NotificationStatus` (SENT/FAILED/SKIPPED/QUEUED)                                                                                        |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                                                    |
+
+- **Email** : envoi réel via `MailerService` (SMTP) → statut `SENT`.
+- **SMS / WhatsApp** : interface `NotificationChannelAdapter` (`send(recipient, subject, body)`), bindée via les tokens d'injection `SMS_ADAPTER` / `WHATSAPP_ADAPTER`. Implémentations par défaut (`LoggingSmsAdapter`, `LoggingWhatsappAdapter`) qui journalisent uniquement → statut `QUEUED`. Brancher un vrai fournisseur = implémenter l'interface et rebinder le token.
+- **Résolution des canaux** (`resolveCustomerChannels`) : un canal n'est retenu que si la préférence client est activée **et** l'adresse correspondante existe (`email_notifications_enabled`+`email`, `sms_notifications_enabled`+`phone`, `whatsapp_notifications_enabled`+`phone`).
+- **Déduplication** : si un `NotificationLog` existe déjà avec le même `dedup_key` et le même canal → `SKIPPED`. Un `NotificationLog` est toujours écrit (canal, cible, statut, erreur).
+
+### 11.6 Notifications de transparence des dettes (DEBT_CREATED / DEBT_PAYMENT)
+
+| Propriété         | Valeur                                                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | À chaque création de créance client et à chaque paiement, le client est notifié automatiquement (transparence) sur tous les canaux auxquels il a souscrit.            |
+| **Plateformes**   | API                                                                                                                                                                   |
+| **Module**        | Premium (notifications) + Étendu (receivables)                                                                                                                        |
+| **Fichiers clés** | `apps/api/src/modules/notifications/debt-notifications.service.ts`                                                                                                     |
+| **Types**         | `NotificationType.DEBT_CREATED`, `NotificationType.DEBT_PAYMENT`                                                                                                       |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                             |
+
+- `notifyDebtCreated()` (dedup `debt_created:{receivableId}`) et `notifyDebtPayment()` (dedup `debt_payment:{paymentId}`) délèguent au dispatcher multi-canal.
+- Best-effort : un échec de notification ne fait jamais échouer l'opération métier sous-jacente (vente, créance, paiement).
+
+### 11.7 Relances automatiques J-7 / J-3 / J-0
+
+| Propriété         | Valeur                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Balayage quotidien des créances impayées arrivant à échéance. Aux jalons **J-7, J-3 et J-0** (`PAYMENT_REMINDER_OFFSETS = [7, 3, 0]`), une relance `PAYMENT_REMINDER` est envoyée au client (multi-canal) **et** une tâche vendeur est créée. |
+| **Plateformes**   | API (CRON)                                                                                                                                                                                  |
+| **Module**        | Premium (notifications)                                                                                                                                                                     |
+| **Endpoint**      | `POST /api/notifications/payment-reminders/trigger` (déclenchement manuel)                                                                                                                  |
+| **Fichiers clés** | `apps/api/src/modules/notifications/notifications.service.ts`, `notifications.scheduler.ts`                                                                                                  |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                                   |
+
+- CRON quotidien (08:00 UTC). Cible : créances `PENDING`/`PARTIAL`, `balance > 0`, `due_date` non nulle, dont l'écart en jours pleins (`daysUntilDue`, normalisé à minuit) vaut exactement 7, 3 ou 0.
+- À chaque jalon : (a) relance client `PAYMENT_REMINDER` sur tous les canaux souscrits ; (b) tâche vendeur `DEBT_REMINDER` (voir §11.8). Déduplication via `dedup_key`.
+
+### 11.8 Tâches vendeur (Relances)
+
+| Propriété         | Valeur                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | File de tâches de relance assignées au personnel de la boutique : « Clients à relancer » (échéances proches ou dépassées). Écran dédié mobile + page web, avec appel direct du client et marquage « fait ». |
+| **Plateformes**   | Mobile, Web, API                                                                                                                                                                |
+| **Module**        | Premium (notifications)                                                                                                                                                          |
+| **Endpoints**     | `GET /api/seller-tasks` (PENDING enrichies), `GET /api/seller-tasks/count` (badge), `POST /api/seller-tasks/:id/done`                                                            |
+| **Fichiers clés** | `apps/api/src/modules/notifications/seller-tasks.controller.ts`, `seller-tasks.service.ts`, `apps/mobile/src/screens/RelancesScreen.tsx`, `apps/web/src/pages/Relances.tsx`       |
+| **Modèle**        | `SellerTask` (type `DEBT_REMINDER`, status PENDING/DONE/DISMISSED, customer_id, receivable_id, due_date, done_at, done_by, dedup_key)                                            |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                       |
+
+- Accessible à tout utilisateur authentifié de la boutique (vendeur / gérant / patron) — pas de restriction de rôle supplémentaire.
+- Navigation : mobile via la route `Relances` (stack `App.tsx`) ; web via `/relances` (entrée sidebar « Relances », module `customers`).
+- Marquage « fait » enregistre `done_at` + `done_by` (passage en statut DONE).
+
 ---
 
 ## 12. Administration système
@@ -1311,13 +1394,13 @@ Chaque opération :
 
 | Propriété          | Valeur                                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| **Description**    | Application web séparée (`apps/web-admin`) pour l'administration plateforme SWALO, indépendante de l'app boutique  |
+| **Description**    | Application web séparée (`apps/web-admin`) pour l'administration plateforme Swalo, indépendante de l'app boutique  |
 | **Plateformes**    | Web Admin (port 3002)                                                                                              |
 | **Module**         | Premium (admin)                                                                                                    |
 | **Pages**          | Login, Dashboard KPIs, Entreprises, Boutiques, Utilisateurs, Logs d'audit, Configuration, Statistiques système     |
 | **Fichiers clés**  | `apps/web-admin/src/App.tsx`, `AdminLayout.tsx`, `authStore.ts`, `api.ts`                                          |
 | **Rôles**          | SUPERADMIN exclusivement (rejet au login si non-SUPERADMIN)                                                        |
-| **Particularités** | Sidebar sombre, tokens séparés (`admin_access_token`), branding "SWALO Admin", login email/mot de passe uniquement |
+| **Particularités** | Sidebar sombre, tokens séparés (`admin_access_token`), branding "Swalo Admin", login email/mot de passe uniquement |
 | **Statut**         | **Implémenté** (Plan 025)                                                                                          |
 
 ### 12.18 Configuration des licences (tier-module mapping)
@@ -1374,6 +1457,38 @@ Chaque opération :
 - Validation des dependances cote API
 - Bouton "Modules" par boutique dans les pages Entreprises et Boutiques
 
+### 12.21 Console super-admin — Vue d'ensemble (MRR & abonnements)
+
+| Propriété         | Valeur                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Page d'accueil de la console plateforme : indicateurs business agrégés — **MRR** (revenu mensuel récurrent), entreprises actives, boutiques, plans/abonnements, renouvellements proches, attrition, journal d'audit. |
+| **Plateformes**   | Web Admin, API                                                                                                                                                                        |
+| **Module**        | Premium (admin)                                                                                                                                                                       |
+| **Endpoints**     | `GET /api/admin/enterprises`, `GET /api/admin/stats/system`, `GET /api/admin/audit-logs` (agrégés côté front)                                                                          |
+| **Fichiers clés** | `apps/web-admin/src/pages/DashboardHome.tsx`, `admin.service.ts`                                                                                                                       |
+| **Champ**         | `Enterprise.monthly_price` (Int FCFA)                                                                                                                                                  |
+| **Rôles**         | SUPERADMIN                                                                                                                                                                            |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                             |
+
+- **MRR réel** = somme des `Enterprise.monthly_price` des entreprises **actives** (non bloquées), calculée côté front à partir de `getAllEnterprises()`.
+- Affiche : MRR, entreprises actives, nombre total de boutiques, taux d'attrition 30j (bloquées / total), renouvellements ≤ 7 jours, répartition du MRR par plan (STARTER / PROFESSIONAL / ENTERPRISE), top abonnements, journal d'audit récent.
+
+### 12.22 Console super-admin — Drill-down par entreprise (lecture seule)
+
+| Propriété         | Valeur                                                                                                                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Exploration en **lecture seule** d'une entreprise et de ses boutiques depuis la console plateforme : POS, Produits, Clients, Fournisseurs, Rapports réseau, plus l'accès & permissions. Permet au support/SUPERADMIN d'inspecter une boutique sans modifier les données. |
+| **Plateformes**   | Web Admin, API                                                                                                                                                                                                             |
+| **Module**        | Premium (admin)                                                                                                                                                                                                            |
+| **Endpoints**     | `GET /api/admin/shops/:shopId/pos`, `GET /api/admin/shops/:shopId/products`, `GET /api/admin/shops/:shopId/customers`, `GET /api/admin/shops/:shopId/suppliers`, `GET /api/admin/enterprises/:id/reports`                  |
+| **Fichiers clés** | `apps/web-admin/src/components/EnterpriseConsoleLayout.tsx`, `apps/web-admin/src/pages/console/` (`EnterprisePos`, `EnterpriseProducts`, `EnterpriseClients`, `EnterpriseSuppliers`, `EnterpriseReports`, `EnterprisePermissions`), `admin.controller.ts`, `admin.service.ts` |
+| **Rôles**         | SUPERADMIN                                                                                                                                                                                                                 |
+| **Statut**        | **Implémenté** (Plan 032)                                                                                                                                                                                                 |
+
+- Accès depuis la page Entreprises (`/enterprises/:id/console`).
+- **POS** : ventes récentes + catalogue de la boutique. **Produits** : catalogue + KPIs (valeur de stock, stock bas). **Clients / Fournisseurs** : listes avec solde et statut. **Rapports** : récap par boutique + totaux entreprise.
+- La page **Accès & permissions** (`EnterprisePermissions`) configure la matrice de permissions fines par boutique (voir §2.7b).
+
 ---
 
 ## 13. Import & Export de données
@@ -1402,19 +1517,33 @@ Chaque opération :
 
 ## 14. Design & Interface utilisateur
 
+### 14.0 Identité de marque & design system unifié (Swalo)
+
+| Propriété         | Valeur                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Rebranding **Swalo** (casse PascalCase, ex-« SWALO ») et **design system unique** : une source de vérité de tokens dans `@swalo/core/brand` propagée aux 3 apps. Direction « Marine + Sky vif ».        |
+| **Plateformes**   | Mobile, Web, Web Admin                                                                                                                                                                                  |
+| **Module**        | Coeur (transversal)                                                                                                                                                                                     |
+| **Fichiers clés** | `packages/core/src/brand/tokens.ts`, `packages/core/tailwind-preset.cjs`, `apps/web/tailwind.config.js`, `apps/web-admin/tailwind.config.js`, `apps/mobile/src/constants/theme-v2.ts`                    |
+| **Statut**        | **Implémenté** (Plan 031)                                                                                                                                                                               |
+
+- **Palette Marine** (primaire — navigation, en-têtes, marque) : base `#0B2A45` (échelle 50→950). **Palette Sky** (action — boutons, liens, focus) : base `#0EA5E9`, accent `#38BDF8`. Neutres slate ; sémantiques succès `#10B981`, attention `#F59E0B`, erreur `#EF4444`, info = Sky.
+- **Source unique** : `packages/core/src/brand/tokens.ts` exporte `palette`, `semantic`, `tokens` (+ typographie, espacements, rayons, ombres). Import : `@swalo/core/brand/tokens`. Règle : aucune couleur en dur dans les apps.
+- **Preset Tailwind** (`packages/core/tailwind-preset.cjs`) dérivé des tokens, consommé par `apps/web` et `apps/web-admin` (`presets: [require('@swalo/core/tailwind-preset')]`). Le thème mobile `theme-v2.ts` est aligné sur la même palette.
+- **Refonte UI pixel selon maquettes** : mobile — tab bar à **bouton central proéminent** (FAB Vente en Sky), hero d'accueil, bottom-sheets ; web & web-admin — sidebars marine + accent Sky, pages réalignées. Logo Swalo corrigé partout (assets in-app mobile remplacés).
+
 ### 14.1 Thème mobile
 
 | Propriété       | Valeur                                                 |
 | --------------- | ------------------------------------------------------ |
-| **Description** | Système de design centralisé pour l'application mobile |
+| **Description** | Système de design mobile dérivé des tokens de marque `@swalo/core/brand` |
 | **Plateformes** | Mobile                                                 |
 | **Fichier**     | `apps/mobile/src/constants/theme-v2.ts`                |
+| **Statut**      | **Implémenté** (Plan 031) — aligné sur la palette Marine #0B2A45 + Sky #0EA5E9 |
 
-- Couleurs primaires : Bleu Petrole / Navy (#0F2A44)
-- Couleurs sémantiques : succès (#1EB980), danger (rouge), avertissement (ambre), info (bleu)
-- Couleurs par contexte : clients (ambre), fournisseurs (rouge), caisse (violet)
-- Couleurs par rôle utilisateur
-- Tokens d'espacement, typographie, ombres, rayons de bordure
+- Couleurs primaires : Marine (#0B2A45), action Sky (#0EA5E9), accent (#38BDF8)
+- Couleurs sémantiques : succès (#10B981), avertissement (#F59E0B), danger (#EF4444), info (Sky)
+- Tokens d'espacement, typographie, ombres, rayons de bordure issus des tokens partagés
 
 ### 14.2 Composants UI mobile réutilisables
 
@@ -1426,18 +1555,18 @@ Chaque opération :
 
 Composants : `ScreenHeader`, `KPICard`, `ListItem`, `SearchableSelect`, `BalanceIndicator`, `StatusBadge`, `TransactionDetailModal`, `DateRangePicker`, `ProductCard`, `IconButton`, `OfflineBanner`, `ErrorBoundary`
 
-### 14.3 Thème web (Tailwind) - Harmonisé avec mobile
+### 14.3 Thème web (Tailwind) - Preset de marque unifié
 
-| Propriété       | Valeur                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------- |
-| **Description** | Configuration Tailwind CSS harmonisée avec le thème mobile (palette Navy #0F2A44, succès #1EB980) |
-| **Plateformes** | Web                                                                                               |
-| **Fichiers**    | `apps/web/tailwind.config.js`, `apps/web/src/index.css`, `apps/web/src/components/ui/Logo.tsx`    |
-| **Statut**      | **Implémenté** (Plan 029) - Toutes les pages utilisent la palette Navy harmonisée avec le mobile  |
+| Propriété       | Valeur                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Description** | Tailwind étend le preset de marque `@swalo/core/tailwind-preset` dérivé des tokens (Marine #0B2A45 + Sky #0EA5E9) |
+| **Plateformes** | Web, Web Admin                                                                                                   |
+| **Fichiers**    | `apps/web/tailwind.config.js`, `apps/web-admin/tailwind.config.js`, `packages/core/tailwind-preset.cjs`, `apps/web/src/components/ui/Logo.tsx` |
+| **Statut**      | **Implémenté** (Plan 031) - migration Navy #0F2A44 → Marine #0B2A45 + Sky vif, source de tokens partagée         |
 
-- Palette primaire Navy : 50 (#EEF5FB) .. 900 (#0F2A44) - identique au mobile
-- Succès : #1EB980 (identique mobile)
-- Logo SWALO (SVG/PNG) partagé entre web et mobile
+- Couleurs du preset : `primary`/`marine`, `action`/`sky`, `accent`, neutres slate, sémantiques (succès #10B981, attention #F59E0B, erreur #EF4444, info Sky)
+- Rayons (`card` 14px, `btn` 10px, `sheet` 20px) et ombres (`card`, `elevated`) dérivés des tokens
+- Logo Swalo partagé entre web et mobile
 - Classes CSS : `.btn-*`, `.card`, `.badge-*`, `.input`, `.text-gradient`, `.glass`, `.spinner`
 
 ### 14.3b Composant Logo web
@@ -1451,21 +1580,24 @@ Composants : `ScreenHeader`, `KPICard`, `ListItem`, `SearchableSelect`, `Balance
 
 - Utilisé dans la sidebar (MainLayout), la page de connexion (LoginPin), la page de création de boutique
 
-### 14.4 Navigation mobile (5 onglets)
+### 14.4 Navigation mobile (5 onglets, bouton central)
 
 | Propriété       | Valeur                                              |
 | --------------- | --------------------------------------------------- |
-| **Description** | Navigation principale par onglets en bas de l'écran |
+| **Description** | Navigation principale par onglets en bas de l'écran, avec **bouton central proéminent** (FAB) pour la Vente |
 | **Plateformes** | Mobile                                              |
 | **Fichier**     | `apps/mobile/src/navigation/MainTabNavigator.tsx`   |
+| **Statut**      | **Implémenté** (Plan 031) — tab bar refondue, FAB Vente en Sky surélevé |
 
 | Onglet  | Écran                   | Icône        |
 | ------- | ----------------------- | ------------ |
 | Accueil | `HomeScreen`            | Maison       |
 | Caisse  | `CashScreen`            | Portefeuille |
-| Vente   | `SaleScreen`            | Panier       |
+| Vente   | `SaleScreen`            | Panier (FAB central, Sky) |
 | Stock   | `StockManagementScreen` | Boîte        |
 | Plus    | `MoreScreen`            | Menu         |
+
+- L'onglet **Vente** est rendu comme un bouton flottant central surélevé (`CustomTabBar`, fond `Colors.action` Sky #0EA5E9).
 
 ### 14.5 Layout web (sidebar + top bar) - Module-aware
 
@@ -1484,7 +1616,7 @@ Chaque item de navigation est associé a un module. Si le module n'est pas inclu
 
 Éléments de navigation sidebar :
 
-- Accueil, Vente (sales), Caisse (cash), Historique (sales), Produits (products), Catalogue (products), Stock (inventory), Clients (customers), Creances (receivables), Fournisseurs (suppliers), Dettes (debts), Rapports (reports), Entreprises (enterprise)
+- Accueil, Vente (sales), Caisse (cash), Historique (sales), Produits (products), Catalogue (products), Stock (inventory), Clients (customers), Creances (receivables), Relances (customers), Fournisseurs (suppliers), Dettes (debts), Rapports (reports), Entreprises (enterprise)
 - Section admin (conditionnel BOSS/MANAGER) : Gestion Utilisateurs
 
 ---
@@ -1601,9 +1733,17 @@ Erreurs Prisma mappées :
 | Email notifications        |   -    |  -  |  X  |    -    |
 | Alertes stock bas (email)  |   -    |  -  |  X  |    -    |
 | Rappels de paiement        |   -    |  -  |  X  |    -    |
+| Notifs dettes (transp.)    |   -    |  -  |  X  |    -    |
+| Dispatcher multi-canal     |   -    |  -  |  X  |    -    |
+| Relances (tâches vendeur)  |   X    |  X  |  X  |    -    |
 | Rapport consolidé PDG      |   -    |  X  |  X  |    -    |
 | Import CSV/Excel           |   -    |  X  |  X  |    -    |
 | Admin système (SUPERADMIN) |   -    |  X  |  X  |    -    |
+| Console super-admin (MRR)  |   -    | X(admin) |  X  | - |
+| Drill-down entreprise      |   -    | X(admin) |  X  | - |
+| Permissions fines          |   X    |  X  |  X  |    -    |
+| Switch de boutique         |   X    |  X  |  X  |    -    |
+| Design system Swalo        |   X    |  X  |  -  |    -    |
 | Gestion utilisateurs       |   X    |  X  |  X  |    -    |
 | Gestion devices            |   -    |  X  |  X  |    -    |
 | PIN invites                |   X    |  X  |  X  |    -    |
@@ -1715,6 +1855,9 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 | SystemConfig (clé/valeur plateforme)               |    LES     |  —   |    —    |    —     |
 | Logs d'audit (lecture + export)                    |     L      |  —   |    —    |    —     |
 | Statistiques système (plateforme)                  |     L      |  —   |    —    |    —     |
+| Permissions fines (config matrice par boutique)    |    LES     |  —   |    —    |    —     |
+| Console super-admin (vue d'ensemble + drill-down)  |     L      |  —   |    —    |    —     |
+| Relances / tâches vendeur                          |     L      |  LE  |   LE    |    LE    |
 
 ### Règles transversales
 
@@ -1723,6 +1866,7 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 - `MANAGER` dispose des mêmes accès métier que `BOSS` sauf les actions sensibles suivantes : corrections négatives de caisse, modification du code boutique et inscription. `MANAGER` peut gérer le personnel de sa boutique.
 - `EMPLOYEE` est limité aux opérations quotidiennes : ventes, caisse, inventaire, fiches clients/fournisseurs et encaissements de créances/dettes. Pas d'accès aux rapports de pilotage ni à l'admin.
 - L'activation de modules (`enabled_modules`) prime sur les rôles : un module désactivé retourne `403 MODULE_DISABLED` pour tous les rôles sauf `SUPERADMIN`.
+- Les **permissions fines** (matrice module × rôle × capacités, voir §2.7b) affinent ce tableau : au-delà de l'accès au module, le couple (`@RequireCapability`, `CapabilityGuard`) peut refuser une action précise (`403 CAPABILITY_DENIED`). Résolution : config boutique > défaut entreprise > défaut intégré. `SUPERADMIN` passe toujours.
 - Chaque rôle est attribué **par boutique** via `UserRole`. Un même utilisateur peut être `BOSS` d'une boutique et `EMPLOYEE` d'une autre.
 
 ---
@@ -1731,6 +1875,7 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 | Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Auteur      |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-06-26 | Plan 031 (design) + Plan 032 (livraisons) : **Rebranding Swalo** + design system unifié (tokens `@swalo/core/brand`, palette Marine #0B2A45 + Sky #0EA5E9, preset Tailwind `tailwind-preset.cjs`, theme-v2 mobile aligné) ; refonte UI selon maquettes (mobile tab bar à bouton central/FAB Vente, hero, bottom-sheets ; web & web-admin sidebars/pages). **Système de dettes & notifications** : échéance obligatoire sur `ClientReceivable.due_date`, notifications de transparence `DEBT_CREATED`/`DEBT_PAYMENT`, relances auto J-7/J-3/J-0, **tâches vendeur** (écran Relances mobile + page web, `SellerTask`, `/seller-tasks`), **dispatcher multi-canal** (Email réel ; SMS/WhatsApp adaptateurs `NotificationChannelAdapter` prêts à brancher), historique client + `notifications_summary`, préférences canaux par client (`sms_/whatsapp_notifications_enabled`). **Console super-admin** : Vue d'ensemble avec MRR réel (`Enterprise.monthly_price`) + drill-down lecture seule par entreprise (`/admin/shops/:id/{pos,products,customers,suppliers}`, `/admin/enterprises/:id/reports`, pages `console/`). **Permissions fines** module × rôle × capacités (`@swalo/core/modules/permissions`, `Shop.module_permissions`/`Enterprise.default_module_permissions`, `/auth/me` permissions effectives, `@RequireCapability`+`CapabilityGuard`, page web-admin `EnterprisePermissions`). Harmonisation rôles `EMPLOYEE/MANAGER/BOSS/SUPERADMIN`. Switch de boutique : rechargement complet du contexte. Code boutique alphanumérique (déjà livré Plan 030). | Claude Code |
 | 2026-06-25 | Plan 030 (incrément 1) : code boutique alphanumérique (4–10 maj., normalisé `[A-Z0-9]`, anciens codes numériques conservés) sur api/core/mobile/web/web-admin ; rapport financier consolidé PDG (`GET /enterprises/:id/financial-summary`, récap santé par boutique + total) ; alertes stock bas par email + rappels de paiement (CRON quotidiens, `NotificationLog`, `ClientReceivable.due_date`, réglages notifications par boutique) ; fix rôle `OWNER`→`BOSS` (web). Validation OK (lint 0 warning, type-check, 134 tests API, e2e 16, builds web/web-admin) | Claude Code |
 | 2026-04-23 | Ajout section 19 "Matrice des rôles" (SUPERADMIN/BOSS/MANAGER/EMPLOYEE × domaines fonctionnels). Fix erreurs compilation : ProductCatalogScreen.tsx (loadProducts → loadData, TS2552) ; LicenseConfig.tsx (suppression import React inutilisé, TS6133). Validation complète OK (lint + tests + builds web/web-admin/api)                                                                                                                                                                                                                                         | Claude Code |
 | 2026-02-19 | Web-admin : page Configuration Licences (GET/PUT /admin/license-config, overrides tier-module, auto-sync boutiques), blocage/deblocage entreprise avec cascade boutiques, edition modules par boutique (groupes par tier, filtrage licence). Mobile : fix sync freshness (timestamp garanti apres fullSync, re-lecture AsyncStorage dans intervalle 60s). API : getEffectiveModulesForLicense() avec SystemConfig overrides, updateShopModules respecte overrides                                                                                                | Claude Code |

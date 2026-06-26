@@ -19,6 +19,7 @@ import EnterpriseProducts from './pages/console/EnterpriseProducts';
 import EnterpriseClients from './pages/console/EnterpriseClients';
 import EnterpriseSuppliers from './pages/console/EnterpriseSuppliers';
 import EnterpriseReports from './pages/console/EnterpriseReports';
+import EnterprisePermissions from './pages/console/EnterprisePermissions';
 import './App.css';
 
 function App() {
@@ -148,6 +149,7 @@ function App() {
           <Route path="products" element={<EnterpriseProducts />} />
           <Route path="clients" element={<EnterpriseClients />} />
           <Route path="suppliers" element={<EnterpriseSuppliers />} />
+          <Route path="permissions" element={<EnterprisePermissions />} />
         </Route>
 
         {/* Catch-all redirect */}

@@ -70,6 +70,7 @@ const icons: Record<string, ReactElement> = {
   reports: <path d="M4 19V5m0 14h16M8 17v-5m4 5V9m4 8v-3" />,
   accounting: <path d="M9 7h6M9 11h6M9 15h4M5 4h14a1 1 0 011 1v15l-3-2-3 2-3-2-3 2-3-2V5a1 1 0 011-1z" />,
   balances: <path d="M3 3v18h18M7 13l3-3 3 3 5-6" />,
+  permissions: <path d="M7 11V7a5 5 0 0110 0v4M5 11h14a1 1 0 011 1v8a1 1 0 01-1 1H5a1 1 0 01-1-1v-8a1 1 0 011-1zm7 4v3" />,
 };
 
 const navSections: NavSection[] = [
@@ -137,6 +138,14 @@ const navSections: NavSection[] = [
         scope: 'enterprise',
         match: 'reports',
         to: e => `/enterprises/${e}/console/reports`,
+      },
+      {
+        name: 'Accès & permissions',
+        icon: 'permissions',
+        enabled: true,
+        scope: 'shop',
+        match: 'permissions',
+        to: (e, s) => `/enterprises/${e}/console/${s}/permissions`,
       },
       { name: 'Comptabilité', icon: 'accounting', enabled: false, scope: 'enterprise' },
       { name: 'Bilans boutiques', icon: 'balances', enabled: false, scope: 'enterprise' },
@@ -210,7 +219,9 @@ export default function EnterpriseConsoleLayout() {
   const handleShopChange = (nextShopId: string) => {
     if (!enterpriseId) return;
     // Keep the current shop-scoped view (default to pos) when switching shops.
-    const isShopView = ['pos', 'products', 'clients', 'suppliers'].includes(activeMatch);
+    const isShopView = ['pos', 'products', 'clients', 'suppliers', 'permissions'].includes(
+      activeMatch
+    );
     const view = isShopView ? activeMatch : 'pos';
     navigate(`/enterprises/${enterpriseId}/console/${nextShopId}/${view}`);
   };
