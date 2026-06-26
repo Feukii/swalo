@@ -121,6 +121,7 @@ export class InventoryService {
     cost_price: number;
     sell_price: number;
     notes?: string;
+    price_valid_from?: Date;
     device_id: string;
   }) {
     this.logger.log(
@@ -198,7 +199,8 @@ export class InventoryService {
           remaining_quantity: data.quantity,
           cost_price: data.cost_price,
           sell_price: data.sell_price,
-          price_valid_from: now,
+          price_valid_from: data.price_valid_from ?? now,
+          created_at: data.price_valid_from ?? now,
           notes: data.notes,
         },
       });

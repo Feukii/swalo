@@ -342,6 +342,7 @@ export default function ProductDetail() {
         <StockInModal
           unit={unit}
           defaultCost={product.cost_price}
+          defaultSell={product.sell_price}
           productId={product.id}
           onClose={() => setModal(null)}
           onDone={() => {
@@ -370,12 +371,14 @@ export default function ProductDetail() {
 function StockInModal({
   unit,
   defaultCost,
+  defaultSell,
   productId,
   onClose,
   onDone,
 }: {
   unit: string;
   defaultCost: number;
+  defaultSell: number;
   productId: string;
   onClose: () => void;
   onDone: () => void;
@@ -396,11 +399,12 @@ function StockInModal({
     }
     setSubmitting(true);
     try {
-      await inventoryApi.stockIn({
+      await inventoryApi.createBatch({
         product_id: productId,
         quantity: qty,
-        unit_cost: Number.isNaN(cost) ? undefined : cost,
-        reason: `Réception du ${date}`,
+        cost_price: Number.isNaN(cost) ? 0 : cost,
+        sell_price: defaultSell,
+        received_at: date,
       });
       onDone();
     } catch (error) {
