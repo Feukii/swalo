@@ -1,11 +1,16 @@
-import { Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { Role } from '@prisma/client';
+import { NotificationChannel, Role } from '@prisma/client';
 import { SellerTasksService } from './seller-tasks.service';
 
 type AuthenticatedRequest = Request & {
   user: { userId: string; shopId: string; role: Role };
 };
+
+/** Body for POST /seller-tasks/:id/remind. */
+interface RemindDto {
+  channel?: NotificationChannel;
+}
 
 /**
  * Seller follow-up tasks (debt reminders, ...).
@@ -24,6 +29,16 @@ export class SellerTasksController {
   @Get('count')
   async count(@Req() req: AuthenticatedRequest) {
     return this.sellerTasksService.countPending(req.user.shopId);
+  }
+
+  @Get(':id/preview')
+  async preview(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.sellerTasksService.preview(req.user.shopId, id);
+  }
+
+  @Post(':id/remind')
+  async remind(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: RemindDto) {
+    return this.sellerTasksService.sendReminder(req.user.shopId, id, body.channel);
   }
 
   @Post(':id/done')

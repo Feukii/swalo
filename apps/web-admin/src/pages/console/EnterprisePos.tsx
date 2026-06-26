@@ -143,7 +143,10 @@ export default function EnterprisePos() {
                       <span className="text-3xl text-slate-300">📦</span>
                     </div>
                     <div className="p-3">
-                      <p className="text-sm font-medium text-primary-900 truncate" title={product.name}>
+                      <p
+                        className="text-sm font-medium text-primary-900 truncate"
+                        title={product.name}
+                      >
                         {product.name}
                       </p>
                       <div className="mt-1 flex items-baseline justify-between gap-2">

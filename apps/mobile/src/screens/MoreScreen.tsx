@@ -12,18 +12,19 @@ import {
   LogOut,
   Package,
   Clock,
-  ClipboardList,
   Receipt,
   RefreshCw,
   ArrowLeftRight,
   Store,
   Lock,
+  Bell,
   ChevronRight,
   IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { usePermissions } from '../hooks/usePermissions';
+import { sellerTasksApi } from '../lib/api';
 import { PERMISSION_MODULES } from '@swalo/core/modules/permissions';
 
 const PERMISSION_MODULE_SET = new Set<string>(PERMISSION_MODULES);
@@ -37,6 +38,8 @@ interface MenuItem {
   module?: string;
   /** Couleur d'accent de l'icône (token) */
   tint: string;
+  /** Affiche le badge « clients à relancer » (compteur seller-tasks) sur cette entrée */
+  showRelanceBadge?: boolean;
 }
 
 interface MenuSection {
@@ -48,6 +51,26 @@ interface MenuSection {
 // La logique (screen / module / navigation) reste inchangée : seules la
 // couleur d'accent et l'organisation en sections sont des choix de rendu.
 const MENU_SECTIONS: MenuSection[] = [
+  {
+    title: 'Relances client',
+    items: [
+      {
+        icon: Bell,
+        title: 'Relances & tâches',
+        screen: 'Relances',
+        module: 'customers',
+        tint: Colors.warning.main,
+        showRelanceBadge: true,
+      },
+      {
+        icon: Settings,
+        title: 'Réglages relances',
+        screen: 'ShopSettings',
+        module: 'customers',
+        tint: Colors.tertiary,
+      },
+    ],
+  },
   {
     title: 'Gestion',
     items: [
@@ -77,13 +100,6 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'Finances',
     items: [
-      {
-        icon: ClipboardList,
-        title: 'Relances',
-        screen: 'Relances',
-        module: 'customers',
-        tint: Colors.danger.main,
-      },
       {
         icon: Clock,
         title: 'Historique des transactions',
@@ -201,6 +217,7 @@ function ModuleRow({ item, isLast, disabled = false, badge, onPress }: ModuleRow
 export default function MoreScreen({ navigation }: MoreScreenProps) {
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [licenseTier, setLicenseTier] = useState<string>('STARTER');
+  const [relanceCount, setRelanceCount] = useState(0);
   const { can } = usePermissions();
 
   // Bug 9: Recharger les modules a chaque focus (au lieu de useEffect([]))
@@ -216,7 +233,16 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
           // Fallback: all modules allowed
         }
       };
+      const loadRelanceCount = async () => {
+        try {
+          const { count } = await sellerTasksApi.getCount();
+          setRelanceCount(count);
+        } catch {
+          // Hors-ligne ou serveur indisponible : on garde la valeur précédente
+        }
+      };
       loadModules();
+      loadRelanceCount();
     }, [])
   );
 
@@ -299,6 +325,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
                   key={item.screen}
                   item={item}
                   isLast={index === section.enabled.length - 1}
+                  badge={item.showRelanceBadge ? relanceCount : undefined}
                   onPress={() => navigateToScreen(item.screen)}
                 />
               ))}

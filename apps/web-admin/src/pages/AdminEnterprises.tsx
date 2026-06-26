@@ -928,7 +928,9 @@ export default function AdminEnterprises() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-elevated max-w-md w-full">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-primary-900 mb-4">📜 Mettre à jour la licence</h2>
+              <h2 className="text-2xl font-bold text-primary-900 mb-4">
+                📜 Mettre à jour la licence
+              </h2>
               <form onSubmit={handleUpdateLicense}>
                 <div className="space-y-4">
                   <div>

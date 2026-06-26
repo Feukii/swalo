@@ -186,9 +186,7 @@ export default function EnterprisePermissions() {
       <div className="space-y-5">
         <PageHeading />
         <div className="rounded-2xl bg-white p-10 text-center shadow-card">
-          <p className="font-medium text-danger-700">
-            {error ?? 'Permissions indisponibles.'}
-          </p>
+          <p className="font-medium text-danger-700">{error ?? 'Permissions indisponibles.'}</p>
           <button
             type="button"
             onClick={() => void load()}
@@ -247,9 +245,7 @@ export default function EnterprisePermissions() {
         return (
           <section key={module} className="rounded-2xl bg-white p-6 shadow-card">
             <div className="mb-4 flex items-center gap-2">
-              <h2 className="text-base font-semibold text-primary-900">
-                {MODULE_LABELS[module]}
-              </h2>
+              <h2 className="text-base font-semibold text-primary-900">{MODULE_LABELS[module]}</h2>
               <span className="text-xs text-slate-400">{module}</span>
             </div>
 
@@ -307,9 +303,7 @@ function PageHeading() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-primary-900">Accès &amp; permissions</h1>
-      <p className="mt-0.5 text-sm text-slate-500">
-        Modules, fonctionnalités et vues par rôle
-      </p>
+      <p className="mt-0.5 text-sm text-slate-500">Modules, fonctionnalités et vues par rôle</p>
     </div>
   );
 }

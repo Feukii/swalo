@@ -56,21 +56,33 @@ const TIER_SHORT: Record<string, string> = {
 
 // Inline SVG icons (stroke = currentColor to follow text color)
 const icons: Record<string, ReactElement> = {
-  pos: <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 4.5A1 1 0 005.6 19H17M16 19a2 2 0 100 4 2 2 0 000-4zM9 19a2 2 0 100 4 2 2 0 000-4z" />,
+  pos: (
+    <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.3 4.5A1 1 0 005.6 19H17M16 19a2 2 0 100 4 2 2 0 000-4zM9 19a2 2 0 100 4 2 2 0 000-4z" />
+  ),
   cash: <path d="M3 6h18v12H3V6zm0 4h18M7 14h4" />,
-  invoice: <path d="M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM13 4v5h5M9 13h6M9 17h4" />,
+  invoice: (
+    <path d="M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM13 4v5h5M9 13h6M9 17h4" />
+  ),
   history: <path d="M3 12a9 9 0 109-9 9 9 0 00-6.3 2.6L3 8M3 4v4h4M12 7v5l3 2" />,
-  products: <path d="M21 16V8a2 2 0 00-1-1.7l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.7l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.3 7L12 12l8.7-5M12 22V12" />,
+  products: (
+    <path d="M21 16V8a2 2 0 00-1-1.7l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.7l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.3 7L12 12l8.7-5M12 22V12" />
+  ),
   inventory: <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />,
   transfers: <path d="M7 16H3m0 0l4-4m-4 4l4 4M17 8h4m0 0l-4-4m4 4l-4 4" />,
-  customers: <path d="M9 11a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M16 11a3 3 0 100-6M19 20a6 6 0 00-3-5.2" />,
+  customers: (
+    <path d="M9 11a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M16 11a3 3 0 100-6M19 20a6 6 0 00-3-5.2" />
+  ),
   receivables: <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />,
   suppliers: <path d="M3 9l1-5h16l1 5M4 9h16v11H4V9zm5 11v-6h6v6" />,
   debts: <path d="M12 5v14M19 12l-7 7-7-7" />,
   reports: <path d="M4 19V5m0 14h16M8 17v-5m4 5V9m4 8v-3" />,
-  accounting: <path d="M9 7h6M9 11h6M9 15h4M5 4h14a1 1 0 011 1v15l-3-2-3 2-3-2-3 2-3-2V5a1 1 0 011-1z" />,
+  accounting: (
+    <path d="M9 7h6M9 11h6M9 15h4M5 4h14a1 1 0 011 1v15l-3-2-3 2-3-2-3 2-3-2V5a1 1 0 011-1z" />
+  ),
   balances: <path d="M3 3v18h18M7 13l3-3 3 3 5-6" />,
-  permissions: <path d="M7 11V7a5 5 0 0110 0v4M5 11h14a1 1 0 011 1v8a1 1 0 01-1 1H5a1 1 0 01-1-1v-8a1 1 0 011-1zm7 4v3" />,
+  permissions: (
+    <path d="M7 11V7a5 5 0 0110 0v4M5 11h14a1 1 0 011 1v8a1 1 0 01-1 1H5a1 1 0 01-1-1v-8a1 1 0 011-1zm7 4v3" />
+  ),
 };
 
 const navSections: NavSection[] = [
@@ -247,7 +259,8 @@ export default function EnterpriseConsoleLayout() {
         <div className="px-4 pb-3">
           <div className="flex items-center justify-between rounded-lg bg-action-500/15 px-3 py-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-action-300">
-              Plan {enterprise ? (TIER_SHORT[enterprise.license_tier] ?? enterprise.license_tier) : '—'}
+              Plan{' '}
+              {enterprise ? (TIER_SHORT[enterprise.license_tier] ?? enterprise.license_tier) : '—'}
             </span>
             <span className="text-[11px] font-medium text-action-200">
               {shopCount} boutique{shopCount > 1 ? 's' : ''}
@@ -302,12 +315,9 @@ export default function EnterpriseConsoleLayout() {
                     );
                   }
 
-                  const canNavigate =
-                    item.scope === 'enterprise' || (!!shopId && shops.length > 0);
+                  const canNavigate = item.scope === 'enterprise' || (!!shopId && shops.length > 0);
                   const target =
-                    item.to && enterpriseId
-                      ? item.to(enterpriseId, shopId ?? '')
-                      : '#';
+                    item.to && enterpriseId ? item.to(enterpriseId, shopId ?? '') : '#';
 
                   if (!canNavigate) {
                     return (

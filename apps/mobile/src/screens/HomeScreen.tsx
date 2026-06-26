@@ -9,6 +9,8 @@ import {
   Users,
   TrendingDown,
   TrendingUp,
+  Bell,
+  ChevronRight,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, TransactionDetailModal } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
@@ -16,7 +18,7 @@ import { formatMoney } from '../utils/money';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { syncEngine } from '../db/sync';
-import { authApi } from '../lib/api';
+import { authApi, sellerTasksApi } from '../lib/api';
 import { cashEntryRepo, clientReceivableRepo, supplierDebtRepo } from '../db/repositories';
 
 // Labels des catégories
@@ -105,6 +107,7 @@ export default function HomeScreen() {
     purchasesCredit: 0,
   });
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
+  const [relanceCount, setRelanceCount] = useState(0);
 
   const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -244,13 +247,24 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // Nombre de clients à relancer (échéances proches/dépassées) — badge de la carte.
+  const loadRelanceCount = useCallback(async () => {
+    try {
+      const { count } = await sellerTasksApi.getCount();
+      setRelanceCount(count);
+    } catch {
+      // Hors-ligne ou serveur indisponible : on garde la valeur précédente
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
       refreshUserData();
+      loadRelanceCount();
       // Déclencher une sync en arrière-plan pour garder les données à jour
       syncEngine.fullSync().catch(() => undefined);
-    }, [loadData, refreshUserData])
+    }, [loadData, refreshUserData, loadRelanceCount])
   );
 
   const onRefresh = async () => {
@@ -357,6 +371,28 @@ export default function HomeScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* CLIENTS À RELANCER */}
+        {relanceCount > 0 ? (
+          <View style={styles.section}>
+            <Pressable
+              style={({ pressed }) => [styles.relanceCard, pressed && styles.relancePressed]}
+              onPress={() => navigation.navigate('Relances' as never)}
+            >
+              <View style={styles.relanceIcon}>
+                <Bell size={20} color={Colors.warning.main} />
+                <View style={styles.relanceBadge}>
+                  <Text style={styles.relanceBadgeText}>{relanceCount}</Text>
+                </View>
+              </View>
+              <View style={styles.relanceBody}>
+                <Text style={styles.relanceTitle}>Clients à relancer</Text>
+                <Text style={styles.relanceSubtitle}>Échéances proches ou dépassées</Text>
+              </View>
+              <ChevronRight size={20} color={Colors.textColors.tertiary} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* VENTES DU JOUR */}
         <View style={styles.section}>
@@ -575,6 +611,60 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '600',
     color: Colors.text,
+  },
+  // CLIENTS À RELANCER
+  relanceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    ...Shadows.sm,
+  },
+  relancePressed: {
+    opacity: 0.7,
+  },
+  relanceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.warning.background,
+  },
+  relanceBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: Colors.danger.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.surface,
+  },
+  relanceBadgeText: {
+    color: Colors.danger.foreground,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  relanceBody: {
+    flex: 1,
+    gap: 2,
+  },
+  relanceTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  relanceSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
   },
   // SECTIONS
   section: {

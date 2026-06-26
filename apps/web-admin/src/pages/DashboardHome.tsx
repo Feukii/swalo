@@ -74,7 +74,20 @@ const TIER_SHORT: Record<string, string> = {
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-const MONTH_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+const MONTH_LABELS = [
+  'Jan',
+  'Fév',
+  'Mar',
+  'Avr',
+  'Mai',
+  'Juin',
+  'Juil',
+  'Août',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Déc',
+];
 
 /** Compact FCFA formatter: 4 850 000 -> "4,85 M F", 95 000 -> "95 K F". */
 function formatFcfaCompact(value: number): string {
@@ -183,7 +196,7 @@ export default function DashboardHome() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError("Impossible de charger les données du tableau de bord.");
+          setError('Impossible de charger les données du tableau de bord.');
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -209,7 +222,8 @@ export default function DashboardHome() {
     const totalMrr = active.reduce((sum, e) => sum + enterpriseMrr(e), 0);
 
     // Boutiques = sum of shop counts across all enterprises.
-    const totalShops = stats?.totalShops ?? enterprises.reduce((s, e) => s + (e._count?.shops ?? 0), 0);
+    const totalShops =
+      stats?.totalShops ?? enterprises.reduce((s, e) => s + (e._count?.shops ?? 0), 0);
 
     // Renewals within 7 days (real, from licensed_until).
     const renewals = enterprises
@@ -266,9 +280,7 @@ export default function DashboardHome() {
 
   // Subscriptions table — top enterprises by real MRR.
   const subscriptions = useMemo(() => {
-    return [...enterprises]
-      .sort((a, b) => enterpriseMrr(b) - enterpriseMrr(a))
-      .slice(0, 5);
+    return [...enterprises].sort((a, b) => enterpriseMrr(b) - enterpriseMrr(a)).slice(0, 5);
   }, [enterprises]);
 
   const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -317,8 +329,7 @@ export default function DashboardHome() {
         <div>
           <h1 className="text-2xl font-bold text-primary-900">Vue d'ensemble</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Pilotage des abonnements ·{' '}
-            <span className="capitalize">{monthLabel}</span>
+            Pilotage des abonnements · <span className="capitalize">{monthLabel}</span>
           </p>
         </div>
         <div className="flex items-center gap-3">

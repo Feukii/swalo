@@ -11,9 +11,19 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Plus, Eye, Search, Mail, Smartphone, Check } from '../components/icons/SimpleIcons';
+import {
+  Users,
+  Plus,
+  Eye,
+  Search,
+  Mail,
+  Smartphone,
+  Check,
+  Calendar,
+} from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+import { formatDate } from '../utils/date';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
@@ -60,6 +70,37 @@ function formatFcfa(amount: number): string {
   // Normalise les espaces insécables/étroits (format fr-FR) en espace simple
   const grouped = Math.round(amount).toLocaleString('fr-FR').replace(/\s/g, ' ');
   return `${grouped} F`;
+}
+
+// Date courte « 29 juin » (sans année) pour la puce d'échéance.
+function formatDueDate(isoDate: string): string {
+  return formatDate(isoDate, 'fr-FR', { day: 'numeric', month: 'long' });
+}
+
+interface DueChipInfo {
+  date: string;
+  label: string;
+  /** true = échéance dépassée ou aujourd'hui (accent rouge), false = future proche (accent sky) */
+  urgent: boolean;
+}
+
+// Construit le libellé d'échéance affiché sous le montant : « Dans Xj » (future),
+// « Échéance aujourd'hui » (jour J) ou « Retard Xj » (dépassée).
+function buildDueChip(dueIso: string): DueChipInfo {
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const due = new Date(dueIso);
+  const startOfDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const diffDays = Math.round((startOfDue.getTime() - startOfToday.getTime()) / MS_PER_DAY);
+
+  if (diffDays > 0) {
+    return { date: formatDueDate(dueIso), label: `Dans ${diffDays}j`, urgent: false };
+  }
+  if (diffDays === 0) {
+    return { date: formatDueDate(dueIso), label: 'Échéance aujourd’hui', urgent: true };
+  }
+  return { date: formatDueDate(dueIso), label: `Retard ${Math.abs(diffDays)}j`, urgent: true };
 }
 
 interface NotificationChannelsValue {
@@ -283,6 +324,19 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     return map;
   }, [receivables]);
 
+  // Échéance la plus proche par client (créance non soldée avec une due_date).
+  const dueDateByCustomer = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of receivables) {
+      if (r.balance <= 0 || !r.due_date) continue;
+      const current = map.get(r.customer_id);
+      if (!current || r.due_date < current) {
+        map.set(r.customer_id, r.due_date);
+      }
+    }
+    return map;
+  }, [receivables]);
+
   // Total des créances + nombre de clients débiteurs (depuis les données déjà chargées)
   const { totalReceivable, debtorCount } = useMemo(() => {
     let total = 0;
@@ -370,6 +424,8 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             const hasLimit = creditLimitValue > 0 && balance > 0;
             const ratio = hasLimit ? Math.min(balance / creditLimitValue, 1) : 0;
             const nearLimit = ratio >= 0.8;
+            const dueIso = dueDateByCustomer.get(customer.id);
+            const dueChip = dueIso ? buildDueChip(dueIso) : null;
 
             return (
               <TouchableOpacity
@@ -415,6 +471,29 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
                     )}
                   </View>
                 </View>
+
+                {dueChip ? (
+                  <View
+                    style={[
+                      styles.dueChip,
+                      dueChip.urgent ? styles.dueChipUrgent : styles.dueChipSoon,
+                    ]}
+                  >
+                    <Calendar
+                      size={13}
+                      color={dueChip.urgent ? Colors.danger.main : Colors.action}
+                    />
+                    <Text
+                      style={[
+                        styles.dueChipText,
+                        dueChip.urgent ? styles.dueChipTextUrgent : styles.dueChipTextSoon,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Échéance {dueChip.date} · {dueChip.label}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {hasLimit ? (
                   <View style={styles.limitBlock}>
@@ -675,6 +754,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.success.main,
     marginTop: 1,
+  },
+  // Due date chip
+  dueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  dueChipSoon: {
+    backgroundColor: Colors.info.background,
+  },
+  dueChipUrgent: {
+    backgroundColor: Colors.danger.background,
+  },
+  dueChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dueChipTextSoon: {
+    color: Colors.action,
+  },
+  dueChipTextUrgent: {
+    color: Colors.danger.main,
   },
   // Credit limit progress
   limitBlock: {

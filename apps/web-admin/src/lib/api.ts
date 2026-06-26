@@ -425,9 +425,7 @@ export const adminApi = {
 
   // ---- Fine-grained permissions ----
   getShopPermissions: async (shopId: string): Promise<PermissionConfigResponse> => {
-    const response = await api.get<PermissionConfigResponse>(
-      `/admin/shops/${shopId}/permissions`
-    );
+    const response = await api.get<PermissionConfigResponse>(`/admin/shops/${shopId}/permissions`);
     return response.data;
   },
 
@@ -435,10 +433,9 @@ export const adminApi = {
     shopId: string,
     matrix: PermissionMatrix
   ): Promise<PermissionConfigResponse> => {
-    const response = await api.put<PermissionConfigResponse>(
-      `/admin/shops/${shopId}/permissions`,
-      { matrix }
-    );
+    const response = await api.put<PermissionConfigResponse>(`/admin/shops/${shopId}/permissions`, {
+      matrix,
+    });
     return response.data;
   },
 
