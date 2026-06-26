@@ -219,7 +219,9 @@ export default function StockManagement() {
                       <td className="px-6 py-4">
                         <p className="font-medium text-slate-900">{product.name}</p>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{product.category || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {product.category || '-'}
+                      </td>
                       <td className="px-6 py-4 text-center">
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${getStockColor(product)}`}

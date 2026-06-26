@@ -17,6 +17,7 @@ import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useLocalSuppliers } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import { createSupplierOffline, createSupplierDebtOffline } from '../db/offlineWrite';
 
 interface SuppliersScreenNavigation {
@@ -33,6 +34,8 @@ interface SuppliersScreenProps {
 
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const { shop } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateSupplier = can('suppliers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -175,9 +178,11 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             <IconButton onPress={() => navigation.navigate('SupplierBalancesSummary')}>
               <Eye size={24} color={Colors.action} />
             </IconButton>
-            <IconButton onPress={handleOpenModal}>
-              <Plus size={24} color={Colors.action} />
-            </IconButton>
+            {canCreateSupplier && (
+              <IconButton onPress={handleOpenModal}>
+                <Plus size={24} color={Colors.action} />
+              </IconButton>
+            )}
           </View>
         }
       />

@@ -227,12 +227,17 @@ export default function HomeScreen() {
       const meData = (await authApi.getMe()) as {
         enabled_modules?: string[];
         license_tier?: string;
+        permissions?: Record<string, string[]>;
       };
       if (meData.enabled_modules) {
         await AsyncStorage.setItem('enabled_modules', JSON.stringify(meData.enabled_modules));
       }
       if (meData.license_tier) {
         await AsyncStorage.setItem('license_tier', meData.license_tier);
+      }
+      // Permissions fines (matrice effective) — mise en cache pour le gating offline-first.
+      if (meData.permissions) {
+        await AsyncStorage.setItem('permissions', JSON.stringify(meData.permissions));
       }
     } catch {
       // Silently fail - offline or server unavailable

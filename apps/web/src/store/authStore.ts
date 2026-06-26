@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { authApi } from '../lib/api';
+import type { Capability, PermissionModule } from '@swalo/core/modules/permissions';
+
+type EffectivePermissions = Record<PermissionModule, Capability[]>;
 
 interface User {
   id: string;
@@ -28,6 +31,7 @@ interface AuthState {
   role: string | null;
   enabledModules: string[];
   licenseTier: string | null;
+  permissions: EffectivePermissions | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -45,6 +49,7 @@ export const useAuthStore = create<AuthState>(set => ({
   role: null,
   enabledModules: [],
   licenseTier: null,
+  permissions: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -62,6 +67,9 @@ export const useAuthStore = create<AuthState>(set => ({
         shop: data.shop,
         enterprise: data.enterprise || null,
         role: data.role,
+        enabledModules: data.enabled_modules ?? [],
+        licenseTier: data.license_tier ?? null,
+        permissions: data.permissions ?? null,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -87,6 +95,7 @@ export const useAuthStore = create<AuthState>(set => ({
         role: data.role,
         enabledModules: data.enabled_modules ?? [],
         licenseTier: data.license_tier ?? null,
+        permissions: data.permissions ?? null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -108,6 +117,7 @@ export const useAuthStore = create<AuthState>(set => ({
       role: null,
       enabledModules: [],
       licenseTier: null,
+      permissions: null,
       isAuthenticated: false,
       error: null,
     });
@@ -129,6 +139,7 @@ export const useAuthStore = create<AuthState>(set => ({
         role: data.role,
         enabledModules: data.enabled_modules ?? [],
         licenseTier: data.license_tier ?? null,
+        permissions: data.permissions ?? null,
         isAuthenticated: true,
         isLoading: false,
       });

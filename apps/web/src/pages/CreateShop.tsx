@@ -198,7 +198,9 @@ export default function CreateShop() {
 
             {/* Instructions */}
             <div className="bg-slate-50 rounded-2xl p-6 mb-6">
-              <h3 className="font-bold text-slate-900 mb-3">📝 Instructions pour le propriétaire</h3>
+              <h3 className="font-bold text-slate-900 mb-3">
+                📝 Instructions pour le propriétaire
+              </h3>
               <ol className="list-decimal list-inside space-y-2 text-sm text-slate-700">
                 <li>
                   Utilisez le <strong>Code Boutique</strong> et le <strong>Code PIN</strong> pour

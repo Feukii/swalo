@@ -364,7 +364,9 @@ export default function BusinessReports() {
                         {financialSummary.totalReceivables - financialSummary.totalDebts >= 0 ? (
                           <span className="badge bg-success-100 text-success-700">Sain</span>
                         ) : (
-                          <span className="badge bg-warning-100 text-warning-700">À surveiller</span>
+                          <span className="badge bg-warning-100 text-warning-700">
+                            À surveiller
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -529,7 +531,9 @@ export default function BusinessReports() {
                             {entry.type === 'IN' ? 'Entrée' : 'Sortie'} · {entry.category}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mb-1">{formatDate(entry.created_at)}</p>
+                        <p className="text-xs text-slate-400 mb-1">
+                          {formatDate(entry.created_at)}
+                        </p>
                         {(entry.supplier || entry.customer) && (
                           <p className="text-sm font-medium text-slate-700 mb-1">
                             {entry.supplier &&

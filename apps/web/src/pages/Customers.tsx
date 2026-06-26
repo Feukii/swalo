@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { customersApi } from '../lib/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface CustomerReceivable {
   id: string;
@@ -155,6 +156,8 @@ function isOverdue(customer: Customer): boolean {
 
 export default function Customers() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can('customers', 'create');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -362,13 +365,15 @@ export default function Customers() {
                 className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
               />
             </div>
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-action-500 hover:bg-action-600 rounded-lg shadow-sm transition-colors whitespace-nowrap"
-            >
-              <span className="text-base leading-none">+</span>
-              <span>Nouveau client</span>
-            </button>
+            {canCreate && (
+              <button
+                onClick={() => handleOpenModal()}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-action-500 hover:bg-action-600 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              >
+                <span className="text-base leading-none">+</span>
+                <span>Nouveau client</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -381,7 +386,7 @@ export default function Customers() {
             <p className="text-slate-500">
               {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier client
               </button>

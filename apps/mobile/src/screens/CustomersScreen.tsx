@@ -16,6 +16,7 @@ import { ScreenHeader, IconButton } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import { useLocalCustomers, useLocalClientReceivables } from '../hooks/useLocalData';
 import { createCustomerOffline, createReceivableOffline } from '../db/offlineWrite';
 
@@ -142,6 +143,8 @@ const channelStyles = StyleSheet.create({
 
 export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const { shop } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateCustomer = can('customers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -315,9 +318,11 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
             <IconButton onPress={() => navigation.navigate('CustomerBalancesSummary')}>
               <Eye size={22} color={Colors.action} />
             </IconButton>
-            <IconButton onPress={handleOpenModal}>
-              <Plus size={22} color={Colors.action} />
-            </IconButton>
+            {canCreateCustomer && (
+              <IconButton onPress={handleOpenModal}>
+                <Plus size={22} color={Colors.action} />
+              </IconButton>
+            )}
           </View>
         }
       />

@@ -29,6 +29,8 @@ interface LoginPinScreenProps {
 interface PinLoginExtras {
   enabled_modules?: string[];
   license_tier?: string;
+  // Matrice effective des permissions fines (présente si l'API la renvoie au login).
+  permissions?: Record<string, string[]>;
 }
 
 // Erreur réseau/HTTP avec message optionnel
@@ -129,6 +131,11 @@ export default function LoginPinScreen({ navigation }: LoginPinScreenProps) {
       }
       if (extras.license_tier) {
         await AsyncStorage.setItem('license_tier', extras.license_tier);
+      }
+      // Permissions fines : mises en cache si l'API les renvoie au login.
+      // Sinon, elles seront rafraîchies par /auth/me (HomeScreen.refreshUserData).
+      if (extras.permissions) {
+        await AsyncStorage.setItem('permissions', JSON.stringify(extras.permissions));
       }
 
       // 2. Cache credentials for future offline login (non-blocking)

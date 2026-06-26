@@ -181,7 +181,8 @@ export default function Home() {
   const payMobile = cashStats?.salesMobile ?? 0;
   const payCredit = cashStats?.salesCredit ?? 0;
   const payTotal = payCash + payMobile + payCredit;
-  const payPct = (value: number): number => (payTotal > 0 ? Math.round((value / payTotal) * 100) : 0);
+  const payPct = (value: number): number =>
+    payTotal > 0 ? Math.round((value / payTotal) * 100) : 0;
 
   const shopName = shop?.name || 'Boutique';
   const todayLabel = new Date().toLocaleDateString('fr-FR', {
@@ -208,12 +209,7 @@ export default function Home() {
           value={todayRevenue !== null ? formatCompactFCFA(todayRevenue) : PLACEHOLDER}
           label="Chiffre d'affaires (jour)"
         />
-        <KpiCard
-          icon={<IconMargin />}
-          tone="marine"
-          value={PLACEHOLDER}
-          label="Marge brute"
-        />
+        <KpiCard icon={<IconMargin />} tone="marine" value={PLACEHOLDER} label="Marge brute" />
         <KpiCard
           icon={<IconCash />}
           tone="success"
@@ -225,7 +221,9 @@ export default function Home() {
           tone="warning"
           value={receivableTotal !== null ? formatCompactFCFA(receivableTotal) : PLACEHOLDER}
           label="Créances clients"
-          badge={debtorCount !== null ? `${debtorCount} client${debtorCount > 1 ? 's' : ''}` : undefined}
+          badge={
+            debtorCount !== null ? `${debtorCount} client${debtorCount > 1 ? 's' : ''}` : undefined
+          }
           badgeTone="warning"
         />
         <KpiCard
@@ -233,7 +231,9 @@ export default function Home() {
           tone="marine"
           value={stockValue !== null ? formatCompactFCFA(stockValue) : PLACEHOLDER}
           label="Valeur du stock"
-          badge={totalProducts !== null ? `${totalProducts.toLocaleString('fr-FR')} réf.` : undefined}
+          badge={
+            totalProducts !== null ? `${totalProducts.toLocaleString('fr-FR')} réf.` : undefined
+          }
           badgeTone="neutral"
         />
       </div>
@@ -256,9 +256,7 @@ export default function Home() {
             </div>
             {/* Donnees journalieres indisponibles avec les stats actuelles */}
             <div className="flex items-center justify-center h-40 rounded-xl border border-dashed border-slate-200 bg-slate-50">
-              <p className="text-sm text-slate-400">
-                Historique journalier indisponible
-              </p>
+              <p className="text-sm text-slate-400">Historique journalier indisponible</p>
             </div>
           </section>
 
@@ -266,7 +264,10 @@ export default function Home() {
           <section className="bg-white rounded-2xl shadow-card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-marine-900">Dernières opérations</h2>
-              <Link to="/sales" className="text-sm font-medium text-action-500 hover:text-action-600">
+              <Link
+                to="/sales"
+                className="text-sm font-medium text-action-500 hover:text-action-600"
+              >
                 Voir tout
               </Link>
             </div>

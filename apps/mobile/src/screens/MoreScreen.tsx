@@ -23,6 +23,10 @@ import {
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
+import { usePermissions } from '../hooks/usePermissions';
+import { PERMISSION_MODULES } from '@swalo/core/modules/permissions';
+
+const PERMISSION_MODULE_SET = new Set<string>(PERMISSION_MODULES);
 
 type IconComponent = (props: IconProps) => React.JSX.Element;
 
@@ -197,6 +201,7 @@ function ModuleRow({ item, isLast, disabled = false, badge, onPress }: ModuleRow
 export default function MoreScreen({ navigation }: MoreScreenProps) {
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [licenseTier, setLicenseTier] = useState<string>('STARTER');
+  const { can } = usePermissions();
 
   // Bug 9: Recharger les modules a chaque focus (au lieu de useEffect([]))
   useFocusEffect(
@@ -222,6 +227,14 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
     return enabledModules.includes(moduleCode);
   };
 
+  // Gating par permission fine : on masque une entrée si le module est connu de
+  // la matrice de permissions et que l'utilisateur n'a pas la capacité 'view'.
+  // Les modules hors matrice (enterprise, admin, sync...) ne sont pas filtrés ici.
+  const hasViewPermission = (moduleCode?: string): boolean => {
+    if (!moduleCode || !PERMISSION_MODULE_SET.has(moduleCode)) return true;
+    return can(moduleCode, 'view');
+  };
+
   const handleDisabledModule = (name: string) => {
     Alert.alert(
       'Module non disponible',
@@ -241,6 +254,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
             await AsyncStorage.removeItem('refresh_token');
             await AsyncStorage.removeItem('user');
             await AsyncStorage.removeItem('shop');
+            await AsyncStorage.removeItem('permissions');
             navigation.getParent()?.reset({
               index: 0,
               routes: [{ name: 'LoginPin' }],
@@ -258,10 +272,13 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
     navigation.getParent()?.navigate(screenName);
   };
 
-  // Bug 8a: Séparer modules actifs et non disponibles (par section)
+  // Bug 8a: Séparer modules actifs et non disponibles (par section).
+  // Un module licencié mais sans permission 'view' est simplement masqué.
   const sections = MENU_SECTIONS.map(section => ({
     title: section.title,
-    enabled: section.items.filter(item => isModuleEnabled(item.module)),
+    enabled: section.items.filter(
+      item => isModuleEnabled(item.module) && hasViewPermission(item.module)
+    ),
   })).filter(section => section.enabled.length > 0);
 
   const disabledItems = MENU_SECTIONS.flatMap(section => section.items).filter(

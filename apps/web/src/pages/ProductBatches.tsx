@@ -172,7 +172,9 @@ export default function ProductBatches() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-500 text-sm">Valeur totale</p>
-              <p className="text-xl font-bold text-slate-900 mt-1">{formatFCFA(stats.totalValue)}</p>
+              <p className="text-xl font-bold text-slate-900 mt-1">
+                {formatFCFA(stats.totalValue)}
+              </p>
             </div>
             <div className="w-12 h-12 bg-action-50 rounded-xl flex items-center justify-center">
               <svg

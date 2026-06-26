@@ -369,9 +369,7 @@ export default function POS() {
                         {entry.type === 'IN' ? '↗️ ' : '↙️ '}
                         {entry.category}
                       </span>
-                      <span className="text-xs text-slate-400">
-                        {formatTime(entry.created_at)}
-                      </span>
+                      <span className="text-xs text-slate-400">{formatTime(entry.created_at)}</span>
                     </div>
                     {(entry.supplier || entry.customer) && (
                       <p className="text-sm font-medium text-slate-700 mt-1">

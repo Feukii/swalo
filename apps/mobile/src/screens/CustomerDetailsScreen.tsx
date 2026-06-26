@@ -33,6 +33,7 @@ import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   customerRepo,
   clientReceivableRepo,
@@ -130,14 +131,20 @@ const NOTIF_CHANNEL_LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp',
 };
 
-const NOTIF_STATUS_META: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }> = {
+const NOTIF_STATUS_META: Record<
+  string,
+  { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }
+> = {
   SENT: { label: 'Envoyé', variant: 'success' },
   QUEUED: { label: 'En file', variant: 'warning' },
   PENDING: { label: 'En file', variant: 'warning' },
   FAILED: { label: 'Échec', variant: 'danger' },
 };
 
-function getNotifStatusMeta(status: string): { label: string; variant: 'success' | 'warning' | 'danger' | 'default' } {
+function getNotifStatusMeta(status: string): {
+  label: string;
+  variant: 'success' | 'warning' | 'danger' | 'default';
+} {
   return NOTIF_STATUS_META[status] ?? { label: status, variant: 'default' };
 }
 
@@ -246,6 +253,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const { id } = route.params;
   const { user, shopId, userId } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
+  const { can } = usePermissions();
+  const canCreateReceivable = can('receivables', 'create');
+  const canRefundReceivable = can('receivables', 'refund');
 
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -873,12 +883,16 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
           <View style={styles.headerActions}>
             {canEditOrDelete() && (
               <>
-                <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
-                  <Edit size={20} color={Colors.action} />
-                </IconButton>
-                <IconButton onPress={handleDelete}>
-                  <Trash size={20} color={Colors.danger.main} />
-                </IconButton>
+                {can('customers', 'edit') && (
+                  <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
+                    <Edit size={20} color={Colors.action} />
+                  </IconButton>
+                )}
+                {can('customers', 'delete') && (
+                  <IconButton onPress={handleDelete}>
+                    <Trash size={20} color={Colors.danger.main} />
+                  </IconButton>
+                )}
               </>
             )}
           </View>
@@ -972,43 +986,48 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         {(userRole === 'OWNER' ||
           userRole === 'BOSS' ||
           userRole === 'MANAGER' ||
-          userRole === 'EMPLOYEE') && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
-              onPress={handleOpenRefundModal}
-              activeOpacity={0.85}
-            >
-              <DollarSign size={20} color={Colors.success.foreground} />
-              <Text style={styles.actionButtonText}>Recevoir paiement</Text>
-            </TouchableOpacity>
+          userRole === 'EMPLOYEE') &&
+          (canRefundReceivable || canCreateReceivable) && (
+            <View style={styles.actionButtons}>
+              {canRefundReceivable && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+                  onPress={handleOpenRefundModal}
+                  activeOpacity={0.85}
+                >
+                  <DollarSign size={20} color={Colors.success.foreground} />
+                  <Text style={styles.actionButtonText}>Recevoir paiement</Text>
+                </TouchableOpacity>
+              )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
-              onPress={handleOpenCreateReceivableModal}
-              activeOpacity={0.85}
-            >
-              <Plus size={20} color={Colors.warning.foreground} />
-              <Text style={styles.actionButtonText}>Créer créance</Text>
-            </TouchableOpacity>
+              {canCreateReceivable && (
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
+                  onPress={handleOpenCreateReceivableModal}
+                  activeOpacity={0.85}
+                >
+                  <Plus size={20} color={Colors.warning.foreground} />
+                  <Text style={styles.actionButtonText}>Créer créance</Text>
+                </TouchableOpacity>
+              )}
 
-            {/* Show Refund button only when balance is negative */}
-            {shopOwes && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  styles.actionButtonFull,
-                  { backgroundColor: Colors.danger.main },
-                ]}
-                onPress={handleOpenCustomerRefundModal}
-                activeOpacity={0.85}
-              >
-                <DollarSign size={20} color={Colors.danger.foreground} />
-                <Text style={styles.actionButtonText}>Rembourser le client</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+              {/* Show Refund button only when balance is negative */}
+              {shopOwes && canRefundReceivable && (
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.actionButtonFull,
+                    { backgroundColor: Colors.danger.main },
+                  ]}
+                  onPress={handleOpenCustomerRefundModal}
+                  activeOpacity={0.85}
+                >
+                  <DollarSign size={20} color={Colors.danger.foreground} />
+                  <Text style={styles.actionButtonText}>Rembourser le client</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
         {/* Transactions History */}
         <View style={styles.section}>

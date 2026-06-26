@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@swalo/core/utils';
 import { suppliersApi } from '../lib/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface Supplier {
   id: string;
@@ -18,6 +19,9 @@ interface Supplier {
 
 export default function Suppliers() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can('suppliers', 'create');
+  const canEdit = can('suppliers', 'edit');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,7 +55,9 @@ export default function Suppliers() {
         address: supplier.address as string | undefined,
         current_debt: (supplier.total_balance as number) ?? 0,
         borrowing_limit: (supplier.borrowing_limit as number) ?? 0,
-        last_operation_at: (supplier.last_operation_at ?? supplier.updated_at) as string | undefined,
+        last_operation_at: (supplier.last_operation_at ?? supplier.updated_at) as
+          | string
+          | undefined,
         is_active: supplier.is_active as boolean,
       }));
       setSuppliers(normalized);
@@ -211,9 +217,7 @@ export default function Suppliers() {
         </div>
 
         <div className="card">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Avec dettes
-          </p>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Avec dettes</p>
           <p className="text-2xl font-bold text-marine-900 mt-2">
             {stats.withDebt > 0 ? stats.withDebt : '—'}
           </p>
@@ -224,13 +228,15 @@ export default function Suppliers() {
       <div className="card">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-marine-900">Fournisseurs</h2>
-          <button
-            onClick={() => handleOpenModal()}
-            className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
-          >
-            <span>+</span>
-            <span>Nouveau fournisseur</span>
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => handleOpenModal()}
+              className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <span>+</span>
+              <span>Nouveau fournisseur</span>
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -245,7 +251,7 @@ export default function Suppliers() {
             <p className="text-slate-500">
               {searchQuery ? 'Aucun fournisseur trouvé' : 'Aucun fournisseur enregistré'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier fournisseur
               </button>
@@ -374,12 +380,14 @@ export default function Suppliers() {
                           >
                             Voir
                           </button>
-                          <button
-                            onClick={() => handleOpenModal(supplier)}
-                            className="text-slate-500 hover:text-slate-700 font-medium text-sm"
-                          >
-                            Modifier
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => handleOpenModal(supplier)}
+                              className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                            >
+                              Modifier
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
