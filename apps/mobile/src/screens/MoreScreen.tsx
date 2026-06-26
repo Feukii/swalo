@@ -12,6 +12,7 @@ import {
   LogOut,
   Package,
   Clock,
+  ClipboardList,
   Receipt,
   RefreshCw,
   ArrowLeftRight,
@@ -72,6 +73,13 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'Finances',
     items: [
+      {
+        icon: ClipboardList,
+        title: 'Relances',
+        screen: 'Relances',
+        module: 'customers',
+        tint: Colors.danger.main,
+      },
       {
         icon: Clock,
         title: 'Historique des transactions',
