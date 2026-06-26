@@ -17,6 +17,7 @@ import Suppliers from './pages/Suppliers';
 import SupplierDetails from './pages/SupplierDetails';
 import Receivables from './pages/Receivables';
 import Relances from './pages/Relances';
+import ReminderSettings from './pages/ReminderSettings';
 import Debts from './pages/Debts';
 import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
@@ -209,6 +210,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Relances />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reminder-settings"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ReminderSettings />
               </MainLayout>
             </ProtectedRoute>
           }

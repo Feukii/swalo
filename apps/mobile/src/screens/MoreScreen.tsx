@@ -65,7 +65,7 @@ const MENU_SECTIONS: MenuSection[] = [
       {
         icon: Settings,
         title: 'Réglages relances',
-        screen: 'ShopSettings',
+        screen: 'ReminderSettings',
         module: 'customers',
         tint: Colors.tertiary,
       },

@@ -957,6 +957,32 @@ export const sellerTasksApi = {
   },
 };
 
+// Reminder Settings API (Réglages relances de créances)
+export interface ReminderSettings {
+  payment_reminders_enabled: boolean;
+  notification_email: string | null;
+  payment_reminder_cadence_days: number;
+  /** Décalages (en jours) auxquels les relances sont envoyées, ex: [-7, -3, 0]. */
+  offsets: number[];
+}
+
+export interface ReminderSettingsUpdate {
+  payment_reminders_enabled?: boolean;
+  notification_email?: string | null;
+  payment_reminder_cadence_days?: number;
+}
+
+export const reminderSettingsApi = {
+  get: async (): Promise<ReminderSettings> => {
+    const response = await api.get<ReminderSettings>('/shops/me/reminder-settings');
+    return response.data;
+  },
+  update: async (payload: ReminderSettingsUpdate): Promise<ReminderSettings> => {
+    const response = await api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
+    return response.data;
+  },
+};
+
 // Packaging Types API (Conditionnements)
 export const packagingTypesApi = {
   getAll: async () => {
