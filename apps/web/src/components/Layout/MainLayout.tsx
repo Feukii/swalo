@@ -9,40 +9,67 @@ interface NavItem {
   icon: string;
   badge?: number;
   module?: string;
+  disabled?: boolean;
 }
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+type Period = 'day' | '7d' | '30d' | 'month';
+
+const PERIODS: { id: Period; label: string }[] = [
+  { id: 'day', label: 'Jour' },
+  { id: '7d', label: '7j' },
+  { id: '30d', label: '30j' },
+  { id: 'month', label: 'Mois' },
+];
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, shop, enterprise, role, logout } = useAuthStore();
   const { isModuleEnabled, licenseTier } = useModules();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [period, setPeriod] = useState<Period>('7d');
+  const [search, setSearch] = useState('');
 
-  const baseNavItems: NavItem[] = [
-    { name: 'Accueil', path: '/', icon: '🏠' },
-    { name: 'Vente', path: '/sale', icon: '🛒', module: 'sales' },
-    { name: 'Caisse', path: '/cash', icon: '💰', module: 'cash' },
-    { name: 'Historique', path: '/sales', icon: '📊', module: 'sales' },
-    { name: 'Produits', path: '/products', icon: '📦', module: 'products' },
-    { name: 'Catalogue', path: '/catalog', icon: '🗂️', module: 'products' },
-    { name: 'Stock', path: '/stock', icon: '📋', module: 'inventory' },
-    { name: 'Clients', path: '/customers', icon: '👥', module: 'customers' },
-    { name: 'Creances', path: '/receivables', icon: '💳', module: 'receivables' },
-    { name: 'Fournisseurs', path: '/suppliers', icon: '🏪', module: 'suppliers' },
-    { name: 'Dettes', path: '/debts', icon: '💸', module: 'debts' },
-    { name: 'Rapports', path: '/reports', icon: '📈', module: 'reports' },
-    { name: 'Entreprises', path: '/enterprise', icon: '🏢', module: 'enterprise' },
+  const navSections: NavSection[] = [
+    {
+      label: 'Ventes',
+      items: [
+        { name: 'Point de vente', path: '/sale', icon: '🛒', module: 'sales' },
+        { name: 'Caisse', path: '/cash', icon: '💰', module: 'cash' },
+        { name: 'Factures', path: '/invoices', icon: '🧾', module: 'sales' },
+        { name: 'Historique', path: '/sales', icon: '🕘', module: 'sales' },
+      ],
+    },
+    {
+      label: 'Stock',
+      items: [
+        { name: 'Produits', path: '/products', icon: '📦', module: 'products' },
+        { name: 'Inventaire', path: '/stock', icon: '📋', module: 'inventory' },
+        { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'inventory' },
+      ],
+    },
+    {
+      label: 'Relations',
+      items: [
+        { name: 'Clients', path: '/customers', icon: '👥', module: 'customers' },
+        { name: 'Créances', path: '/receivables', icon: '💳', module: 'receivables' },
+        { name: 'Fournisseurs', path: '/suppliers', icon: '🏪', module: 'suppliers' },
+        { name: 'Dettes', path: '/debts', icon: '💸', module: 'debts' },
+      ],
+    },
+    {
+      label: 'Pilotage',
+      items: [
+        { name: 'Rapports', path: '/reports', icon: '📈', module: 'reports' },
+        { name: 'Comptabilité', path: '#', icon: '🧮', disabled: true },
+        { name: 'Bilans boutiques', path: '#', icon: '🏬', disabled: true },
+      ],
+    },
   ];
-
-  // Admin menu items (shop-level admin only)
-  const adminNavItems: NavItem[] = [];
-
-  if (role === 'MANAGER' || role === 'BOSS' || role === 'SUPERADMIN') {
-    adminNavItems.push({ name: 'Gestion Utilisateurs', path: '/admin/users', icon: '👤' });
-  }
-
-  const navItems: NavItem[] = [...baseNavItems, ...adminNavItems];
 
   const handleLogout = () => {
     logout();
@@ -54,227 +81,156 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
+  const tierLabel = licenseTier || 'STARTER';
+
   return (
     <div className="flex h-screen bg-canvas">
-      {/* Sidebar */}
-      <aside
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-white border-r border-slate-200 transition-all duration-300 ease-in-out flex flex-col`}
-      >
-        {/* Logo & Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
-          {sidebarOpen ? (
-            <>
-              <div className="flex items-center space-x-2">
-                <img src="/swalo_icone_marine.png" alt="Swalo" className="w-8 h-8 object-contain" />
-                <span className="text-lg font-bold text-primary-900">Swalo</span>
-              </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg text-slate-500 hover:bg-action-50 hover:text-action-600 transition-colors"
-              >
-                ◀
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-action-50 transition-colors mx-auto"
-            >
-              <img src="/swalo_icone_marine.png" alt="Swalo" className="w-8 h-8 object-contain" />
-            </button>
-          )}
+      {/* Sidebar marine */}
+      <aside className="w-[230px] shrink-0 bg-primary-900 flex flex-col">
+        {/* En-tête logo */}
+        <div className="px-4 pt-5 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-sky-500 flex items-center justify-center shadow-card">
+              <span className="text-white font-extrabold text-lg leading-none">S</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-base leading-tight">Swalo</p>
+              <p className="text-primary-300 text-xs truncate">
+                {enterprise?.name || shop?.name || 'Boutique'}
+              </p>
+            </div>
+          </div>
+
+          {/* Pastille plan */}
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary-800 px-3 py-1 text-xs font-medium text-sky-300">
+            <span className="font-semibold">Plan {tierLabel}</span>
+          </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2">
-          <div className="space-y-1">
-            {navItems.map(item => {
-              const enabled = !item.module || isModuleEnabled(item.module);
-              const tierLabel = licenseTier || 'STARTER';
+        {/* Navigation sectionnée */}
+        <nav className="flex-1 overflow-y-auto px-3 pb-4 space-y-5">
+          {navSections.map(section => (
+            <div key={section.label}>
+              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary-400">
+                {section.label}
+              </p>
+              <div className="space-y-0.5">
+                {section.items.map(item => {
+                  const moduleEnabled = !item.module || isModuleEnabled(item.module);
+                  const usable = moduleEnabled && !item.disabled;
+                  const active = !item.disabled && isActive(item.path);
 
-              if (enabled) {
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center ${
-                      sidebarOpen ? 'px-3' : 'px-2 justify-center'
-                    } py-3 rounded-lg transition-all duration-200 group relative ${
-                      isActive(item.path)
-                        ? 'bg-action-50 text-action-600 font-medium'
-                        : 'text-slate-600 hover:bg-action-50 hover:text-action-600'
-                    }`}
-                  >
-                    <span className="text-2xl">{item.icon}</span>
-                    {sidebarOpen && <span className="ml-3 text-sm">{item.name}</span>}
-                    {item.badge && sidebarOpen && (
-                      <span className="ml-auto badge-danger">{item.badge}</span>
-                    )}
-                    {!sidebarOpen && (
-                      <div className="absolute left-full ml-2 px-2 py-1 bg-primary-950 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                        {item.name}
+                  if (!usable) {
+                    const title = item.disabled
+                      ? 'Bientôt disponible'
+                      : `Module non inclus dans votre licence ${tierLabel}`;
+                    return (
+                      <div
+                        key={item.name}
+                        title={title}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-primary-400 opacity-50 cursor-not-allowed"
+                      >
+                        <span className="text-base w-5 text-center">{item.icon}</span>
+                        <span className="flex-1 truncate">{item.name}</span>
                       </div>
-                    )}
-                  </Link>
-                );
-              }
+                    );
+                  }
 
-              return (
-                <div
-                  key={item.path}
-                  className={`flex items-center ${
-                    sidebarOpen ? 'px-3' : 'px-2 justify-center'
-                  } py-3 rounded-lg opacity-40 cursor-not-allowed group relative`}
-                  title={`Module non disponible avec votre licence ${tierLabel}`}
-                >
-                  <span className="text-2xl grayscale">{item.icon}</span>
-                  {sidebarOpen && <span className="ml-3 text-sm text-slate-400">{item.name}</span>}
-                  {sidebarOpen && <span className="ml-auto text-xs text-slate-400">🔒</span>}
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-primary-950 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 max-w-48">
-                    Licence {tierLabel} - Module non inclus
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        active
+                          ? 'bg-action-500 text-white font-medium shadow-card'
+                          : 'text-primary-100 hover:bg-primary-800'
+                      }`}
+                    >
+                      <span className="text-base w-5 text-center">{item.icon}</span>
+                      <span className="flex-1 truncate">{item.name}</span>
+                      {item.badge ? (
+                        <span className="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-danger-500 text-white text-[11px] font-semibold">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* User Profile */}
-        <div className="border-t border-slate-200 p-4">
-          {sidebarOpen ? (
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3 rounded-lg bg-slate-50 p-2">
-                <div className="w-10 h-10 rounded-full bg-action-500 flex items-center justify-center text-white font-medium">
-                  {user?.display_name?.charAt(0) || 'U'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {user?.display_name || 'Utilisateur'}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate">
-                    {enterprise
-                      ? `${enterprise.name} - ${shop?.name || 'Boutique'}`
-                      : shop?.name || 'Boutique'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full btn btn-sm bg-slate-100 text-slate-600 hover:bg-action-50 hover:text-action-600 flex items-center justify-center space-x-2"
-              >
-                <span>🚪</span>
-                <span>Déconnexion</span>
-              </button>
+        {/* Footer utilisateur */}
+        <div className="border-t border-primary-800 px-3 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-action-500 flex items-center justify-center text-white text-sm font-semibold shrink-0">
+              {user?.display_name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
-          ) : (
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-medium truncate">
+                {user?.display_name || 'Utilisateur'}
+              </p>
+              <p className="text-primary-300 text-xs truncate">{role || ''}</p>
+            </div>
             <button
               onClick={handleLogout}
-              className="w-full p-2 rounded-lg text-slate-500 hover:bg-action-50 hover:text-action-600 transition-colors flex items-center justify-center"
               title="Déconnexion"
+              className="p-2 rounded-lg text-primary-300 hover:bg-primary-800 hover:text-white transition-colors"
             >
-              <span className="text-xl">🚪</span>
+              <span className="text-base">🚪</span>
             </button>
-          )}
+          </div>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Contenu */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {navItems.find(item => isActive(item.path))?.name || 'Swalo'}
-            </h1>
-            <p className="text-xs text-gray-500">
-              {new Date().toLocaleDateString('fr-FR', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            {/* Notifications */}
-            <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-              <span className="text-xl">🔔</span>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-danger-500 rounded-full"></span>
-            </button>
-            {/* Settings Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setSettingsMenuOpen(!settingsMenuOpen)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <span className="text-xl">⚙️</span>
-              </button>
+        {/* Topbar */}
+        <header className="sticky top-0 z-10 bg-surface border-b border-slate-200 px-6 py-3">
+          <div className="flex items-center gap-4">
+            {/* Chips période */}
+            <div className="inline-flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+              {PERIODS.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    period === p.id
+                      ? 'bg-primary-900 text-white shadow-card'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
 
-              {/* Settings Dropdown */}
-              {settingsMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setSettingsMenuOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-20">
-                    {/* Bilans - Pour tous sauf EMPLOYEE */}
-                    {role && role !== 'EMPLOYEE' && (
-                      <button
-                        onClick={() => {
-                          navigate('/business-reports');
-                          setSettingsMenuOpen(false);
-                        }}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                      >
-                        <span className="text-xl">📊</span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">Bilans</p>
-                          <p className="text-xs text-gray-500">Analyses et rapports</p>
-                        </div>
-                      </button>
-                    )}
+            {/* Recherche */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                  🔍
+                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Rechercher…"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-action-400 focus:ring-2 focus:ring-action-100 focus:bg-surface transition-colors"
+                />
+              </div>
+            </div>
 
-                    {/* Administration - Pour MANAGER, BOSS, SUPERADMIN */}
-                    {(role === 'MANAGER' || role === 'BOSS' || role === 'SUPERADMIN') && (
-                      <button
-                        onClick={() => {
-                          navigate('/shop-admin');
-                          setSettingsMenuOpen(false);
-                        }}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center space-x-3 transition-colors"
-                      >
-                        <span className="text-xl">⚙️</span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">Administration</p>
-                          <p className="text-xs text-gray-500">Gestion boutique et PIN</p>
-                        </div>
-                      </button>
-                    )}
-
-                    <div className="border-t border-gray-200 my-2" />
-
-                    {/* Déconnexion */}
-                    <button
-                      onClick={() => {
-                        handleLogout();
-                        setSettingsMenuOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center space-x-3 transition-colors text-red-600"
-                    >
-                      <span className="text-xl">🚪</span>
-                      <div>
-                        <p className="text-sm font-medium">Déconnexion</p>
-                        <p className="text-xs text-red-500">Quitter l'application</p>
-                      </div>
-                    </button>
-                  </div>
-                </>
-              )}
+            {/* Statut synchro */}
+            <div className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-success-50 px-3 py-1.5 text-xs font-medium text-success-700">
+              <span className="w-2 h-2 rounded-full bg-success-500" />
+              Synchronisé
             </div>
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page */}
         <main className="flex-1 overflow-y-auto p-6 bg-canvas">
           <div className="max-w-7xl mx-auto animate-fade-in">{children}</div>
         </main>
