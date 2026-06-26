@@ -11,7 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users, Plus, Eye, Search } from '../components/icons/SimpleIcons';
+import { Users, Plus, Eye, Search, Mail, Smartphone, Check } from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatPhoneOnInput } from '../utils/phone';
@@ -61,6 +61,85 @@ function formatFcfa(amount: number): string {
   return `${grouped} F`;
 }
 
+interface NotificationChannelsValue {
+  email: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+}
+
+interface NotificationChannelsTogglesProps {
+  value: NotificationChannelsValue;
+  onChange: (next: NotificationChannelsValue) => void;
+}
+
+// Sélecteur des canaux de notification (créances/relances) — réutilisé en
+// création et en édition de client. Email coché par défaut côté appelant.
+export function NotificationChannelsToggles({ value, onChange }: NotificationChannelsTogglesProps) {
+  const channels: Array<{
+    key: keyof NotificationChannelsValue;
+    label: string;
+    icon: typeof Mail;
+  }> = [
+    { key: 'email', label: 'Email', icon: Mail },
+    { key: 'sms', label: 'SMS', icon: Smartphone },
+    { key: 'whatsapp', label: 'WhatsApp', icon: Smartphone },
+  ];
+
+  return (
+    <View style={channelStyles.group}>
+      {channels.map(channel => {
+        const Icon = channel.icon;
+        const active = value[channel.key];
+        return (
+          <TouchableOpacity
+            key={channel.key}
+            style={[channelStyles.chip, active && channelStyles.chipActive]}
+            activeOpacity={0.7}
+            onPress={() => onChange({ ...value, [channel.key]: !active })}
+          >
+            <Icon size={16} color={active ? Colors.action : Colors.muted.foreground} />
+            <Text style={[channelStyles.chipText, active && channelStyles.chipTextActive]}>
+              {channel.label}
+            </Text>
+            {active ? <Check size={14} color={Colors.action} /> : null}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const channelStyles = StyleSheet.create({
+  group: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  chipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.muted.foreground,
+  },
+  chipTextActive: {
+    color: Colors.action,
+  },
+});
+
 export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const { shop } = useCurrentUser();
   const shopId = shop?.id || null;
@@ -78,6 +157,11 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const [phone, setPhone] = useState('');
   const [creditLimit, setCreditLimit] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
+  const [notifications, setNotifications] = useState<NotificationChannelsValue>({
+    email: true,
+    sms: false,
+    whatsapp: false,
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   const handleOpenModal = () => {
@@ -86,6 +170,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     setPhone('');
     setCreditLimit('');
     setInitialBalance('');
+    setNotifications({ email: true, sms: false, whatsapp: false });
     setShowModal(true);
   };
 
@@ -96,6 +181,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     setPhone('');
     setCreditLimit('');
     setInitialBalance('');
+    setNotifications({ email: true, sms: false, whatsapp: false });
   };
 
   const handleSubmit = async () => {
@@ -154,6 +240,9 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         firstName: firstName.trim() || undefined,
         phone: phone.trim() || undefined,
         creditLimit: creditLimitValue,
+        emailNotificationsEnabled: notifications.email,
+        smsNotificationsEnabled: notifications.sms,
+        whatsappNotificationsEnabled: notifications.whatsapp,
       });
 
       // If initial balance provided, create a receivable
@@ -416,6 +505,14 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
                 keyboardType="numeric"
               />
               <Text style={styles.hint}>Crée une créance de départ — laisser vide si aucune.</Text>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Notifications (relances)</Text>
+              <NotificationChannelsToggles value={notifications} onChange={setNotifications} />
+              <Text style={styles.hint}>
+                Canaux utilisés pour relancer ce client sur ses dettes.
+              </Text>
             </View>
 
             <View style={styles.modalButtons}>

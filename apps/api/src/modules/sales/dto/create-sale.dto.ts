@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsInt,
   Min,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -63,6 +64,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsEnum(['CASH', 'CARD', 'MOBILE', 'CREDIT'])
   payment_method?: 'CASH' | 'CARD' | 'MOBILE' | 'CREDIT';
+
+  // Date d'échéance de la créance — requise lorsque payment_method = CREDIT
+  // (validée dans le service car conditionnelle au mode de paiement).
+  @IsOptional()
+  @IsDateString()
+  due_date?: string;
 
   @IsOptional()
   @IsString()

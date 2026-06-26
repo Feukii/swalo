@@ -10,6 +10,13 @@ import { ProductsModule } from '../products/products.module';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsScheduler } from './notifications.scheduler';
+import { NotificationDispatcherService } from './notification-dispatcher.service';
+import { DebtNotificationsService } from './debt-notifications.service';
+import { SellerTasksService } from './seller-tasks.service';
+import { SellerTasksController } from './seller-tasks.controller';
+import { SMS_ADAPTER, WHATSAPP_ADAPTER } from './adapters/notification-channel.adapter';
+import { LoggingSmsAdapter } from './adapters/logging-sms.adapter';
+import { LoggingWhatsappAdapter } from './adapters/logging-whatsapp.adapter';
 
 @Module({
   imports: [
@@ -45,8 +52,16 @@ import { NotificationsScheduler } from './notifications.scheduler';
       }),
     }),
   ],
-  controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsScheduler],
-  exports: [NotificationsService],
+  controllers: [NotificationsController, SellerTasksController],
+  providers: [
+    NotificationsService,
+    NotificationsScheduler,
+    NotificationDispatcherService,
+    DebtNotificationsService,
+    SellerTasksService,
+    { provide: SMS_ADAPTER, useClass: LoggingSmsAdapter },
+    { provide: WHATSAPP_ADAPTER, useClass: LoggingWhatsappAdapter },
+  ],
+  exports: [NotificationsService, NotificationDispatcherService, DebtNotificationsService],
 })
 export class NotificationsModule {}

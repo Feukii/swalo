@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MailerService } from '@nestjs-modules/mailer';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { NotificationDispatcherService } from '../src/modules/notifications/notification-dispatcher.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { ProductsService } from '../src/modules/products/products.service';
 
 const SHOP_ID = 'shop-1';
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface LowStockProduct {
   id: string;
@@ -29,6 +29,13 @@ function buildShop(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** Build a due date exactly `offset` whole days in the future (J-offset), at noon. */
+function dueInDays(offset: number): Date {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, 12, 0, 0);
+  return d;
+}
+
 function buildReceivable(overrides: Record<string, unknown> = {}) {
   return {
     id: 'rec-1',
@@ -39,12 +46,16 @@ function buildReceivable(overrides: Record<string, unknown> = {}) {
     balance: 10000,
     description: 'Achat a credit',
     status: 'PENDING',
-    due_date: new Date(Date.now() - DAY_MS),
+    due_date: dueInDays(7),
     customer: {
+      id: 'cust-1',
       name: 'Dupont',
       first_name: 'Jean',
       email: 'jean@example.com',
+      phone: '0102030405',
       email_notifications_enabled: true,
+      sms_notifications_enabled: false,
+      whatsapp_notifications_enabled: false,
     },
     ...overrides,
   };
@@ -56,10 +67,37 @@ describe('NotificationsService - scans (WS-3)', () => {
   const mockMailer = { sendMail: jest.fn() };
   const mockProducts = { getLowStockProducts: jest.fn() };
 
+  // Real-shaped dispatcher mock: resolveCustomerChannels mirrors production logic.
+  const mockDispatcher = {
+    dispatch: jest.fn(),
+    resolveCustomerChannels: jest.fn(
+      (customer: {
+        email: string | null;
+        phone: string | null;
+        email_notifications_enabled: boolean;
+        sms_notifications_enabled: boolean;
+        whatsapp_notifications_enabled: boolean;
+      }) => {
+        const channels: { channel: string; recipient: string }[] = [];
+        if (customer.email_notifications_enabled && customer.email) {
+          channels.push({ channel: 'EMAIL', recipient: customer.email });
+        }
+        if (customer.sms_notifications_enabled && customer.phone) {
+          channels.push({ channel: 'SMS', recipient: customer.phone });
+        }
+        if (customer.whatsapp_notifications_enabled && customer.phone) {
+          channels.push({ channel: 'WHATSAPP', recipient: customer.phone });
+        }
+        return channels;
+      }
+    ),
+  };
+
   const mockPrisma = {
     shop: { findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     clientReceivable: { findMany: jest.fn() },
+    sellerTask: { findFirst: jest.fn(), create: jest.fn() },
     notificationLog: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -75,6 +113,7 @@ describe('NotificationsService - scans (WS-3)', () => {
         { provide: MailerService, useValue: mockMailer },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ProductsService, useValue: mockProducts },
+        { provide: NotificationDispatcherService, useValue: mockDispatcher },
       ],
     }).compile();
 
@@ -86,7 +125,10 @@ describe('NotificationsService - scans (WS-3)', () => {
     mockPrisma.notificationLog.findMany.mockResolvedValue([]);
     mockPrisma.notificationLog.create.mockResolvedValue({ id: 'log-1' });
     mockPrisma.notificationLog.createMany.mockResolvedValue({ count: 1 });
+    mockPrisma.sellerTask.findFirst.mockResolvedValue(null);
+    mockPrisma.sellerTask.create.mockResolvedValue({ id: 'task-1' });
     mockMailer.sendMail.mockResolvedValue(undefined);
+    mockDispatcher.dispatch.mockResolvedValue('SENT');
   });
 
   describe('scanLowStockForAllShops', () => {
@@ -199,114 +241,139 @@ describe('NotificationsService - scans (WS-3)', () => {
     });
   });
 
-  describe('scanPaymentRemindersForAllShops', () => {
-    it('sends a reminder for an overdue receivable with balance > 0 and right status', async () => {
-      mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
-      mockPrisma.clientReceivable.findMany.mockResolvedValue([buildReceivable()]);
-
-      const result = await service.scanPaymentRemindersForAllShops();
-
-      // Verify the selection filter passed to Prisma.
-      const where = mockPrisma.clientReceivable.findMany.mock.calls[0][0].where;
-      expect(where.status).toEqual({ in: ['PENDING', 'PARTIAL'] });
-      expect(where.balance).toEqual({ gt: 0 });
-      expect(where.deleted).toBe(false);
-      expect(where.due_date.not).toBeNull();
-      expect(where.due_date.lt).toBeInstanceOf(Date);
-
-      expect(mockMailer.sendMail).toHaveBeenCalledTimes(1);
-      const mailArg = mockMailer.sendMail.mock.calls[0][0];
-      expect(mailArg.to).toBe('jean@example.com');
-      expect(mailArg.template).toBe('payment-reminder');
-      expect(mailArg.context.customer_name).toBe('Jean Dupont');
-      const logged = mockPrisma.notificationLog.create.mock.calls[0][0].data;
-      expect(logged.status).toBe('SENT');
-      expect(logged.dedup_key).toBe('payment_reminder:rec-1');
-      expect(result).toEqual({ shops_processed: 1, reminders_sent: 1, skipped: 0 });
-    });
-
-    it('skips (SKIPPED log) when the customer has no email', async () => {
+  describe('scanPaymentRemindersForAllShops (J-7 / J-3 / J-0)', () => {
+    it('dispatches a reminder and creates a seller task at J-7', async () => {
       mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
       mockPrisma.clientReceivable.findMany.mockResolvedValue([
-        buildReceivable({
-          customer: { name: 'X', first_name: null, email: null, email_notifications_enabled: true },
-        }),
+        buildReceivable({ due_date: dueInDays(7) }),
       ]);
 
       const result = await service.scanPaymentRemindersForAllShops();
 
-      expect(mockMailer.sendMail).not.toHaveBeenCalled();
-      const logged = mockPrisma.notificationLog.create.mock.calls[0][0].data;
-      expect(logged.status).toBe('SKIPPED');
-      expect(logged.error).toBe('No customer email');
-      expect(result.skipped).toBe(1);
+      // Selection filter: PENDING/PARTIAL, balance > 0, due_date not null (no lt filter now).
+      const where = mockPrisma.clientReceivable.findMany.mock.calls[0][0].where;
+      expect(where.status).toEqual({ in: ['PENDING', 'PARTIAL'] });
+      expect(where.balance).toEqual({ gt: 0 });
+      expect(where.due_date).toEqual({ not: null });
+
+      expect(mockDispatcher.dispatch).toHaveBeenCalledTimes(1);
+      const dispatchArg = mockDispatcher.dispatch.mock.calls[0][0];
+      expect(dispatchArg.type).toBe('PAYMENT_REMINDER');
+      expect(dispatchArg.channel).toBe('EMAIL');
+      expect(dispatchArg.recipient).toBe('jean@example.com');
+      expect(dispatchArg.dedupKey).toBe('reminder:rec-1:7');
+
+      expect(mockPrisma.sellerTask.create).toHaveBeenCalledTimes(1);
+      const taskArg = mockPrisma.sellerTask.create.mock.calls[0][0].data;
+      expect(taskArg.type).toBe('DEBT_REMINDER');
+      expect(taskArg.dedup_key).toBe('task:rec-1:7');
+      expect(taskArg.title).toContain('Jean Dupont');
+
+      expect(result.reminders_sent).toBe(1);
+      expect(result.tasks_created).toBe(1);
     });
 
-    it('skips (SKIPPED log) when the customer opted out of email notifications', async () => {
+    it('also fires at J-3 and J-0 with the matching offset dedup keys', async () => {
+      for (const offset of [3, 0]) {
+        jest.clearAllMocks();
+        mockPrisma.notificationLog.create.mockResolvedValue({ id: 'log-1' });
+        mockPrisma.sellerTask.findFirst.mockResolvedValue(null);
+        mockPrisma.sellerTask.create.mockResolvedValue({ id: 'task-1' });
+        mockDispatcher.dispatch.mockResolvedValue('SENT');
+        mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
+        mockPrisma.clientReceivable.findMany.mockResolvedValue([
+          buildReceivable({ due_date: dueInDays(offset) }),
+        ]);
+
+        await service.scanPaymentRemindersForAllShops();
+
+        expect(mockDispatcher.dispatch.mock.calls[0][0].dedupKey).toBe(
+          `reminder:rec-1:${String(offset)}`
+        );
+        expect(mockPrisma.sellerTask.create.mock.calls[0][0].data.dedup_key).toBe(
+          `task:rec-1:${String(offset)}`
+        );
+      }
+    });
+
+    it('does nothing for receivables whose due date is not at an offset boundary', async () => {
+      mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
+      mockPrisma.clientReceivable.findMany.mockResolvedValue([
+        buildReceivable({ due_date: dueInDays(5) }),
+      ]);
+
+      const result = await service.scanPaymentRemindersForAllShops();
+
+      expect(mockDispatcher.dispatch).not.toHaveBeenCalled();
+      expect(mockPrisma.sellerTask.create).not.toHaveBeenCalled();
+      expect(result.reminders_sent).toBe(0);
+      expect(result.tasks_created).toBe(0);
+    });
+
+    it('dispatches on every opted-in channel (email + sms + whatsapp)', async () => {
       mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
       mockPrisma.clientReceivable.findMany.mockResolvedValue([
         buildReceivable({
+          due_date: dueInDays(0),
           customer: {
+            id: 'cust-1',
+            name: 'Dupont',
+            first_name: 'Jean',
+            email: 'jean@example.com',
+            phone: '0102030405',
+            email_notifications_enabled: true,
+            sms_notifications_enabled: true,
+            whatsapp_notifications_enabled: true,
+          },
+        }),
+      ]);
+
+      await service.scanPaymentRemindersForAllShops();
+
+      expect(mockDispatcher.dispatch).toHaveBeenCalledTimes(3);
+      const channels = mockDispatcher.dispatch.mock.calls.map(c => c[0].channel);
+      expect(channels).toEqual(['EMAIL', 'SMS', 'WHATSAPP']);
+    });
+
+    it('does not recreate a seller task when one already exists for the same offset', async () => {
+      mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
+      mockPrisma.clientReceivable.findMany.mockResolvedValue([
+        buildReceivable({ due_date: dueInDays(7) }),
+      ]);
+      mockPrisma.sellerTask.findFirst.mockResolvedValue({ id: 'existing-task' });
+
+      const result = await service.scanPaymentRemindersForAllShops();
+
+      expect(mockPrisma.sellerTask.create).not.toHaveBeenCalled();
+      expect(result.tasks_created).toBe(0);
+    });
+
+    it('logs SKIPPED and counts no reminder when the customer has no opted-in channel', async () => {
+      mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
+      mockPrisma.clientReceivable.findMany.mockResolvedValue([
+        buildReceivable({
+          due_date: dueInDays(7),
+          customer: {
+            id: 'cust-1',
             name: 'X',
             first_name: null,
-            email: 'x@example.com',
-            email_notifications_enabled: false,
+            email: null,
+            phone: null,
+            email_notifications_enabled: true,
+            sms_notifications_enabled: false,
+            whatsapp_notifications_enabled: false,
           },
         }),
       ]);
 
       const result = await service.scanPaymentRemindersForAllShops();
 
-      expect(mockMailer.sendMail).not.toHaveBeenCalled();
+      expect(mockDispatcher.dispatch).not.toHaveBeenCalled();
       const logged = mockPrisma.notificationLog.create.mock.calls[0][0].data;
       expect(logged.status).toBe('SKIPPED');
-      expect(logged.error).toBe('Customer opted out of email notifications');
       expect(result.skipped).toBe(1);
-    });
-
-    it('respects cadence: does not re-send when last reminder is within cadence days', async () => {
-      mockPrisma.shop.findMany.mockResolvedValue([buildShop({ payment_reminder_cadence_days: 7 })]);
-      mockPrisma.clientReceivable.findMany.mockResolvedValue([buildReceivable()]);
-      // Last reminder sent 2 days ago, cadence is 7 days -> too soon.
-      mockPrisma.notificationLog.findMany.mockResolvedValue([
-        { id: 'l1', sent_at: new Date(Date.now() - 2 * DAY_MS) },
-      ]);
-
-      const result = await service.scanPaymentRemindersForAllShops();
-
-      expect(mockMailer.sendMail).not.toHaveBeenCalled();
-      expect(result.skipped).toBe(1);
-      expect(result.reminders_sent).toBe(0);
-    });
-
-    it('re-sends when the last reminder is older than the cadence', async () => {
-      mockPrisma.shop.findMany.mockResolvedValue([buildShop({ payment_reminder_cadence_days: 7 })]);
-      mockPrisma.clientReceivable.findMany.mockResolvedValue([buildReceivable()]);
-      mockPrisma.notificationLog.findMany.mockResolvedValue([
-        { id: 'l1', sent_at: new Date(Date.now() - 10 * DAY_MS) },
-      ]);
-
-      const result = await service.scanPaymentRemindersForAllShops();
-
-      expect(mockMailer.sendMail).toHaveBeenCalledTimes(1);
-      expect(result.reminders_sent).toBe(1);
-    });
-
-    it('stops after the max reminder count', async () => {
-      mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
-      mockPrisma.clientReceivable.findMany.mockResolvedValue([buildReceivable()]);
-      // 5 previous reminders already sent.
-      mockPrisma.notificationLog.findMany.mockResolvedValue(
-        Array.from({ length: 5 }, (_, i) => ({
-          id: `l${String(i)}`,
-          sent_at: new Date(Date.now() - (i + 30) * DAY_MS),
-        }))
-      );
-
-      const result = await service.scanPaymentRemindersForAllShops();
-
-      expect(mockMailer.sendMail).not.toHaveBeenCalled();
-      expect(result.skipped).toBe(1);
+      // The seller task is still created so a human can follow up offline.
+      expect(mockPrisma.sellerTask.create).toHaveBeenCalledTimes(1);
     });
 
     it('skips shops where the notifications module is disabled', async () => {
@@ -315,20 +382,21 @@ describe('NotificationsService - scans (WS-3)', () => {
       const result = await service.scanPaymentRemindersForAllShops();
 
       expect(mockPrisma.clientReceivable.findMany).not.toHaveBeenCalled();
-      expect(mockMailer.sendMail).not.toHaveBeenCalled();
+      expect(mockDispatcher.dispatch).not.toHaveBeenCalled();
       expect(result.reminders_sent).toBe(0);
     });
 
-    it('continues and logs FAILED when sending throws for a receivable', async () => {
+    it('continues when processing a receivable throws', async () => {
       mockPrisma.shop.findMany.mockResolvedValue([buildShop()]);
-      mockPrisma.clientReceivable.findMany.mockResolvedValue([buildReceivable()]);
-      mockMailer.sendMail.mockRejectedValue(new Error('SMTP error'));
+      mockPrisma.clientReceivable.findMany.mockResolvedValue([
+        buildReceivable({ due_date: dueInDays(7) }),
+      ]);
+      mockDispatcher.dispatch.mockRejectedValue(new Error('boom'));
 
       const result = await service.scanPaymentRemindersForAllShops();
 
-      const logged = mockPrisma.notificationLog.create.mock.calls[0][0].data;
-      expect(logged.status).toBe('FAILED');
-      expect(logged.error).toBe('SMTP error');
+      // The loop swallows the error and returns a result (does not throw).
+      expect(result.shops_processed).toBe(1);
       expect(result.reminders_sent).toBe(0);
     });
   });

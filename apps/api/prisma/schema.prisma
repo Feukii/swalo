@@ -81,6 +81,7 @@ model Shop {
   user_roles            UserRole[]
   packaging_types       PackagingType[]
   notification_logs     NotificationLog[]
+  seller_tasks          SellerTask[]
   outgoing_transfers    InterShopTransfer[] @relation("SourceShop")
   incoming_transfers    InterShopTransfer[] @relation("TargetShop")
 
@@ -317,6 +318,7 @@ model Customer {
   notes        String?
   is_active                  Boolean            @default(true)
   email_notifications_enabled Boolean           @default(true)
+  sms_notifications_enabled  Boolean            @default(false)
   whatsapp_notifications_enabled Boolean        @default(false)
   created_at                 DateTime           @default(now())
   updated_at                 DateTime           @updatedAt
@@ -861,10 +863,13 @@ enum NotificationType {
   PAYMENT_REMINDER
   MONTHLY_SUMMARY
   RECEIPT
+  DEBT_CREATED
+  DEBT_PAYMENT
 }
 
 enum NotificationChannel {
   EMAIL
+  SMS
   WHATSAPP
 }
 
@@ -872,6 +877,17 @@ enum NotificationStatus {
   SENT
   FAILED
   SKIPPED
+  QUEUED
+}
+
+enum SellerTaskType {
+  DEBT_REMINDER
+}
+
+enum SellerTaskStatus {
+  PENDING
+  DONE
+  DISMISSED
 }
 
 model NotificationLog {
@@ -893,6 +909,27 @@ model NotificationLog {
   @@index([shop_id, type, sent_at])
   @@index([dedup_key])
   @@map("notification_logs")
+}
+
+model SellerTask {
+  id            String           @id @default(uuid())
+  shop_id       String
+  type          SellerTaskType   @default(DEBT_REMINDER)
+  customer_id   String?
+  receivable_id String?
+  title         String
+  message       String?
+  due_date      DateTime?
+  status        SellerTaskStatus @default(PENDING)
+  dedup_key     String?
+  created_at    DateTime         @default(now())
+  done_at       DateTime?
+  done_by       String?
+  shop          Shop             @relation(fields: [shop_id], references: [id])
+
+  @@index([shop_id, status])
+  @@index([dedup_key])
+  @@map("seller_tasks")
 }
 
 model AuditLog {

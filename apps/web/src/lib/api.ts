@@ -256,6 +256,7 @@ export const salesApi = {
     discount?: number;
     notes?: string;
     status?: 'DRAFT' | 'COMPLETED' | 'CANCELLED';
+    due_date?: string;
   }) => {
     const response = await api.post('/sales', data);
     return response.data;
@@ -389,6 +390,8 @@ export const customersApi = {
     address?: string;
     credit_limit?: number;
     notes?: string;
+    sms_notifications_enabled?: boolean;
+    whatsapp_notifications_enabled?: boolean;
   }) => {
     const response = await api.post('/customers', data);
     return response.data;
@@ -406,6 +409,8 @@ export const customersApi = {
       credit_limit?: number;
       notes?: string;
       is_active: boolean;
+      sms_notifications_enabled?: boolean;
+      whatsapp_notifications_enabled?: boolean;
     }>
   ) => {
     const response = await api.put(`/customers/${id}`, data);
@@ -891,6 +896,39 @@ export const adminApi = {
 
   updateShopModules: async (shopId: string, modules: string[]) => {
     const response = await api.post(`/admin/shops/${shopId}/modules`, { modules });
+    return response.data;
+  },
+};
+
+// Seller Tasks API (Taches vendeur — relances dettes/creances)
+export interface SellerTask {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  status: 'PENDING' | 'DONE';
+  due_date?: string;
+  customer_id?: string;
+  receivable_id?: string;
+  created_at: string;
+  done_at?: string;
+}
+
+export interface SellerTaskCount {
+  count: number;
+}
+
+export const sellerTasksApi = {
+  getTasks: async (): Promise<SellerTask[]> => {
+    const response = await api.get<SellerTask[]>('/seller-tasks');
+    return response.data;
+  },
+  getCount: async (): Promise<SellerTaskCount> => {
+    const response = await api.get<SellerTaskCount>('/seller-tasks/count');
+    return response.data;
+  },
+  markDone: async (id: string): Promise<SellerTask> => {
+    const response = await api.post<SellerTask>(`/seller-tasks/${id}/done`);
     return response.data;
   },
 };

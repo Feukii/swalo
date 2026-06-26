@@ -103,6 +103,8 @@ export interface OfflineSaleInput {
   note?: string;
   expectedTotal?: number;
   pricingNotes?: string;
+  /** Date d'échéance ISO — obligatoire côté serveur pour une vente à crédit. */
+  dueDate?: string;
 }
 
 export async function createSaleOffline(input: OfflineSaleInput): Promise<{ saleId: string }> {
@@ -191,6 +193,9 @@ export async function createSaleOffline(input: OfflineSaleInput): Promise<{ sale
       notes: input.note || null,
       expected_total: input.expectedTotal || null,
       pricing_notes: input.pricingNotes || null,
+      // Échéance de la vente à crédit — requise côté serveur (déclenche les notifications).
+      // Non stockée localement (la table `sales` n'a pas cette colonne), seulement dans le payload de sync.
+      due_date: input.dueDate || null,
       device_id: deviceId,
       client_op_id: clientOpId,
       items: saleItems.map(si => ({
@@ -550,6 +555,8 @@ export interface OfflineReceivableInput {
   amount: number;
   description?: string;
   notes?: string;
+  /** Date d'échéance ISO — obligatoire côté serveur pour une créance. */
+  dueDate?: string;
 }
 
 export async function createReceivableOffline(
@@ -584,6 +591,9 @@ export async function createReceivableOffline(
       balance: input.amount,
       description: input.description || null,
       notes: input.notes || null,
+      // Échéance — requise côté serveur (déclenche les notifications).
+      // Non stockée localement (la table `client_receivables` n'a pas cette colonne).
+      due_date: input.dueDate || null,
       status: 'PENDING',
     },
     clientOpId: `recv_${receivableId}`,
@@ -1165,6 +1175,10 @@ export interface OfflineCustomerInput {
   address?: string;
   creditLimit?: number;
   notes?: string;
+  /** Canaux de notification d'échéance/relance (gérés côté serveur). */
+  smsNotificationsEnabled?: boolean;
+  whatsappNotificationsEnabled?: boolean;
+  emailNotificationsEnabled?: boolean;
 }
 
 export async function createCustomerOffline(
@@ -1204,6 +1218,17 @@ export async function createCustomerOffline(
       credit_limit: input.creditLimit ?? 0,
       notes: input.notes || null,
       is_active: true,
+      // Préférences de notification — appliquées côté serveur à la synchro.
+      // Non stockées localement (la table `customers` n'a pas ces colonnes).
+      ...(input.smsNotificationsEnabled !== undefined && {
+        sms_notifications_enabled: input.smsNotificationsEnabled,
+      }),
+      ...(input.whatsappNotificationsEnabled !== undefined && {
+        whatsapp_notifications_enabled: input.whatsappNotificationsEnabled,
+      }),
+      ...(input.emailNotificationsEnabled !== undefined && {
+        email_notifications_enabled: input.emailNotificationsEnabled,
+      }),
     },
     clientOpId: `cust_${customerId}`,
     deviceId,
@@ -1226,6 +1251,17 @@ export async function updateCustomerOffline(
   if (data.creditLimit !== undefined) updateData.credit_limit = data.creditLimit;
   if (data.notes !== undefined) updateData.notes = data.notes;
 
+  // Préférences de notification — appliquées côté serveur uniquement.
+  // Les colonnes n'existent pas dans la table locale `customers`, on ne les
+  // envoie donc que dans le payload de sync (pas dans customerRepo.update).
+  const notificationData: Record<string, unknown> = {};
+  if (data.smsNotificationsEnabled !== undefined)
+    notificationData.sms_notifications_enabled = data.smsNotificationsEnabled;
+  if (data.whatsappNotificationsEnabled !== undefined)
+    notificationData.whatsapp_notifications_enabled = data.whatsappNotificationsEnabled;
+  if (data.emailNotificationsEnabled !== undefined)
+    notificationData.email_notifications_enabled = data.emailNotificationsEnabled;
+
   await customerRepo.update(customerId, updateData as Partial<LocalCustomer>);
 
   const { deviceId } = await generateClientOpId('cust_upd');
@@ -1233,7 +1269,7 @@ export async function updateCustomerOffline(
     entity: 'customers',
     op: 'update',
     entityId: customerId,
-    data: { id: customerId, ...updateData },
+    data: { id: customerId, ...updateData, ...notificationData },
     clientOpId: `cust_upd_${customerId}_${Date.now()}`,
     deviceId,
   });

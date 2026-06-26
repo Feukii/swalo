@@ -21,8 +21,13 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  Calendar,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import { NotificationChannelsToggles } from './CustomersScreen';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
@@ -44,6 +49,7 @@ import {
   payReceivableOffline,
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
+import { customersApi } from '../lib/api';
 
 interface CustomerDetailsNavigation {
   goBack: () => void;
@@ -72,6 +78,93 @@ interface SelectedTransaction {
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
+}
+
+// ─── Notifications (transparence dettes) ─────────────────────────────
+type NotificationStatus = 'SENT' | 'QUEUED' | 'FAILED' | string;
+
+interface NotificationEntry {
+  channel: string;
+  type: string;
+  status: NotificationStatus;
+  created_at?: string | null;
+}
+
+interface NotificationsSummary {
+  total: number;
+  by_status?: Record<string, number>;
+  by_channel?: Record<string, number>;
+  recent?: NotificationEntry[];
+}
+
+function parseNotificationsSummary(raw: unknown): NotificationsSummary | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const total = typeof obj.total === 'number' ? obj.total : 0;
+  const recentRaw = Array.isArray(obj.recent) ? obj.recent : [];
+  const recent: NotificationEntry[] = recentRaw
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map(e => ({
+      channel: typeof e.channel === 'string' ? e.channel : '—',
+      type: typeof e.type === 'string' ? e.type : '—',
+      status: typeof e.status === 'string' ? e.status : '—',
+      created_at: typeof e.created_at === 'string' ? e.created_at : null,
+    }));
+  return {
+    total,
+    by_status:
+      obj.by_status && typeof obj.by_status === 'object'
+        ? (obj.by_status as Record<string, number>)
+        : undefined,
+    by_channel:
+      obj.by_channel && typeof obj.by_channel === 'object'
+        ? (obj.by_channel as Record<string, number>)
+        : undefined,
+    recent,
+  };
+}
+
+const NOTIF_CHANNEL_LABELS: Record<string, string> = {
+  email: 'Email',
+  sms: 'SMS',
+  whatsapp: 'WhatsApp',
+};
+
+const NOTIF_STATUS_META: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }> = {
+  SENT: { label: 'Envoyé', variant: 'success' },
+  QUEUED: { label: 'En file', variant: 'warning' },
+  PENDING: { label: 'En file', variant: 'warning' },
+  FAILED: { label: 'Échec', variant: 'danger' },
+};
+
+function getNotifStatusMeta(status: string): { label: string; variant: 'success' | 'warning' | 'danger' | 'default' } {
+  return NOTIF_STATUS_META[status] ?? { label: status, variant: 'default' };
+}
+
+// ─── Date d'échéance (sélecteur sans dépendance externe) ─────────────
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+function endOfMonth(base: Date): string {
+  const d = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return toISODate(d);
+}
+
+function formatDueDateLabel(iso: string): string {
+  const [y, m, day] = iso.split('-').map(Number);
+  if (!y || !m || !day) return iso;
+  const d = new Date(y, m - 1, day);
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // Sépare le montant ("12 500 F") en valeur + suffixe "F" pour styliser le F en sky
@@ -119,11 +212,33 @@ interface CustomerDetails {
   is_active: number | boolean;
   receivables: ReceivableWithPayments[];
   cash_entries: LocalCashEntry[];
+  email_notifications_enabled: boolean;
+  sms_notifications_enabled: boolean;
+  whatsapp_notifications_enabled: boolean;
+  notifications_summary: NotificationsSummary | null;
   stats: {
     total_receivables: number;
     total_balance: number;
     total_paid: number;
     total_sales: number;
+  };
+}
+
+// Lecture défensive des préférences de notification du client local (les
+// champs peuvent ne pas exister selon l'état du schéma offline).
+function readNotificationPrefs(record: Record<string, unknown>): {
+  email: boolean;
+  sms: boolean;
+  whatsapp: boolean;
+} {
+  const truthy = (v: unknown, fallback: boolean): boolean => {
+    if (v === undefined || v === null) return fallback;
+    return v === true || v === 1 || v === '1';
+  };
+  return {
+    email: truthy(record.email_notifications_enabled, true),
+    sms: truthy(record.sms_notifications_enabled, false),
+    whatsapp: truthy(record.whatsapp_notifications_enabled, false),
   };
 }
 
@@ -156,6 +271,8 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [receivableAmount, setReceivableAmount] = useState('');
   const [receivableDescription, setReceivableDescription] = useState('');
   const [receivableNote, setReceivableNote] = useState('');
+  // Date d'échéance obligatoire (format ISO YYYY-MM-DD)
+  const [receivableDueDate, setReceivableDueDate] = useState('');
 
   // Transaction detail modal state
   const [selectedTransaction, setSelectedTransaction] = useState<SelectedTransaction | null>(null);
@@ -171,6 +288,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     address: '',
     credit_limit: '',
     notes: '',
+  });
+  const [editNotifications, setEditNotifications] = useState({
+    email: true,
+    sms: false,
+    whatsapp: false,
   });
 
   // Customer refund modal state (for refunding money TO customers)
@@ -223,6 +345,21 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       const totalBalance = receivablesWithPayments.reduce((s, r) => s + r.balance, 0);
       const totalPaid = receivablesWithPayments.reduce((s, r) => s + r.paid_amount, 0);
 
+      // Préférences de notification (lecture défensive du record local)
+      const prefs = readNotificationPrefs(cust as unknown as Record<string, unknown>);
+
+      // Résumé des notifications de dettes — best-effort en ligne, n'empêche
+      // jamais l'affichage offline-first.
+      let notificationsSummary: NotificationsSummary | null = null;
+      try {
+        const remote = await customersApi.getOne(id);
+        notificationsSummary = parseNotificationsSummary(
+          (remote as Record<string, unknown>).notifications_summary
+        );
+      } catch {
+        // Hors ligne ou serveur indisponible : section masquée proprement.
+      }
+
       const customerDetails: CustomerDetails = {
         id: cust.id,
         name: cust.name,
@@ -234,6 +371,10 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         is_active: cust.is_active,
         receivables: receivablesWithPayments,
         cash_entries: cashEntries,
+        email_notifications_enabled: prefs.email,
+        sms_notifications_enabled: prefs.sms,
+        whatsapp_notifications_enabled: prefs.whatsapp,
+        notifications_summary: notificationsSummary,
         stats: {
           total_receivables: totalReceivables,
           total_balance: totalBalance,
@@ -541,6 +682,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     setReceivableAmount('');
     setReceivableDescription('');
     setReceivableNote('');
+    setReceivableDueDate('');
   };
 
   const handleCloseCreateReceivableModal = () => {
@@ -548,6 +690,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     setReceivableAmount('');
     setReceivableDescription('');
     setReceivableNote('');
+    setReceivableDueDate('');
   };
 
   const handleSubmitCreateReceivable = async () => {

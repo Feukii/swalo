@@ -37,4 +37,12 @@ export class UpdateCustomerDto {
   @IsBoolean()
   @IsOptional()
   email_notifications_enabled?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  sms_notifications_enabled?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  whatsapp_notifications_enabled?: boolean;
 }

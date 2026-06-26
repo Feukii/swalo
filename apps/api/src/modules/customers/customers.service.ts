@@ -61,6 +61,8 @@ export class CustomersService {
           notes: dto.notes,
           is_active: true,
           email_notifications_enabled: dto.email_notifications_enabled ?? true,
+          sms_notifications_enabled: dto.sms_notifications_enabled ?? false,
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled ?? false,
         },
       });
 
@@ -191,6 +193,56 @@ export class CustomersService {
       throw new NotFoundException('Client non trouvé');
     }
 
+    // Historique des notifications envoyées : celles ciblant une créance du
+    // client, ou adressées à son email / téléphone (canaux SMS/WhatsApp).
+    const receivableIds = customer.receivables.map(r => r.id);
+    const recipientFilters: string[] = [];
+    if (customer.email) recipientFilters.push(customer.email);
+    if (customer.phone) recipientFilters.push(customer.phone);
+
+    const notificationWhere: Prisma.NotificationLogWhereInput = {
+      shop_id: shopId,
+      OR: [
+        ...(receivableIds.length > 0
+          ? [{ target_type: 'receivable', target_id: { in: receivableIds } }]
+          : []),
+        ...(recipientFilters.length > 0 ? [{ recipient: { in: recipientFilters } }] : []),
+      ],
+    };
+
+    const notifications =
+      notificationWhere.OR && notificationWhere.OR.length > 0
+        ? await this.prisma.notificationLog.findMany({
+            where: notificationWhere,
+            select: {
+              id: true,
+              type: true,
+              channel: true,
+              status: true,
+              recipient: true,
+              target_type: true,
+              target_id: true,
+              error: true,
+              sent_at: true,
+            },
+            orderBy: { sent_at: 'desc' },
+            take: 50,
+          })
+        : [];
+
+    const notifications_summary = {
+      total: notifications.length,
+      by_status: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.status] = (acc[n.status] ?? 0) + 1;
+        return acc;
+      }, {}),
+      by_channel: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.channel] = (acc[n.channel] ?? 0) + 1;
+        return acc;
+      }, {}),
+      recent: notifications,
+    };
+
     // Calculer les statistiques du client
     const stats = {
       total_receivables: customer.receivables.reduce((sum, r) => sum + r.amount, 0),
@@ -205,6 +257,7 @@ export class CustomersService {
     return {
       ...customer,
       stats,
+      notifications_summary,
     };
   }
 
@@ -264,6 +317,12 @@ export class CustomersService {
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
         ...(dto.email_notifications_enabled !== undefined && {
           email_notifications_enabled: dto.email_notifications_enabled,
+        }),
+        ...(dto.sms_notifications_enabled !== undefined && {
+          sms_notifications_enabled: dto.sms_notifications_enabled,
+        }),
+        ...(dto.whatsapp_notifications_enabled !== undefined && {
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled,
         }),
         updated_at: new Date(),
       },
