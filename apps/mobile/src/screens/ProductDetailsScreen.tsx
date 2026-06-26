@@ -209,23 +209,16 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
     setIsSubmitting(true);
     try {
-      const { batchId } = await createStockBatchOffline({
+      // La date de prise en compte est propagée au lot (local + serveur via la sync)
+      await createStockBatchOffline({
         shopId,
         productId: product.id,
         quantity: qty,
         costPrice: cost,
         sellPrice: product.sell_price,
         notes: 'Réception',
+        priceValidFrom: computeEntryDateISO(entryDate),
       });
-
-      // Honore la "date de prise en compte" (FIFO daté) si différente d'aujourd'hui
-      if (entryDate !== 'today') {
-        const dateISO = computeEntryDateISO(entryDate);
-        await stockBatchRepo.update(batchId, {
-          created_at: dateISO,
-          price_valid_from: dateISO,
-        } as Partial<LocalStockBatch>);
-      }
 
       setShowEntrySheet(false);
       resetEntryForm();
