@@ -17,7 +17,7 @@ export interface ScreenHeaderProps {
   backIcon?: React.ReactNode;
 }
 
-function SyncPill() {
+export function SyncPill() {
   const freshness = useSyncFreshness();
   const fresh = freshness.level === 'fresh';
   return (

@@ -431,7 +431,12 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
         {/* PRIX DE REVIENT & LOTS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PRIX DE REVIENT &amp; LOTS</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>PRIX DE REVIENT &amp; LOTS</Text>
+            <Text style={styles.sectionCount}>
+              {activeBatches.length} lot{activeBatches.length > 1 ? 's' : ''}
+            </Text>
+          </View>
           <Text style={styles.sectionSubtitle}>
             Chaque réception fixe un prix de revient daté. Le coût d&apos;un même article évolue
             dans le temps (sortie FIFO).
@@ -878,11 +883,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   sectionTitle: {
     fontSize: 12.5,
     fontWeight: '800',
     color: Colors.textColors.tertiary,
     letterSpacing: 0.5,
+  },
+  sectionCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    fontVariant: ['tabular-nums'],
   },
   sectionSubtitle: {
     fontSize: 12.5,

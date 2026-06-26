@@ -26,7 +26,13 @@ import {
   Calendar,
   Bell,
 } from '../components/icons/SimpleIcons';
-import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import {
+  ScreenHeader,
+  StatusBadge,
+  TransactionDetailModal,
+  IconButton,
+  SyncPill,
+} from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
@@ -1057,6 +1063,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         onBack={() => navigation.goBack()}
         rightAction={
           <View style={styles.headerActions}>
+            <SyncPill />
             {canEditOrDelete() && (
               <>
                 {can('customers', 'edit') && (

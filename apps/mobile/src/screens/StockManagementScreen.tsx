@@ -111,6 +111,7 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
       const query = searchQuery.toLowerCase();
       const filtered = products.filter(
         p =>
+          p.name?.toLowerCase().includes(query) ||
           p.reference?.toLowerCase().includes(query) ||
           p.family?.toLowerCase().includes(query) ||
           p.article_type?.toLowerCase().includes(query) ||

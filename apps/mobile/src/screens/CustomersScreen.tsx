@@ -21,7 +21,7 @@ import {
   Check,
   Calendar,
 } from '../components/icons/SimpleIcons';
-import { ScreenHeader, IconButton } from '../components/ui';
+import { ScreenHeader, IconButton, SyncPill } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatPhoneOnInput } from '../utils/phone';
@@ -369,6 +369,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         onBack={() => navigation.goBack()}
         rightAction={
           <View style={styles.headerActions}>
+            <SyncPill />
             <IconButton onPress={() => navigation.navigate('CustomerBalancesSummary')}>
               <Eye size={22} color={Colors.action} />
             </IconButton>

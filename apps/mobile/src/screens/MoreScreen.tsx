@@ -14,6 +14,7 @@ import {
   Clock,
   Receipt,
   RefreshCw,
+  ArrowUp,
   ArrowLeftRight,
   Store,
   Lock,
@@ -101,11 +102,18 @@ const MENU_SECTIONS: MenuSection[] = [
     title: 'Finances',
     items: [
       {
-        icon: Clock,
-        title: 'Historique des transactions',
-        screen: 'TransactionHistory',
-        module: 'sales',
+        icon: RefreshCw,
+        title: 'Créances',
+        screen: 'CustomerBalancesSummary',
+        module: 'receivables',
         tint: Colors.warning.main,
+      },
+      {
+        icon: ArrowUp,
+        title: 'Dettes fournisseurs',
+        screen: 'SupplierBalancesSummary',
+        module: 'debts',
+        tint: Colors.danger.main,
       },
       {
         icon: BarChart3,
@@ -113,6 +121,13 @@ const MENU_SECTIONS: MenuSection[] = [
         screen: 'BusinessReports',
         module: 'reports',
         tint: Colors.primary.main,
+      },
+      {
+        icon: Clock,
+        title: 'Historique des transactions',
+        screen: 'TransactionHistory',
+        module: 'sales',
+        tint: Colors.tertiary,
       },
       {
         icon: Receipt,

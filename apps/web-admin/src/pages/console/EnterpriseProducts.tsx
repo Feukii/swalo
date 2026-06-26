@@ -11,7 +11,7 @@ const LOW_STOCK_THRESHOLD = 5;
 
 /** Full FCFA formatter: 69600 -> "69 600 F". */
 function formatFcfa(value: number): string {
-  return `${Math.round(value).toLocaleString('fr-FR').replace(/ | /g, ' ')} F`;
+  return `${Math.round(value).toLocaleString('fr-FR').replace(/[\u00A0\u202F]/g, ' ')} F`;
 }
 
 /** Compact FCFA formatter for KPIs: 14_200_000 -> "14,2 M F". */
