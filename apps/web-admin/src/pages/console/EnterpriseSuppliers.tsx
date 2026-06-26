@@ -195,7 +195,9 @@ export default function EnterpriseSuppliers() {
                     </td>
 
                     {/* DERN. OPÉ */}
-                    <td className="py-3 pr-4 text-slate-500">{formatDateShort(s.last_operation)}</td>
+                    <td className="py-3 pr-4 text-slate-500">
+                      {formatDateShort(s.last_operation)}
+                    </td>
 
                     {/* STATUT */}
                     <td className="py-3 text-right">

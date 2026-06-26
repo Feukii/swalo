@@ -12,6 +12,7 @@ import AdminConfig from './pages/AdminConfig';
 import AuditLogs from './pages/AuditLogs';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import LicenseConfig from './pages/LicenseConfig';
+import AdminModules from './pages/AdminModules';
 import EnterpriseConsoleLayout from './components/EnterpriseConsoleLayout';
 import EnterpriseConsoleRedirect from './pages/console/EnterpriseConsoleRedirect';
 import EnterprisePos from './pages/console/EnterprisePos';
@@ -92,6 +93,16 @@ function App() {
             <AdminRoute>
               <AdminLayout>
                 <LicenseConfig />
+              </AdminLayout>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/modules"
+          element={
+            <AdminRoute>
+              <AdminLayout>
+                <AdminModules />
               </AdminLayout>
             </AdminRoute>
           }

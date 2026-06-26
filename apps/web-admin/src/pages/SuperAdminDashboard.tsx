@@ -184,7 +184,9 @@ export default function SuperAdminDashboard() {
           </div>
           <div className="bg-white rounded-2xl shadow-card p-4">
             <div className="text-sm text-slate-500">Entreprises</div>
-            <div className="text-2xl font-bold text-primary-900 mt-1">{stats.enterprises.total}</div>
+            <div className="text-2xl font-bold text-primary-900 mt-1">
+              {stats.enterprises.total}
+            </div>
             <div className="flex gap-2 mt-1">
               <span className="text-xs text-green-600">{stats.enterprises.active} actives</span>
               {stats.enterprises.blocked > 0 && (

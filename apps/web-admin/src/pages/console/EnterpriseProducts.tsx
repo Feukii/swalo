@@ -196,10 +196,7 @@ export default function EnterpriseProducts() {
                           </span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p
-                                className="font-medium text-primary-900 truncate"
-                                title={p.name}
-                              >
+                              <p className="font-medium text-primary-900 truncate" title={p.name}>
                                 {p.name}
                               </p>
                               {p.multi_price && (
@@ -213,9 +210,13 @@ export default function EnterpriseProducts() {
                         </div>
                       </td>
                       <td className="py-3 pr-4 text-slate-600">{p.category ?? '—'}</td>
-                      <td className={`py-3 pr-4 text-right font-medium ${stockClass}`}>{p.stock}</td>
+                      <td className={`py-3 pr-4 text-right font-medium ${stockClass}`}>
+                        {p.stock}
+                      </td>
                       <td className="py-3 pr-4 text-right text-slate-600">
-                        {p.batch_count > 0 ? `${p.batch_count} lot${p.batch_count > 1 ? 's' : ''}` : '—'}
+                        {p.batch_count > 0
+                          ? `${p.batch_count} lot${p.batch_count > 1 ? 's' : ''}`
+                          : '—'}
                       </td>
                       <td className="py-3 pr-4 text-right text-slate-600">
                         {formatFcfa(p.cost_price)}

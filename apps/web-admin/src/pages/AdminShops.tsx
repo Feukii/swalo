@@ -343,7 +343,10 @@ export default function AdminShops() {
       {/* Shops List */}
       <div className="grid grid-cols-1 gap-4">
         {filteredShops.map(shop => (
-          <div key={shop.id} className="bg-white rounded-2xl shadow-card hover:shadow-elevated transition">
+          <div
+            key={shop.id}
+            className="bg-white rounded-2xl shadow-card hover:shadow-elevated transition"
+          >
             <div className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -495,7 +498,9 @@ export default function AdminShops() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-elevated max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-primary-900 mb-4">➕ Créer une nouvelle boutique</h2>
+              <h2 className="text-2xl font-bold text-primary-900 mb-4">
+                ➕ Créer une nouvelle boutique
+              </h2>
               <form onSubmit={handleCreateShop} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1">
@@ -765,7 +770,9 @@ export default function AdminShops() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-elevated max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-xl font-bold text-primary-900 mb-2">Modules de "{modulesTarget.name}"</h2>
+              <h2 className="text-xl font-bold text-primary-900 mb-2">
+                Modules de "{modulesTarget.name}"
+              </h2>
               <p className="text-sm text-slate-600 mb-4">
                 Cochez les modules a activer. Les modules non autorises par la licence sont
                 desactives.

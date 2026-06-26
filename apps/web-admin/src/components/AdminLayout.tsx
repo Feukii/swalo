@@ -18,26 +18,16 @@ interface NavSection {
 
 // Icônes SVG inline (stroke = currentColor pour suivre la couleur du texte)
 const icons: Record<string, ReactElement> = {
-  overview: (
-    <path d="M4 5h6v6H4V5zm10 0h6v4h-6V5zM4 15h6v4H4v-4zm10-2h6v6h-6v-6z" />
-  ),
+  overview: <path d="M4 5h6v6H4V5zm10 0h6v4h-6V5zM4 15h6v4H4v-4zm10-2h6v6h-6v-6z" />,
   enterprises: <path d="M3 21V7l6-4 6 4v14M9 21v-4h6v4M15 21V9l6 3v9" />,
-  shops: (
-    <path d="M3 9l1-5h16l1 5M4 9h16v11H4V9zm5 11v-6h6v6" />
-  ),
-  licenses: (
-    <path d="M14 7a3 3 0 11-6 0 3 3 0 016 0zM11 10l-7 7v3h3l1-1h2v-2h2l1.5-1.5" />
-  ),
+  shops: <path d="M3 9l1-5h16l1 5M4 9h16v11H4V9zm5 11v-6h6v6" />,
+  licenses: <path d="M14 7a3 3 0 11-6 0 3 3 0 016 0zM11 10l-7 7v3h3l1-1h2v-2h2l1.5-1.5" />,
   users: (
     <path d="M9 11a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M16 11a3 3 0 100-6M19 20a6 6 0 00-3-5.2" />
   ),
-  modules: (
-    <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />
-  ),
+  modules: <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />,
   billing: <path d="M3 6h18v12H3V6zm0 4h18M7 14h4" />,
-  audit: (
-    <path d="M9 12l2 2 4-4M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1z" />
-  ),
+  audit: <path d="M9 12l2 2 4-4M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1z" />,
   config: (
     <path d="M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 13a1.7 1.7 0 00.4 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-2.9-1.2l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.7 1.7 0 004.6 13H4.5a2 2 0 110-4h.1a1.7 1.7 0 001.2-2.9l-.1-.1a2 2 0 112.8-2.8l.1.1A1.7 1.7 0 0011 4.6V4.5a2 2 0 014 0v.1a1.7 1.7 0 002.9 1.2l.1-.1a2 2 0 112.8 2.8l-.1.1A1.7 1.7 0 0021.5 11h.1a2 2 0 110 4h-.2z" />
   ),
@@ -60,7 +50,7 @@ const navSections: NavSection[] = [
   {
     label: 'Produit',
     items: [
-      { name: 'Modules', path: '/config', icon: 'modules' },
+      { name: 'Modules', path: '/modules', icon: 'modules' },
       { name: 'Facturation & revenus', path: '/license-config', icon: 'billing' },
     ],
   },
@@ -119,11 +109,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* En-tête / marque */}
         <div className="flex items-center gap-3 px-5 pb-5 pt-6">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-action-500 shadow-sm">
-            <img
-              src="/swalo_icone_ciel.svg"
-              alt="Swalo"
-              className="h-6 w-6 object-contain"
-            />
+            <img src="/swalo_icone_ciel.svg" alt="Swalo" className="h-6 w-6 object-contain" />
           </div>
           <div className="leading-tight">
             <p className="text-base font-bold text-white">Swalo Admin</p>

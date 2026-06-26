@@ -629,6 +629,7 @@ export interface LocalClientReceivable extends LocalRecord {
   description: string | null;
   notes: string | null;
   status: string;
+  due_date: string | null;
   version: number;
 }
 

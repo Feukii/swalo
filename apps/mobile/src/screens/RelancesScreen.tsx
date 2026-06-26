@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,83 @@ import {
   Linking,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Clock, Smartphone, Check, AlertTriangle } from '../components/icons/SimpleIcons';
-import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
-import { sellerTasksApi, SellerTask } from '../lib/api';
+import { Bell, Smartphone, Check, Send, X } from '../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
+import { sellerTasksApi, SellerTask, ReminderChannel } from '../lib/api';
 import { formatDate } from '../utils/date';
+import { formatMoney } from '../utils/money';
 
 interface RelancesScreenProps {
   navigation: { goBack: () => void };
+}
+
+type FilterKey = 'all' | 'overdue' | 'today';
+
+/** Étiquette courte d'un canal (puce). */
+const CHANNEL_LABEL: Record<ReminderChannel, string> = {
+  SMS: 'SMS',
+  WHATSAPP: 'WA',
+  EMAIL: 'E-mail',
+};
+
+/** Statut d'échéance d'une tâche calculé depuis sa due_date. */
+interface DueStatus {
+  /** Différence en jours (négatif = en retard). */
+  deltaDays: number | null;
+  overdue: boolean;
+  /** Libellé badge : "Retard Xj" / "Relance J-0" / "Relance J-3". */
+  badge: string;
+  variant: 'danger' | 'warning' | 'info';
+}
+
+/** Différence en jours calendaires entre due_date et aujourd'hui. */
+function diffInDays(due?: string | null): number | null {
+  if (!due) return null;
+  const d = new Date(due);
+  if (isNaN(d.getTime())) return null;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function computeDueStatus(due?: string | null): DueStatus {
+  const delta = diffInDays(due);
+  if (delta === null) {
+    return { deltaDays: null, overdue: false, badge: 'À suivre', variant: 'info' };
+  }
+  if (delta < 0) {
+    return {
+      deltaDays: delta,
+      overdue: true,
+      badge: `Retard ${Math.abs(delta)}j`,
+      variant: 'danger',
+    };
+  }
+  if (delta === 0) {
+    return { deltaDays: 0, overdue: false, badge: 'Relance J-0', variant: 'warning' };
+  }
+  return { deltaDays: delta, overdue: false, badge: `Relance J-${delta}`, variant: 'info' };
 }
 
 export default function RelancesScreen({ navigation }: RelancesScreenProps) {
   const [tasks, setTasks] = useState<SellerTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+
+  // Bottom-sheet de relance
+  const [sheetTask, setSheetTask] = useState<SellerTask | null>(null);
+  const [sheetChannel, setSheetChannel] = useState<ReminderChannel | undefined>(undefined);
+  const [sheetMessage, setSheetMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +111,30 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
     setRefreshing(false);
   };
 
-  const handleCall = (phone?: string) => {
+  // Comptes pour les chips (calculés depuis due_date)
+  const counts = useMemo(() => {
+    let overdue = 0;
+    let today = 0;
+    for (const t of tasks) {
+      const delta = diffInDays(t.due_date);
+      if (delta === null) continue;
+      if (delta < 0) overdue += 1;
+      else if (delta === 0) today += 1;
+    }
+    return { all: tasks.length, overdue, today };
+  }, [tasks]);
+
+  const visibleTasks = useMemo(() => {
+    if (filter === 'all') return tasks;
+    return tasks.filter(t => {
+      const delta = diffInDays(t.due_date);
+      if (delta === null) return false;
+      if (filter === 'overdue') return delta < 0;
+      return delta === 0; // today
+    });
+  }, [tasks, filter]);
+
+  const handleCall = (phone?: string | null) => {
     if (!phone) {
       Alert.alert('Aucun numéro', "Ce client n'a pas de téléphone enregistré.");
       return;
@@ -58,22 +142,55 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
     Linking.openURL(`tel:${phone}`).catch(() => undefined);
   };
 
-  const handleDone = async (task: SellerTask) => {
+  const toggleSelected = (id: string) => {
+    setSelected(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const openSheet = (task: SellerTask) => {
+    setSheetTask(task);
+    // Pré-sélection du premier canal disponible
+    setSheetChannel(task.channels && task.channels.length > 0 ? task.channels[0] : undefined);
+    setSheetMessage(task.preview_message ?? '');
+  };
+
+  const closeSheet = () => {
+    setSheetTask(null);
+    setSheetChannel(undefined);
+    setSheetMessage('');
+  };
+
+  const handleSend = async () => {
+    if (!sheetTask) return;
+    setSending(true);
     try {
-      await sellerTasksApi.markDone(task.id);
-      setTasks(prev => prev.filter(t => t.id !== task.id));
+      const result = await sellerTasksApi.remind(sheetTask.id, sheetChannel);
+      if (result.ok) {
+        const sent = result.channelsSent?.length
+          ? result.channelsSent.map(c => CHANNEL_LABEL[c]).join(', ')
+          : null;
+        Alert.alert(
+          'Relance envoyée',
+          sent ? `Envoyée sur : ${sent}` : 'La relance a été envoyée.'
+        );
+        closeSheet();
+      } else {
+        Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
+      }
     } catch {
-      Alert.alert('Erreur', 'Impossible de marquer la tâche comme faite.');
+      Alert.alert('Erreur', "Impossible d'envoyer la relance. Réessayez plus tard.");
+    } finally {
+      setSending(false);
     }
   };
 
-  const isOverdue = (due?: string) => !!due && new Date(due).getTime() < Date.now();
+  const sheetStatus = sheetTask ? computeDueStatus(sheetTask.due_date) : null;
+  const sheetTitle = sheetStatus?.overdue ? 'Échéance dépassée' : 'À venir';
 
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title="Relances"
-        subtitle="Clients à relancer"
+        title="Relances & tâches"
+        subtitle={`${counts.all} à relancer`}
         showBack
         onBack={() => navigation.goBack()}
       />
@@ -86,79 +203,228 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.action} />
         }
       >
+        {/* HERO MARINE */}
+        <View style={styles.hero}>
+          <View style={styles.heroIcon}>
+            <Bell size={26} color={Colors.accent} />
+          </View>
+          <View style={styles.heroTextBlock}>
+            <Text style={styles.heroNumber}>{counts.all}</Text>
+            <Text style={styles.heroLabel}>clients à relancer</Text>
+          </View>
+        </View>
+
+        {/* CHIPS FILTRES */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}
+        >
+          {[
+            { key: 'all' as const, label: 'Tous', count: counts.all },
+            { key: 'overdue' as const, label: 'En retard', count: counts.overdue },
+            { key: 'today' as const, label: "Aujourd'hui", count: counts.today },
+          ].map(chip => {
+            const active = filter === chip.key;
+            return (
+              <Pressable
+                key={chip.key}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setFilter(chip.key)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{chip.label}</Text>
+                <View style={[styles.chipBadge, active && styles.chipBadgeActive]}>
+                  <Text style={[styles.chipBadgeText, active && styles.chipBadgeTextActive]}>
+                    {chip.count}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={Colors.action} />
           </View>
-        ) : tasks.length === 0 ? (
+        ) : visibleTasks.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
               <Check size={28} color={Colors.success.main} />
             </View>
             <Text style={styles.emptyTitle}>Aucune relance</Text>
-            <Text style={styles.emptyText}>Tous les clients sont à jour pour le moment.</Text>
+            <Text style={styles.emptyText}>
+              {filter === 'all'
+                ? 'Tous les clients sont à jour pour le moment.'
+                : 'Aucun client dans ce filtre.'}
+            </Text>
           </View>
         ) : (
-          tasks.map(task => {
-            const overdue = isOverdue(task.due_date);
+          visibleTasks.map(task => {
+            const status = computeDueStatus(task.due_date);
             const name = task.customer?.name ?? task.title;
+            const isChecked = !!selected[task.id];
+            const channels = task.channels ?? [];
             return (
               <View key={task.id} style={styles.card}>
                 <View style={styles.cardTop}>
-                  <View
-                    style={[
-                      styles.iconBox,
-                      { backgroundColor: overdue ? Colors.danger.background : Colors.primary[50] },
-                    ]}
+                  <Pressable
+                    onPress={() => toggleSelected(task.id)}
+                    hitSlop={8}
+                    style={[styles.checkbox, isChecked && styles.checkboxChecked]}
                   >
-                    {overdue ? (
-                      <AlertTriangle size={20} color={Colors.danger.main} />
-                    ) : (
-                      <Clock size={20} color={Colors.action} />
-                    )}
-                  </View>
+                    {isChecked ? <Check size={14} color="#FFFFFF" /> : null}
+                  </Pressable>
+
                   <View style={styles.cardInfo}>
                     <Text style={styles.cardName} numberOfLines={1}>
                       {name}
                     </Text>
                     {task.due_date ? (
-                      <Text
-                        style={[styles.cardDue, overdue && { color: Colors.danger.main }]}
-                        numberOfLines={1}
-                      >
-                        {overdue ? 'En retard · ' : 'Échéance '}
-                        {formatDate(task.due_date)}
-                      </Text>
-                    ) : null}
-                    {task.message ? (
-                      <Text style={styles.cardMsg} numberOfLines={2}>
-                        {task.message}
+                      <Text style={styles.cardDue} numberOfLines={1}>
+                        Échéance {formatDate(task.due_date)}
                       </Text>
                     ) : null}
                   </View>
+
+                  <View style={styles.cardRight}>
+                    {task.amount != null ? (
+                      <Text style={styles.cardAmount}>{formatMoney(task.amount)}</Text>
+                    ) : null}
+                    <StatusBadge text={status.badge} variant={status.variant} />
+                  </View>
                 </View>
 
-                <View style={styles.actions}>
-                  <Pressable
-                    style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
-                    onPress={() => handleCall(task.customer?.phone)}
-                  >
-                    <Smartphone size={16} color={Colors.action} />
-                    <Text style={styles.btnGhostText}>Appeler</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.btnDone, pressed && styles.pressed]}
-                    onPress={() => handleDone(task)}
-                  >
-                    <Check size={16} color="#FFFFFF" />
-                    <Text style={styles.btnDoneText}>Marquer fait</Text>
-                  </Pressable>
+                <View style={styles.cardBottom}>
+                  <View style={styles.channelsRow}>
+                    {channels.map(ch => (
+                      <View key={ch} style={styles.channelPill}>
+                        <Text style={styles.channelPillText}>{CHANNEL_LABEL[ch]}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.actions}>
+                    <Pressable
+                      style={({ pressed }) => [styles.callBtn, pressed && styles.pressed]}
+                      onPress={() => handleCall(task.customer?.phone)}
+                    >
+                      <Smartphone size={18} color={Colors.action} />
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.remindBtn, pressed && styles.pressed]}
+                      onPress={() => openSheet(task)}
+                    >
+                      <Bell size={16} color="#FFFFFF" />
+                      <Text style={styles.remindBtnText}>Relancer</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             );
           })
         )}
       </ScrollView>
+
+      {/* BOTTOM-SHEET RELANCE */}
+      <Modal visible={!!sheetTask} animationType="slide" transparent onRequestClose={closeSheet}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            {sheetTask && sheetStatus ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>{sheetTitle}</Text>
+                  <View style={styles.toneChip}>
+                    <Text style={styles.toneChipText}>Courtois</Text>
+                  </View>
+                </View>
+
+                <View style={styles.sheetClientRow}>
+                  <Text style={styles.sheetClientName}>
+                    {sheetTask.customer?.name ?? sheetTask.title}
+                    {sheetTask.amount != null ? (
+                      <Text style={styles.sheetAmount}> · {formatMoney(sheetTask.amount)}</Text>
+                    ) : null}
+                  </Text>
+                </View>
+                {sheetTask.due_date ? (
+                  <Text style={styles.sheetMeta}>
+                    Échéance le {formatDate(sheetTask.due_date)} · {sheetStatus.badge}
+                  </Text>
+                ) : (
+                  <Text style={styles.sheetMeta}>{sheetStatus.badge}</Text>
+                )}
+
+                <Text style={styles.sheetSectionLabel}>Envoyer sur</Text>
+                <View style={styles.sheetChannels}>
+                  {(sheetTask.channels ?? []).length === 0 ? (
+                    <Text style={styles.sheetEmptyChannels}>
+                      Aucun canal activé pour ce client.
+                    </Text>
+                  ) : (
+                    (sheetTask.channels ?? []).map(ch => {
+                      const active = sheetChannel === ch;
+                      return (
+                        <Pressable
+                          key={ch}
+                          style={[styles.sheetChannelChip, active && styles.sheetChannelChipActive]}
+                          onPress={() => setSheetChannel(ch)}
+                        >
+                          <Text
+                            style={[
+                              styles.sheetChannelText,
+                              active && styles.sheetChannelTextActive,
+                            ]}
+                          >
+                            {CHANNEL_LABEL[ch]}
+                          </Text>
+                          {active ? <Check size={14} color={Colors.action} /> : null}
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </View>
+
+                <Text style={styles.sheetSectionLabel}>Aperçu du message</Text>
+                <TextInput
+                  style={styles.previewInput}
+                  value={sheetMessage}
+                  onChangeText={setSheetMessage}
+                  multiline
+                  editable={!sending}
+                  placeholder="Message de relance…"
+                  placeholderTextColor={Colors.textColors.disabled}
+                />
+
+                <View style={styles.sheetActions}>
+                  <Pressable style={styles.sheetCancelBtn} onPress={closeSheet} disabled={sending}>
+                    <Text style={styles.sheetCancelText}>Annuler</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.sheetSendBtn}
+                    onPress={handleSend}
+                    disabled={sending || (sheetTask.channels ?? []).length === 0}
+                  >
+                    {sending ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Send size={16} color="#FFFFFF" />
+                        <Text style={styles.sheetSendText}>Envoyer la relance</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            ) : null}
+
+            <Pressable style={styles.sheetClose} onPress={closeSheet} hitSlop={8}>
+              <X size={18} color={Colors.textColors.tertiary} />
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -168,7 +434,146 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 96 },
   center: { paddingVertical: 64, alignItems: 'center' },
-  empty: { paddingVertical: 64, alignItems: 'center', gap: Spacing.sm },
+
+  // HERO MARINE
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+  },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTextBlock: { flex: 1 },
+  heroNumber: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
+  heroLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 2,
+  },
+
+  // CHIPS
+  chipsRow: { gap: Spacing.sm, paddingVertical: 2 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary[900],
+    borderColor: Colors.primary[900],
+  },
+  chipText: { fontSize: 13.5, fontWeight: '600', color: Colors.textColors.secondary },
+  chipTextActive: { color: Colors.onMarine },
+  chipBadge: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipBadgeActive: { backgroundColor: 'rgba(255, 255, 255, 0.20)' },
+  chipBadgeText: { fontSize: 11.5, fontWeight: '700', color: Colors.textColors.secondary },
+  chipBadgeTextActive: { color: Colors.onMarine },
+
+  // CARTES TÂCHES
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  cardTop: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: Colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  cardInfo: { flex: 1, gap: 2 },
+  cardName: { fontSize: 15.5, fontWeight: '700', color: Colors.text },
+  cardDue: { fontSize: 13, color: Colors.textColors.tertiary, fontWeight: '500' },
+  cardRight: { alignItems: 'flex-end', gap: 6 },
+  cardAmount: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: Colors.danger.main,
+    fontVariant: ['tabular-nums'],
+  },
+
+  cardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  channelsRow: { flexDirection: 'row', gap: 6, flexShrink: 1, flexWrap: 'wrap' },
+  channelPill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  channelPillText: { fontSize: 11, fontWeight: '700', color: Colors.textColors.tertiary },
+
+  actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  callBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  remindBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 10,
+    backgroundColor: Colors.action,
+  },
+  remindBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  pressed: { opacity: 0.7 },
+
+  // EMPTY
+  empty: { paddingVertical: 48, alignItems: 'center', gap: Spacing.sm },
   emptyIcon: {
     width: 64,
     height: 64,
@@ -180,53 +585,121 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
   emptyText: { fontSize: 14, color: Colors.textColors.tertiary, textAlign: 'center' },
-  card: {
+
+  // BOTTOM-SHEET
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    ...Shadows.sm,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    maxHeight: '88%',
+    paddingTop: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
-  cardTop: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
-  iconBox: {
+  sheetHandle: {
+    alignSelf: 'center',
     width: 40,
-    height: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.borderStrong,
+    marginBottom: Spacing.lg,
+  },
+  sheetClose: {
+    position: 'absolute',
+    top: Spacing.lg,
+    right: Spacing.lg,
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  sheetTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, flexShrink: 1 },
+  toneChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+  },
+  toneChipText: { fontSize: 12.5, fontWeight: '700', color: Colors.action },
+  sheetClientRow: { marginTop: 2 },
+  sheetClientName: { fontSize: 15, fontWeight: '700', color: Colors.danger.main },
+  sheetAmount: { fontSize: 15, fontWeight: '800', color: Colors.danger.main },
+  sheetMeta: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  sheetSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.sm,
+  },
+  sheetChannels: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  sheetEmptyChannels: { fontSize: 13, color: Colors.textColors.tertiary },
+  sheetChannelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  sheetChannelChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  sheetChannelText: { fontSize: 13, fontWeight: '600', color: Colors.textColors.secondary },
+  sheetChannelTextActive: { color: Colors.action },
+  previewInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceAlt,
+    padding: Spacing.md,
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.text,
+    minHeight: 96,
+    textAlignVertical: 'top',
+  },
+  sheetActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.xl },
+  sheetCancelBtn: {
+    flex: 1,
+    height: 50,
     borderRadius: 12,
+    backgroundColor: Colors.muted.main,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardInfo: { flex: 1, gap: 2 },
-  cardName: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  cardDue: { fontSize: 13, color: Colors.textColors.secondary, fontWeight: '500' },
-  cardMsg: { fontSize: 13, color: Colors.textColors.tertiary, marginTop: 2 },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.md,
-  },
-  btnGhost: {
-    flex: 1,
+  sheetCancelText: { fontSize: 15, fontWeight: '600', color: Colors.textColors.secondary },
+  sheetSendBtn: {
+    flex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: Colors.primary[50],
+    gap: 8,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: Colors.action,
   },
-  btnGhostText: { color: Colors.action, fontWeight: '600', fontSize: 14 },
-  btnDone: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: Colors.success.main,
-  },
-  btnDoneText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  pressed: { opacity: 0.7 },
+  sheetSendText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 });

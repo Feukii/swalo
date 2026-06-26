@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Linking,
+  Switch,
 } from 'react-native';
 import {
   DollarSign,
@@ -22,12 +24,9 @@ import {
   ArrowDown,
   X,
   Calendar,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
+  Bell,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
-import { NotificationChannelsToggles } from './CustomersScreen';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
@@ -50,7 +49,7 @@ import {
   payReceivableOffline,
 } from '../db/offlineWrite';
 import { checkCreditLimit } from '../utils/creditCheck';
-import { customersApi } from '../lib/api';
+import { customersApi, sellerTasksApi, ReminderChannel } from '../lib/api';
 
 interface CustomerDetailsNavigation {
   goBack: () => void;
@@ -89,6 +88,7 @@ interface NotificationEntry {
   type: string;
   status: NotificationStatus;
   created_at?: string | null;
+  error?: string | null;
 }
 
 interface NotificationsSummary {
@@ -109,7 +109,14 @@ function parseNotificationsSummary(raw: unknown): NotificationsSummary | null {
       channel: typeof e.channel === 'string' ? e.channel : '—',
       type: typeof e.type === 'string' ? e.type : '—',
       status: typeof e.status === 'string' ? e.status : '—',
-      created_at: typeof e.created_at === 'string' ? e.created_at : null,
+      // L'API renvoie `sent_at` ; on accepte aussi `created_at` par robustesse.
+      created_at:
+        typeof e.sent_at === 'string'
+          ? e.sent_at
+          : typeof e.created_at === 'string'
+            ? e.created_at
+            : null,
+      error: typeof e.error === 'string' ? e.error : null,
     }));
   return {
     total,
@@ -130,6 +137,39 @@ const NOTIF_CHANNEL_LABELS: Record<string, string> = {
   sms: 'SMS',
   whatsapp: 'WhatsApp',
 };
+
+// Étiquette courte d'un canal (badges "SMS Livré", "WA Livré"...)
+const NOTIF_CHANNEL_SHORT: Record<string, string> = {
+  EMAIL: 'E-mail',
+  SMS: 'SMS',
+  WHATSAPP: 'WA',
+};
+
+// Libellé lisible du type de notification (historique & transparence).
+const NOTIF_TYPE_LABELS: Record<string, string> = {
+  PAYMENT_REMINDER: 'Relance de paiement',
+  PAYMENT_RECEIVED: 'Paiement reçu',
+  DEBT_REMINDER: 'Relance de dette',
+};
+
+function getNotifTypeLabel(type: string): string {
+  return NOTIF_TYPE_LABELS[type] ?? 'Notification';
+}
+
+// Libellé de livraison par statut (badge à côté du canal).
+function getDeliveryLabel(status: string): string {
+  switch (status) {
+    case 'SENT':
+      return 'Livré';
+    case 'QUEUED':
+    case 'PENDING':
+      return 'En file';
+    case 'FAILED':
+      return 'Échec';
+    default:
+      return status;
+  }
+}
 
 const NOTIF_STATUS_META: Record<
   string,
@@ -174,14 +214,33 @@ function formatDueDateLabel(iso: string): string {
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-// Sépare le montant ("12 500 F") en valeur + suffixe "F" pour styliser le F en sky
-function splitMoney(amount: number): { value: string; unit: string } {
-  const formatted = formatMoney(Math.abs(amount));
-  const idx = formatted.lastIndexOf(' F');
-  if (idx === -1) {
-    return { value: formatted, unit: '' };
-  }
-  return { value: formatted.slice(0, idx), unit: 'F' };
+// Échéance la plus proche parmi les créances en cours (PENDING/PARTIAL).
+function nearestDueDate(receivables: ReceivableWithPayments[]): string | null {
+  const dues = receivables
+    .filter(r => (r.status === 'PENDING' || r.status === 'PARTIAL') && r.due_date)
+    .map(r => r.due_date as string)
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return dues.length > 0 ? dues[0] : null;
+}
+
+// Différence en jours calendaires entre une échéance et aujourd'hui.
+function diffInDays(due: string): number | null {
+  const d = new Date(due);
+  if (isNaN(d.getTime())) return null;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Libellé court de la puce échéance : "Dans Xj" / "Aujourd'hui" / "Retard Xj".
+function dueRelativeLabel(due: string): { text: string; overdue: boolean } {
+  const delta = diffInDays(due);
+  if (delta === null) return { text: '', overdue: false };
+  if (delta < 0) return { text: `Retard ${Math.abs(delta)}j`, overdue: true };
+  if (delta === 0) return { text: "Aujourd'hui", overdue: true };
+  return { text: `Dans ${delta}j`, overdue: false };
 }
 
 // Initiales (max 2 lettres) à partir du prénom + nom
@@ -203,6 +262,7 @@ interface ReceivableWithPayments {
   paid_amount: number;
   status: string;
   created_at: string;
+  due_date: string | null;
   description: string | null;
   notes: string | null;
   payments: LocalClientReceivablePayment[];
@@ -310,6 +370,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const [customerRefundAmount, setCustomerRefundAmount] = useState('');
   const [customerRefundNote, setCustomerRefundNote] = useState('');
 
+  // Relance manuelle (depuis la fiche client)
+  const [isReminding, setIsReminding] = useState(false);
+  // Bascule d'un canal de notification (préférence client) en cours
+  const [togglingChannel, setTogglingChannel] = useState<ReminderChannel | null>(null);
+
   const loadCustomer = useCallback(async () => {
     if (!shopId) return;
     setIsLoading(true);
@@ -333,6 +398,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             paid_amount: r.paid_amount,
             status: r.status,
             created_at: r.created_at,
+            due_date: r.due_date,
             description: r.description,
             notes: r.notes,
             payments,
@@ -831,6 +897,78 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     return firstName ? `${firstName} ${lastName}` : lastName;
   };
 
+  // Appel téléphonique direct au client.
+  const handleCall = () => {
+    if (!customer?.phone) {
+      Alert.alert('Aucun numéro', "Ce client n'a pas de téléphone enregistré.");
+      return;
+    }
+    Linking.openURL(`tel:${customer.phone}`).catch(() => undefined);
+  };
+
+  // Relance manuelle : retrouve la tâche vendeur liée à ce client puis envoie
+  // la relance sur tous ses canaux activés.
+  const handleRemindNow = async () => {
+    if (!customer) return;
+    setIsReminding(true);
+    try {
+      const tasks = await sellerTasksApi.getTasks();
+      const task = tasks.find(t => t.customer_id === customer.id || t.customer?.id === customer.id);
+      if (!task) {
+        Alert.alert(
+          'Aucune relance',
+          "Ce client n'a pas de tâche de relance en cours (créance échue)."
+        );
+        return;
+      }
+      const result = await sellerTasksApi.remind(task.id);
+      if (result.ok) {
+        Alert.alert('Relance envoyée', 'La relance a été envoyée au client.');
+      } else {
+        Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
+      }
+    } catch {
+      Alert.alert('Erreur', "Impossible d'envoyer la relance. Réessayez plus tard.");
+    } finally {
+      setIsReminding(false);
+    }
+  };
+
+  // Bascule la préférence d'un canal de notification du client (offline-first).
+  const handleToggleChannel = async (channel: ReminderChannel) => {
+    if (!customer) return;
+    setTogglingChannel(channel);
+    const next = {
+      SMS: !customer.sms_notifications_enabled,
+      WHATSAPP: !customer.whatsapp_notifications_enabled,
+      EMAIL: !customer.email_notifications_enabled,
+    }[channel];
+    try {
+      await updateCustomerOffline(id, {
+        smsNotificationsEnabled: channel === 'SMS' ? next : undefined,
+        whatsappNotificationsEnabled: channel === 'WHATSAPP' ? next : undefined,
+        emailNotificationsEnabled: channel === 'EMAIL' ? next : undefined,
+      });
+      // Mise à jour optimiste de l'état local (évite un rechargement complet).
+      setCustomer(prev =>
+        prev
+          ? {
+              ...prev,
+              sms_notifications_enabled: channel === 'SMS' ? next : prev.sms_notifications_enabled,
+              whatsapp_notifications_enabled:
+                channel === 'WHATSAPP' ? next : prev.whatsapp_notifications_enabled,
+              email_notifications_enabled:
+                channel === 'EMAIL' ? next : prev.email_notifications_enabled,
+            }
+          : prev
+      );
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de modifier le canal');
+    } finally {
+      setTogglingChannel(null);
+    }
+  };
+
   const canEditOrDelete = () => {
     return (
       userRole === 'OWNER' ||
@@ -862,15 +1000,53 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
   const totalBalance = customer.stats?.total_balance ?? 0;
   const shopOwes = totalBalance < 0; // la boutique doit rembourser le client
-  const heroAmount = splitMoney(totalBalance);
-  const heroLabel = shopOwes ? 'À rembourser au client' : 'Créances en cours';
+  const balanceLabel = shopOwes ? 'À rembourser au client' : 'Solde dû';
 
-  const creditLimit =
-    customer.credit_limit && customer.credit_limit > 0 ? customer.credit_limit : 0;
-  const usedCredit = Math.max(0, totalBalance);
-  const creditPct =
-    creditLimit > 0 ? Math.min(100, Math.round((usedCredit / creditLimit) * 100)) : 0;
-  const creditBarColor = creditPct >= 80 ? Colors.danger.main : Colors.success.main;
+  // Échéance la plus proche (pour la puce d'échéance de la carte client).
+  const dueDate = nearestDueDate(customer.receivables);
+  const dueInfo = dueDate ? dueRelativeLabel(dueDate) : null;
+
+  const canRemind =
+    userRole === 'OWNER' ||
+    userRole === 'BOSS' ||
+    userRole === 'MANAGER' ||
+    userRole === 'EMPLOYEE' ||
+    userRole === 'SUPERADMIN';
+
+  // Canaux de notification (préférence client + disponibilité côté boutique).
+  // Un canal est "disponible boutique" si la coordonnée requise existe :
+  // SMS/WhatsApp -> téléphone, E-mail -> email.
+  const channelRows: Array<{
+    key: ReminderChannel;
+    short: 'SMS' | 'WA' | '@';
+    label: string;
+    enabled: boolean;
+    shopAvailable: boolean;
+  }> = [
+    {
+      key: 'SMS',
+      short: 'SMS',
+      label: 'SMS',
+      enabled: customer.sms_notifications_enabled,
+      shopAvailable: !!customer.phone,
+    },
+    {
+      key: 'WHATSAPP',
+      short: 'WA',
+      label: 'WhatsApp',
+      enabled: customer.whatsapp_notifications_enabled,
+      shopAvailable: !!customer.phone,
+    },
+    {
+      key: 'EMAIL',
+      short: '@',
+      label: 'E-mail',
+      enabled: customer.email_notifications_enabled,
+      shopAvailable: !!customer.email,
+    },
+  ];
+
+  const recentNotifications = customer.notifications_summary?.recent ?? [];
 
   return (
     <View style={styles.container}>
@@ -904,64 +1080,124 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* HERO MARINE — avatar + solde / créances */}
-        <View style={styles.hero}>
-          <View style={styles.heroHeaderRow}>
+        {/* CARTE CLIENT — avatar + nom + tél + solde + échéance + actions */}
+        <View style={styles.clientCard}>
+          <View style={styles.clientHeaderRow}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
                 {getInitials(customer.first_name, customer.name)}
               </Text>
             </View>
-            <View style={styles.heroHeaderText}>
-              <Text style={styles.heroName} numberOfLines={1}>
+            <View style={styles.clientHeaderText}>
+              <Text style={styles.clientName} numberOfLines={1}>
                 {getPersonName(customer)}
               </Text>
-              <View style={styles.heroStatusRow}>
-                <StatusBadge
-                  text={customer.is_active ? 'Actif' : 'Inactif'}
-                  variant={customer.is_active ? 'success' : 'danger'}
-                />
-              </View>
+              {!!customer.phone && (
+                <Text style={styles.clientPhone} numberOfLines={1}>
+                  {formatCameroonPhone(String(customer.phone))}
+                </Text>
+              )}
             </View>
           </View>
 
-          <Text style={styles.heroLabel}>{heroLabel}</Text>
-          <Text style={[styles.heroAmount, shopOwes && styles.heroAmountRefund]}>
-            {heroAmount.value}
-            {heroAmount.unit ? <Text style={styles.heroAmountUnit}> {heroAmount.unit}</Text> : null}
-          </Text>
-
-          {creditLimit > 0 && (
-            <View style={styles.creditBlock}>
-              <View style={styles.creditBarTrack}>
-                <View
-                  style={[
-                    styles.creditBarFill,
-                    { width: `${creditPct}%`, backgroundColor: creditBarColor },
-                  ]}
-                />
-              </View>
-              <View style={styles.creditMetaRow}>
-                <Text style={styles.creditMetaLabel}>Limite de crédit</Text>
-                <Text style={styles.creditMetaValue}>{formatMoney(creditLimit)}</Text>
-              </View>
+          <View style={styles.balanceRow}>
+            <View style={styles.balanceBlock}>
+              <Text style={styles.balanceLabel}>{balanceLabel}</Text>
+              <Text style={[styles.balanceAmount, shopOwes && styles.balanceAmountRefund]}>
+                {formatMoney(totalBalance)}
+              </Text>
             </View>
-          )}
+            {dueInfo ? (
+              <View
+                style={[
+                  styles.duePill,
+                  {
+                    backgroundColor: dueInfo.overdue
+                      ? Colors.danger.background
+                      : Colors.warning.background,
+                  },
+                ]}
+              >
+                <Calendar
+                  size={14}
+                  color={dueInfo.overdue ? Colors.danger.main : Colors.warning.main}
+                />
+                <Text
+                  style={[
+                    styles.duePillText,
+                    { color: dueInfo.overdue ? Colors.danger.main : Colors.warning.text },
+                  ]}
+                >
+                  {formatDate(dueDate as string, 'fr-FR', { day: 'numeric', month: 'long' })} ·{' '}
+                  {dueInfo.text}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.clientActions}>
+            <TouchableOpacity style={styles.callButton} onPress={handleCall} activeOpacity={0.85}>
+              <Smartphone size={18} color={Colors.action} />
+              <Text style={styles.callButtonText}>Appeler</Text>
+            </TouchableOpacity>
+            {canRemind && (
+              <TouchableOpacity
+                style={styles.remindButton}
+                onPress={handleRemindNow}
+                disabled={isReminding}
+                activeOpacity={0.85}
+              >
+                {isReminding ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Bell size={18} color="#FFFFFF" />
+                    <Text style={styles.remindButtonText}>Relancer maintenant</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
-        {/* Infos client */}
-        {!!(customer.phone || customer.email || customer.address) && (
+        {/* CANAUX DE NOTIFICATION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>CANAUX DE NOTIFICATION</Text>
+          <View style={styles.listCard}>
+            {channelRows.map((row, idx) => (
+              <View
+                key={row.key}
+                style={[
+                  styles.channelRow,
+                  idx < channelRows.length - 1 && styles.channelRowBordered,
+                ]}
+              >
+                <View style={styles.channelBadge}>
+                  <Text style={styles.channelBadgeText}>{row.short}</Text>
+                </View>
+                <View style={styles.channelInfo}>
+                  <Text style={styles.channelLabel}>{row.label}</Text>
+                  {!row.shopAvailable ? (
+                    <Text style={styles.channelDisabled}>Désactivé pour la boutique</Text>
+                  ) : null}
+                </View>
+                <Switch
+                  value={row.enabled && row.shopAvailable}
+                  disabled={!row.shopAvailable || togglingChannel === row.key}
+                  onValueChange={() => handleToggleChannel(row.key)}
+                  trackColor={{ false: Colors.muted.main, true: Colors.accent }}
+                  thumbColor={Colors.surface}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Coordonnées complémentaires (email / adresse) */}
+        {!!(customer.email || customer.address) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Coordonnées</Text>
             <View style={styles.infoCard}>
-              {!!customer.phone && (
-                <View style={styles.infoRow}>
-                  <View style={styles.infoIcon}>
-                    <Smartphone size={18} color={Colors.action} />
-                  </View>
-                  <Text style={styles.infoText}>{formatCameroonPhone(String(customer.phone))}</Text>
-                </View>
-              )}
               {!!customer.email && (
                 <View style={styles.infoRow}>
                   <View style={styles.infoIcon}>
@@ -982,7 +1218,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
           </View>
         )}
 
-        {/* Action Buttons */}
+        {/* Action Buttons (paiement / créance / remboursement) */}
         {(userRole === 'OWNER' ||
           userRole === 'BOSS' ||
           userRole === 'MANAGER' ||
@@ -1029,9 +1265,45 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             </View>
           )}
 
-        {/* Transactions History */}
+        {/* HISTORIQUE & TRANSPARENCE — statuts de notification */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Historique des opérations</Text>
+          <Text style={styles.sectionLabel}>HISTORIQUE & TRANSPARENCE</Text>
+
+          {recentNotifications.length > 0 && (
+            <View style={styles.listCard}>
+              {recentNotifications.slice(0, 8).map((notif, idx) => {
+                const meta = getNotifStatusMeta(notif.status);
+                return (
+                  <View
+                    key={`notif-${idx}`}
+                    style={[
+                      styles.notifRow,
+                      idx < Math.min(recentNotifications.length, 8) - 1 && styles.notifRowBordered,
+                    ]}
+                  >
+                    <View style={styles.notifIcon}>
+                      <Bell size={16} color={Colors.action} />
+                    </View>
+                    <View style={styles.notifBody}>
+                      <Text style={styles.notifTitle} numberOfLines={1}>
+                        {getNotifTypeLabel(notif.type)}
+                      </Text>
+                      {notif.created_at ? (
+                        <Text style={styles.notifDate}>{formatDate(notif.created_at)}</Text>
+                      ) : null}
+                      <View style={styles.notifBadges}>
+                        <StatusBadge
+                          text={`${NOTIF_CHANNEL_SHORT[notif.channel] ?? notif.channel} ${getDeliveryLabel(notif.status)}`}
+                          variant={meta.variant}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.listCard}>
             {transactions.length === 0 ? (
               <View style={styles.emptyState}>
@@ -1564,97 +1836,195 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
   },
 
-  // HERO MARINE
-  hero: {
+  // CARTE CLIENT (blanche)
+  clientCard: {
     marginHorizontal: Spacing.lg,
-    backgroundColor: Colors.primary[900],
-    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
     padding: Spacing.xl,
+    gap: Spacing.lg,
+    ...Shadows.sm,
   },
-  heroHeaderRow: {
+  clientHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    marginBottom: Spacing.lg,
   },
   avatar: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: Colors.warning.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.onMarine,
-    letterSpacing: 0.5,
-  },
-  heroHeaderText: {
-    flex: 1,
-    gap: Spacing.xs,
-  },
-  heroName: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.onMarine,
+    color: Colors.warning.main,
+    letterSpacing: 0.5,
   },
-  heroStatusRow: {
+  clientHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
+  clientName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  clientPhone: {
+    fontSize: 13.5,
+    color: Colors.action,
+    fontWeight: '500',
+  },
+  balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
   },
-  heroLabel: {
+  balanceBlock: {
+    flexShrink: 1,
+  },
+  balanceLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.action,
+    color: Colors.textColors.tertiary,
   },
-  heroAmount: {
-    fontSize: 36,
+  balanceAmount: {
+    fontSize: 30,
     fontWeight: '800',
-    color: Colors.onMarine,
-    marginTop: Spacing.xs,
+    color: Colors.danger.main,
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
   },
-  heroAmountRefund: {
-    color: Colors.accent,
+  balanceAmountRefund: {
+    color: Colors.success.main,
   },
-  heroAmountUnit: {
-    fontSize: 20,
+  duePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  duePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  clientActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  callButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  callButtonText: {
+    fontSize: 14.5,
     fontWeight: '700',
     color: Colors.action,
   },
-  creditBlock: {
-    marginTop: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  creditBarTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
-  },
-  creditBarFill: {
-    height: 6,
-    borderRadius: 999,
-  },
-  creditMetaRow: {
+  remindButton: {
+    flex: 1.6,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.action,
   },
-  creditMetaLabel: {
-    fontSize: 12.5,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  creditMetaValue: {
-    fontSize: 12.5,
+  remindButtonText: {
+    fontSize: 14.5,
     fontWeight: '700',
-    color: Colors.onMarine,
-    fontVariant: ['tabular-nums'],
+    color: '#FFFFFF',
+  },
+
+  // CANAUX DE NOTIFICATION
+  channelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  channelRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  channelBadge: {
+    minWidth: 36,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  channelBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.action,
+  },
+  channelInfo: { flex: 1, gap: 1 },
+  channelLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  channelDisabled: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning.main,
+  },
+
+  // NOTIFICATIONS (historique & transparence)
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  notifRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notifIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifBody: { flex: 1, gap: 4 },
+  notifTitle: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  notifDate: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  notifBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
   },
 
   // SECTIONS
@@ -1666,6 +2036,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.text,
+  },
+  sectionLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.6,
   },
 
   // INFOS CLIENT

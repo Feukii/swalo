@@ -529,15 +529,32 @@ export const debtsApi = {
 };
 
 // Seller Tasks API (Tâches vendeur : relances de créances / échéances)
+/** Canaux de notification d'une relance (alignés sur l'enum Prisma). */
+export type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
 export interface SellerTask {
   id: string;
   title: string;
   message?: string;
-  due_date?: string;
+  due_date?: string | null;
   customer_id?: string;
   receivable_id?: string;
   status: string;
-  customer?: { name: string; phone?: string };
+  /** Client associé (enrichi par l'API), avec nom + téléphone. */
+  customer?: { id?: string; name: string; phone?: string | null } | null;
+  /** Solde restant dû (FCFA), null si aucune créance liée. */
+  amount?: number | null;
+  /** Canaux activés par le client pour cette relance. */
+  channels?: ReminderChannel[];
+  /** Message courtois prêt à envoyer (généré par l'API). */
+  preview_message?: string | null;
+}
+
+/** Résultat d'un envoi manuel de relance. */
+export interface RemindResult {
+  ok: boolean;
+  channelsSent?: ReminderChannel[];
+  error?: string;
 }
 
 export const sellerTasksApi = {
@@ -549,6 +566,14 @@ export const sellerTasksApi = {
   },
   markDone: async (id: string): Promise<SellerTask> => {
     return api.post<SellerTask>(`/seller-tasks/${id}/done`, {});
+  },
+  /**
+   * Envoie une relance maintenant pour la tâche donnée.
+   * @param channel - canal unique à utiliser ; si omis, tous les canaux
+   *   activés par le client sont utilisés.
+   */
+  remind: async (id: string, channel?: ReminderChannel): Promise<RemindResult> => {
+    return api.post<RemindResult>(`/seller-tasks/${id}/remind`, channel ? { channel } : {});
   },
 };
 

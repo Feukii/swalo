@@ -28,10 +28,7 @@ function formatPercent(value: number): string {
  * The API returns ASCII health labels ('Sain' | 'A surveiller' | 'En difficulte').
  * This maps them to fully-accented French labels + the matching badge palette.
  */
-const HEALTH_META: Record<
-  AdminShopHealth,
-  { label: string; badgeClass: string }
-> = {
+const HEALTH_META: Record<AdminShopHealth, { label: string; badgeClass: string }> = {
   Sain: {
     label: 'Sain',
     badgeClass: 'bg-success-100 text-success-800',
@@ -120,9 +117,7 @@ export default function EnterpriseReports() {
       <div className="space-y-5">
         <Heading subtitle="Analyses & exports" />
         <div className="rounded-2xl bg-white p-10 text-center shadow-card">
-          <p className="font-medium text-danger-700">
-            {error ?? 'Aucune donnée disponible.'}
-          </p>
+          <p className="font-medium text-danger-700">{error ?? 'Aucune donnée disponible.'}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 rounded-lg bg-action-500 px-4 py-2 text-sm text-white transition-colors hover:bg-action-600"
