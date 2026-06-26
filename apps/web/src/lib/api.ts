@@ -525,6 +525,30 @@ export const productBatchesApi = {
   },
 };
 
+// Inventory API (Mouvements de stock : réceptions & sorties)
+export const inventoryApi = {
+  /** Entrée de stock (réception). Montants en centimes. */
+  stockIn: async (data: { product_id: string; quantity: number; unit_cost?: number; reason?: string }) => {
+    const response = await api.post('/inventory/stock-in', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+  /** Mouvement de stock générique (sortie : qty négative). */
+  createMovement: async (data: {
+    product_id: string;
+    type: 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'INVENTORY';
+    qty: number;
+    reason?: string;
+    unit_cost?: number;
+  }) => {
+    const response = await api.post('/inventory/movements', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+};
+
 // Invoices API
 export const invoicesApi = {
   getAll: async (params?: {

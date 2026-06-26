@@ -90,7 +90,7 @@ const MENU_SECTIONS: MenuSection[] = [
       },
       {
         icon: Package,
-        title: 'Catalogue Articles',
+        title: 'Produits & prix',
         screen: 'ProductCatalog',
         module: 'products',
         tint: Colors.action,

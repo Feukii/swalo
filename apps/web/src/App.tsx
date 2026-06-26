@@ -8,7 +8,7 @@ import Home from './pages/Home';
 import Sale from './pages/Sale';
 import POS from './pages/POS';
 import Products from './pages/Products';
-import ProductBatches from './pages/ProductBatches';
+import ProductDetail from './pages/ProductDetail';
 import CatalogHierarchy from './pages/CatalogHierarchy';
 import StockManagement from './pages/StockManagement';
 import Customers from './pages/Customers';
@@ -114,11 +114,21 @@ function App() {
           }
         />
         <Route
+          path="/products/:productId"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ProductDetail />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/products/:productId/batches"
           element={
             <ProtectedRoute>
               <MainLayout>
-                <ProductBatches />
+                <ProductDetail />
               </MainLayout>
             </ProtectedRoute>
           }

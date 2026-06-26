@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productsApi } from '../lib/api';
-import { usePermissions } from '../hooks/usePermissions';
 
 interface Product {
   id: string;
@@ -37,46 +36,16 @@ function formatF(cents: number): string {
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
-/** Formatte un montant en centimes en version compacte KPI -> "14,2 M F". */
-function formatCompactF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
-  if (amount >= 1_000_000) {
-    return `${(amount / 1_000_000).toLocaleString('fr-FR', {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    })} M F`;
-  }
-  if (amount >= 10_000) {
-    return `${(amount / 1_000).toLocaleString('fr-FR', {
-      maximumFractionDigits: 1,
-    })} k F`;
-  }
-  return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
-}
+const CATEGORY_FALLBACK = 'Sans catégorie';
 
 export default function Products() {
   const navigate = useNavigate();
-  const { can } = usePermissions();
-  const canCreate = can('products', 'create');
   const [products, setProducts] = useState<Product[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-
-  const [formData, setFormData] = useState({
-    sku: '',
-    name: '',
-    description: '',
-    category: '',
-    unit: 'piece',
-    cost_price: '',
-    sell_price: '',
-    alert_threshold: '10',
-  });
 
   const loadData = async () => {
     try {
@@ -103,69 +72,7 @@ export default function Products() {
     loadData();
   }, [searchTerm, selectedCategory]);
 
-  const handleOpenModal = (product?: Product) => {
-    if (product) {
-      setEditProduct(product);
-      setFormData({
-        sku: product.sku,
-        name: product.name,
-        description: product.description || '',
-        category: product.category || '',
-        unit: product.unit || 'piece',
-        cost_price: String(product.cost_price / 100),
-        sell_price: String(product.sell_price / 100),
-        alert_threshold: String(product.alert_threshold),
-      });
-    } else {
-      setEditProduct(null);
-      setFormData({
-        sku: '',
-        name: '',
-        description: '',
-        category: '',
-        unit: 'piece',
-        cost_price: '',
-        sell_price: '',
-        alert_threshold: '10',
-      });
-    }
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setEditProduct(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = {
-      sku: formData.sku.trim(),
-      name: formData.name.trim(),
-      description: formData.description.trim() || undefined,
-      category: formData.category.trim() || undefined,
-      unit: formData.unit,
-      cost_price: Math.round(parseFloat(formData.cost_price) * 100),
-      sell_price: Math.round(parseFloat(formData.sell_price) * 100),
-      alert_threshold: parseInt(formData.alert_threshold) || 10,
-    };
-
-    try {
-      if (editProduct) {
-        await productsApi.update(editProduct.id, payload);
-      } else {
-        await productsApi.create(payload);
-      }
-      handleCloseModal();
-      loadData();
-    } catch (error) {
-      const apiMessage = (error as { response?: { data?: { message?: string } } } | undefined)
-        ?.response?.data?.message;
-      alert(apiMessage || "Erreur lors de l'enregistrement");
-    }
-  };
-
-  // KPI calculés depuis la liste déjà chargée
+  // KPIs (présentation). Repli sur la liste si /stats absent.
   const totalRefs = stats?.total_products ?? products.length;
   const stockValue =
     stats?.total_inventory_value ??
@@ -175,55 +82,72 @@ export default function Products() {
     stats?.low_stock_count ??
     products.filter(p => p.is_low_stock && (p.current_stock ?? 0) > 0).length;
 
+  // Groupage du catalogue par catégorie (présentation maquette).
+  const groupedProducts = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    for (const product of products) {
+      const key = product.category || product.family || CATEGORY_FALLBACK;
+      const bucket = map.get(key);
+      if (bucket) {
+        bucket.push(product);
+      } else {
+        map.set(key, [product]);
+      }
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'fr'));
+  }, [products]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* En-tête de page */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-marine-900">Produits</h1>
-        <p className="text-sm text-slate-500">Catalogue</p>
+        <h1 className="text-2xl font-bold text-primary-900">Produits &amp; prix</h1>
+        <p className="text-sm text-slate-500">Catalogue, prix de revient &amp; valorisation</p>
       </div>
 
-      {/* Cartes KPI */}
+      {/* 4 KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl shadow-card p-5">
-          <p className="text-xs font-medium text-slate-500">Références totales</p>
-          <p className="text-3xl font-bold text-marine-900 mt-2">
+          <p className="text-xs font-medium text-slate-500">Références</p>
+          <p className="text-3xl font-bold text-primary-900 mt-2">
             {new Intl.NumberFormat('fr-FR').format(totalRefs)}
           </p>
         </div>
         <div className="bg-white rounded-2xl shadow-card p-5">
           <p className="text-xs font-medium text-slate-500">Valeur du stock</p>
-          <p className="text-3xl font-bold text-marine-900 mt-2">{formatCompactF(stockValue)}</p>
+          <p className="text-3xl font-bold text-primary-900 mt-2">{formatF(stockValue)}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-card p-5">
-          <p className="text-xs font-medium text-slate-500">Ruptures</p>
+          <p className="text-xs font-medium text-slate-500">Alertes seuil</p>
           <p
             className={`text-3xl font-bold mt-2 ${
-              ruptureCount > 0 ? 'text-danger-600' : 'text-marine-900'
-            }`}
-          >
-            {ruptureCount}
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-card p-5">
-          <p className="text-xs font-medium text-slate-500">Alertes stock</p>
-          <p
-            className={`text-3xl font-bold mt-2 ${
-              alertCount > 0 ? 'text-warning-600' : 'text-marine-900'
+              alertCount > 0 ? 'text-warning-600' : 'text-primary-900'
             }`}
           >
             {alertCount}
           </p>
         </div>
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-xs font-medium text-slate-500">Ruptures</p>
+          <p
+            className={`text-3xl font-bold mt-2 ${
+              ruptureCount > 0 ? 'text-danger-600' : 'text-primary-900'
+            }`}
+          >
+            {ruptureCount}
+          </p>
+        </div>
       </div>
 
-      {/* Catalogue & inventaire */}
+      {/* Catalogue d'articles */}
       <div className="bg-white rounded-2xl shadow-card">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-6 pt-6 pb-4">
-          <h2 className="text-lg font-semibold text-marine-900">Catalogue &amp; inventaire</h2>
-          <div className="flex items-center gap-3">
-            {/* Recherche (logique conservée) */}
-            <div className="relative hidden lg:block">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-6 pt-6 pb-4">
+          <h2 className="text-lg font-semibold text-primary-900 whitespace-nowrap">
+            Catalogue d&apos;articles
+          </h2>
+          <div className="flex flex-1 items-center gap-3 lg:justify-end flex-wrap">
+            {/* Recherche */}
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
               <svg
                 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
                 fill="none"
@@ -241,32 +165,36 @@ export default function Products() {
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Rechercher..."
-                className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
+                placeholder="Rechercher un article..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
               />
             </div>
-            {/* Filtrer par catégorie (logique conservée) */}
-            <select
-              value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 focus:ring-2 focus:ring-action-500 transition-colors"
-            >
-              <option value="">Filtrer</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            {canCreate && (
+            {/* Chips catégories */}
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => handleOpenModal()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-action-500 hover:bg-action-600 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                onClick={() => setSelectedCategory('')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedCategory === ''
+                    ? 'bg-primary-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
-                <span className="text-base leading-none">+</span>
-                <span>Réception (lot)</span>
+                Tous
               </button>
-            )}
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedCategory === cat
+                      ? 'bg-primary-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -277,13 +205,8 @@ export default function Products() {
         ) : products.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-slate-500">
-              {searchTerm ? 'Aucun produit trouvé' : 'Aucun produit enregistré'}
+              {searchTerm || selectedCategory ? 'Aucun article trouvé' : 'Aucun article enregistré'}
             </p>
-            {!searchTerm && canCreate && (
-              <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
-                Créer le premier produit
-              </button>
-            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -291,7 +214,7 @@ export default function Products() {
               <thead>
                 <tr className="border-y border-slate-100 bg-slate-50/50">
                   <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Produit
+                    Article
                   </th>
                   <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     Catégorie
@@ -299,268 +222,154 @@ export default function Products() {
                   <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     Stock
                   </th>
-                  <th className="px-6 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Lots
+                  <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Seuil
                   </th>
                   <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    P. Achat
+                    Prix revient
                   </th>
                   <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    P. Vente
+                    P. vente
                   </th>
                   <th className="px-6 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Valeur
+                    Valeur stock
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {products.map(product => {
-                  const stock = product.current_stock ?? 0;
-                  const isRupture = stock <= 0;
-                  const isLow = !isRupture && product.is_low_stock;
-                  const lineValue = stock * product.cost_price;
-                  return (
-                    <tr
-                      key={product.id}
-                      onClick={() => navigate(`/products/${product.id}/batches`)}
-                      className="hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
-                      {/* PRODUIT */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                              />
-                            </svg>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-marine-900 truncate">{product.name}</p>
-                              {product.is_multi_price && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-100 text-sky-700">
-                                  Multi
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-400 uppercase">{product.sku}</p>
-                          </div>
-                        </div>
-                      </td>
-                      {/* CATÉGORIE */}
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {product.category || product.family || '—'}
-                      </td>
-                      {/* STOCK */}
-                      <td className="px-6 py-4 text-right">
-                        <span
-                          className={`text-sm font-semibold ${
-                            isRupture
-                              ? 'text-danger-600'
-                              : isLow
-                                ? 'text-warning-600'
-                                : 'text-marine-900'
-                          }`}
-                        >
-                          {stock}
-                        </span>
-                      </td>
-                      {/* LOTS */}
-                      <td className="px-6 py-4 text-sm text-slate-500">
-                        {product.batches_count != null ? `${product.batches_count} lots` : '—'}
-                      </td>
-                      {/* P. ACHAT */}
-                      <td className="px-6 py-4 text-sm text-slate-600 text-right">
-                        {formatF(product.cost_price)}
-                      </td>
-                      {/* P. VENTE */}
-                      <td className="px-6 py-4 text-right">
-                        {product.is_multi_price ? (
-                          <span className="text-sm font-medium text-marine-900">
-                            {formatF(product.price_min || 0)} – {formatF(product.price_max || 0)}
-                          </span>
-                        ) : (
-                          <span className="text-sm font-medium text-marine-900">
-                            {formatF(product.sell_price)}
-                          </span>
-                        )}
-                      </td>
-                      {/* VALEUR */}
-                      <td className="px-6 py-4 text-right text-sm font-semibold text-marine-900">
-                        {formatF(lineValue)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {groupedProducts.map(([categoryName, items]) => (
+                  <CategoryGroup
+                    key={categoryName}
+                    categoryName={categoryName}
+                    items={items}
+                    onSelect={id => navigate(`/products/${id}`)}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-medium animate-scale-in max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 px-6 py-5 bg-gradient-to-r from-action-500 to-action-600 text-white rounded-t-3xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">
-                    {editProduct ? 'Modifier le produit' : 'Nouveau produit'}
-                  </h2>
-                  <p className="text-sm text-white/80 mt-1">
-                    {editProduct
-                      ? 'Mettre a jour les informations'
-                      : 'Ajouter un nouveau produit au catalogue'}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCloseModal}
-                  className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+/** Rend une en-tête de catégorie + ses lignes d'articles. */
+function CategoryGroup({
+  categoryName,
+  items,
+  onSelect,
+}: {
+  categoryName: string;
+  items: Product[];
+  onSelect: (id: string) => void;
+}) {
+  const unit = (p: Product) => p.unit || 'u.';
+  return (
+    <>
+      {/* En-tête catégorie */}
+      <tr className="bg-slate-50/70">
+        <td colSpan={7} className="px-6 py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              {categoryName}
+            </span>
+            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-slate-200 text-slate-600 text-[11px] font-semibold">
+              {items.length}
+            </span>
+          </div>
+        </td>
+      </tr>
+      {/* Lignes articles */}
+      {items.map(product => {
+        const stock = product.current_stock ?? 0;
+        const isRupture = stock <= 0;
+        const isLow = !isRupture && product.is_low_stock;
+        const lineValue = stock * product.cost_price;
+        return (
+          <tr
+            key={product.id}
+            onClick={() => onSelect(product.id)}
+            className="hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            {/* ARTICLE */}
+            <td className="px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                     />
                   </svg>
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    SKU <span className="text-danger-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.sku}
-                    onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                    className="input"
-                    required
-                  />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    Nom <span className="text-danger-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="input"
-                    required
-                  />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-primary-900 truncate">{product.name}</p>
+                    {product.is_multi_price && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-100 text-sky-700">
+                        Multi
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    <span className="uppercase">{product.sku}</span>
+                    {product.batches_count != null && (
+                      <span className="text-slate-400"> · {product.batches_count} lots</span>
+                    )}
+                  </p>
                 </div>
               </div>
-
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-2 block">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  rows={2}
-                  className="input resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">Categorie</label>
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    className="input"
-                    list="categories-list"
-                  />
-                  <datalist id="categories-list">
-                    {categories.map(cat => (
-                      <option key={cat} value={cat} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">Unite</label>
-                  <select
-                    value={formData.unit}
-                    onChange={e => setFormData({ ...formData, unit: e.target.value })}
-                    className="input"
-                  >
-                    <option value="piece">Piece</option>
-                    <option value="kg">Kilogramme</option>
-                    <option value="litre">Litre</option>
-                    <option value="metre">Metre</option>
-                    <option value="lot">Lot</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    Prix Achat (FCFA) <span className="text-danger-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={formData.cost_price}
-                    onChange={e => setFormData({ ...formData, cost_price: e.target.value })}
-                    className="input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    Prix Vente (FCFA) <span className="text-danger-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={formData.sell_price}
-                    onChange={e => setFormData({ ...formData, sell_price: e.target.value })}
-                    className="input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">
-                    Seuil alerte
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.alert_threshold}
-                    onChange={e => setFormData({ ...formData, alert_threshold: e.target.value })}
-                    className="input"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={handleCloseModal} className="btn-secondary flex-1">
-                  Annuler
-                </button>
-                <button type="submit" className="btn-primary flex-1">
-                  {editProduct ? 'Mettre a jour' : 'Creer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+            </td>
+            {/* CATÉGORIE */}
+            <td className="px-6 py-4 text-sm text-slate-600">
+              {product.category || product.family || '—'}
+            </td>
+            {/* STOCK */}
+            <td className="px-6 py-4 text-right">
+              {isRupture ? (
+                <span className="text-sm font-semibold text-danger-600">Rupture</span>
+              ) : (
+                <span
+                  className={`text-sm font-semibold ${isLow ? 'text-warning-600' : 'text-primary-900'}`}
+                >
+                  {stock} {unit(product)}
+                </span>
+              )}
+            </td>
+            {/* SEUIL */}
+            <td
+              className={`px-6 py-4 text-right text-sm ${
+                isRupture || isLow ? 'text-warning-600 font-medium' : 'text-slate-400'
+              }`}
+            >
+              {product.alert_threshold}
+            </td>
+            {/* PRIX REVIENT */}
+            <td className="px-6 py-4 text-sm text-slate-600 text-right">
+              {formatF(product.cost_price)}
+            </td>
+            {/* P. VENTE */}
+            <td className="px-6 py-4 text-right">
+              {product.is_multi_price ? (
+                <span className="text-sm font-medium text-primary-900">
+                  {formatF(product.price_min || 0)} – {formatF(product.price_max || 0)}
+                </span>
+              ) : (
+                <span className="text-sm font-medium text-primary-900">
+                  {formatF(product.sell_price)}
+                </span>
+              )}
+            </td>
+            {/* VALEUR STOCK */}
+            <td className="px-6 py-4 text-right text-sm font-semibold text-primary-900">
+              {formatF(lineValue)}
+            </td>
+          </tr>
+        );
+      })}
+    </>
   );
 }

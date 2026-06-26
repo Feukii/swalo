@@ -14,6 +14,7 @@ import { NotificationDispatcherService } from './notification-dispatcher.service
 import { DebtNotificationsService } from './debt-notifications.service';
 import { SellerTasksService } from './seller-tasks.service';
 import { SellerTasksController } from './seller-tasks.controller';
+import { ShopReminderSettingsController } from './shop-reminder-settings.controller';
 import { SMS_ADAPTER, WHATSAPP_ADAPTER } from './adapters/notification-channel.adapter';
 import { LoggingSmsAdapter } from './adapters/logging-sms.adapter';
 import { LoggingWhatsappAdapter } from './adapters/logging-whatsapp.adapter';
@@ -52,7 +53,7 @@ import { LoggingWhatsappAdapter } from './adapters/logging-whatsapp.adapter';
       }),
     }),
   ],
-  controllers: [NotificationsController, SellerTasksController],
+  controllers: [NotificationsController, SellerTasksController, ShopReminderSettingsController],
   providers: [
     NotificationsService,
     NotificationsScheduler,
