@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatMoney } from '../utils/money';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
@@ -694,27 +693,75 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ScreenHeader title="Bilans & Rapports" showBack onBack={() => navigation.goBack()} />
+      <View style={styles.container}>
+        <ScreenHeader
+          title="Rapports"
+          subtitle="Activité & performance"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
           <Text style={styles.loadingText}>Chargement des données...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScreenHeader title="Bilans & Rapports" showBack onBack={() => navigation.goBack()} />
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Rapports"
+        subtitle="Activité & performance"
+        showBack
+        onBack={() => navigation.goBack()}
+      />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Sync Freshness Badge */}
-        <View style={styles.freshnessBadge}>
-          <View
-            style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
-          />
-          <Text style={styles.freshnessText}>{freshness.label}</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HERO MARINE — Chiffre d'affaires de la période */}
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>Chiffre d&apos;affaires</Text>
+            <View style={styles.heroFreshness}>
+              <View
+                style={[styles.freshnessDot, { backgroundColor: freshnessColors[freshness.level] }]}
+              />
+              <Text style={styles.heroFreshnessText}>{freshness.label}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroAmount}>{formatMoney(salesStats?.totalSales ?? 0)}</Text>
+          <Text style={styles.heroPeriod}>{getPeriodLabel()}</Text>
+
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Achats</Text>
+              <Text style={styles.heroStatValue}>
+                {formatMoney(salesStats?.totalPurchases ?? 0)}
+              </Text>
+            </View>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Entrées</Text>
+              <Text style={[styles.heroStatValue, styles.heroStatPositive]}>
+                {formatMoney(salesStats?.totalEntries ?? 0)}
+              </Text>
+            </View>
+            <View style={styles.heroStatCol}>
+              <Text style={styles.heroStatLabel}>Net période</Text>
+              <Text
+                style={[
+                  styles.heroStatValue,
+                  (salesStats?.net ?? 0) >= 0 ? styles.heroStatPositive : styles.heroStatNegative,
+                ]}
+              >
+                {formatMoney(salesStats?.net ?? 0)}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Date Range Picker */}
@@ -733,40 +780,32 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
           />
         </View>
 
-        {/* Period Selector */}
+        {/* Period Selector (chips) */}
         <View style={styles.periodSelector}>
-          {(['today', 'week', 'month', 'year'] as Period[]).map(period => (
-            <TouchableOpacity
-              key={period}
-              style={[
-                styles.periodButton,
-                selectedPeriod === period && !startDate && !endDate && styles.periodButtonActive,
-              ]}
-              onPress={() => {
-                setSelectedPeriod(period);
-                setStartDate(null);
-                setEndDate(null);
-              }}
-            >
-              <Text
-                style={[
-                  styles.periodButtonText,
-                  selectedPeriod === period &&
-                    !startDate &&
-                    !endDate &&
-                    styles.periodButtonTextActive,
-                ]}
+          {(['today', 'week', 'month', 'year'] as Period[]).map(period => {
+            const isActive = selectedPeriod === period && !startDate && !endDate;
+            return (
+              <TouchableOpacity
+                key={period}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => {
+                  setSelectedPeriod(period);
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
               >
-                {period === 'today'
-                  ? 'Jour'
-                  : period === 'week'
-                    ? 'Semaine'
-                    : period === 'month'
-                      ? 'Mois'
-                      : 'Année'}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                  {period === 'today'
+                    ? 'Jour'
+                    : period === 'week'
+                      ? 'Semaine'
+                      : period === 'month'
+                        ? 'Mois'
+                        : 'Année'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* SECTION 1: ENTRÉES */}
@@ -784,10 +823,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
           {entriesExpanded && salesStats && (
             <>
-              {/* Entrées totales */}
-              <View style={[styles.kpiBox, styles.kpiBoxSuccess]}>
+              {/* Entrées totales — KPI */}
+              <View style={styles.kpiBox}>
                 <Text style={styles.kpiLabel}>Entrées Totales</Text>
-                <Text style={styles.kpiValue}>{formatMoney(salesStats.totalEntries)}</Text>
+                <Text style={[styles.kpiValue, styles.kpiValuePositive]}>
+                  {formatMoney(salesStats.totalEntries)}
+                </Text>
                 <Text style={styles.kpiSubtext}>{salesStats.entriesCount} opération(s)</Text>
               </View>
 
@@ -869,10 +910,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
           {exitsExpanded && salesStats && (
             <>
-              {/* Sorties totales */}
-              <View style={[styles.kpiBox, styles.kpiBoxDanger]}>
+              {/* Sorties totales — KPI */}
+              <View style={styles.kpiBox}>
                 <Text style={styles.kpiLabel}>Sorties Totales</Text>
-                <Text style={styles.kpiValue}>{formatMoney(salesStats.totalExits)}</Text>
+                <Text style={[styles.kpiValue, styles.kpiValueNegative]}>
+                  {formatMoney(salesStats.totalExits)}
+                </Text>
                 <Text style={styles.kpiSubtext}>{salesStats.exitsCount} opération(s)</Text>
               </View>
 
@@ -1237,7 +1280,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1258,55 +1301,112 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
     fontWeight: '500',
   },
-  content: {
+  scroll: {
     flex: 1,
-    padding: Spacing.lg,
   },
-  freshnessBadge: {
+  content: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
+  },
+  // HERO MARINE
+  hero: {
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  heroLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  heroFreshness: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
-    marginBottom: Spacing.sm,
+  },
+  heroFreshnessText: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.sm,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroPeriod: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.xl,
+  },
+  heroStatCol: {
+    flex: 1,
+    gap: 4,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
+  },
+  heroStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.onMarine,
+    fontVariant: ['tabular-nums'],
+  },
+  heroStatPositive: {
+    color: Colors.success.main,
+  },
+  heroStatNegative: {
+    color: Colors.danger.main,
   },
   freshnessDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  freshnessText: {
-    fontSize: 11,
-    color: Colors.muted.foreground,
-  },
   datePickerContainer: {
     marginBottom: Spacing.md,
   },
+  // CHIPS PÉRIODE
   periodSelector: {
     flexDirection: 'row',
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
-  periodButton: {
+  chip: {
     flex: 1,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
     alignItems: 'center',
   },
-  periodButtonActive: {
+  chipActive: {
     backgroundColor: Colors.action,
     borderColor: Colors.action,
   },
-  periodButtonText: {
+  chipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textColors.secondary,
   },
-  periodButtonTextActive: {
-    color: Colors.surface,
+  chipTextActive: {
+    color: Colors.onMarine,
   },
   sectionCard: {
     backgroundColor: Colors.surface,
@@ -1339,35 +1439,35 @@ const styles = StyleSheet.create({
   },
   kpiBox: {
     padding: Spacing.lg,
-    borderRadius: 14,
+    borderRadius: 16,
     marginBottom: Spacing.md,
     alignItems: 'center',
-  },
-  kpiBoxPrimary: {
-    backgroundColor: Colors.action,
-  },
-  kpiBoxSuccess: {
-    backgroundColor: Colors.success.main,
-  },
-  kpiBoxDanger: {
-    backgroundColor: Colors.danger.main,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   kpiLabel: {
-    fontSize: 14,
-    color: Colors.primary.foreground,
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
     marginBottom: Spacing.sm,
-    opacity: 0.9,
+    fontWeight: '500',
   },
   kpiValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.primary.foreground,
+    color: Colors.text,
     marginBottom: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+  },
+  kpiValuePositive: {
+    color: Colors.success.main,
+  },
+  kpiValueNegative: {
+    color: Colors.danger.main,
   },
   kpiSubtext: {
     fontSize: 12,
-    color: Colors.primary.foreground,
-    opacity: 0.8,
+    color: Colors.textColors.tertiary,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1377,34 +1477,35 @@ const styles = StyleSheet.create({
   statBox: {
     flex: 1,
     padding: Spacing.lg,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
   },
   statBoxGreen: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: Colors.success.background,
   },
   statBoxRed: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: Colors.danger.background,
   },
   statBoxOrange: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: Colors.warning.background,
   },
   salesSummaryBox: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     padding: Spacing.lg,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: Spacing.md,
     alignItems: 'center',
   },
   salesSummaryLabel: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
     marginBottom: Spacing.xs,
   },
   salesSummaryValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: Colors.text,
+    color: Colors.primary[900],
+    fontVariant: ['tabular-nums'],
   },
   modeBreakdownRow: {
     flexDirection: 'row',
@@ -1413,69 +1514,36 @@ const styles = StyleSheet.create({
   },
   modeBreakdownItem: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceAlt,
     padding: Spacing.md,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
   },
   modeBreakdownLabel: {
     fontSize: 12,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
     marginBottom: Spacing.xs,
   },
   modeBreakdownValue: {
     fontSize: 18,
     fontWeight: '700',
   },
-  statIcon: {
-    fontSize: 24,
-    marginBottom: Spacing.sm,
-  },
   statLabel: {
     fontSize: 13,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.secondary,
     marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
   statValue: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.xs,
+    fontVariant: ['tabular-nums'],
   },
   statCount: {
     fontSize: 11,
-    color: Colors.muted.foreground,
-  },
-  netBox: {
-    padding: Spacing.lg,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  netBoxPositive: {
-    backgroundColor: '#dcfce7',
-  },
-  netBoxNegative: {
-    backgroundColor: '#fee2e2',
-  },
-  netLabel: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
-    marginBottom: Spacing.sm,
-  },
-  netValue: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  netValuePositive: {
-    color: Colors.success.main,
-  },
-  netValueNegative: {
-    color: Colors.danger.main,
-  },
-  netHint: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-    marginTop: Spacing.sm,
+    color: Colors.textColors.tertiary,
     textAlign: 'center',
   },
   topSection: {
@@ -1495,10 +1563,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   topRank: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.action,
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -1506,30 +1574,27 @@ const styles = StyleSheet.create({
   topRankText: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.surface,
+    color: Colors.action,
   },
   topName: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: Colors.text,
   },
   topAmount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
+    fontVariant: ['tabular-nums'],
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing['2xl'],
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: Spacing.md,
-  },
   emptyText: {
     fontSize: 14,
-    color: Colors.muted.foreground,
+    color: Colors.textColors.tertiary,
   },
   summaryCard: {
     borderWidth: 1,

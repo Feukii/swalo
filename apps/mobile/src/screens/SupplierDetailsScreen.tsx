@@ -10,17 +10,19 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { DollarSign, Receipt, Edit, Trash, Plus } from '../components/icons/SimpleIcons';
 import {
-  ScreenHeader,
-  ListItem,
-  StatusBadge,
-  TransactionDetailModal,
-  IconButton,
-} from '../components/ui';
-import { BalanceIndicator } from '../components/ui/BalanceIndicator';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+  DollarSign,
+  Receipt,
+  Edit,
+  Trash,
+  Plus,
+  Smartphone,
+  FileText,
+  Building,
+  CreditCard,
+} from '../components/icons/SimpleIcons';
+import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
@@ -68,6 +70,24 @@ interface SelectedTransaction {
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
+}
+
+// Initiales (max 2 lettres) pour l'avatar de la carte hero
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+// Sépare le montant (ex: "3 500 F") en valeur + suffixe "F" pour styliser le F en sky
+function splitMoney(amount: number): { value: string; unit: string } {
+  const formatted = formatMoney(amount);
+  const idx = formatted.lastIndexOf(' F');
+  if (idx === -1) {
+    return { value: formatted, unit: '' };
+  }
+  return { value: formatted.slice(0, idx), unit: 'F' };
 }
 
 interface DebtWithPayments {
@@ -697,11 +717,11 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -709,10 +729,20 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     return null;
   }
 
+  const supplierName = getPersonName(supplier);
+  const currentDebt = supplier.stats?.total_balance ?? 0;
+  const debtDisplay = splitMoney(Math.abs(currentDebt));
+  const hasLimit = !!(supplier.borrowing_limit && supplier.borrowing_limit > 0);
+  const limitPct = hasLimit
+    ? Math.min(100, Math.round((Math.max(0, currentDebt) / supplier.borrowing_limit) * 100))
+    : 0;
+  const limitBarColor = limitPct >= 80 ? Colors.danger.main : Colors.success.main;
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <ScreenHeader
-        title={getPersonName(supplier)}
+        title={supplierName}
+        subtitle="Dettes & règlements"
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
@@ -727,91 +757,98 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                 </IconButton>
               </>
             )}
-            <StatusBadge
-              text={supplier.is_active ? 'Actif' : 'Inactif'}
-              variant={supplier.is_active ? 'success' : 'danger'}
-            />
           </View>
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Contact Info */}
-        {!!(
-          supplier.phone ||
-          supplier.email ||
-          supplier.address ||
-          (supplier.borrowing_limit && supplier.borrowing_limit > 0)
-        ) && (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HERO MARINE — Dette en cours */}
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{getInitials(supplierName)}</Text>
+            </View>
+            <View style={styles.heroIdentity}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {supplierName}
+              </Text>
+              <StatusBadge
+                text={supplier.is_active ? 'Actif' : 'Inactif'}
+                variant={supplier.is_active ? 'success' : 'danger'}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.heroLabel}>
+            {currentDebt < 0 ? 'Vous devez recevoir' : 'Dette en cours'}
+          </Text>
+          <Text style={styles.heroAmount}>
+            {debtDisplay.value}
+            {debtDisplay.unit ? (
+              <Text style={styles.heroAmountUnit}> {debtDisplay.unit}</Text>
+            ) : null}
+          </Text>
+
+          {hasLimit && (
+            <View style={styles.heroLimitBlock}>
+              <View style={styles.heroLimitTrack}>
+                <View
+                  style={[
+                    styles.heroLimitFill,
+                    { width: `${limitPct}%`, backgroundColor: limitBarColor },
+                  ]}
+                />
+              </View>
+              <Text style={styles.heroLimitText}>
+                Limite d&apos;endettement · {formatMoney(supplier.borrowing_limit)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Infos fournisseur */}
+        {!!(supplier.phone || supplier.email || supplier.address || hasLimit) && (
           <View style={styles.infoCard}>
-            {supplier.phone && (
-              <Text style={styles.infoText}>
-                <Text>📱 </Text>
-                <Text>{formatCameroonPhone(String(supplier.phone))}</Text>
-              </Text>
+            {!!supplier.phone && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
+                  <Smartphone size={18} color={Colors.action} />
+                </View>
+                <Text style={styles.infoText}>{formatCameroonPhone(String(supplier.phone))}</Text>
+              </View>
             )}
-            {supplier.email && (
-              <Text style={styles.infoText}>
-                <Text>✉️ </Text>
-                <Text>{String(supplier.email)}</Text>
-              </Text>
+            {!!supplier.email && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
+                  <FileText size={18} color={Colors.action} />
+                </View>
+                <Text style={styles.infoText}>{String(supplier.email)}</Text>
+              </View>
             )}
-            {supplier.address && (
-              <Text style={styles.infoText}>
-                <Text>📍 </Text>
-                <Text>{String(supplier.address)}</Text>
-              </Text>
+            {!!supplier.address && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
+                  <Building size={18} color={Colors.action} />
+                </View>
+                <Text style={styles.infoText}>{String(supplier.address)}</Text>
+              </View>
             )}
-            {!!(supplier.borrowing_limit && supplier.borrowing_limit > 0) && (
-              <View>
+            {hasLimit && (
+              <View style={styles.infoRow}>
+                <View style={styles.infoIcon}>
+                  <CreditCard size={18} color={Colors.action} />
+                </View>
                 <Text style={styles.infoText}>
-                  Limite emprunt: {formatMoney(supplier.borrowing_limit)}
+                  Limite d&apos;endettement : {formatMoney(supplier.borrowing_limit)}
                 </Text>
-                {(() => {
-                  const used = supplier.stats?.total_balance ?? 0;
-                  const limit = supplier.borrowing_limit;
-                  const pct = Math.min(100, Math.round((used / limit) * 100));
-                  const barColor = pct >= 90 ? '#dc2626' : pct >= 70 ? '#f59e0b' : '#16a34a';
-                  return (
-                    <View style={{ marginTop: 4 }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, color: Colors.muted.foreground }}>
-                          Utilisé: {formatMoney(used)}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: barColor, fontWeight: '600' }}>
-                          {pct}%
-                        </Text>
-                      </View>
-                      <View style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3 }}>
-                        <View
-                          style={{
-                            height: 6,
-                            backgroundColor: barColor,
-                            borderRadius: 3,
-                            width: `${pct}%`,
-                          }}
-                        />
-                      </View>
-                    </View>
-                  );
-                })()}
               </View>
             )}
           </View>
         )}
-
-        {/* Balance Indicator */}
-        <BalanceIndicator
-          balance={supplier.stats?.total_balance || 0}
-          type="supplier"
-          showAlert={true}
-        />
 
         {/* Action Buttons */}
         {(userRole === 'BOSS' || userRole === 'OWNER' || userRole === 'MANAGER') && (
@@ -825,13 +862,13 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
             </TouchableOpacity>
 
             {/* Show Refund Claim button only when balance is negative (supplier owes us) */}
-            {(supplier.stats?.total_balance || 0) < 0 && (
+            {currentDebt < 0 && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: Colors.danger.main }]}
                 onPress={handleOpenSupplierRefundModal}
               >
                 <DollarSign size={20} color={Colors.primary.foreground} />
-                <Text style={styles.actionButtonText}>Réclamer Remboursement</Text>
+                <Text style={styles.actionButtonText}>Réclamer</Text>
               </TouchableOpacity>
             )}
 
@@ -840,7 +877,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
               onPress={handleOpenPaymentModal}
             >
               <DollarSign size={20} color={Colors.primary.foreground} />
-              <Text style={styles.actionButtonText}>Payer</Text>
+              <Text style={styles.actionButtonText}>Régler</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -848,33 +885,38 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         {/* Transactions History */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Historique des opérations</Text>
+            <Text style={styles.cardTitle}>Dettes & règlements</Text>
           </View>
           <View>
             {getAllTransactions().length === 0 ? (
-              <View style={{ padding: Spacing.lg }}>
-                <Text style={{ color: Colors.muted.foreground, textAlign: 'center' }}>
-                  Aucune transaction
-                </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Aucune opération</Text>
               </View>
             ) : (
               getAllTransactions().map((transaction, index) => {
                 // Detect if this is a refund claim (negative debt)
                 const isRefund = transaction.type === 'debt' && transaction.amount < 0;
                 const isCredit = transaction.type === 'debt' && !isRefund;
+                const isLast = index === getAllTransactions().length - 1;
 
                 const getIcon = () => {
                   if (isRefund) {
-                    return <DollarSign size={20} color={Colors.danger.main} />;
+                    return <DollarSign size={18} color={Colors.danger.main} />;
                   }
                   switch (transaction.type) {
                     case 'debt':
-                      return <Receipt size={20} color={Colors.action} />;
+                      return <Receipt size={18} color={Colors.warning.main} />;
                     case 'payment':
-                      return <DollarSign size={20} color={Colors.action} />;
+                      return <DollarSign size={18} color={Colors.success.main} />;
                     default:
-                      return <Receipt size={20} color={Colors.action} />;
+                      return <DollarSign size={18} color={Colors.success.main} />;
                   }
+                };
+
+                const getIconBg = () => {
+                  if (isRefund) return Colors.danger.background;
+                  if (transaction.type === 'debt') return Colors.warning.background;
+                  return Colors.success.background;
                 };
 
                 const getTitle = () => {
@@ -891,37 +933,38 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                   }
                 };
 
-                const getBadge = () => {
+                const getBadge = ():
+                  | { text: string; variant: 'success' | 'warning' | 'default' | 'danger' }
+                  | undefined => {
                   // Show "Remboursement" badge for refunds
                   if (isRefund) {
-                    return { text: 'Remboursement', variant: 'danger' as const };
+                    return { text: 'Remboursement', variant: 'danger' };
                   }
                   if (!transaction.status) return undefined;
                   const statusMap: Record<
                     string,
                     { text: string; variant: 'success' | 'warning' | 'default' | 'danger' }
                   > = {
-                    PAID: { text: 'Payé', variant: 'success' as const },
-                    PARTIAL: { text: 'Partiel', variant: 'warning' as const },
-                    PENDING: { text: 'En attente', variant: 'default' as const },
+                    PAID: { text: 'Payé', variant: 'success' },
+                    PARTIAL: { text: 'Partiel', variant: 'warning' },
+                    PENDING: { text: 'Dû', variant: 'default' },
                   };
                   return statusMap[transaction.status] || undefined;
                 };
 
                 const dateStr = transaction.date ? formatDate(transaction.date) : 'Date inconnue';
+                const badge = getBadge();
+                const amountColor = isCredit
+                  ? Colors.danger.main
+                  : transaction.amount > 0
+                    ? Colors.danger.main
+                    : Colors.success.main;
 
                 return (
-                  <ListItem
+                  <TouchableOpacity
                     key={index}
-                    icon={getIcon()}
-                    title={getTitle()}
-                    subtitle={dateStr}
-                    amount={`${transaction.amount > 0 ? '+' : ''}${formatMoney(Math.abs(transaction.amount))}`}
-                    amountColor={
-                      isCredit ? 'warning' : transaction.amount > 0 ? 'success' : 'danger'
-                    }
-                    badge={getBadge()}
-                    onClick={() => {
+                    style={[styles.txRow, !isLast && styles.txRowBordered]}
+                    onPress={() => {
                       setSelectedTransaction({
                         type: transaction.type,
                         date: transaction.date,
@@ -934,7 +977,26 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                       });
                       setShowDetailModal(true);
                     }}
-                  />
+                  >
+                    <View style={[styles.txIcon, { backgroundColor: getIconBg() }]}>
+                      {getIcon()}
+                    </View>
+                    <View style={styles.txBody}>
+                      <Text style={styles.txTitle} numberOfLines={1}>
+                        {getTitle()}
+                      </Text>
+                      <Text style={styles.txSubtitle} numberOfLines={1}>
+                        {dateStr}
+                      </Text>
+                    </View>
+                    <View style={styles.txTrailing}>
+                      <Text style={[styles.txAmount, { color: amountColor }]}>
+                        {transaction.amount > 0 ? '+' : '-'}
+                        {formatMoney(Math.abs(transaction.amount))}
+                      </Text>
+                      {badge && <StatusBadge text={badge.text} variant={badge.variant} />}
+                    </View>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -951,6 +1013,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1023,6 +1086,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1100,6 +1164,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1192,6 +1257,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         <View style={styles.modalOverlay}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
             <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View>
@@ -1311,6 +1377,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1401,7 +1468,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         onClose={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1410,341 +1477,238 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-    marginTop: Spacing.md,
-  },
-  actionButton: {
+  scroll: {
     flex: 1,
-    paddingVertical: Spacing.xl,
+  },
+  content: {
+    paddingTop: Spacing.lg,
     paddingHorizontal: Spacing.lg,
-    borderRadius: 14,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    minHeight: 56,
-  },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: Spacing.lg,
-    ...Shadows.sm,
-  },
-  cardHeader: {
-    padding: Spacing.lg,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
+    paddingBottom: Spacing['3xl'],
+    gap: Spacing.lg,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerLeft: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: Spacing.xs,
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  // HERO MARINE
+  hero: {
+    backgroundColor: Colors.primary[900],
     borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    padding: Spacing.xl,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: Colors.primary[700],
     justifyContent: 'center',
-    marginRight: 12,
+    alignItems: 'center',
   },
-  backText: {
-    fontSize: 24,
-    color: '#374151',
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.onMarine,
   },
-  headerTitle: {
+  heroIdentity: {
+    flex: 1,
+    gap: Spacing.xs,
+    alignItems: 'flex-start',
+  },
+  heroName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: '700',
+    color: Colors.onMarine,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerButtonText: {
-    fontSize: 20,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#dcfce7',
-  },
-  statusBadgeInactive: {
-    backgroundColor: '#fee2e2',
-  },
-  statusText: {
-    fontSize: 12,
+  heroLabel: {
+    fontSize: 13,
     fontWeight: '600',
+    color: Colors.action,
   },
-  statusTextActive: {
-    color: '#16a34a',
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: Spacing.xs,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
   },
-  statusTextInactive: {
-    color: '#dc2626',
+  heroAmountUnit: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.action,
   },
-  content: {
-    flex: 1,
-    padding: Spacing.lg,
+  heroLimitBlock: {
+    marginTop: Spacing.lg,
+    gap: Spacing.sm,
   },
+  heroLimitTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    overflow: 'hidden',
+  },
+  heroLimitFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  heroLimitText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  // INFOS
   infoCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    gap: Spacing.md,
     ...Shadows.sm,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.info.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   infoText: {
+    flex: 1,
     fontSize: 14,
     color: Colors.text,
-    marginBottom: Spacing.sm,
     lineHeight: 20,
   },
-  actionsContainer: {
+  // ACTION BUTTONS
+  actionButtons: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
+    gap: Spacing.md,
   },
-  actionGradient: {
-    padding: 20,
+  actionButton: {
+    flex: 1,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 14,
     alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    fontSize: 32,
-  },
-  actionText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  actionSubtext: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  balanceCard: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  balanceCardDebt: {
-    backgroundColor: '#dc2626',
-  },
-  balanceCardPaid: {
-    backgroundColor: '#10b981',
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceValue: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDetails: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    minHeight: 48,
   },
-  balanceDetailItem: {
-    alignItems: 'center',
+  actionButtonText: {
+    color: Colors.primary.foreground,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  balanceDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  balanceDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  historyCard: {
-    backgroundColor: '#fff',
+  // CARD
+  card: {
+    backgroundColor: Colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
+  cardHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
-  transactionsList: {
-    gap: 12,
-  },
-  transactionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
   },
   emptyState: {
+    padding: Spacing['2xl'],
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
   },
   emptyText: {
+    color: Colors.textColors.tertiary,
     fontSize: 14,
-    color: '#6b7280',
   },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  transactionLeft: {
-    flex: 1,
-  },
-  transactionHeader: {
+  // TX ROWS
+  txRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
   },
-  transactionType: {
-    fontSize: 14,
+  txRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  txBody: {
+    flex: 1,
+    gap: 2,
+  },
+  txTitle: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors.text,
   },
-  statusBadgeSmall: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+  txSubtitle: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
   },
-  statusBadgeSuccess: {
-    backgroundColor: '#dcfce7',
+  txTrailing: {
+    alignItems: 'flex-end',
+    gap: Spacing.xs,
   },
-  statusBadgeWarning: {
-    backgroundColor: '#fef3c7',
+  txAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  statusBadgePending: {
-    backgroundColor: '#dbeafe',
-  },
-  statusBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginBottom: 2,
-  },
-  transactionNote: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 12,
-  },
-  transactionAmountPositive: {
-    color: '#dc2626',
-  },
-  transactionAmountNegative: {
-    color: '#16a34a',
-  },
+  // MODALS
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
+    maxHeight: '85%',
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.muted.main,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.lg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -1772,21 +1736,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   modalBody: {
-    padding: 20,
+    padding: Spacing.xl,
   },
   formGroup: {
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.textColors.secondary,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: BorderRadius.sm,
     padding: 12,
     fontSize: 14,
     color: Colors.text,
@@ -1796,27 +1760,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    backgroundColor: Colors.surfaceAlt,
+    borderColor: Colors.action,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.info.background,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.text,
     paddingVertical: 12,
   },
   amountCurrency: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textColors.tertiary,
+    color: Colors.action,
   },
   noteInput: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: BorderRadius.sm,
     padding: 12,
     fontSize: 14,
     color: Colors.text,
@@ -1826,14 +1790,14 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
   },
   modalCancelButton: {
     flex: 1,
     backgroundColor: Colors.muted.main,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
@@ -1847,7 +1811,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.action,
     borderRadius: 12,
-    padding: 16,
+    padding: Spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
@@ -1855,138 +1819,6 @@ const styles = StyleSheet.create({
   modalSubmitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-  },
-  // New balance display styles
-  balanceDisplayButton: {
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  balanceDisplayGradient: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  balanceDisplayLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  balanceDisplayAmount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  balanceDisplayDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  balanceDisplayDetailItem: {
-    alignItems: 'center',
-  },
-  balanceDisplayDetailLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  balanceDisplayDetailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  balanceDisplayDetailSeparator: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  // New action buttons row styles
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionButtonHalf: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionGradientHalf: {
-    padding: 20,
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 120,
-    justifyContent: 'center',
-  },
-  actionIconLarge: {
-    fontSize: 36,
-    marginBottom: 4,
-  },
-  actionTextMedium: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  actionSubtextSmall: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
-    textAlign: 'center',
-  },
-  overpaymentWarning: {
-    backgroundColor: Colors.warning.main + '20',
-    borderWidth: 1,
-    borderColor: Colors.warning.main,
-    borderRadius: 12,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  overpaymentWarningText: {
-    color: Colors.warning.main,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  paymentMethodContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  paymentMethodButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.muted.foreground,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentMethodButtonActive: {
-    backgroundColor: Colors.action,
-    borderColor: Colors.action,
-  },
-  paymentMethodButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.muted.foreground,
-  },
-  paymentMethodButtonTextActive: {
     color: Colors.primary.foreground,
   },
 });

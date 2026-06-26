@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Plus, Smartphone, Lock } from '../components/icons/SimpleIcons';
+import { ScreenHeader, IconButton } from '../components/ui';
 import { pinInvitesApi, adminApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../utils/date';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
@@ -89,6 +91,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   const [displayName, setDisplayName] = useState('');
   const [selectedRole, setSelectedRole] = useState('EMPLOYEE');
   const [isCreating, setIsCreating] = useState(false);
+  const [isNameFocused, setIsNameFocused] = useState(false);
 
   const roles = [
     { value: 'EMPLOYEE', label: 'Employé' },
@@ -293,22 +296,18 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Administration</Text>
-          <Text style={styles.headerSubtitle}>Gestion de la boutique</Text>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={() => setShowCreateModal(true)} style={styles.addButton}>
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScreenHeader
+        title="Administration"
+        subtitle="Boutique"
+        showBack={true}
+        onBack={() => navigation.goBack()}
+        rightAction={
+          <IconButton onPress={() => setShowCreateModal(true)}>
+            <Plus size={22} color={Colors.action} />
+          </IconButton>
+        }
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
@@ -340,7 +339,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               <Text style={styles.sectionTitle}>Codes PIN d'invitation</Text>
               {pinInvites.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyIcon}>🔑</Text>
+                  <Lock size={40} color={Colors.muted.foreground} />
                   <Text style={styles.emptyText}>Aucun code PIN créé</Text>
                 </View>
               ) : (
@@ -380,7 +379,7 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
               <Text style={styles.sectionTitle}>Appareils connectés</Text>
               {devices.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyIcon}>📱</Text>
+                  <Smartphone size={40} color={Colors.muted.foreground} />
                   <Text style={styles.emptyText}>Aucun appareil connecté</Text>
                 </View>
               ) : (
@@ -414,15 +413,16 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
         )}
       </ScrollView>
 
-      {/* Create PIN Modal */}
+      {/* Create PIN Modal — bottom sheet */}
       <Modal
         visible={showCreateModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowCreateModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>Créer un code PIN</Text>
 
             <View style={styles.formGroup}>
@@ -430,9 +430,11 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
                 Nom d'affichage <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, isNameFocused && styles.inputFocused]}
                 value={displayName}
                 onChangeText={setDisplayName}
+                onFocus={() => setIsNameFocused(true)}
+                onBlur={() => setIsNameFocused(false)}
                 placeholder="Ex: Jean Dupont"
                 placeholderTextColor={Colors.textColors.disabled}
               />
@@ -499,55 +501,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textColors.tertiary,
-    marginTop: 2,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.action,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 28,
-    color: Colors.onMarine,
-    lineHeight: 32,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primary[50],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backText: {
-    fontSize: 24,
-    color: Colors.action,
-  },
   content: {
     flex: 1,
     padding: Spacing.lg,
@@ -597,10 +550,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing['3xl'],
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: Spacing.md,
+    gap: Spacing.md,
   },
   emptyText: {
     fontSize: 14,
@@ -646,14 +596,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning.background,
   },
   badgeOwner: {
-    backgroundColor: Colors.success.background,
+    backgroundColor: Colors.danger.background,
   },
   badgeUsed: {
     backgroundColor: Colors.muted.main,
   },
   badgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.textColors.secondary,
   },
   revokeButton: {
@@ -667,21 +617,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.danger.main,
   },
-  // Modal styles
+  // Modal styles — bottom sheet
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing['2xl'],
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['3xl'],
+    ...Shadows.lg,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.xl,
@@ -706,6 +666,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     fontSize: 16,
     color: Colors.text,
+  },
+  inputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   roleButtons: {
     flexDirection: 'row',

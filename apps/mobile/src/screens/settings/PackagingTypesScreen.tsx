@@ -62,6 +62,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [focusedField, setFocusedField] = useState<keyof FormData | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -111,6 +112,7 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
     setShowModal(false);
     setEditingItem(null);
     setFormData(INITIAL_FORM);
+    setFocusedField(null);
   };
 
   const handleSave = async () => {
@@ -333,13 +335,14 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
         }
       />
 
-      {/* Modal Formulaire */}
-      <Modal visible={showModal} transparent animationType="fade" onRequestClose={closeModal}>
+      {/* Modal Formulaire (bottom-sheet) */}
+      <Modal visible={showModal} transparent animationType="slide" onRequestClose={closeModal}>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalContent}>
+            <View style={styles.sheetHandle} />
             <Text style={styles.modalTitle}>
               {editingItem ? 'Modifier le conditionnement' : 'Nouveau conditionnement'}
             </Text>
@@ -349,9 +352,11 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
                 Nom <Text style={styles.formRequired}>*</Text>
               </Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, focusedField === 'name' && styles.formInputFocused]}
                 value={formData.name}
                 onChangeText={text => setFormData(prev => ({ ...prev, name: text }))}
+                onFocus={() => setFocusedField('name')}
+                onBlur={() => setFocusedField(null)}
                 placeholder="Ex : Carton, Boite, Unite..."
                 placeholderTextColor={Colors.muted.foreground}
                 autoFocus={true}
@@ -362,9 +367,11 @@ export default function PackagingTypesScreen({ navigation }: PackagingTypesScree
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Symbole</Text>
               <TextInput
-                style={styles.formInput}
+                style={[styles.formInput, focusedField === 'symbol' && styles.formInputFocused]}
                 value={formData.symbol}
                 onChangeText={text => setFormData(prev => ({ ...prev, symbol: text }))}
+                onFocus={() => setFocusedField('symbol')}
+                onBlur={() => setFocusedField(null)}
                 placeholder="Ex : ctn, bte, u..."
                 placeholderTextColor={Colors.muted.foreground}
                 maxLength={10}
@@ -423,11 +430,15 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   listHeader: {
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   listHeaderText: {
-    fontSize: 14,
-    color: Colors.muted.foreground,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   headerAddButton: {
     flexDirection: 'row',
@@ -453,7 +464,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: Colors.primary[50],
+    backgroundColor: `${Colors.action}1A`,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -501,7 +512,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: Colors.primary[50],
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -540,19 +551,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary.foreground,
   },
-  // Modal
+  // Modal (bottom-sheet)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: '90%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: Spacing['2xl'],
-    ...Shadows.sm,
+    paddingBottom: Spacing['3xl'],
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.muted.main,
+    marginBottom: Spacing.lg,
   },
   modalTitle: {
     fontSize: 20,
@@ -581,6 +599,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     fontSize: 16,
     color: Colors.text,
+  },
+  formInputFocused: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.surface,
   },
   formHint: {
     fontSize: 12,

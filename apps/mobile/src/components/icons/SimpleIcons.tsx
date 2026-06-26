@@ -263,6 +263,38 @@ export const ArrowLeft = ({ size = 24, color = Colors.text }: IconProps) => (
   </Svg>
 );
 
+export const ArrowDown = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="12" y1="5" x2="12" y2="19" />
+    <Path d="m19 12-7 7-7-7" />
+  </Svg>
+);
+
+export const ArrowUp = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Line x1="12" y1="19" x2="12" y2="5" />
+    <Path d="m5 12 7-7 7 7" />
+  </Svg>
+);
+
 export const DollarSign = ({ size = 24, color = Colors.text }: IconProps) => (
   <Svg
     width={size}
@@ -824,5 +856,37 @@ export const CloudOff = ({ size = 24, color = Colors.text }: IconProps) => (
     <Path d="M17.5 21H9a7 7 0 0 1-6.16-3.65" />
     <Path d="M5.26 11.26A7 7 0 0 1 9 7h.35" />
     <Path d="M17.46 17.46A5 5 0 0 0 22 13c0-2.76-2.24-5-5-5h-1.05A7 7 0 0 0 12 4.28" />
+  </Svg>
+);
+
+export const Mail = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Rect x="2" y="4" width="20" height="16" rx="2" />
+    <Path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </Svg>
+);
+
+export const MapPin = ({ size = 24, color = Colors.text }: IconProps) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+    <Circle cx="12" cy="10" r="3" />
   </Svg>
 );
