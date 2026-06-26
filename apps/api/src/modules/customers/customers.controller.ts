@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { Role } from '@prisma/client';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -87,6 +88,7 @@ export class CustomersController {
    */
   @Post(':id/refund')
   @Roles(Role.BOSS, Role.MANAGER, Role.EMPLOYEE)
+  @RequireCapability('receivables', 'refund')
   async createRefund(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -122,6 +124,7 @@ export class CustomersController {
    * Supprimer un client
    */
   @Delete(':id')
+  @RequireCapability('customers', 'delete')
   async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.customersService.delete(req.user.shopId, id);
   }

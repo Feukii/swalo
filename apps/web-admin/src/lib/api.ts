@@ -1,4 +1,20 @@
 import axios, { type AxiosError } from 'axios';
+import type {
+  PermissionMatrix,
+  PermissionModule,
+  Capability,
+  Role as PermissionRole,
+} from '@swalo/core/modules/permissions';
+
+/** Réponse des endpoints de configuration de permissions (boutique / entreprise). */
+export interface PermissionConfigResponse {
+  modules: readonly PermissionModule[];
+  capabilities: Record<PermissionModule, Capability[]>;
+  roles: PermissionRole[];
+  labels: Record<Capability, string>;
+  defaults: Record<PermissionRole, Record<PermissionModule, Capability[]>>;
+  current: PermissionMatrix | null;
+}
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -403,6 +419,43 @@ export const adminApi = {
   getEnterpriseReports: async (enterpriseId: string): Promise<AdminEnterpriseReports> => {
     const response = await api.get<AdminEnterpriseReports>(
       `/admin/enterprises/${enterpriseId}/reports`
+    );
+    return response.data;
+  },
+
+  // ---- Fine-grained permissions ----
+  getShopPermissions: async (shopId: string): Promise<PermissionConfigResponse> => {
+    const response = await api.get<PermissionConfigResponse>(
+      `/admin/shops/${shopId}/permissions`
+    );
+    return response.data;
+  },
+
+  setShopPermissions: async (
+    shopId: string,
+    matrix: PermissionMatrix
+  ): Promise<PermissionConfigResponse> => {
+    const response = await api.put<PermissionConfigResponse>(
+      `/admin/shops/${shopId}/permissions`,
+      { matrix }
+    );
+    return response.data;
+  },
+
+  getEnterpriseDefaultPermissions: async (id: string): Promise<PermissionConfigResponse> => {
+    const response = await api.get<PermissionConfigResponse>(
+      `/admin/enterprises/${id}/default-permissions`
+    );
+    return response.data;
+  },
+
+  setEnterpriseDefaultPermissions: async (
+    id: string,
+    matrix: PermissionMatrix
+  ): Promise<PermissionConfigResponse> => {
+    const response = await api.put<PermissionConfigResponse>(
+      `/admin/enterprises/${id}/default-permissions`,
+      { matrix }
     );
     return response.data;
   },

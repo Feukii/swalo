@@ -28,6 +28,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { BlockStatusGuard } from './common/guards/block-status.guard';
 import { EntitlementGuard } from './common/guards/entitlement.guard';
+import { CapabilityGuard } from './common/guards/capability.guard';
 
 @Module({
   imports: [
@@ -81,6 +82,10 @@ import { EntitlementGuard } from './common/guards/entitlement.guard';
     {
       provide: APP_GUARD,
       useClass: EntitlementGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CapabilityGuard,
     },
   ],
 })

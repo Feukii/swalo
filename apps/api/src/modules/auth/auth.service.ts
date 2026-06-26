@@ -12,6 +12,10 @@ import {
   UpdateShopCodeDto,
 } from './dto/auth.dto';
 import { normalizeShopCode, SHOP_CODE_MIN_LENGTH, SHOP_CODE_MAX_LENGTH } from '@swalo/core/schemas';
+import {
+  resolveEffectivePermissions,
+  type Role as PermissionRole,
+} from '@swalo/core/modules/permissions';
 
 /** Alphabet utilisé pour générer un code boutique (alphanumérique majuscule). */
 const SHOP_CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -589,6 +593,7 @@ export class AuthService {
                     logo_url: true,
                     license_tier: true,
                     licensed_until: true,
+                    default_module_permissions: true,
                   },
                 },
               },
@@ -608,17 +613,30 @@ export class AuthService {
     const shop = primaryRole ? primaryRole.shop : null;
     const enterprise = primaryRole?.shop.enterprise ?? null;
 
+    // Permissions effectives du rôle pour la boutique courante :
+    // config boutique > défaut entreprise > défauts intégrés.
+    // Robuste si l'utilisateur n'a pas de boutique (renvoie les défauts du rôle).
+    const role = primaryRole ? primaryRole.role : null;
+    const permissions = role
+      ? resolveEffectivePermissions(
+          role as PermissionRole,
+          shop?.module_permissions ?? null,
+          enterprise?.default_module_permissions ?? null
+        )
+      : null;
+
     return {
       user: userWithoutPassword,
       shop,
       enterprise,
-      role: primaryRole ? primaryRole.role : null,
+      role,
       roles: user_roles.map(role => ({
         role: role.role,
         shop: role.shop,
       })),
       enabled_modules: shop?.enabled_modules ?? [],
       license_tier: enterprise?.license_tier ?? null,
+      permissions,
     };
   }
 

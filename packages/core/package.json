@@ -10,6 +10,7 @@
     "./utils": { "types": "./src/utils/index.ts", "import": "./src/utils/index.ts", "require": "./dist/utils/index.js" },
     "./brand/tokens": { "types": "./src/brand/tokens.ts", "import": "./src/brand/tokens.ts", "require": "./dist/brand/tokens.js" },
     "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" },
+    "./modules/permissions": { "types": "./src/modules/permissions.ts", "import": "./src/modules/permissions.ts", "require": "./dist/modules/permissions.js" },
     "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {

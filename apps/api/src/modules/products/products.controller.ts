@@ -5,6 +5,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { BatchUpdateHierarchyDto } from './dto/batch-update-hierarchy.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireCapability } from '../../common/decorators/require-capability.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
@@ -172,6 +173,7 @@ export class ProductsController {
    */
   @Delete(':id')
   @Roles(Role.BOSS)
+  @RequireCapability('products', 'delete')
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.productsService.remove(id, user.shopId);
   }

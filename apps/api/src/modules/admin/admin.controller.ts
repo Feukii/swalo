@@ -20,6 +20,7 @@ import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
 import { CreateShopAdminDto } from './dto/create-shop-admin.dto';
 import { UpdateLicenseDto } from './dto/update-license.dto';
 import { UpdateSystemConfigDto } from './dto/system-config.dto';
+import type { PermissionMatrix } from '@swalo/core/modules/permissions';
 
 type AuthenticatedRequest = ExpressRequest & {
   user: { userId: string; shopId: string; role: Role };
@@ -122,6 +123,42 @@ export class AdminController {
     @Request() req: AuthenticatedRequest
   ) {
     return this.adminService.updateLicenseConfig(req.user.userId, body.overrides);
+  }
+
+  // ============================================
+  // FINE-GRAINED PERMISSIONS (SUPERADMIN)
+  // ============================================
+
+  @Get('shops/:shopId/permissions')
+  @Roles(Role.SUPERADMIN)
+  async getShopPermissions(@Param('shopId') shopId: string) {
+    return this.adminService.getShopPermissions(shopId);
+  }
+
+  @Put('shops/:shopId/permissions')
+  @Roles(Role.SUPERADMIN)
+  async setShopPermissions(
+    @Param('shopId') shopId: string,
+    @Body() body: { matrix: PermissionMatrix },
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.adminService.setShopPermissions(shopId, req.user.userId, body.matrix);
+  }
+
+  @Get('enterprises/:id/default-permissions')
+  @Roles(Role.SUPERADMIN)
+  async getEnterpriseDefaultPermissions(@Param('id') id: string) {
+    return this.adminService.getEnterpriseDefaultPermissions(id);
+  }
+
+  @Put('enterprises/:id/default-permissions')
+  @Roles(Role.SUPERADMIN)
+  async setEnterpriseDefaultPermissions(
+    @Param('id') id: string,
+    @Body() body: { matrix: PermissionMatrix },
+    @Request() req: AuthenticatedRequest
+  ) {
+    return this.adminService.setEnterpriseDefaultPermissions(id, req.user.userId, body.matrix);
   }
 
   // ============================================
