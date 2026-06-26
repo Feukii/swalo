@@ -400,6 +400,7 @@ export class AdminService {
         max_shops: dto.max_shops ?? 1,
         max_users_per_shop: dto.max_users_per_shop ?? 5,
         licensed_until: dto.licensed_until ? new Date(dto.licensed_until) : null,
+        monthly_price: dto.monthly_price ?? 0,
         logo_url: dto.logo_url ?? null,
       };
       if (dto.owner_id) {
@@ -550,6 +551,11 @@ export class AdminService {
       const licensedUntil = new Date(dto.licensed_until);
       updateData.licensed_until = licensedUntil;
       newValue.licensed_until = licensedUntil.toISOString();
+    }
+    if (dto.monthly_price !== undefined) {
+      oldValue.monthly_price = enterprise.monthly_price;
+      updateData.monthly_price = dto.monthly_price;
+      newValue.monthly_price = dto.monthly_price;
     }
     if (dto.logo_url !== undefined) {
       oldValue.logo_url = enterprise.logo_url;
@@ -772,6 +778,7 @@ export class AdminService {
       licensed_until: enterprise.licensed_until,
       max_shops: enterprise.max_shops,
       max_users_per_shop: enterprise.max_users_per_shop,
+      monthly_price: enterprise.monthly_price,
     };
 
     const updateData: Prisma.EnterpriseUpdateInput = {
@@ -793,6 +800,10 @@ export class AdminService {
     if (dto.max_users_per_shop !== undefined) {
       updateData.max_users_per_shop = dto.max_users_per_shop;
       newValue.max_users_per_shop = dto.max_users_per_shop;
+    }
+    if (dto.monthly_price !== undefined) {
+      updateData.monthly_price = dto.monthly_price;
+      newValue.monthly_price = dto.monthly_price;
     }
 
     return this.prisma.$transaction(async tx => {
@@ -1320,5 +1331,266 @@ export class AdminService {
         shops_updated: shopsUpdated,
       };
     });
+  }
+
+  // ============================================
+  // SUPERADMIN DRILL-DOWN (read-only)
+  // ============================================
+
+  private async assertShopExists(shopId: string): Promise<void> {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId, deleted: false },
+      select: { id: true },
+    });
+    if (!shop) {
+      throw new NotFoundException('Boutique non trouvee');
+    }
+  }
+
+  /** Produits d'une boutique avec stock agrege, lots, valeur et flag multi-prix. */
+  async getShopProducts(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const products = await this.prisma.product.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        stock_batches: {
+          where: { deleted: false },
+          select: { remaining_quantity: true, sell_price: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return products.map(p => {
+      const batches = p.stock_batches;
+      const stock = batches.reduce((sum, b) => sum + b.remaining_quantity, 0);
+      const distinctSellPrices = new Set(batches.map(b => b.sell_price));
+      const multi_price = distinctSellPrices.size > 1;
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        sku: p.sku,
+        stock,
+        batch_count: batches.length,
+        cost_price: p.cost_price,
+        sell_price: p.sell_price,
+        value: stock * p.sell_price,
+        multi_price,
+        is_active: p.is_active,
+      };
+    });
+  }
+
+  /** Clients d'une boutique avec solde, limite de credit, derniere operation et statut. */
+  async getShopCustomers(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const customers = await this.prisma.customer.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        receivables: {
+          where: { deleted: false },
+          select: { balance: true, updated_at: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return customers.map(c => {
+      const balance = c.receivables.reduce((sum, r) => sum + r.balance, 0);
+      const lastReceivable = c.receivables.reduce<Date | null>((latest, r) => {
+        if (!latest || r.updated_at > latest) return r.updated_at;
+        return latest;
+      }, null);
+      let status: 'A jour' | 'Doit' | 'A rembourser';
+      if (balance > 0) status = 'Doit';
+      else if (balance < 0) status = 'A rembourser';
+      else status = 'A jour';
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        balance,
+        credit_limit: c.credit_limit,
+        last_operation: lastReceivable ? lastReceivable.toISOString() : null,
+        status,
+      };
+    });
+  }
+
+  /** Fournisseurs d'une boutique avec solde, limite d'emprunt, derniere operation et statut. */
+  async getShopSuppliers(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { shop_id: shopId, deleted: false },
+      include: {
+        debts: {
+          where: { deleted: false },
+          select: { balance: true, updated_at: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return suppliers.map(s => {
+      const balance = s.debts.reduce((sum, d) => sum + d.balance, 0);
+      const lastDebt = s.debts.reduce<Date | null>((latest, d) => {
+        if (!latest || d.updated_at > latest) return d.updated_at;
+        return latest;
+      }, null);
+      let status: 'A jour' | 'Doit' | 'A rembourser';
+      if (balance > 0) status = 'Doit';
+      else if (balance < 0) status = 'A rembourser';
+      else status = 'A jour';
+      return {
+        id: s.id,
+        name: s.name,
+        phone: s.phone,
+        balance,
+        borrowing_limit: s.borrowing_limit,
+        last_operation: lastDebt ? lastDebt.toISOString() : null,
+        status,
+      };
+    });
+  }
+
+  /** Contexte point de vente lecture seule : produits + ventes recentes. */
+  async getShopPos(shopId: string) {
+    await this.assertShopExists(shopId);
+
+    const [products, recentSales] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { shop_id: shopId, deleted: false, is_active: true },
+        include: {
+          stock_batches: {
+            where: { deleted: false },
+            select: { remaining_quantity: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.sale.findMany({
+        where: { shop_id: shopId, deleted: false },
+        include: { _count: { select: { items: true } } },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+      }),
+    ]);
+
+    return {
+      products: products.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.sell_price,
+        stock: p.stock_batches.reduce((sum, b) => sum + b.remaining_quantity, 0),
+        category: p.category,
+      })),
+      recent_sales: recentSales.map(s => ({
+        id: s.id,
+        short_id: s.id.slice(0, 8),
+        total: s.grand_total,
+        item_count: s._count.items,
+        created_at: s.created_at.toISOString(),
+      })),
+    };
+  }
+
+  /** Rapport reseau niveau entreprise : KPIs par boutique + totaux. */
+  async getEnterpriseReports(enterpriseId: string) {
+    const enterprise = await this.prisma.enterprise.findUnique({
+      where: { id: enterpriseId, deleted: false },
+      include: {
+        shops: {
+          where: { deleted: false },
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!enterprise) {
+      throw new NotFoundException('Entreprise non trouvee');
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const shopReports = await Promise.all(
+      enterprise.shops.map(async shop => {
+        const [salesToday, saleItemsToday, cashEntries, receivables] = await Promise.all([
+          // Ventes du jour (CA)
+          this.prisma.sale.findMany({
+            where: { shop_id: shop.id, deleted: false, created_at: { gte: startOfDay } },
+            select: { grand_total: true },
+          }),
+          // Items vendus du jour pour estimer la marge (revenu - cout)
+          this.prisma.saleItem.findMany({
+            where: {
+              deleted: false,
+              sale: { shop_id: shop.id, deleted: false, created_at: { gte: startOfDay } },
+            },
+            select: { total: true, qty: true, product: { select: { cost_price: true } } },
+          }),
+          // Mouvements de caisse pour solde tresorerie
+          this.prisma.cashEntry.findMany({
+            where: { shop_id: shop.id, deleted: false },
+            select: { type: true, amount: true },
+          }),
+          // Creances clients ouvertes
+          this.prisma.clientReceivable.findMany({
+            where: { shop_id: shop.id, deleted: false },
+            select: { balance: true },
+          }),
+        ]);
+
+        const ca_jour = salesToday.reduce((sum, s) => sum + s.grand_total, 0);
+
+        const marge = saleItemsToday.reduce(
+          (sum, item) => sum + (item.total - Math.round(item.product.cost_price * item.qty)),
+          0
+        );
+
+        const caisse = cashEntries.reduce((sum, e) => {
+          if (e.type === 'IN' || e.type === 'OPENING') return sum + e.amount;
+          return sum - e.amount;
+        }, 0);
+
+        const creances = receivables.reduce((sum, r) => sum + r.balance, 0);
+
+        // Etat derive du ratio creances / CA du jour
+        let etat: 'Sain' | 'A surveiller' | 'En difficulte';
+        if (ca_jour <= 0) {
+          etat = creances > 0 ? 'A surveiller' : 'Sain';
+        } else {
+          const ratio = creances / ca_jour;
+          if (ratio < 1) etat = 'Sain';
+          else if (ratio < 3) etat = 'A surveiller';
+          else etat = 'En difficulte';
+        }
+
+        return { id: shop.id, name: shop.name, ca_jour, marge, caisse, creances, etat };
+      })
+    );
+
+    const totals = shopReports.reduce(
+      (acc, s) => ({
+        ca_reseau: acc.ca_reseau + s.ca_jour,
+        tresorerie_reseau: acc.tresorerie_reseau + s.caisse,
+        creances_reseau: acc.creances_reseau + s.creances,
+        marge_reseau: acc.marge_reseau + s.marge,
+      }),
+      { ca_reseau: 0, tresorerie_reseau: 0, creances_reseau: 0, marge_reseau: 0 }
+    );
+
+    const marge_moyenne =
+      shopReports.length > 0 ? Math.round(totals.marge_reseau / shopReports.length) : 0;
+
+    return {
+      enterprise: { id: enterprise.id, name: enterprise.name },
+      shops: shopReports,
+      totals: { ...totals, marge_moyenne },
+    };
   }
 }

@@ -21,6 +21,7 @@ interface Enterprise {
   license_tier: string;
   max_shops: number;
   licensed_until: string | null;
+  monthly_price?: number | null;
   is_blocked: boolean;
   created_at: string;
   owner?: { id: string; display_name: string };
@@ -55,17 +56,11 @@ interface AuditLogResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Pricing reference — there is NO price/MRR field stored in the API/DB.
-// MRR is therefore *derived* from the licence tier of each enterprise using
-// this published monthly price grid (FCFA / month). Values mirror the public
-// plan grid; if Swalo introduces stored prices this map can be removed.
+// MRR is computed from the REAL `monthly_price` stored on each enterprise
+// (integer FCFA / month). No price grid is used: an enterprise with
+// monthly_price = 0 (or null) contributes 0 to the MRR — which is the real,
+// un-estimated figure.
 // ---------------------------------------------------------------------------
-
-const TIER_MONTHLY_PRICE_FCFA: Record<string, number> = {
-  STARTER: 18000,
-  PROFESSIONAL: 95000,
-  ENTERPRISE: 150000,
-};
 
 const TIER_ORDER = ['STARTER', 'PROFESSIONAL', 'ENTERPRISE'] as const;
 
@@ -94,8 +89,9 @@ function formatFcfaCompact(value: number): string {
   return `${value} F`;
 }
 
-function tierMrr(tier: string): number {
-  return TIER_MONTHLY_PRICE_FCFA[tier] ?? 0;
+/** Real monthly recurring revenue of an enterprise (integer FCFA). */
+function enterpriseMrr(enterprise: Enterprise): number {
+  return enterprise.monthly_price ?? 0;
 }
 
 function relativeTime(dateIso: string): string {
@@ -208,8 +204,9 @@ export default function DashboardHome() {
     const active = enterprises.filter(e => !e.is_blocked);
     const blocked = enterprises.filter(e => e.is_blocked);
 
-    // MRR = sum of tier price for each ACTIVE enterprise (blocked = not billing).
-    const totalMrr = active.reduce((sum, e) => sum + tierMrr(e.license_tier), 0);
+    // MRR = sum of the REAL monthly_price of each ACTIVE enterprise
+    // (blocked = not billing).
+    const totalMrr = active.reduce((sum, e) => sum + enterpriseMrr(e), 0);
 
     // Boutiques = sum of shop counts across all enterprises.
     const totalShops = stats?.totalShops ?? enterprises.reduce((s, e) => s + (e._count?.shops ?? 0), 0);
@@ -225,13 +222,13 @@ export default function DashboardHome() {
     // status timeline in the API, so this is the share of blocked accounts.
     const churnRate = enterprises.length > 0 ? (blocked.length / enterprises.length) * 100 : null;
 
-    // MRR breakdown per tier.
+    // MRR breakdown per tier (sum of real monthly_price per tier).
     const byTier = TIER_ORDER.map(tier => {
       const list = active.filter(e => e.license_tier === tier);
       return {
         tier,
         count: list.length,
-        mrr: list.reduce((s, e) => s + tierMrr(e.license_tier), 0),
+        mrr: list.reduce((s, e) => s + enterpriseMrr(e), 0),
       };
     });
     const maxTierMrr = Math.max(1, ...byTier.map(t => t.mrr));
@@ -267,10 +264,10 @@ export default function DashboardHome() {
 
   const maxSeriesValue = Math.max(1, ...mrrSeries.map(p => p.value ?? 0));
 
-  // Subscriptions table — top enterprises by MRR.
+  // Subscriptions table — top enterprises by real MRR.
   const subscriptions = useMemo(() => {
     return [...enterprises]
-      .sort((a, b) => tierMrr(b.license_tier) - tierMrr(a.license_tier))
+      .sort((a, b) => enterpriseMrr(b) - enterpriseMrr(a))
       .slice(0, 5);
   }, [enterprises]);
 
@@ -471,7 +468,7 @@ export default function DashboardHome() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {subscriptions.map(e => {
-                    const mrr = e.is_blocked ? 0 : tierMrr(e.license_tier);
+                    const mrr = e.is_blocked ? 0 : enterpriseMrr(e);
                     const renewalDays = e.licensed_until ? daysUntil(e.licensed_until) : null;
                     return (
                       <tr key={e.id} className="text-sm">
@@ -553,7 +550,7 @@ export default function DashboardHome() {
                       <p className="text-sm font-medium text-primary-900 truncate">{e.name}</p>
                       <p className="text-xs text-slate-400">
                         {TIER_SHORT[e.license_tier] ?? e.license_tier} ·{' '}
-                        {formatFcfaCompact(tierMrr(e.license_tier))}
+                        {enterpriseMrr(e) > 0 ? formatFcfaCompact(enterpriseMrr(e)) : '—'}
                       </p>
                     </div>
                     <span className="text-sm font-medium text-warning-600 whitespace-nowrap">

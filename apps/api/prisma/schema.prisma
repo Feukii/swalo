@@ -20,6 +20,7 @@ model Enterprise {
   logo_url       String?
   license_tier   String              @default("STARTER")
   licensed_until DateTime?
+  monthly_price  Int                 @default(0)
   max_shops      Int                 @default(1)
   max_users_per_shop Int             @default(5)
   created_at     DateTime            @default(now())
