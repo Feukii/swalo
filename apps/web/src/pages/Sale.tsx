@@ -7,6 +7,7 @@ import {
   cashApi,
   receivablesApi,
 } from '../lib/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +67,10 @@ const formatFCFA = (amount: number): string => amount.toLocaleString('fr-FR') + 
 // ---------------------------------------------------------------------------
 
 export default function Sale() {
+  // --- Permissions ---
+  const { can } = usePermissions();
+  const canSell = can('sales', 'create');
+
   // --- Data state ---
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -299,6 +304,11 @@ export default function Sale() {
   const handleCheckout = async () => {
     setErrorMessage('');
     setSuccessMessage('');
+
+    if (!canSell) {
+      setErrorMessage("Vous n'avez pas l'autorisation d'enregistrer une vente.");
+      return;
+    }
 
     if (cart.length === 0) {
       setErrorMessage('Le panier est vide.');
@@ -782,10 +792,7 @@ export default function Sale() {
                 </p>
                 {/* Date d'echeance OBLIGATOIRE pour une vente a credit. */}
                 <div className="space-y-1">
-                  <label
-                    htmlFor="due-date"
-                    className="block text-xs font-medium text-slate-600"
-                  >
+                  <label htmlFor="due-date" className="block text-xs font-medium text-slate-600">
                     Date d'echeance <span className="text-danger-500">*</span>
                   </label>
                   <input
@@ -823,6 +830,13 @@ export default function Sale() {
               </div>
             </div>
 
+            {/* Message clair si l'utilisateur ne peut pas encaisser */}
+            {!canSell && (
+              <p className="text-xs text-danger-600 -mt-1">
+                Vous n'avez pas l'autorisation d'enregistrer une vente.
+              </p>
+            )}
+
             {/* Action buttons: Annuler / Facturer / Encaisser */}
             <div className="flex gap-2">
               <button
@@ -834,16 +848,18 @@ export default function Sale() {
               </button>
               <button
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || submitting || creditDueDateMissing}
+                disabled={!canSell || cart.length === 0 || submitting || creditDueDateMissing}
+                title={canSell ? undefined : 'Autorisation requise : créer une vente'}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Facturer
               </button>
               <button
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || submitting || creditDueDateMissing}
+                disabled={!canSell || cart.length === 0 || submitting || creditDueDateMissing}
+                title={canSell ? undefined : 'Autorisation requise : créer une vente'}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 ${
-                  cart.length === 0 || submitting || creditDueDateMissing
+                  !canSell || cart.length === 0 || submitting || creditDueDateMissing
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     : 'bg-success-600 text-white hover:bg-success-700 shadow-sm hover:shadow-md'
                 }`}

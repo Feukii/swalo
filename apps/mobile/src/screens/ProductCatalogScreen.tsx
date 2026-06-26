@@ -30,6 +30,7 @@ import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import * as DocumentPicker from 'expo-document-picker';
 import { productRepo, stockBatchRepo } from '../db/repositories';
 import { importApi } from '../lib/api';
@@ -121,6 +122,10 @@ const DEFAULT_FORM: ProductFormData = {
 
 export default function ProductCatalogScreen({ navigation }: ProductCatalogScreenProps) {
   const { shopId } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateProduct = can('products', 'create');
+  const canEditProduct = can('products', 'edit');
+  const canDeleteProduct = can('products', 'delete');
   const [activeTab, setActiveTab] = useState<'articles' | 'catalogue'>('articles');
   const [products, setProducts] = useState<Product[]>([]);
   // Mirror the current product count in a ref so loadData can read it without
@@ -645,15 +650,21 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
             )}
             {item.reference && <Text style={styles.productDetail}>Réf: {item.reference}</Text>}
           </View>
-          <View style={styles.productActions}>
-            <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
-              <Edit size={16} color={Colors.action} />
-              <Text style={styles.editButtonText}>Modifier</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton} onPress={() => deleteProduct(item)}>
-              <Trash size={16} color={Colors.danger.main} />
-            </TouchableOpacity>
-          </View>
+          {(canEditProduct || canDeleteProduct) && (
+            <View style={styles.productActions}>
+              {canEditProduct && (
+                <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
+                  <Edit size={16} color={Colors.action} />
+                  <Text style={styles.editButtonText}>Modifier</Text>
+                </TouchableOpacity>
+              )}
+              {canDeleteProduct && (
+                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteProduct(item)}>
+                  <Trash size={16} color={Colors.danger.main} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </TouchableOpacity>
       );
     };
@@ -730,10 +741,12 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
           </Text>
           <View style={styles.statsBarActions}>
             {isLoading && <ActivityIndicator size="small" color={Colors.action} />}
-            <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
-              <Upload size={16} color={Colors.action} />
-              <Text style={styles.importButtonText}>Importer</Text>
-            </TouchableOpacity>
+            {canCreateProduct && (
+              <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
+                <Upload size={16} color={Colors.action} />
+                <Text style={styles.importButtonText}>Importer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -757,9 +770,11 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
         />
 
         {/* Bouton flottant ajouter */}
-        <TouchableOpacity style={styles.fab} onPress={openAddModal}>
-          <Plus size={24} color={Colors.primary.foreground} />
-        </TouchableOpacity>
+        {canCreateProduct && (
+          <TouchableOpacity style={styles.fab} onPress={openAddModal}>
+            <Plus size={24} color={Colors.primary.foreground} />
+          </TouchableOpacity>
+        )}
       </>
     );
   };

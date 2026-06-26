@@ -26,6 +26,7 @@ import { ScreenHeader, SearchableSelect } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import { useResponsive } from '../hooks/useResponsive';
 import { productRepo, customerRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
 import { checkCreditLimit } from '../utils/creditCheck';
@@ -72,6 +73,8 @@ type PaymentMethod = 'cash' | 'credit';
 
 export default function SaleScreen() {
   const { shopId, userId, shop } = useCurrentUser();
+  const { can } = usePermissions();
+  const canCreateSale = can('sales', 'create');
   const { isTablet, columns } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   // Filtre catégorie (vue uniquement) — chips de la maquette
@@ -333,6 +336,10 @@ export default function SaleScreen() {
   const effectiveTotal = overridePrice && totalPrice ? parseInt(totalPrice) : computedTotal;
 
   const handleCheckout = () => {
+    if (!canCreateSale) {
+      Alert.alert('Accès non autorisé', "Vous n'êtes pas autorisé à enregistrer une vente.");
+      return;
+    }
     if (cart.length === 0) {
       Alert.alert('Panier vide', 'Ajoutez des produits avant de valider');
       return;
@@ -341,6 +348,11 @@ export default function SaleScreen() {
   };
 
   const confirmSale = async () => {
+    // Garde de capacité (défense en profondeur — le bouton est déjà désactivé).
+    if (!canCreateSale) {
+      Alert.alert('Accès non autorisé', "Vous n'êtes pas autorisé à enregistrer une vente.");
+      return;
+    }
     // Validations
     if (!selectedCustomer) {
       Alert.alert('Client requis', 'Veuillez sélectionner un client');
@@ -807,14 +819,19 @@ export default function SaleScreen() {
               })}
             </View>
 
-            {/* Grand bouton Encaisser */}
+            {/* Grand bouton Encaisser — désactivé sans la capacité sales.create */}
             <TouchableOpacity
-              style={styles.encaisserButton}
+              style={[styles.encaisserButton, !canCreateSale && styles.encaisserButtonDisabled]}
               onPress={handleCheckout}
+              disabled={!canCreateSale}
               activeOpacity={0.9}
             >
               <Text style={styles.encaisserButtonText}>
-                {paymentMethod === 'credit' ? 'Encaisser à crédit' : 'Encaisser en cash'}
+                {!canCreateSale
+                  ? 'Accès non autorisé'
+                  : paymentMethod === 'credit'
+                    ? 'Encaisser à crédit'
+                    : 'Encaisser en cash'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -976,10 +993,7 @@ export default function SaleScreen() {
                           activeOpacity={0.85}
                         >
                           <Text
-                            style={[
-                              styles.dueDateChipText,
-                              active && styles.dueDateChipTextActive,
-                            ]}
+                            style={[styles.dueDateChipText, active && styles.dueDateChipTextActive]}
                           >
                             {preset.label}
                           </Text>
@@ -1003,9 +1017,7 @@ export default function SaleScreen() {
                     }}
                   />
                   {dueDate ? (
-                    <Text style={styles.dueDateSelected}>
-                      Échéance : {formatDueDate(dueDate)}
-                    </Text>
+                    <Text style={styles.dueDateSelected}>Échéance : {formatDueDate(dueDate)}</Text>
                   ) : (
                     <Text style={styles.dueDateHint}>
                       Choisissez une échéance (raccourci ou date manuelle).
@@ -1411,6 +1423,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.sm,
+  },
+  encaisserButtonDisabled: {
+    backgroundColor: Colors.muted.main,
   },
   encaisserButtonText: {
     fontSize: 16,

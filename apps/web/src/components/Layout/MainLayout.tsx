@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModules } from '../../hooks/useModules';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface NavItem {
   name: string;
@@ -31,6 +32,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { user, shop, enterprise, role, logout } = useAuthStore();
   const { isModuleEnabled, licenseTier } = useModules();
+  const { can } = usePermissions();
   const [period, setPeriod] = useState<Period>('7d');
   const [search, setSearch] = useState('');
 
@@ -116,47 +118,50 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 {section.label}
               </p>
               <div className="space-y-0.5">
-                {section.items.map(item => {
-                  const moduleEnabled = !item.module || isModuleEnabled(item.module);
-                  const usable = moduleEnabled && !item.disabled;
-                  const active = !item.disabled && isActive(item.path);
+                {section.items
+                  // Gating capacité : masquer une entrée de module si pas de droit `view`.
+                  .filter(item => !item.module || can(item.module, 'view'))
+                  .map(item => {
+                    const moduleEnabled = !item.module || isModuleEnabled(item.module);
+                    const usable = moduleEnabled && !item.disabled;
+                    const active = !item.disabled && isActive(item.path);
 
-                  if (!usable) {
-                    const title = item.disabled
-                      ? 'Bientôt disponible'
-                      : `Module non inclus dans votre licence ${tierLabel}`;
+                    if (!usable) {
+                      const title = item.disabled
+                        ? 'Bientôt disponible'
+                        : `Module non inclus dans votre licence ${tierLabel}`;
+                      return (
+                        <div
+                          key={item.name}
+                          title={title}
+                          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-primary-400 opacity-50 cursor-not-allowed"
+                        >
+                          <span className="text-base w-5 text-center">{item.icon}</span>
+                          <span className="flex-1 truncate">{item.name}</span>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div
-                        key={item.name}
-                        title={title}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-primary-400 opacity-50 cursor-not-allowed"
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                          active
+                            ? 'bg-action-500 text-white font-medium shadow-card'
+                            : 'text-primary-100 hover:bg-primary-800'
+                        }`}
                       >
                         <span className="text-base w-5 text-center">{item.icon}</span>
                         <span className="flex-1 truncate">{item.name}</span>
-                      </div>
+                        {item.badge ? (
+                          <span className="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-danger-500 text-white text-[11px] font-semibold">
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </Link>
                     );
-                  }
-
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        active
-                          ? 'bg-action-500 text-white font-medium shadow-card'
-                          : 'text-primary-100 hover:bg-primary-800'
-                      }`}
-                    >
-                      <span className="text-base w-5 text-center">{item.icon}</span>
-                      <span className="flex-1 truncate">{item.name}</span>
-                      {item.badge ? (
-                        <span className="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-danger-500 text-white text-[11px] font-semibold">
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </Link>
-                  );
-                })}
+                  })}
               </div>
             </div>
           ))}

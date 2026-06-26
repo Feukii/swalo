@@ -25,6 +25,7 @@ import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { Product } from '../types/stock';
 import { getProducts, saveProducts } from '../utils/stockManager';
 import { formatMoney } from '../utils/money';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface ProductDetailsScreenProps {
   navigation: {
@@ -39,6 +40,9 @@ interface ProductDetailsScreenProps {
 
 export default function ProductDetailsScreen({ navigation, route }: ProductDetailsScreenProps) {
   const { id } = route.params;
+  const { can } = usePermissions();
+  const canEditProduct = can('products', 'edit');
+  const canDeleteProduct = can('products', 'delete');
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -215,14 +219,20 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
-          <View style={styles.headerActions}>
-            <IconButton onPress={() => setShowEditModal(true)}>
-              <Edit size={20} color={Colors.action} />
-            </IconButton>
-            <IconButton onPress={handleDelete}>
-              <Trash size={20} color={Colors.danger.main} />
-            </IconButton>
-          </View>
+          canEditProduct || canDeleteProduct ? (
+            <View style={styles.headerActions}>
+              {canEditProduct && (
+                <IconButton onPress={() => setShowEditModal(true)}>
+                  <Edit size={20} color={Colors.action} />
+                </IconButton>
+              )}
+              {canDeleteProduct && (
+                <IconButton onPress={handleDelete}>
+                  <Trash size={20} color={Colors.danger.main} />
+                </IconButton>
+              )}
+            </View>
+          ) : undefined
         }
       />
 

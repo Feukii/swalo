@@ -466,9 +466,13 @@ export default function EnterpriseDashboard() {
                 <div key={transfer.id} className="px-6 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-900">{transfer.source_shop.name}</span>
+                      <span className="font-medium text-slate-900">
+                        {transfer.source_shop.name}
+                      </span>
                       <span className="text-slate-400">&rarr;</span>
-                      <span className="font-medium text-slate-900">{transfer.target_shop.name}</span>
+                      <span className="font-medium text-slate-900">
+                        {transfer.target_shop.name}
+                      </span>
                     </div>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.className}`}

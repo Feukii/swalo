@@ -27,6 +27,7 @@ import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
 import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   supplierRepo,
   supplierDebtRepo,
@@ -126,6 +127,7 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
   const { id } = route.params;
   const { user, shopId, userId } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
+  const { can } = usePermissions();
 
   const [supplier, setSupplier] = useState<SupplierDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -749,12 +751,16 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
           <View style={styles.headerActions}>
             {canEditOrDelete() && (
               <>
-                <IconButton onPress={handleOpenEditModal}>
-                  <Edit size={20} color={Colors.action} />
-                </IconButton>
-                <IconButton onPress={handleDelete}>
-                  <Trash size={20} color={Colors.danger.main} />
-                </IconButton>
+                {can('suppliers', 'edit') && (
+                  <IconButton onPress={handleOpenEditModal}>
+                    <Edit size={20} color={Colors.action} />
+                  </IconButton>
+                )}
+                {can('suppliers', 'delete') && (
+                  <IconButton onPress={handleDelete}>
+                    <Trash size={20} color={Colors.danger.main} />
+                  </IconButton>
+                )}
               </>
             )}
           </View>

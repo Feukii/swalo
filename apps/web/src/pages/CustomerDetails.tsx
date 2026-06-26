@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { customersApi, receivablesApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface NotificationLogEntry {
   id: string;
@@ -82,6 +83,10 @@ interface CustomerDetails {
 export default function CustomerDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canEdit = can('customers', 'edit');
+  const canDelete = can('customers', 'delete');
+  const canRefund = can('receivables', 'refund');
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'receivables' | 'sales' | 'cash' | 'all'>('all');
@@ -321,9 +326,7 @@ export default function CustomerDetails() {
     return labels[type] || type;
   };
 
-  const getNotifStatus = (
-    status: string
-  ): { label: string; badge: string } => {
+  const getNotifStatus = (status: string): { label: string; badge: string } => {
     const map: Record<string, { label: string; badge: string }> = {
       SENT: { label: 'Envoyé', badge: 'badge-success' },
       QUEUED: { label: 'En file', badge: 'badge-warning' },
@@ -466,12 +469,16 @@ export default function CustomerDetails() {
           <p className="text-sm text-slate-500">Détails du client</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleOpenEditModal} className="btn-secondary" title="Modifier">
-            ✏️ Modifier
-          </button>
-          <button onClick={handleDelete} className="btn-danger" title="Supprimer">
-            🗑️ Supprimer
-          </button>
+          {canEdit && (
+            <button onClick={handleOpenEditModal} className="btn-secondary" title="Modifier">
+              ✏️ Modifier
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={handleDelete} className="btn-danger" title="Supprimer">
+              🗑️ Supprimer
+            </button>
+          )}
         </div>
       </div>
 
@@ -629,8 +636,8 @@ export default function CustomerDetails() {
         </div>
       </div>
 
-      {/* Bouton d'action pour enregistrer un paiement */}
-      {customer.stats.total_balance > 0 && (
+      {/* Bouton d'action pour enregistrer un paiement (créance) */}
+      {customer.stats.total_balance > 0 && canRefund && (
         <button
           onClick={handleOpenPaymentModal}
           className="w-full btn-primary py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow"

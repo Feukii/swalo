@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productsApi } from '../lib/api';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface Product {
   id: string;
@@ -55,6 +56,8 @@ function formatCompactF(cents: number): string {
 
 export default function Products() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canCreate = can('products', 'create');
   const [products, setProducts] = useState<Product[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -156,9 +159,8 @@ export default function Products() {
       handleCloseModal();
       loadData();
     } catch (error) {
-      const apiMessage = (
-        error as { response?: { data?: { message?: string } } } | undefined
-      )?.response?.data?.message;
+      const apiMessage = (error as { response?: { data?: { message?: string } } } | undefined)
+        ?.response?.data?.message;
       alert(apiMessage || "Erreur lors de l'enregistrement");
     }
   };
@@ -256,13 +258,15 @@ export default function Products() {
                 </option>
               ))}
             </select>
-            <button
-              onClick={() => handleOpenModal()}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-action-500 hover:bg-action-600 rounded-lg shadow-sm transition-colors whitespace-nowrap"
-            >
-              <span className="text-base leading-none">+</span>
-              <span>Réception (lot)</span>
-            </button>
+            {canCreate && (
+              <button
+                onClick={() => handleOpenModal()}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-action-500 hover:bg-action-600 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+              >
+                <span className="text-base leading-none">+</span>
+                <span>Réception (lot)</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -275,7 +279,7 @@ export default function Products() {
             <p className="text-slate-500">
               {searchTerm ? 'Aucun produit trouvé' : 'Aucun produit enregistré'}
             </p>
-            {!searchTerm && (
+            {!searchTerm && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier produit
               </button>
