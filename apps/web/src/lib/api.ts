@@ -996,6 +996,49 @@ export const reminderSettingsApi = {
   },
 };
 
+// Reports API (Rapports réseau multi-boutiques)
+export type ShopHealth = 'Sain' | 'A surveiller' | 'En difficulte';
+
+export interface NetworkShopReport {
+  id: string;
+  name: string;
+  /** CA du jour, en centimes */
+  ca_jour: number;
+  /** Marge en pourcentage (ex: 38 pour 38%) */
+  marge: number;
+  /** Solde de caisse, en centimes */
+  caisse: number;
+  /** Créances clients, en centimes */
+  creances: number;
+  etat: ShopHealth;
+}
+
+export interface NetworkReportTotals {
+  /** CA réseau du jour, en centimes */
+  ca_reseau: number;
+  /** Trésorerie réseau (somme des caisses), en centimes */
+  tresorerie_reseau: number;
+  /** Créances réseau, en centimes */
+  creances_reseau: number;
+  /** Marge réseau, en centimes */
+  marge_reseau: number;
+  /** Marge moyenne en pourcentage (ex: 35.5 pour 35,5%) */
+  marge_moyenne: number;
+}
+
+export interface NetworkReport {
+  shops: NetworkShopReport[];
+  totals: NetworkReportTotals;
+}
+
+export const reportsApi = {
+  /** Vue réseau multi-boutiques (rôle BOSS). Tous les montants sont en centimes. */
+  getNetwork: async (): Promise<NetworkReport> => {
+    const response = await api.get<NetworkReport>('/reports/network');
+    return response.data;
+  },
+};
+
 // Packaging Types API (Conditionnements)
 export const packagingTypesApi = {
   getAll: async () => {

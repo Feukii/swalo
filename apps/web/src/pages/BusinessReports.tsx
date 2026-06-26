@@ -1,281 +1,154 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { cashApi } from '../lib/api';
-import { formatCurrency } from '@swalo/core/utils';
+import { usePermissions } from '../hooks/usePermissions';
+import { reportsApi } from '../lib/api';
+import type { NetworkReport, NetworkShopReport, ShopHealth } from '../lib/api';
 
-type PeriodKey = 'today' | 'week' | 'month' | 'year';
+/**
+ * Formate un montant en centimes au format "réseau" de la maquette :
+ * - >= 1 000 000 F  ->  "5,87 M F"
+ * - >= 1 000 F      ->  "12,5 k F"
+ * - sinon           ->  "1 500 F"
+ * Les montants reçus de l'API sont en centimes (÷100 à l'affichage).
+ */
+function formatNetworkAmount(cents: number): string {
+  const amount = cents / 100;
+  const sign = amount < 0 ? '-' : '';
+  const abs = Math.abs(amount);
 
-interface PeriodStats {
-  totalEntries: number;
-  totalExits: number;
-  net: number;
-  balance: number;
-  entriesCount: number;
-  exitsCount: number;
+  if (abs >= 1_000_000) {
+    const value = abs / 1_000_000;
+    return `${sign}${value.toLocaleString('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} M F`;
+  }
+
+  if (abs >= 10_000) {
+    const value = abs / 1_000;
+    return `${sign}${value.toLocaleString('fr-FR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1,
+    })} k F`;
+  }
+
+  return `${sign}${Math.round(abs).toLocaleString('fr-FR')} F`;
 }
 
-interface CashEntry {
-  id: string;
-  type: 'IN' | 'OUT';
-  category: string;
-  amount: number;
-  note?: string;
-  created_at: string;
-  supplier?: {
-    name: string;
-    first_name?: string;
-  };
-  customer?: {
-    name: string;
-    first_name?: string;
-  };
+function formatPercent(value: number): string {
+  return `${value.toLocaleString('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })} %`;
 }
 
-interface CategoryDistribution {
-  category: string;
-  amount: number;
-  percentage: number;
-  color: string;
+interface HealthBadge {
+  label: string;
+  className: string;
 }
 
-interface FinancialSummary {
-  totalReceivables: number;
-  totalDebts: number;
+function getHealthBadge(etat: ShopHealth): HealthBadge {
+  switch (etat) {
+    case 'Sain':
+      return { label: 'Sain', className: 'bg-success-100 text-success-700' };
+    case 'A surveiller':
+      return { label: 'À surveiller', className: 'bg-warning-100 text-warning-700' };
+    case 'En difficulte':
+      return { label: 'En difficulté', className: 'bg-danger-100 text-danger-700' };
+    default:
+      return { label: etat, className: 'bg-slate-100 text-slate-600' };
+  }
 }
 
 export default function BusinessReports() {
   const navigate = useNavigate();
-  const { role } = useAuthStore();
+  const { enterprise } = useAuthStore();
+  const { can, isPermissive } = usePermissions();
+  const canView = isPermissive || can('reports', 'view');
+
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>('today');
-  const [stats, setStats] = useState<PeriodStats | null>(null);
-  const [entries, setEntries] = useState<CashEntry[]>([]);
-  const [showAllEntries, setShowAllEntries] = useState(false);
-  const [financialSummary, setFinancialSummary] = useState<FinancialSummary>({
-    totalReceivables: 0,
-    totalDebts: 0,
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<NetworkReport | null>(null);
 
-  const periods = [
-    { value: 'today', label: "Aujourd'hui" },
-    { value: 'week', label: 'Cette semaine' },
-    { value: 'month', label: 'Ce mois' },
-    { value: 'year', label: 'Cette année' },
-  ];
-
-  // Colors for charts
-  const entryColors = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5'];
-  const exitColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2'];
-
-  useEffect(() => {
-    checkAccess();
-  }, []);
-
-  useEffect(() => {
-    if (role !== 'EMPLOYEE') {
-      loadStats();
-      loadFinancialSummary();
-    }
-  }, [selectedPeriod, role]);
-
-  const checkAccess = () => {
-    if (role === 'EMPLOYEE') {
-      navigate('/');
-    }
-  };
-
-  const getPeriodDates = () => {
-    const now = new Date();
-    const start = new Date();
-
-    switch (selectedPeriod) {
-      case 'today':
-        start.setHours(0, 0, 0, 0);
-        break;
-      case 'week':
-        start.setDate(now.getDate() - 7);
-        start.setHours(0, 0, 0, 0);
-        break;
-      case 'month':
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-        break;
-      case 'year':
-        start.setMonth(0, 1);
-        start.setHours(0, 0, 0, 0);
-        break;
-    }
-
-    return {
-      start_date: start.toISOString(),
-      end_date: now.toISOString(),
-    };
-  };
-
-  const loadStats = async () => {
+  const loadNetwork = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      const dates = getPeriodDates();
-      const [statsData, balanceData, entriesData] = await Promise.all([
-        cashApi.getStats(dates),
-        cashApi.getBalance(),
-        cashApi.getAll(dates),
-      ]);
-
-      setStats({
-        totalEntries: statsData.todayEntries || 0,
-        totalExits: statsData.todayExits || 0,
-        net: (statsData.todayEntries || 0) - (statsData.todayExits || 0),
-        balance: balanceData.balance || 0,
-        entriesCount: statsData.entriesCount || 0,
-        exitsCount: statsData.exitsCount || 0,
-      });
-
-      setEntries(entriesData);
-    } catch (error) {
-      console.error('Erreur lors du chargement des stats:', error);
+      const data = await reportsApi.getNetwork();
+      setReport(data);
+    } catch {
+      setError('Impossible de charger le rapport réseau. Veuillez réessayer.');
+      setReport(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const loadFinancialSummary = async () => {
-    try {
-      // Calculer les créances/dettes pour la période sélectionnée
-      // en analysant les entrées de caisse liées aux clients/fournisseurs
-      const dates = getPeriodDates();
-      const entriesData = await cashApi.getAll(dates);
-
-      let totalReceivables = 0;
-      let totalDebts = 0;
-
-      entriesData.forEach((entry: any) => {
-        // Créances clients (entrées liées aux clients)
-        if (entry.type === 'IN' && entry.customer_id) {
-          totalReceivables += entry.amount || 0;
-        }
-        // Dettes fournisseurs (sorties liées aux fournisseurs)
-        if (entry.type === 'OUT' && entry.supplier_id) {
-          totalDebts += entry.amount || 0;
-        }
-      });
-
-      setFinancialSummary({ totalReceivables, totalDebts });
-    } catch (error) {
-      console.error('Erreur lors du chargement du sommaire financier:', error);
-      setFinancialSummary({ totalReceivables: 0, totalDebts: 0 });
+  useEffect(() => {
+    if (!canView) {
+      navigate('/');
+      return;
     }
-  };
+    loadNetwork();
+  }, [canView, navigate, loadNetwork]);
 
-  const getPeriodLabel = () => {
-    const period = periods.find(p => p.value === selectedPeriod);
-    return period?.label || 'Période';
-  };
-
-  const getEntriesDistribution = (): CategoryDistribution[] => {
-    const entriesOnly = entries.filter(e => e.type === 'IN');
-    if (entriesOnly.length === 0) return [];
-
-    const categoryTotals: { [key: string]: number } = {};
-    let total = 0;
-
-    entriesOnly.forEach(entry => {
-      categoryTotals[entry.category] = (categoryTotals[entry.category] || 0) + entry.amount;
-      total += entry.amount;
-    });
-
-    return Object.entries(categoryTotals)
-      .map(([category, amount], index) => ({
-        category,
-        amount,
-        percentage: (amount / total) * 100,
-        color: entryColors[index % entryColors.length],
-      }))
-      .sort((a, b) => b.amount - a.amount);
-  };
-
-  const getExitsDistribution = (): CategoryDistribution[] => {
-    const exitsOnly = entries.filter(e => e.type === 'OUT');
-    if (exitsOnly.length === 0) return [];
-
-    const categoryTotals: { [key: string]: number } = {};
-    let total = 0;
-
-    exitsOnly.forEach(entry => {
-      categoryTotals[entry.category] = (categoryTotals[entry.category] || 0) + entry.amount;
-      total += entry.amount;
-    });
-
-    return Object.entries(categoryTotals)
-      .map(([category, amount], index) => ({
-        category,
-        amount,
-        percentage: (amount / total) * 100,
-        color: exitColors[index % exitColors.length],
-      }))
-      .sort((a, b) => b.amount - a.amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  if (role === 'EMPLOYEE') {
+  if (!canView) {
     return null;
   }
 
-  const grossMargin =
-    stats && stats.totalEntries > 0
-      ? (((stats.totalEntries - stats.totalExits) / stats.totalEntries) * 100).toFixed(1)
-      : '0.0';
+  const shops: NetworkShopReport[] = report?.shops ?? [];
+  const totals = report?.totals ?? null;
+  const maxCa = shops.reduce((max, shop) => Math.max(max, shop.ca_jour), 0);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* En-tête + sélecteur de période */}
+      {/* En-tête */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-marine-900">Rapports</h1>
-          <p className="text-sm text-slate-500 mt-1">Analyses &amp; exports</p>
-        </div>
-        <div className="inline-flex rounded-xl bg-white shadow-card p-1 self-start">
-          {periods.map(period => (
-            <button
-              key={period.value}
-              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-                selectedPeriod === period.value
-                  ? 'bg-marine-900 text-white'
-                  : 'text-slate-600 hover:text-action-600'
-              }`}
-              onClick={() => setSelectedPeriod(period.value as PeriodKey)}
-            >
-              {period.label}
-            </button>
-          ))}
+          <p className="text-sm text-slate-500 mt-1">
+            Vue réseau{enterprise?.name ? ` · ${enterprise.name}` : ''} · {shops.length} boutique
+            {shops.length > 1 ? 's' : ''}
+          </p>
         </div>
       </div>
 
       {isLoading ? (
         <div className="text-center py-16">
-          <div className="inline-block w-12 h-12 spinner"></div>
+          <div className="inline-block w-12 h-12 spinner" />
         </div>
-      ) : stats ? (
+      ) : error ? (
+        <div className="card text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-danger-50 flex items-center justify-center">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg bg-marine-900 text-white font-semibold text-sm hover:bg-marine-800 transition-colors"
+            onClick={loadNetwork}
+          >
+            Réessayer
+          </button>
+        </div>
+      ) : !report || shops.length === 0 ? (
+        <div className="card text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
+            <span className="text-3xl">🏬</span>
+          </div>
+          <p className="text-slate-500">Aucune boutique à afficher sur le réseau</p>
+        </div>
+      ) : (
         <div className="space-y-6">
-          {/* Cartes KPI */}
+          {/* Cartes KPI réseau */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="card">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                CA boutique ({getPeriodLabel()})
+                CA réseau (jour)
               </p>
               <p className="text-2xl font-bold text-marine-900 mt-2">
-                {formatCurrency(stats.totalEntries, 'XOF', 'fr-FR')}
+                {formatNetworkAmount(totals?.ca_reseau ?? 0)}
               </p>
             </div>
 
@@ -283,298 +156,120 @@ export default function BusinessReports() {
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                 Marge moyenne
               </p>
-              <p className="text-2xl font-bold text-marine-900 mt-2">{grossMargin} %</p>
+              <p className="text-2xl font-bold text-marine-900 mt-2">
+                {formatPercent(totals?.marge_moyenne ?? 0)}
+              </p>
             </div>
 
             <div className="card">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                Trésorerie (caisse)
+                Trésorerie réseau
               </p>
               <p className="text-2xl font-bold text-marine-900 mt-2">
-                {formatCurrency(stats.balance, 'XOF', 'fr-FR')}
+                {formatNetworkAmount(totals?.tresorerie_reseau ?? 0)}
               </p>
             </div>
 
             <div className="card">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Créances</p>
-              <p className="text-2xl font-bold text-danger-600 mt-2">
-                {formatCurrency(financialSummary.totalReceivables, 'XOF', 'fr-FR')}
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                Créances réseau
+              </p>
+              <p className="text-2xl font-bold text-marine-900 mt-2">
+                {formatNetworkAmount(totals?.creances_reseau ?? 0)}
               </p>
             </div>
           </div>
 
-          {/* Performance + CA */}
+          {/* Performance par boutique + CA par boutique */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Sommaire financier */}
+            {/* Tableau performance par boutique */}
             <div className="card xl:col-span-2">
-              <h2 className="text-lg font-bold text-marine-900 mb-5">Sommaire financier</h2>
+              <h2 className="text-lg font-bold text-marine-900 mb-5">Performance par boutique</h2>
 
               <div className="overflow-x-auto -mx-6">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-100">
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                        Poste
+                        Boutique
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
-                        Montant
+                        CA du jour
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                        Marge
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                        Caisse
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
+                        Créances
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
                         État
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <tr className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-marine-900">Créances clients</td>
-                      <td className="px-6 py-4 text-right font-semibold text-success-600">
-                        {formatCurrency(financialSummary.totalReceivables, 'XOF', 'fr-FR')}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="badge bg-success-100 text-success-700">À recevoir</span>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-marine-900">Dettes fournisseurs</td>
-                      <td className="px-6 py-4 text-right font-semibold text-danger-600">
-                        {formatCurrency(financialSummary.totalDebts, 'XOF', 'fr-FR')}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="badge bg-danger-100 text-danger-700">À payer</span>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-marine-900">
-                        Solde net (créances − dettes)
-                      </td>
-                      <td
-                        className={`px-6 py-4 text-right font-bold ${
-                          financialSummary.totalReceivables - financialSummary.totalDebts >= 0
-                            ? 'text-success-600'
-                            : 'text-danger-600'
-                        }`}
-                      >
-                        {formatCurrency(
-                          financialSummary.totalReceivables - financialSummary.totalDebts,
-                          'XOF',
-                          'fr-FR'
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {financialSummary.totalReceivables - financialSummary.totalDebts >= 0 ? (
-                          <span className="badge bg-success-100 text-success-700">Sain</span>
-                        ) : (
-                          <span className="badge bg-warning-100 text-warning-700">
-                            À surveiller
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                    {shops.map(shop => {
+                      const badge = getHealthBadge(shop.etat);
+                      return (
+                        <tr key={shop.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 font-medium text-marine-900">{shop.name}</td>
+                          <td className="px-6 py-4 text-right font-semibold text-marine-900">
+                            {formatNetworkAmount(shop.ca_jour)}
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-600">
+                            {formatPercent(shop.marge)}
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-600">
+                            {formatNetworkAmount(shop.caisse)}
+                          </td>
+                          <td className="px-6 py-4 text-right text-danger-600 font-medium">
+                            {formatNetworkAmount(shop.creances)}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`badge ${badge.className}`}>{badge.label}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Entrées / Sorties — barres sky */}
+            {/* Graphe CA par boutique — barres verticales CSS */}
             <div className="card">
-              <h2 className="text-lg font-bold text-marine-900">Flux de caisse</h2>
-              <p className="text-xs text-slate-400 mb-5">{getPeriodLabel()}</p>
+              <h2 className="text-lg font-bold text-marine-900">CA par boutique</h2>
+              <p className="text-xs text-slate-400 mb-5">Aujourd'hui</p>
 
-              <div className="space-y-5">
-                <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <p className="text-sm font-medium text-slate-600">Entrées</p>
-                    <p className="text-sm font-semibold text-marine-900">
-                      {formatCurrency(stats.totalEntries, 'XOF', 'fr-FR')}
-                    </p>
-                  </div>
-                  <div className="h-7 bg-slate-100 rounded-lg overflow-hidden">
+              <div className="flex items-end justify-between gap-2 h-48">
+                {shops.map(shop => {
+                  const heightPct = maxCa > 0 ? Math.max((shop.ca_jour / maxCa) * 100, 4) : 4;
+                  return (
                     <div
-                      className="h-full bg-sky-500 rounded-lg transition-all duration-500"
-                      style={{
-                        width:
-                          stats.totalEntries > 0
-                            ? `${Math.min((stats.totalEntries / (stats.totalEntries + stats.totalExits)) * 100, 100)}%`
-                            : '0%',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <p className="text-sm font-medium text-slate-600">Sorties</p>
-                    <p className="text-sm font-semibold text-marine-900">
-                      {formatCurrency(stats.totalExits, 'XOF', 'fr-FR')}
-                    </p>
-                  </div>
-                  <div className="h-7 bg-slate-100 rounded-lg overflow-hidden">
-                    <div
-                      className="h-full bg-sky-300 rounded-lg transition-all duration-500"
-                      style={{
-                        width:
-                          stats.totalExits > 0
-                            ? `${Math.min((stats.totalExits / (stats.totalEntries + stats.totalExits)) * 100, 100)}%`
-                            : '0%',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-600">Résultat net</p>
-                  <p
-                    className={`text-xl font-bold ${
-                      stats.net >= 0 ? 'text-success-600' : 'text-danger-600'
-                    }`}
-                  >
-                    {stats.net >= 0 ? '+' : ''}
-                    {formatCurrency(stats.net, 'XOF', 'fr-FR')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Répartitions par catégorie */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {getEntriesDistribution().length > 0 && (
-              <div className="card">
-                <h2 className="text-lg font-bold text-marine-900 mb-5">Répartition des entrées</h2>
-                <div className="space-y-4">
-                  {getEntriesDistribution().map((item, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-medium text-slate-700">{item.category}</span>
-                        <span className="text-sm font-semibold text-marine-900">
-                          {formatCurrency(item.amount, 'XOF', 'fr-FR')}
-                          <span className="text-slate-400 font-normal ml-2">
-                            {item.percentage.toFixed(1)}%
-                          </span>
-                        </span>
-                      </div>
-                      <div className="h-5 bg-slate-100 rounded-md overflow-hidden">
-                        <div
-                          className="h-full bg-sky-500 rounded-md transition-all duration-500"
-                          style={{ width: `${item.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {getExitsDistribution().length > 0 && (
-              <div className="card">
-                <h2 className="text-lg font-bold text-marine-900 mb-5">Répartition des sorties</h2>
-                <div className="space-y-4">
-                  {getExitsDistribution().map((item, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-sm font-medium text-slate-700">{item.category}</span>
-                        <span className="text-sm font-semibold text-marine-900">
-                          {formatCurrency(item.amount, 'XOF', 'fr-FR')}
-                          <span className="text-slate-400 font-normal ml-2">
-                            {item.percentage.toFixed(1)}%
-                          </span>
-                        </span>
-                      </div>
-                      <div className="h-5 bg-slate-100 rounded-md overflow-hidden">
-                        <div
-                          className="h-full bg-sky-300 rounded-md transition-all duration-500"
-                          style={{ width: `${item.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Historique des opérations */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-lg font-bold text-marine-900">Historique des opérations</h2>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  {entries.length} opération{entries.length > 1 ? 's' : ''} · {getPeriodLabel()}
-                </p>
-              </div>
-            </div>
-
-            {entries.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
-                  <span className="text-3xl">📋</span>
-                </div>
-                <p className="text-slate-500">Aucune opération sur cette période</p>
-              </div>
-            ) : (
-              <>
-                <div className="divide-y divide-slate-100">
-                  {(showAllEntries ? entries : entries.slice(0, 5)).map(entry => (
-                    <div
-                      key={entry.id}
-                      className="flex justify-between items-start py-4 hover:bg-slate-50 transition-colors -mx-2 px-2 rounded-lg"
+                      key={shop.id}
+                      className="flex flex-col items-center justify-end flex-1 h-full min-w-0"
+                      title={`${shop.name} · ${formatNetworkAmount(shop.ca_jour)}`}
                     >
-                      <div className="flex-1">
-                        <div className="mb-1.5">
-                          <span
-                            className={`badge ${
-                              entry.type === 'IN'
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {entry.type === 'IN' ? 'Entrée' : 'Sortie'} · {entry.category}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mb-1">
-                          {formatDate(entry.created_at)}
-                        </p>
-                        {(entry.supplier || entry.customer) && (
-                          <p className="text-sm font-medium text-slate-700 mb-1">
-                            {entry.supplier &&
-                              (entry.supplier.first_name
-                                ? `${entry.supplier.first_name} ${entry.supplier.name}`
-                                : entry.supplier.name)}
-                            {entry.customer &&
-                              (entry.customer.first_name
-                                ? `${entry.customer.first_name} ${entry.customer.name}`
-                                : entry.customer.name)}
-                          </p>
-                        )}
-                        {entry.note && <p className="text-xs text-slate-500 mt-1">{entry.note}</p>}
+                      <div className="w-full flex items-end justify-center h-full">
+                        <div
+                          className="w-full max-w-[2.5rem] rounded-t-lg bg-sky-500 transition-all duration-500"
+                          style={{ height: `${heightPct}%` }}
+                        />
                       </div>
-                      <p
-                        className={`text-base font-bold ml-4 ${
-                          entry.type === 'IN' ? 'text-success-600' : 'text-danger-600'
-                        }`}
-                      >
-                        {entry.type === 'IN' ? '+' : '-'}
-                        {formatCurrency(entry.amount, 'XOF', 'fr-FR')}
-                      </p>
+                      <span className="mt-2 text-[10px] text-slate-500 truncate w-full text-center">
+                        {shop.name}
+                      </span>
                     </div>
-                  ))}
-                </div>
-
-                {entries.length > 5 && (
-                  <button
-                    className="w-full mt-4 py-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg font-semibold text-action-600 transition-colors text-sm"
-                    onClick={() => setShowAllEntries(!showAllEntries)}
-                  >
-                    {showAllEntries
-                      ? 'Voir moins'
-                      : `Voir toutes les opérations (${entries.length})`}
-                  </button>
-                )}
-              </>
-            )}
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
