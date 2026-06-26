@@ -7,6 +7,88 @@ export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Rapports réseau (multi-boutiques) pour le propriétaire : agrège, par boutique
+   * de son entreprise, le CA du jour, la marge, la trésorerie et les créances.
+   */
+  async getNetworkReports(shopId: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { enterprise_id: true },
+    });
+
+    const shops = await this.prisma.shop.findMany({
+      where: shop?.enterprise_id
+        ? { enterprise_id: shop.enterprise_id, deleted: false }
+        : { id: shopId, deleted: false },
+      select: { id: true, name: true },
+    });
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const shopReports = await Promise.all(
+      shops.map(async s => {
+        const [salesToday, saleItemsToday, cashEntries, receivables] = await Promise.all([
+          this.prisma.sale.findMany({
+            where: { shop_id: s.id, deleted: false, created_at: { gte: startOfDay } },
+            select: { grand_total: true },
+          }),
+          this.prisma.saleItem.findMany({
+            where: {
+              deleted: false,
+              sale: { shop_id: s.id, deleted: false, created_at: { gte: startOfDay } },
+            },
+            select: { total: true, qty: true, product: { select: { cost_price: true } } },
+          }),
+          this.prisma.cashEntry.findMany({
+            where: { shop_id: s.id, deleted: false },
+            select: { type: true, amount: true },
+          }),
+          this.prisma.clientReceivable.findMany({
+            where: { shop_id: s.id, deleted: false },
+            select: { balance: true },
+          }),
+        ]);
+
+        const ca_jour = salesToday.reduce((sum, sale) => sum + sale.grand_total, 0);
+        const marge = saleItemsToday.reduce(
+          (sum, item) => sum + (item.total - Math.round(item.product.cost_price * item.qty)),
+          0
+        );
+        const caisse = cashEntries.reduce(
+          (sum, e) => (e.type === 'IN' || e.type === 'OPENING' ? sum + e.amount : sum - e.amount),
+          0
+        );
+        const creances = receivables.reduce((sum, r) => sum + r.balance, 0);
+
+        let etat: 'Sain' | 'A surveiller' | 'En difficulte';
+        if (ca_jour <= 0) {
+          etat = creances > 0 ? 'A surveiller' : 'Sain';
+        } else {
+          const ratio = creances / ca_jour;
+          etat = ratio < 1 ? 'Sain' : ratio < 3 ? 'A surveiller' : 'En difficulte';
+        }
+
+        return { id: s.id, name: s.name, ca_jour, marge, caisse, creances, etat };
+      })
+    );
+
+    const totals = shopReports.reduce(
+      (acc, s) => ({
+        ca_reseau: acc.ca_reseau + s.ca_jour,
+        tresorerie_reseau: acc.tresorerie_reseau + s.caisse,
+        creances_reseau: acc.creances_reseau + s.creances,
+        marge_reseau: acc.marge_reseau + s.marge,
+      }),
+      { ca_reseau: 0, tresorerie_reseau: 0, creances_reseau: 0, marge_reseau: 0 }
+    );
+    const marge_moyenne =
+      shopReports.length > 0 ? Math.round(totals.marge_reseau / shopReports.length) : 0;
+
+    return { shops: shopReports, totals: { ...totals, marge_moyenne } };
+  }
+
+  /**
    * Rapport de ventes consolidé avec filtrage par date
    */
   async getSalesReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {

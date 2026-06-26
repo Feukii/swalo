@@ -15,6 +15,16 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   /**
+   * GET /api/reports/network
+   * Rapports réseau (multi-boutiques) du propriétaire : performance par boutique.
+   */
+  @Get('network')
+  @Roles(Role.BOSS)
+  getNetworkReports(@CurrentUser() user: AuthenticatedUser) {
+    return this.reportsService.getNetworkReports(user.shopId);
+  }
+
+  /**
    * GET /api/reports/sales
    * Rapport des ventes avec filtrage par date
    */
