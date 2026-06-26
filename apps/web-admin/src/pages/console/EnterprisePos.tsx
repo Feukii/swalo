@@ -8,7 +8,7 @@ import { adminApi, type AdminShopPos, type AdminPosSale } from '../../lib/api';
 
 /** Full FCFA formatter: 88800 -> "88 800 F". */
 function formatFcfa(value: number): string {
-  return `${Math.round(value).toLocaleString('fr-FR').replace(/ | /g, ' ')} F`;
+  return `${Math.round(value).toLocaleString('fr-FR').replace(/[\u00A0\u202F]/g, ' ')} F`;
 }
 
 function formatDateTime(iso: string): string {
