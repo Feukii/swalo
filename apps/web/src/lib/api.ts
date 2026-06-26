@@ -534,6 +534,19 @@ export const inventoryApi = {
     });
     return response.data;
   },
+  /** Réception créant un lot daté (prix de revient + date de prise en compte). Montants en centimes. */
+  createBatch: async (data: {
+    product_id: string;
+    quantity: number;
+    cost_price: number;
+    sell_price: number;
+    received_at?: string;
+  }) => {
+    const response = await api.post('/inventory/batches', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
   /** Mouvement de stock générique (sortie : qty négative). */
   createMovement: async (data: {
     product_id: string;

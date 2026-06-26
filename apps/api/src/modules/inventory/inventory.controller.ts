@@ -110,6 +110,7 @@ export class InventoryController {
       cost_price: number;
       sell_price: number;
       notes?: string;
+      received_at?: string;
     },
     @CurrentUser() user: CurrentUserPayload,
     @Headers('x-device-id') deviceId?: string
@@ -121,6 +122,7 @@ export class InventoryController {
       cost_price: data.cost_price,
       sell_price: data.sell_price,
       notes: data.notes,
+      price_valid_from: data.received_at ? new Date(data.received_at) : undefined,
       device_id: deviceId ?? 'unknown',
     });
   }
