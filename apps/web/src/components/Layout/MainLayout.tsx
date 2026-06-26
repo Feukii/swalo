@@ -49,7 +49,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     {
       label: 'Stock',
       items: [
-        { name: 'Produits', path: '/products', icon: '📦', module: 'products' },
+        { name: 'Produits & prix', path: '/products', icon: '📦', module: 'products' },
         { name: 'Inventaire', path: '/stock', icon: '📋', module: 'inventory' },
         { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'inventory' },
       ],
@@ -60,6 +60,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         { name: 'Clients', path: '/customers', icon: '👥', module: 'customers' },
         { name: 'Créances', path: '/receivables', icon: '💳', module: 'receivables' },
         { name: 'Relances', path: '/relances', icon: '⏰', module: 'customers' },
+        { name: 'Réglages relances', path: '/reminder-settings', icon: '⚙️', module: 'customers' },
         { name: 'Fournisseurs', path: '/suppliers', icon: '🏪', module: 'suppliers' },
         { name: 'Dettes', path: '/debts', icon: '💸', module: 'debts' },
       ],

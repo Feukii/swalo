@@ -525,6 +525,30 @@ export const productBatchesApi = {
   },
 };
 
+// Inventory API (Mouvements de stock : réceptions & sorties)
+export const inventoryApi = {
+  /** Entrée de stock (réception). Montants en centimes. */
+  stockIn: async (data: { product_id: string; quantity: number; unit_cost?: number; reason?: string }) => {
+    const response = await api.post('/inventory/stock-in', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+  /** Mouvement de stock générique (sortie : qty négative). */
+  createMovement: async (data: {
+    product_id: string;
+    type: 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'INVENTORY';
+    qty: number;
+    reason?: string;
+    unit_cost?: number;
+  }) => {
+    const response = await api.post('/inventory/movements', data, {
+      headers: { 'x-device-id': getBrowserDeviceId() },
+    });
+    return response.data;
+  },
+};
+
 // Invoices API
 export const invoicesApi = {
   getAll: async (params?: {
@@ -929,6 +953,32 @@ export const sellerTasksApi = {
   },
   markDone: async (id: string): Promise<SellerTask> => {
     const response = await api.post<SellerTask>(`/seller-tasks/${id}/done`);
+    return response.data;
+  },
+};
+
+// Reminder Settings API (Réglages relances de créances)
+export interface ReminderSettings {
+  payment_reminders_enabled: boolean;
+  notification_email: string | null;
+  payment_reminder_cadence_days: number;
+  /** Décalages (en jours) auxquels les relances sont envoyées, ex: [-7, -3, 0]. */
+  offsets: number[];
+}
+
+export interface ReminderSettingsUpdate {
+  payment_reminders_enabled?: boolean;
+  notification_email?: string | null;
+  payment_reminder_cadence_days?: number;
+}
+
+export const reminderSettingsApi = {
+  get: async (): Promise<ReminderSettings> => {
+    const response = await api.get<ReminderSettings>('/shops/me/reminder-settings');
+    return response.data;
+  },
+  update: async (payload: ReminderSettingsUpdate): Promise<ReminderSettings> => {
+    const response = await api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
     return response.data;
   },
 };

@@ -577,6 +577,32 @@ export const sellerTasksApi = {
   },
 };
 
+// Reminder Settings API (Réglages relances de créances)
+/** Réglages des relances automatiques de créances pour la boutique courante. */
+export interface ReminderSettings {
+  payment_reminders_enabled: boolean;
+  notification_email: string | null;
+  payment_reminder_cadence_days: number;
+  /** Décalages (en jours) auxquels les relances sont envoyées, ex: [-7, -3, 0]. */
+  offsets: number[];
+}
+
+/** Champs modifiables des réglages de relances (mise à jour partielle). */
+export interface ReminderSettingsUpdate {
+  payment_reminders_enabled?: boolean;
+  notification_email?: string | null;
+  payment_reminder_cadence_days?: number;
+}
+
+export const reminderSettingsApi = {
+  get: async (): Promise<ReminderSettings> => {
+    return api.get<ReminderSettings>('/shops/me/reminder-settings');
+  },
+  update: async (payload: ReminderSettingsUpdate): Promise<ReminderSettings> => {
+    return api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
+  },
+};
+
 // Import API
 export const importApi = {
   previewCatalog: async <T = JsonRecord>(fileContent: string, fileName: string): Promise<T> => {

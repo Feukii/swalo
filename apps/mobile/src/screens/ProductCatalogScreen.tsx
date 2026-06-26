@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  FlatList,
+  SectionList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,7 +17,6 @@ import {
   Package,
   Plus,
   Edit,
-  Trash,
   Search,
   Filter,
   X,
@@ -25,6 +24,7 @@ import {
   Upload,
   FileSpreadsheet,
   ChevronDown,
+  AlertTriangle,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
@@ -94,7 +94,7 @@ function getErrorMessage(e: unknown): string | undefined {
 
 interface ScreenNavigation {
   goBack: () => void;
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: Record<string, unknown>) => void;
 }
 
 interface ProductCatalogScreenProps {
@@ -145,6 +145,10 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
+
+  // Filtres maquette "Produits & prix" (onglet Articles)
+  const [selectedCategory, setSelectedCategory] = useState<string>(''); // chip catégorie ('' = Tous)
+  const [onlyLowStock, setOnlyLowStock] = useState(false); // carte "Alertes seuil"
 
   // Modal de produit
   const [showProductModal, setShowProductModal] = useState(false);
@@ -413,6 +417,26 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
     ]);
   };
 
+  // Menu d'actions (modifier / supprimer) — accessible par appui long sur un article.
+  // Conserve le gating des permissions de la maquette précédente.
+  const openProductActions = (product: Product) => {
+    if (!canEditProduct && !canDeleteProduct) return;
+    const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> =
+      [];
+    if (canEditProduct) {
+      buttons.push({ text: 'Modifier', onPress: () => openEditModal(product) });
+    }
+    if (canDeleteProduct) {
+      buttons.push({
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: () => deleteProduct(product),
+      });
+    }
+    buttons.push({ text: 'Annuler', style: 'cancel' });
+    Alert.alert(product.name, undefined, buttons);
+  };
+
   // Réinitialiser les filtres
   const clearFilters = () => {
     setSelectedFamily('');
@@ -589,179 +613,201 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
     t.toLowerCase().includes(formData.article_type.toLowerCase())
   );
 
-  // Rendu de l'onglet Articles (gestion des produits)
+  // Rendu de l'onglet Articles — maquette "Produits & prix"
   const renderArticlesTab = () => {
-    const renderProduct = ({ item }: { item: Product }) => {
-      const stockStatus = item.is_low_stock
-        ? { color: Colors.warning.main, label: 'Stock faible' }
-        : item.current_stock === 0
-          ? { color: Colors.danger.main, label: 'Rupture' }
-          : { color: Colors.success.main, label: 'En stock' };
+    // Valorisation globale (réutilise les données déjà chargées)
+    const totalStockValue = products.reduce((sum, p) => sum + p.current_stock * p.cost_price, 0);
+    const lowStockCount = products.filter(p => p.is_low_stock).length;
 
+    // Catégories (basées sur la famille) pour les chips
+    const categories = [...new Set(products.map(p => p.family).filter(Boolean))] as string[];
+
+    // Application des filtres maquette (chip catégorie + alertes seuil)
+    const visibleProducts = products.filter(p => {
+      if (onlyLowStock && !p.is_low_stock) return false;
+      if (selectedCategory && (p.family || 'Autres') !== selectedCategory) return false;
+      return true;
+    });
+
+    // Regroupement par catégorie (famille)
+    const grouped = new Map<string, Product[]>();
+    for (const p of visibleProducts) {
+      const key = p.family || 'Autres';
+      const arr = grouped.get(key);
+      if (arr) arr.push(p);
+      else grouped.set(key, [p]);
+    }
+    const sections = Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([title, data]) => ({ title, data }));
+
+    const renderProduct = ({ item }: { item: Product }) => {
+      const stockColor = item.is_low_stock ? Colors.warning.main : Colors.success.main;
       return (
         <TouchableOpacity
-          style={styles.productCard}
-          onPress={() => openEditModal(item)}
+          style={styles.itemCard}
           activeOpacity={0.7}
+          onPress={() => navigation.navigate('ProductDetails', { id: item.id })}
+          onLongPress={
+            canEditProduct || canDeleteProduct ? () => openProductActions(item) : undefined
+          }
         >
-          <View style={styles.productHeader}>
-            <View style={styles.productInfo}>
-              <Text style={styles.productSku}>{item.sku}</Text>
-              <Text style={styles.productName} numberOfLines={2}>
+          <View style={styles.itemIcon}>
+            <Package size={20} color={Colors.action} />
+          </View>
+          <View style={styles.itemBody}>
+            <View style={styles.itemNameRow}>
+              <Text style={styles.itemName} numberOfLines={1}>
                 {item.name}
               </Text>
-              <View style={styles.productTags}>
-                {item.family && (
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{item.family}</Text>
-                  </View>
-                )}
-                {item.brand && (
-                  <View style={[styles.tag, styles.tagBrand]}>
-                    <Text style={[styles.tagText, styles.tagBrandText]}>{item.brand}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-            <View style={styles.productMeta}>
-              {item.is_multi_price ? (
-                <Text style={styles.productPriceRange}>
-                  {formatMoney(item.price_min || 0)} - {formatMoney(item.price_max || 0)}
-                </Text>
-              ) : (
-                <Text style={styles.productPrice}>{formatMoney(item.sell_price)}</Text>
-              )}
               {item.is_multi_price && (
-                <View style={styles.multiPriceTag}>
-                  <Text style={styles.multiPriceTagText}>Multi-prix</Text>
+                <View style={styles.multiBadge}>
+                  <Text style={styles.multiBadgeText}>MULTI</Text>
                 </View>
               )}
-              <View style={[styles.stockBadge, { backgroundColor: stockStatus.color + '20' }]}>
-                <View style={[styles.stockDot, { backgroundColor: stockStatus.color }]} />
-                <Text style={[styles.stockText, { color: stockStatus.color }]}>
+            </View>
+            <View style={styles.itemMetaRow}>
+              <View style={[styles.stockChip, { backgroundColor: stockColor + '1A' }]}>
+                <Text style={[styles.stockChipText, { color: stockColor }]}>
                   {item.current_stock} {item.unit}
                 </Text>
               </View>
+              <Text style={styles.itemThreshold}>Seuil {item.alert_threshold}</Text>
             </View>
           </View>
-          <View style={styles.productDetails}>
-            {item.article_type && (
-              <Text style={styles.productDetail}>Type: {item.article_type}</Text>
-            )}
-            {item.reference && <Text style={styles.productDetail}>Réf: {item.reference}</Text>}
+          <View style={styles.itemPrices}>
+            <Text style={styles.itemSellPrice}>{formatMoney(item.sell_price)}</Text>
+            <Text style={styles.itemCostPrice}>PR {formatMoney(item.cost_price)}</Text>
           </View>
-          {(canEditProduct || canDeleteProduct) && (
-            <View style={styles.productActions}>
-              {canEditProduct && (
-                <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
-                  <Edit size={16} color={Colors.action} />
-                  <Text style={styles.editButtonText}>Modifier</Text>
-                </TouchableOpacity>
-              )}
-              {canDeleteProduct && (
-                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteProduct(item)}>
-                  <Trash size={16} color={Colors.danger.main} />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
         </TouchableOpacity>
       );
     };
 
     return (
       <>
-        {/* Barre de recherche et filtres */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Search size={20} color={Colors.muted.foreground} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Rechercher un article..."
-              placeholderTextColor={Colors.muted.foreground}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery ? (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <X size={20} color={Colors.muted.foreground} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <TouchableOpacity
-            style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
-            onPress={() => setShowFiltersModal(true)}
-          >
-            <Filter
-              size={20}
-              color={activeFiltersCount > 0 ? Colors.primary.foreground : Colors.action}
-            />
-            {activeFiltersCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Filtres actifs */}
-        {activeFiltersCount > 0 && (
-          <View style={styles.activeFilters}>
-            {selectedFamily && (
-              <TouchableOpacity
-                style={styles.activeFilterChip}
-                onPress={() => setSelectedFamily('')}
-              >
-                <Text style={styles.activeFilterText}>Famille: {selectedFamily}</Text>
-                <X size={14} color={Colors.action} />
-              </TouchableOpacity>
-            )}
-            {selectedBrand && (
-              <TouchableOpacity
-                style={styles.activeFilterChip}
-                onPress={() => setSelectedBrand('')}
-              >
-                <Text style={styles.activeFilterText}>Marque: {selectedBrand}</Text>
-                <X size={14} color={Colors.action} />
-              </TouchableOpacity>
-            )}
-            {selectedType && (
-              <TouchableOpacity style={styles.activeFilterChip} onPress={() => setSelectedType('')}>
-                <Text style={styles.activeFilterText}>Type: {selectedType}</Text>
-                <X size={14} color={Colors.action} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Stats rapides et bouton import */}
-        <View style={styles.statsBar}>
-          <Text style={styles.statsText}>
-            {products.length} article{products.length > 1 ? 's' : ''}
-          </Text>
-          <View style={styles.statsBarActions}>
-            {isLoading && <ActivityIndicator size="small" color={Colors.action} />}
-            {canCreateProduct && (
-              <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
-                <Upload size={16} color={Colors.action} />
-                <Text style={styles.importButtonText}>Importer</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Liste des produits */}
-        <FlatList
-          data={products}
-          renderItem={renderProduct}
+        <SectionList
+          sections={sections}
           keyExtractor={item => item.id}
+          renderItem={renderProduct}
+          stickySectionHeadersEnabled={false}
           contentContainerStyle={styles.listContent}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.categoryHeader}>
+              <Text style={styles.categoryHeaderTitle}>{section.title.toUpperCase()}</Text>
+              <View style={styles.categoryHeaderCount}>
+                <Text style={styles.categoryHeaderCountText}>{section.data.length}</Text>
+              </View>
+            </View>
+          )}
+          ListHeaderComponent={
+            <View>
+              {/* HERO valorisation + carte alertes */}
+              <View style={styles.heroRow}>
+                <View style={styles.heroCard}>
+                  <Text style={styles.heroLabel}>Valeur du stock</Text>
+                  <Text style={styles.heroAmount}>{formatMoney(totalStockValue)}</Text>
+                  <Text style={styles.heroSub}>
+                    {products.length} référence{products.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.alertCard, onlyLowStock && styles.alertCardActive]}
+                  onPress={() => setOnlyLowStock(v => !v)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.alertCount}>{lowStockCount}</Text>
+                  <View style={styles.alertLabelRow}>
+                    <AlertTriangle size={12} color={Colors.warning.main} />
+                    <Text style={styles.alertLabel}>Alertes seuil</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Recherche */}
+              <View style={styles.searchBarV2}>
+                <Search size={20} color={Colors.muted.foreground} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Rechercher un article…"
+                  placeholderTextColor={Colors.muted.foreground}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery ? (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <X size={20} color={Colors.muted.foreground} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Chips de catégories */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsRow}
+              >
+                <TouchableOpacity
+                  style={[styles.chip, !selectedCategory && styles.chipActive]}
+                  onPress={() => setSelectedCategory('')}
+                >
+                  <Text style={[styles.chipText, !selectedCategory && styles.chipTextActive]}>
+                    Tous
+                  </Text>
+                </TouchableOpacity>
+                {categories.map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.chip, selectedCategory === cat && styles.chipActive]}
+                    onPress={() => setSelectedCategory(prev => (prev === cat ? '' : cat))}
+                  >
+                    <Text
+                      style={[styles.chipText, selectedCategory === cat && styles.chipTextActive]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Actions secondaires (import + filtres avancés) */}
+              <View style={styles.toolbarRow}>
+                {isLoading && <ActivityIndicator size="small" color={Colors.action} />}
+                <View style={styles.toolbarSpacer} />
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarButton,
+                    activeFiltersCount > 0 && styles.toolbarButtonActive,
+                  ]}
+                  onPress={() => setShowFiltersModal(true)}
+                >
+                  <Filter
+                    size={16}
+                    color={activeFiltersCount > 0 ? Colors.primary.foreground : Colors.action}
+                  />
+                  <Text
+                    style={[
+                      styles.toolbarButtonText,
+                      activeFiltersCount > 0 && styles.toolbarButtonTextActive,
+                    ]}
+                  >
+                    Filtres{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ''}
+                  </Text>
+                </TouchableOpacity>
+                {canCreateProduct && (
+                  <TouchableOpacity style={styles.importButton} onPress={openImportModal}>
+                    <Upload size={16} color={Colors.action} />
+                    <Text style={styles.importButtonText}>Importer</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Package size={48} color={Colors.muted.foreground} />
               <Text style={styles.emptyText}>Aucun article trouvé</Text>
               <Text style={styles.emptySubtext}>
-                {searchQuery || activeFiltersCount > 0
+                {searchQuery || activeFiltersCount > 0 || selectedCategory || onlyLowStock
                   ? 'Essayez de modifier vos critères de recherche'
                   : 'Ajoutez des articles à votre catalogue'}
               </Text>
@@ -927,7 +973,12 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
   if (isLoading && products.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <ScreenHeader title="Catalogue" showBack onBack={() => navigation.goBack()} />
+        <ScreenHeader
+          title="Produits & prix"
+          subtitle="Catalogue & valorisation"
+          showBack
+          onBack={() => navigation.goBack()}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.action} />
         </View>
@@ -938,7 +989,8 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
-        title="Catalogue"
+        title="Produits & prix"
+        subtitle="Catalogue & valorisation"
         showBack
         onBack={() => navigation.goBack()}
         rightElement={
@@ -1906,6 +1958,241 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Spacing.md,
     paddingBottom: 100,
+  },
+  // ===== Maquette "Produits & prix" (onglet Articles) =====
+  heroRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  heroCard: {
+    flex: 2,
+    backgroundColor: Colors.primary[900],
+    borderRadius: 18,
+    padding: Spacing.lg,
+    justifyContent: 'center',
+  },
+  heroLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+  },
+  heroAmount: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    marginTop: 4,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  heroSub: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  alertCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    padding: Spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  alertCardActive: {
+    borderColor: Colors.warning.main,
+    backgroundColor: Colors.warning.background,
+  },
+  alertCount: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: Colors.warning.main,
+    fontVariant: ['tabular-nums'],
+  },
+  alertLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  alertLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning.text,
+  },
+  searchBarV2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  chipsRow: {
+    gap: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  chip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary[900],
+    borderColor: Colors.primary[900],
+  },
+  chipText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  chipTextActive: {
+    color: Colors.primary.foreground,
+  },
+  toolbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  toolbarSpacer: {
+    flex: 1,
+  },
+  toolbarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primary[50],
+    borderRadius: 8,
+  },
+  toolbarButtonActive: {
+    backgroundColor: Colors.action,
+  },
+  toolbarButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  toolbarButtonTextActive: {
+    color: Colors.primary.foreground,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  categoryHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.5,
+  },
+  categoryHeaderCount: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: Colors.muted.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryHeaderCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
+  },
+  itemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadows.sm,
+  },
+  itemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemBody: {
+    flex: 1,
+    gap: 4,
+  },
+  itemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  itemName: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  multiBadge: {
+    backgroundColor: Colors.action + '1A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  multiBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: Colors.action,
+    letterSpacing: 0.5,
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  stockChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  stockChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  itemThreshold: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    fontWeight: '500',
+  },
+  itemPrices: {
+    alignItems: 'flex-end',
+  },
+  itemSellPrice: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  itemCostPrice: {
+    fontSize: 11.5,
+    color: Colors.textColors.tertiary,
+    fontWeight: '600',
+    marginTop: 1,
   },
   productCard: {
     backgroundColor: Colors.surface,

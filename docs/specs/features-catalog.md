@@ -245,6 +245,14 @@ Chaque produit contient :
 - Stock : `alert_threshold` (seuil d'alerte stock bas)
 - Métadonnées : `unit`, `description`, `image_url`, `is_active`
 
+**Écran mobile « Produits & prix »** (`ProductCatalogScreen.tsx`) : hero marine de
+valorisation du stock + carte « Alertes seuil » (filtre stock bas), recherche, chips
+de catégories, liste groupée par catégorie (chip stock, seuil, prix de vente + prix
+de revient, badge MULTI). L'appui sur un article ouvre l'écran détail
+(`ProductDetailsScreen.tsx`, offline-first) : valorisation (PMP, marge %), boutons
+Entrée/Sortie (bottom-sheets), table des lots FIFO datés, et édition du seuil.
+L'appui long sur un article expose Modifier/Supprimer selon les permissions.
+
 ### 3.2 Hiérarchie produits (Famille / Marque / Type)
 
 | Propriété         | Valeur                                                                                                                   |
