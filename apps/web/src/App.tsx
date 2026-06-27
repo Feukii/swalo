@@ -11,6 +11,7 @@ import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
 import CatalogHierarchy from './pages/CatalogHierarchy';
 import StockManagement from './pages/StockManagement';
+import Transfers from './pages/Transfers';
 import Customers from './pages/Customers';
 import CustomerDetails from './pages/CustomerDetails';
 import Suppliers from './pages/Suppliers';
@@ -152,6 +153,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <StockManagement />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transfers"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Transfers />
               </MainLayout>
             </ProtectedRoute>
           }

@@ -672,50 +672,86 @@ export const enterpriseApi = {
 };
 
 // Transfers API (Inter-shop)
+export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'SHIPPED' | 'RECEIVED' | 'CANCELLED';
+
+export interface TransferShopRef {
+  id: string;
+  code: string;
+  name: string;
+  shop_type?: string;
+}
+
+export interface TransferItem {
+  id: string;
+  product_sku: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  cost_price: number;
+  total: number;
+}
+
+export interface Transfer {
+  id: string;
+  status: TransferStatus;
+  notes?: string;
+  created_at: string;
+  enterprise_id?: string;
+  source_shop: TransferShopRef;
+  target_shop: TransferShopRef;
+  creator: { id: string; display_name: string };
+  items: TransferItem[];
+}
+
+export interface CreateTransferItemPayload {
+  product_sku: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  cost_price: number;
+}
+
+export interface CreateTransferPayload {
+  source_shop_id: string;
+  target_shop_id: string;
+  items: CreateTransferItemPayload[];
+  notes?: string;
+}
+
 export const transfersApi = {
-  getAll: async () => {
-    const response = await api.get('/transfers');
+  getAll: async (enterpriseId?: string): Promise<Transfer[]> => {
+    const params = enterpriseId ? { enterprise_id: enterpriseId } : undefined;
+    const response = await api.get<Transfer[]>('/transfers', { params });
     return response.data;
   },
 
-  getOne: async (id: string) => {
-    const response = await api.get(`/transfers/${id}`);
+  getOne: async (id: string): Promise<Transfer> => {
+    const response = await api.get<Transfer>(`/transfers/${id}`);
     return response.data;
   },
 
-  create: async (data: {
-    source_shop_id: string;
-    target_shop_id: string;
-    items: Array<{
-      product_sku: string;
-      product_name: string;
-      quantity: number;
-      unit_price: number;
-      cost_price: number;
-    }>;
-    notes?: string;
-  }) => {
-    const response = await api.post('/transfers', data);
+  create: async (data: CreateTransferPayload): Promise<Transfer> => {
+    const response = await api.post<Transfer>('/transfers', data);
     return response.data;
   },
 
-  confirm: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/confirm`);
+  confirm: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/confirm`);
     return response.data;
   },
 
-  ship: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/ship`);
+  ship: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/ship`);
     return response.data;
   },
 
-  receive: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/receive`);
+  receive: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/receive`);
     return response.data;
   },
 
-  cancel: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/cancel`);
+  cancel: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/cancel`);
     return response.data;
   },
 };
