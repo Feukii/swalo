@@ -1045,40 +1045,68 @@ export const reportsApi = {
   },
 };
 
-// Accounting API (Comptabilité : journal, grand livre, bilan, résultat)
-// Tous les montants sont en centimes (÷100 à l'affichage).
-export interface AccountingBalanceSheet {
-  stock_value: number;
-  receivables: number;
-  cash: number;
-  total_actif: number;
-  debts: number;
-  equity: number;
-  total_passif: number;
-}
-
-export interface AccountingIncomeStatement {
-  revenue: number;
-  cogs: number;
-  gross_margin: number;
-  rent_charges: number;
-  salaries: number;
-  transport_misc: number;
-  net_profit: number;
+// Accounting API (Comptabilité en partie double : journal, grand livre, bilan, résultat)
+// Tous les montants sont des entiers en FCFA (aucune division à l'affichage).
+export interface AccountingEntryLine {
+  account: string;
+  name: string;
+  debit: number;
+  credit: number;
 }
 
 export interface AccountingJournalEntry {
-  id: string;
-  created_at: string;
-  label: string;
-  reference: string;
-  amount: number;
+  date: string;
+  libelle: string;
+  lines: AccountingEntryLine[];
+}
+
+export interface AccountingLedgerMovement {
+  account: string;
+  debit: number;
+  credit: number;
+  date: string;
+  libelle: string;
+}
+
+export interface AccountingLedgerAccount {
+  account: string;
+  name: string;
+  classe: number;
+  debit: number;
+  credit: number;
+  solde: number;
+  mouvements: AccountingLedgerMovement[];
+}
+
+export interface AccountingAmountRow {
+  account: string;
+  name: string;
+  montant: number;
+}
+
+export interface AccountingBalanceSheet {
+  actif: AccountingAmountRow[];
+  passif: AccountingAmountRow[];
+  totalActif: number;
+  totalPassif: number;
+  resultat: number;
+  equilibre: boolean;
+}
+
+export interface AccountingIncomeStatement {
+  ca: number;
+  cogs: number;
+  margeBrute: number;
+  charges: AccountingAmountRow[];
+  autresProduits: number;
+  beneficeNet: number;
 }
 
 export interface AccountingReport {
-  balance_sheet: AccountingBalanceSheet;
-  income_statement: AccountingIncomeStatement;
   journal: AccountingJournalEntry[];
+  grand_livre: AccountingLedgerAccount[];
+  bilan: AccountingBalanceSheet;
+  resultat: AccountingIncomeStatement;
 }
 
 export const accountingApi = {

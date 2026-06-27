@@ -890,19 +890,20 @@ Sections disponibles :
 
 | Propriété         | Valeur                                                                                            |
 | ----------------- | ------------------------------------------------------------------------------------------------- |
-| **Description**   | Comptabilité : journal des écritures, grand livre par compte, bilan (Actif = Passif) et compte de résultat (marge brute, charges, bénéfice net) |
-| **Plateformes**   | Mobile (offline, agrégats SQLite locaux), Web (dashboard boutique), Web-admin (console lecture seule), API |
+| **Description**   | Comptabilité **en partie double (OHADA/SYSCOHADA simplifié)** : chaque opération génère des écritures débit/crédit ; Journal, Grand livre, Bilan (Actif = Passif) et Compte de résultat sont **dérivés des écritures** |
+| **Plateformes**   | Mobile (offline, moteur sur données SQLite), Web (dashboard boutique), Web-admin (console lecture seule), API |
 | **Module**        | Premium (pilotage)                                                                                |
 | **Endpoints**     | `GET /reports/accounting` (BOSS/MANAGER), `GET /admin/shops/:id/accounting` (SUPERADMIN, console) |
-| **Fichiers clés** | Mobile : `apps/mobile/src/screens/ComptabilityScreen.tsx`, `apps/mobile/src/db/reports.ts`. API : `reports.service.ts` (`getAccountingReport`), `admin.service.ts` (`getShopAccounting`). Web : `apps/web/src/pages/Accounting.tsx`. Web-admin : `apps/web-admin/src/pages/console/EnterpriseAccounting.tsx` |
+| **Fichiers clés** | **Moteur partagé** : `packages/core/src/accounting/` (`accounts.ts` plan de comptes, `operations.ts` `operationsToEcritures`, `journal.ts` `postJournal`, `computeAccounting`). Mobile : `ComptabilityScreen.tsx`, `apps/mobile/src/db/accounting.ts`. API : `reports.service.ts` (`getAccountingReport` + `buildPeriodOperations`/`buildSnapshotOperation`). Web : `Accounting.tsx`. Web-admin : `EnterpriseAccounting.tsx` |
 
 Caractéristiques :
 
-- **Sélecteur de périmètre boutique** : « Toutes les boutiques » (agrégation des `shop_id` présents en local) ou une boutique précise.
-- **Filtres de période** : Jour / Semaine / Mois / Année (le bilan est un instantané ; le résultat dépend de la période).
-- **Bilan** : Actif (Stock marchandises, Créances clients, Caisse) = Passif (Dettes fournisseurs, Capital & résultat équilibrant), bannière « Bilan équilibré ».
-- **Résultat** : Marge brute, Chiffre d'affaires, Coût des marchandises vendues (PMP × quantités), Loyers & charges, Salaires, Transport & divers, Bénéfice net.
-- **Journal** : mouvements de caisse chronologiques signés. **Grand livre** : soldes par compte (Caisse, Stock, Créances, Dettes, Ventes, Charges).
+- **Moteur comptable partagé** (`@swalo/core/accounting`, TS pur sans IO) réutilisé par mobile (SQLite), backend (Prisma) et web. Garantit par construction : chaque écriture équilibrée, **Actif = Passif**, `bilan.résultat === bénéfice net`.
+- **Plan de comptes SYSCOHADA simplifié** : 101/108/110/120 capitaux, 311 stocks, 401/411 tiers, 521/551/571 trésorerie, 601/603/61/62/64/641/658 charges, 701/758 produits.
+- **Mapping opération → écritures** : vente cash/crédit, COGS perpétuel (D603/C311 au coût pièce), encaissement créance, achat crédit/comptant, règlement fournisseur, charges, retrait personnel (capitaux 108), remboursements, ajustement de stock, solde d'ouverture (capital en *plug*). **Anti-double-comptage** : une seule source par flux (ventes vs caisse `ventes`, paiements vs `reglement_fournisseur`, exclusion `CLOSING` et caisses liées aux paiements).
+- **Sélecteur de périmètre** (Toutes les boutiques / une boutique) + **période** Jour/Semaine/Mois/Année.
+- **Bilan** = instantané courant (Actif = Passif) ; **Journal** = écritures équilibrées de la période ; **Grand livre** = comptes (débit/crédit/solde signé) ; **Résultat** = CA, COGS (net 601+603), marge brute, charges, bénéfice net.
+- Tests Jest du moteur (équilibre, Actif=Passif, cohérence résultat) ; validé sur données réelles (bilan équilibré).
 
 ### 8.6 Supervision (journal des actions anormales)
 

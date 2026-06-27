@@ -167,38 +167,67 @@ export interface AdminEnterpriseReports {
   };
 }
 
-export interface AdminAccountingBalanceSheet {
-  stock_value: number;
-  receivables: number;
-  cash: number;
-  total_actif: number;
-  debts: number;
-  equity: number;
-  total_passif: number;
-}
-
-export interface AdminAccountingIncomeStatement {
-  revenue: number;
-  cogs: number;
-  gross_margin: number;
-  rent_charges: number;
-  salaries: number;
-  transport_misc: number;
-  net_profit: number;
+// Comptabilité en partie double. Tous les montants sont des entiers en FCFA.
+export interface AdminAccountingEntryLine {
+  account: string;
+  name: string;
+  debit: number;
+  credit: number;
 }
 
 export interface AdminAccountingJournalEntry {
-  id: string;
-  created_at: string;
-  label: string;
-  reference: string;
-  amount: number;
+  date: string;
+  libelle: string;
+  lines: AdminAccountingEntryLine[];
+}
+
+export interface AdminAccountingLedgerMovement {
+  account: string;
+  debit: number;
+  credit: number;
+  date: string;
+  libelle: string;
+}
+
+export interface AdminAccountingLedgerAccount {
+  account: string;
+  name: string;
+  classe: number;
+  debit: number;
+  credit: number;
+  solde: number;
+  mouvements: AdminAccountingLedgerMovement[];
+}
+
+export interface AdminAccountingAmountRow {
+  account: string;
+  name: string;
+  montant: number;
+}
+
+export interface AdminAccountingBalanceSheet {
+  actif: AdminAccountingAmountRow[];
+  passif: AdminAccountingAmountRow[];
+  totalActif: number;
+  totalPassif: number;
+  resultat: number;
+  equilibre: boolean;
+}
+
+export interface AdminAccountingIncomeStatement {
+  ca: number;
+  cogs: number;
+  margeBrute: number;
+  charges: AdminAccountingAmountRow[];
+  autresProduits: number;
+  beneficeNet: number;
 }
 
 export interface AdminShopAccounting {
-  balance_sheet: AdminAccountingBalanceSheet;
-  income_statement: AdminAccountingIncomeStatement;
   journal: AdminAccountingJournalEntry[];
+  grand_livre: AdminAccountingLedgerAccount[];
+  bilan: AdminAccountingBalanceSheet;
+  resultat: AdminAccountingIncomeStatement;
 }
 
 export type AdminSupervisionSeverity = 'critical' | 'review';
