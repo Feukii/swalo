@@ -10,6 +10,10 @@ services:
     buildCommand: |
       # Install dependencies
       pnpm install
+      # Build le package partagé @swalo/core AVANT l'API
+      # (l'API importe @swalo/core et @swalo/core/accounting → dist/ requis au runtime ;
+      #  pas de script prepare, dist non versionné → il faut le bâtir explicitement)
+      pnpm --filter @swalo/core build
       # Générer Prisma client et appliquer les migrations
       cd apps/api && npx prisma@5.22.0 generate && npx prisma@5.22.0 migrate deploy
       # Build l'API
