@@ -304,8 +304,19 @@ class SyncEngine {
     try {
       this.emit({ type: 'sync_start' });
 
-      // Push first (local changes to server)
-      const pushResult = await this.push();
+      // Push first (local changes to server). Un échec de push ne doit PAS
+      // empêcher le pull : on doit toujours pouvoir lire les données du serveur
+      // (sinon une mutation locale en erreur bloque tout le catalogue).
+      let pushResult: { applied?: Record<string, string[]>; conflicts?: SyncConflict[] } | null =
+        null;
+      try {
+        pushResult = await this.push();
+      } catch (pushErr) {
+        console.log(
+          '[Sync] push échoué, on poursuit le pull:',
+          pushErr instanceof Error ? pushErr.message : String(pushErr)
+        );
+      }
 
       // Then pull (server changes to local)
       await this.pull();
@@ -494,7 +505,16 @@ class SyncEngine {
         } as Record<string, unknown> & { id: string };
       });
 
-      await repo.bulkUpsertFromServer(localRecords);
+      // Résilience : l'échec d'une entité ne doit pas bloquer les autres
+      // (ex. les produits doivent s'écrire même si une autre table échoue).
+      try {
+        await repo.bulkUpsertFromServer(localRecords);
+      } catch (applyErr) {
+        console.log(
+          `[Sync] échec application "${entity}":`,
+          applyErr instanceof Error ? applyErr.message : String(applyErr)
+        );
+      }
     }
 
     // Save sync metadata
