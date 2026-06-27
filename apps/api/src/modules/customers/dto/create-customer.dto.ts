@@ -23,7 +23,7 @@ export class CreateCustomerDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  credit_limit?: number; // En centimes
+  credit_limit?: number; // En FCFA
 
   @IsString()
   @IsOptional()
@@ -44,5 +44,5 @@ export class CreateCustomerDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  initial_balance?: number; // Montant initial de la créance en centimes
+  initial_balance?: number; // Montant initial de la créance en FCFA
 }

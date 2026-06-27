@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ReportsService } from '../reports/reports.service';
 import { Prisma, Role } from '@prisma/client';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
@@ -43,7 +44,10 @@ function generateShopCode(length = 6): string {
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private reportsService: ReportsService
+  ) {}
 
   // ============================================
   // SHOPS (existing)
@@ -1368,6 +1372,7 @@ export class AdminService {
           where: { deleted: false },
           select: { remaining_quantity: true, sell_price: true },
         },
+        packaging_type: { select: { name: true } },
       },
       orderBy: { name: 'asc' },
     });
@@ -1389,8 +1394,23 @@ export class AdminService {
         value: stock * p.sell_price,
         multi_price,
         is_active: p.is_active,
+        packaging: p.packaging_type?.name ?? null,
+        units_per_package: p.units_per_package ?? null,
+        package_price: p.package_price ?? null,
       };
     });
+  }
+
+  /** Comptabilité d'une boutique (bilan + résultat + journal) — lecture seule console. */
+  async getShopAccounting(shopId: string, filters?: { start_date?: string; end_date?: string }) {
+    await this.assertShopExists(shopId);
+    return this.reportsService.getAccountingReport(shopId, filters);
+  }
+
+  /** Supervision d'une boutique (journal des actions anormales) — lecture seule console. */
+  async getShopSupervision(shopId: string, filters?: { start_date?: string; end_date?: string }) {
+    await this.assertShopExists(shopId);
+    return this.reportsService.getSupervisionReport(shopId, filters);
   }
 
   /** Clients d'une boutique avec solde, limite de credit, derniere operation et statut. */

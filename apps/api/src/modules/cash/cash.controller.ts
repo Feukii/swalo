@@ -5,12 +5,14 @@ import { Role } from '@prisma/client';
 import { CashService } from './cash.service';
 import { CreateCashEntryDto } from './dto/create-cash-entry.dto';
 import { CreateMerchandisePurchaseDto } from './dto/create-merchandise-purchase.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 type AuthenticatedRequest = Request & {
   user: { userId: string; shopId: string; role: Role };
 };
 
 @Controller('cash')
+@RequireModule('cash')
 export class CashController {
   constructor(private readonly cashService: CashService) {}
 

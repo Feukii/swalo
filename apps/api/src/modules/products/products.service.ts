@@ -33,6 +33,24 @@ export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Plancher (hard floor) du prix de DÉTAIL (à la pièce) : il ne peut jamais être
+   * inférieur au prix de GROS ramené à la pièce, soit ceil(package_price / UPP).
+   * N'a de sens qu'avec un sous-conditionnement (UPP > 1) et un prix de détail saisi.
+   * Renvoie la valeur de sell_price ajustée (clampée) si nécessaire.
+   */
+  private clampSellPriceToFloor(
+    sellPrice: number,
+    packagePrice: number | undefined | null,
+    unitsPerPackage: number | undefined | null
+  ): number {
+    if (sellPrice <= 0) return sellPrice;
+    if (!unitsPerPackage || unitsPerPackage <= 1) return sellPrice;
+    if (!packagePrice || packagePrice <= 0) return sellPrice;
+    const floor = Math.ceil(packagePrice / unitsPerPackage);
+    return sellPrice < floor ? floor : sellPrice;
+  }
+
+  /**
    * Créer un nouveau produit
    */
   async create(shopId: string, dto: CreateProductDto, deviceId?: string) {
@@ -79,9 +97,17 @@ export class ProductsService {
           brand: dto.brand,
           reference: dto.reference,
           unit: dto.unit ?? 'unit',
+          packaging_type_id: dto.packaging_type_id,
+          units_per_package: dto.units_per_package,
+          package_price: dto.package_price,
           tax_rate: dto.tax_rate ?? 0,
           cost_price: dto.cost_price,
-          sell_price: dto.sell_price,
+          // Intégrité : le prix de détail (pièce) ne peut être < gros/pièce.
+          sell_price: this.clampSellPriceToFloor(
+            dto.sell_price,
+            dto.package_price,
+            dto.units_per_package
+          ),
           is_active: dto.is_active ?? true,
           alert_threshold: dto.alert_threshold ?? 5,
           image_url: dto.image_url,
@@ -283,6 +309,9 @@ export class ProductsService {
       brand,
       reference,
       unit,
+      packaging_type_id,
+      units_per_package,
+      package_price,
       tax_rate,
       cost_price,
       sell_price,
@@ -290,6 +319,14 @@ export class ProductsService {
       alert_threshold,
       image_url,
     } = dto;
+    // Intégrité du plancher de détail : on évalue UPP/package_price effectifs
+    // (valeur du DTO si fournie, sinon valeur déjà en base) pour clamper sell_price.
+    const effectiveUpp = units_per_package ?? product.units_per_package;
+    const effectivePackagePrice = package_price ?? product.package_price;
+    const clampedSellPrice =
+      sell_price !== undefined
+        ? this.clampSellPriceToFloor(sell_price, effectivePackagePrice, effectiveUpp)
+        : undefined;
     const updatedProduct = await this.prisma.product.update({
       where: { id },
       data: {
@@ -303,9 +340,12 @@ export class ProductsService {
         ...(brand !== undefined && { brand }),
         ...(reference !== undefined && { reference }),
         ...(unit !== undefined && { unit }),
+        ...(packaging_type_id !== undefined && { packaging_type_id }),
+        ...(units_per_package !== undefined && { units_per_package }),
+        ...(package_price !== undefined && { package_price }),
         ...(tax_rate !== undefined && { tax_rate }),
         ...(cost_price !== undefined && { cost_price }),
-        ...(sell_price !== undefined && { sell_price }),
+        ...(clampedSellPrice !== undefined && { sell_price: clampedSellPrice }),
         ...(is_active !== undefined && { is_active }),
         ...(alert_threshold !== undefined && { alert_threshold }),
         ...(image_url !== undefined && { image_url }),

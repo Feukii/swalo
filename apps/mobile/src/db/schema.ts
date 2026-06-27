@@ -4,12 +4,21 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'swalo.db';
 /** Current target schema version (see runMigrations). Kept for documentation. */
-const _DB_VERSION = 6;
+const _DB_VERSION = 9;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+/**
+ * Promesse d'ouverture partagée : garantit que la base n'est ouverte qu'UNE
+ * seule fois même si plusieurs appelants concurrents (init, sync engine, repos)
+ * appellent getDatabase() avant la fin de l'ouverture. Sans ce guard, deux
+ * connexions WAL sont ouvertes en parallèle -> "NativeDatabase.prepareSync has
+ * been rejected" et base verrouillée.
+ */
+let dbOpenPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
  * Sync status for local records
@@ -21,16 +30,71 @@ export type SyncStatus = 'synced' | 'pending' | 'conflict';
  */
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-  await dbInstance.execAsync('PRAGMA journal_mode = WAL;');
-  await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
-  return dbInstance;
+  // Une seule ouverture, partagée par tous les appelants concurrents.
+  if (!dbOpenPromise) {
+    dbOpenPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await db.execAsync('PRAGMA journal_mode = WAL;');
+      await db.execAsync('PRAGMA foreign_keys = ON;');
+      dbInstance = db;
+      return db;
+    })().catch(err => {
+      // En cas d'échec, on réinitialise pour permettre une nouvelle tentative.
+      dbOpenPromise = null;
+      throw err;
+    });
+  }
+  return dbOpenPromise;
+}
+
+/**
+ * Ferme et supprime le fichier de base locale (auto-réparation quand la base
+ * est corrompue/verrouillée, ex. "NativeDatabase.prepareSync has been rejected").
+ */
+export async function resetLocalDatabase(): Promise<void> {
+  try {
+    await dbInstance?.closeAsync();
+  } catch {
+    // ignore
+  }
+  dbInstance = null;
+  dbOpenPromise = null;
+  try {
+    await SQLite.deleteDatabaseAsync(DB_NAME);
+  } catch {
+    // la base peut ne pas exister : on ignore
+  }
+  // Réinitialise le curseur de synchro : la base étant vide, on doit re-puller
+  // TOUTES les données du serveur (sinon un last_sync_at périmé renvoie un pull vide).
+  try {
+    await AsyncStorage.multiRemove(['sync_last_sync_at', 'sync_cursor']);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Initialise le schéma de la base, avec AUTO-RÉPARATION : si l'initialisation
+ * échoue (base locale corrompue/verrouillée), on supprime le fichier et on
+ * recrée une base saine, puis on relance la synchro depuis le serveur.
+ */
+export async function initDatabase(): Promise<void> {
+  try {
+    await initDatabaseInner();
+    // Test de sanité : détecte une base ouverte mais cassée/verrouillée.
+    const db = await getDatabase();
+    await db.getFirstAsync('SELECT 1');
+  } catch (err) {
+    console.warn('[DB] init échouée, recréation de la base locale', err);
+    await resetLocalDatabase();
+    await initDatabaseInner();
+  }
 }
 
 /**
  * Initialize the database schema (create all tables)
  */
-export async function initDatabase(): Promise<void> {
+async function initDatabaseInner(): Promise<void> {
   const db = await getDatabase();
 
   await db.execAsync(`
@@ -80,6 +144,8 @@ export async function initDatabase(): Promise<void> {
       device_id TEXT,
       client_op_id TEXT,
       packaging_type_id TEXT,
+      units_per_package INTEGER,
+      package_price INTEGER,
       _sync_status TEXT NOT NULL DEFAULT 'synced',
       _server_id TEXT,
       _last_synced_at TEXT
@@ -337,6 +403,9 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         borrowing_limit INTEGER NOT NULL DEFAULT 0,
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
+        sms_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        whatsapp_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        email_notifications_enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted INTEGER NOT NULL DEFAULT 0,
@@ -359,6 +428,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         description TEXT,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'PENDING',
+        due_date TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted INTEGER NOT NULL DEFAULT 0,
@@ -589,6 +659,17 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_packaging_types_name ON packaging_types(shop_id, name);
 
+      -- Acquittements d'alertes de supervision (local ; le backend fait foi via POST en ligne)
+      CREATE TABLE IF NOT EXISTS alert_acknowledgements (
+        id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        alert_id TEXT NOT NULL,
+        acknowledged_by TEXT,
+        acknowledged_at TEXT NOT NULL,
+        note TEXT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_ack_unique ON alert_acknowledgements(shop_id, alert_id);
+
       -- Cash Sessions (mirror of Prisma CashSession)
       CREATE TABLE IF NOT EXISTS cash_sessions (
         id TEXT PRIMARY KEY,
@@ -700,6 +781,62 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     }
     await db.runAsync('UPDATE _schema_version SET version = 6');
   }
+
+  if (currentVersion < 7) {
+    // Migration v7: Add packaging quantity/price to products (conditionnement multi-prix)
+    const alterStatements = [
+      'ALTER TABLE products ADD COLUMN units_per_package INTEGER;',
+      'ALTER TABLE products ADD COLUMN package_price INTEGER;',
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await db.execAsync(stmt);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 7');
+  }
+
+  if (currentVersion < 8) {
+    // Migration v8: table locale d'acquittement des alertes de supervision
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS alert_acknowledgements (
+          id TEXT PRIMARY KEY,
+          shop_id TEXT NOT NULL,
+          alert_id TEXT NOT NULL,
+          acknowledged_by TEXT,
+          acknowledged_at TEXT NOT NULL,
+          note TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_ack_unique ON alert_acknowledgements(shop_id, alert_id);
+      `);
+    } catch {
+      // Table already exists, ignore
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 8');
+  }
+
+  if (currentVersion < 9) {
+    // Migration v9: préférences de notification fournisseur + échéance des dettes
+    // (parité fournisseur ↔ client). Try/catch car les colonnes peuvent déjà
+    // exister sur des installs récents.
+    const alterStatements = [
+      'ALTER TABLE suppliers ADD COLUMN sms_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE suppliers ADD COLUMN whatsapp_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE suppliers ADD COLUMN email_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE supplier_debts ADD COLUMN due_date TEXT;',
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await db.execAsync(stmt);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 9');
+  }
 }
 
 /**
@@ -713,6 +850,7 @@ export async function resetDatabase(): Promise<void> {
     DELETE FROM _sync_meta;
     DELETE FROM inventory_counts;
     DELETE FROM inventory_sessions;
+    DELETE FROM alert_acknowledgements;
     DELETE FROM invoice_items;
     DELETE FROM invoices;
     DELETE FROM supplier_invoice_items;

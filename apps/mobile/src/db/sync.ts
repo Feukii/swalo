@@ -6,7 +6,7 @@
 
 import * as Network from 'expo-network';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getDatabase } from './schema';
+import { getDatabase, initDatabase, resetLocalDatabase } from './schema';
 import {
   dequeuePending,
   markBatchProcessing,
@@ -47,6 +47,56 @@ const SYNC_INTERVAL_LOW_BATTERY_MS = 300_000; // 5 minutes
 
 /** Entities considered "reference data" (safe for auto-resolution via LWW) */
 const REFERENCE_ENTITIES = new Set(['products', 'customers', 'suppliers', 'packaging_types']);
+
+/**
+ * Champs monétaires par entité. Les montants sont des ENTIERS FCFA de bout en bout
+ * (serveur == local) : le FCFA n'a pas de centimes, donc AUCUNE conversion d'échelle
+ * à la sync. On normalise seulement en entier par sécurité.
+ */
+const MONEY_FIELDS: Record<string, string[]> = {
+  products: ['cost_price', 'sell_price', 'package_price'],
+  stock_batches: ['cost_price', 'sell_price'],
+  customers: ['credit_limit'],
+  suppliers: ['borrowing_limit'],
+  sales: [
+    'subtotal',
+    'discount',
+    'tax_total',
+    'net_total',
+    'grand_total',
+    'paid_total',
+    'change',
+    'expected_total',
+  ],
+  sale_items: ['unit_price', 'discount', 'subtotal', 'tax_total', 'total'],
+  cash_entries: ['amount'],
+  client_receivables: ['amount', 'paid_amount', 'balance'],
+  client_receivable_payments: ['amount'],
+  supplier_debts: ['amount', 'paid_amount', 'balance'],
+  supplier_debt_payments: ['amount'],
+  payments: ['amount'],
+  invoices: ['subtotal', 'discount', 'tax_total', 'grand_total', 'paid_total', 'balance_due'],
+  invoice_items: ['unit_price', 'discount', 'subtotal', 'tax_total', 'total'],
+  inventory_movements: ['unit_cost'],
+};
+
+/** Normalise les champs monétaires en entiers FCFA. Aucune conversion d'échelle (pas de centimes). */
+function convertMoneyFields<T extends Record<string, unknown>>(
+  entity: string,
+  data: T,
+  _direction: 'toLocal' | 'toServer'
+): T {
+  const fields = MONEY_FIELDS[entity];
+  if (!fields) return data;
+  const out: Record<string, unknown> = { ...data };
+  for (const f of fields) {
+    const v = out[f];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[f] = Math.round(v);
+    }
+  }
+  return out as T;
+}
 
 type SyncListener = (event: SyncEvent) => void;
 
@@ -133,6 +183,11 @@ class SyncEngine {
   private _pendingCount = 0;
   private _isLowBattery = false;
   private _maintenanceRan = false;
+  /** Diagnostic du dernier pull : nb d'enregistrements reçus par entité + erreurs d'écriture. */
+  private lastPullSummary: { received: Record<string, number>; errors: string[] } = {
+    received: {},
+    errors: [],
+  };
 
   get isOnline(): boolean {
     return this._isOnline;
@@ -237,8 +292,13 @@ class SyncEngine {
     try {
       const networkState = await Network.getNetworkStateAsync();
       const wasOnline = this._isOnline;
-      this._isOnline =
-        networkState.isConnected === true && networkState.isInternetReachable !== false;
+
+      // Offline-first : "en ligne" dès qu'une connexion réseau est disponible.
+      // On NE dépend PAS de isInternetReachable (le serveur peut être en LAN sans
+      // Internet public, et certains réseaux bloquent le test Internet de l'OS).
+      // S'il y a un réseau -> en ligne, et la synchro s'exécute (les échecs d'API
+      // sont gérés proprement : push qui n'empêche pas le pull, retries, etc.).
+      this._isOnline = networkState.isConnected === true;
 
       if (wasOnline !== this._isOnline) {
         this.emit({
@@ -279,8 +339,19 @@ class SyncEngine {
     try {
       this.emit({ type: 'sync_start' });
 
-      // Push first (local changes to server)
-      const pushResult = await this.push();
+      // Push first (local changes to server). Un échec de push ne doit PAS
+      // empêcher le pull : on doit toujours pouvoir lire les données du serveur
+      // (sinon une mutation locale en erreur bloque tout le catalogue).
+      let pushResult: { applied?: Record<string, string[]>; conflicts?: SyncConflict[] } | null =
+        null;
+      try {
+        pushResult = await this.push();
+      } catch (pushErr) {
+        console.log(
+          '[Sync] push échoué, on poursuit le pull:',
+          pushErr instanceof Error ? pushErr.message : String(pushErr)
+        );
+      }
 
       // Then pull (server changes to local)
       await this.pull();
@@ -314,6 +385,45 @@ class SyncEngine {
   }
 
   /**
+   * Resynchronisation COMPLÈTE forcée : supprime la base locale + le curseur,
+   * recrée le schéma, puis re-télécharge TOUTES les données du serveur.
+   * Renvoie le nombre de produits réellement écrits en local (ou l'erreur exacte).
+   * Utilisé par le bouton "Forcer la resynchronisation" — répare + diagnostique.
+   */
+  async forceFullResync(): Promise<{
+    ok: boolean;
+    products: number;
+    error?: string;
+    detail?: string;
+  }> {
+    try {
+      this.emit({ type: 'sync_start' });
+      await resetLocalDatabase();
+      await initDatabase();
+      this._isOnline = true; // on force ; le pull validera réellement la connexion
+      await this.pull();
+      await AsyncStorage.setItem(SYNC_META_LAST_SYNC, new Date().toISOString());
+      await this.updatePendingCount();
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ n: number }>(
+        'SELECT COUNT(*) as n FROM products WHERE deleted = 0'
+      );
+      const products = row?.n ?? 0;
+      this.emit({ type: 'sync_complete', pendingCount: this._pendingCount });
+      const received = this.lastPullSummary.received.products ?? 0;
+      let detail = `Reçu du serveur : ${received} produit(s).`;
+      if (this.lastPullSummary.errors.length > 0) {
+        detail += `\n\nErreurs d'écriture locale :\n- ${this.lastPullSummary.errors.join('\n- ')}`;
+      }
+      return { ok: true, products, detail };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit({ type: 'sync_error', error: message });
+      return { ok: false, products: 0, error: message };
+    }
+  }
+
+  /**
    * Push local mutations to server
    */
   async push(): Promise<{
@@ -338,7 +448,12 @@ class SyncEngine {
       changes[mutation.entity].push({
         op: mutation.op,
         id: mutation.entity_id,
-        data: JSON.parse(mutation.data),
+        // Conversion FCFA (local) -> centimes (serveur) sur les champs monétaires.
+        data: convertMoneyFields(
+          mutation.entity,
+          JSON.parse(mutation.data) as Record<string, unknown>,
+          'toServer'
+        ),
         client_op_id: mutation.client_op_id,
         device_id: mutation.device_id,
         timestamp: mutation.timestamp,
@@ -446,9 +561,11 @@ class SyncEngine {
     };
 
     const changesByEntity: Record<string, ServerRecord[]> = result.changes || {};
+    this.lastPullSummary = { received: {}, errors: [] };
     for (const [entity, records] of Object.entries(changesByEntity)) {
       const repo = repoMap[entity];
       if (!repo || !Array.isArray(records) || records.length === 0) continue;
+      this.lastPullSummary.received[entity] = records.length;
 
       // Convert server records to local format
       const localRecords = records.map((r: ServerRecord) => {
@@ -469,7 +586,18 @@ class SyncEngine {
         } as Record<string, unknown> & { id: string };
       });
 
-      await repo.bulkUpsertFromServer(localRecords);
+      // Conversion centimes (serveur) -> FCFA (local) sur les champs monétaires.
+      const converted = localRecords.map(r => convertMoneyFields(entity, r, 'toLocal'));
+
+      // Résilience : l'échec d'une entité ne doit pas bloquer les autres
+      // (ex. les produits doivent s'écrire même si une autre table échoue).
+      try {
+        await repo.bulkUpsertFromServer(converted);
+      } catch (applyErr) {
+        const msg = applyErr instanceof Error ? applyErr.message : String(applyErr);
+        this.lastPullSummary.errors.push(`${entity}: ${msg}`);
+        console.log(`[Sync] échec application "${entity}":`, msg);
+      }
     }
 
     // Save sync metadata

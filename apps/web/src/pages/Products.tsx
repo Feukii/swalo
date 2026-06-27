@@ -10,6 +10,7 @@ interface Product {
   category?: string;
   family?: string;
   brand?: string;
+  article_type?: string;
   unit?: string;
   cost_price: number;
   sell_price: number;
@@ -30,9 +31,9 @@ interface Stats {
   total_inventory_value: number;
 }
 
-/** Formatte un montant en centimes -> "12 345 F" (présentation, maquette). */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 345 F" (présentation, maquette). */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
@@ -46,6 +47,11 @@ export default function Products() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  // Filtres avancés (client-side, dérivés des produits chargés) :
+  // Famille / Marque / Type d'article — comme le catalogue mobile.
+  const [selectedFamily, setSelectedFamily] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedType, setSelectedType] = useState('');
 
   const loadData = async () => {
     try {
@@ -82,10 +88,58 @@ export default function Products() {
     stats?.low_stock_count ??
     products.filter(p => p.is_low_stock && (p.current_stock ?? 0) > 0).length;
 
+  // Listes d'options pour les filtres avancés, construites à partir des valeurs
+  // distinctes présentes dans les produits chargés (client-side, comme le mobile).
+  const familyOptions = useMemo(
+    () =>
+      ([...new Set(products.map(p => p.family).filter(Boolean))] as string[]).sort((a, b) =>
+        a.localeCompare(b, 'fr')
+      ),
+    [products]
+  );
+  const brandOptions = useMemo(
+    () =>
+      ([...new Set(products.map(p => p.brand).filter(Boolean))] as string[]).sort((a, b) =>
+        a.localeCompare(b, 'fr')
+      ),
+    [products]
+  );
+  const typeOptions = useMemo(
+    () =>
+      ([...new Set(products.map(p => p.article_type).filter(Boolean))] as string[]).sort((a, b) =>
+        a.localeCompare(b, 'fr')
+      ),
+    [products]
+  );
+
+  // Filtres avancés combinés en ET sur les produits déjà chargés.
+  const filteredProducts = useMemo(
+    () =>
+      products.filter(p => {
+        if (selectedFamily && (p.family || '') !== selectedFamily) return false;
+        if (selectedBrand && (p.brand || '') !== selectedBrand) return false;
+        if (selectedType && (p.article_type || '') !== selectedType) return false;
+        return true;
+      }),
+    [products, selectedFamily, selectedBrand, selectedType]
+  );
+
+  const hasActiveFilters = Boolean(
+    searchTerm || selectedCategory || selectedFamily || selectedBrand || selectedType
+  );
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('');
+    setSelectedFamily('');
+    setSelectedBrand('');
+    setSelectedType('');
+  };
+
   // Groupage du catalogue par catégorie (présentation maquette).
   const groupedProducts = useMemo(() => {
     const map = new Map<string, Product[]>();
-    for (const product of products) {
+    for (const product of filteredProducts) {
       const key = product.category || product.family || CATEGORY_FALLBACK;
       const bucket = map.get(key);
       if (bucket) {
@@ -95,7 +149,7 @@ export default function Products() {
       }
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'fr'));
-  }, [products]);
+  }, [filteredProducts]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -198,15 +252,79 @@ export default function Products() {
           </div>
         </div>
 
+        {/* Filtres avancés : Famille / Marque / Type d'article (client-side) */}
+        {(familyOptions.length > 0 || brandOptions.length > 0 || typeOptions.length > 0) && (
+          <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
+            {familyOptions.length > 0 && (
+              <select
+                value={selectedFamily}
+                onChange={e => setSelectedFamily(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
+              >
+                <option value="">Toutes les familles</option>
+                {familyOptions.map(opt => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+            {brandOptions.length > 0 && (
+              <select
+                value={selectedBrand}
+                onChange={e => setSelectedBrand(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
+              >
+                <option value="">Toutes les marques</option>
+                {brandOptions.map(opt => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+            {typeOptions.length > 0 && (
+              <select
+                value={selectedType}
+                onChange={e => setSelectedType(e.target.value)}
+                className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-action-500 focus:border-action-500 transition-colors"
+              >
+                <option value="">Tous les types d&apos;article</option>
+                {typeOptions.map(opt => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            )}
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-2 text-sm font-medium text-action-600 hover:text-action-700 hover:underline transition-colors"
+              >
+                Effacer les filtres
+              </button>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-16">
             <div className="w-12 h-12 spinner"></div>
           </div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-slate-500">
-              {searchTerm || selectedCategory ? 'Aucun article trouvé' : 'Aucun article enregistré'}
+              {hasActiveFilters ? 'Aucun article trouvé' : 'Aucun article enregistré'}
             </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="mt-3 px-3 py-2 text-sm font-medium text-action-600 hover:text-action-700 hover:underline transition-colors"
+              >
+                Effacer les filtres
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

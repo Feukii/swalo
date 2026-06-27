@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productsApi, productBatchesApi, inventoryApi } from '../lib/api';
+import { productsApi, productBatchesApi, inventoryApi, packagingTypesApi } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+
+interface PackagingType {
+  id: string;
+  name: string;
+  symbol?: string;
+  is_default?: boolean;
+}
 
 interface Product {
   id: string;
@@ -17,6 +24,11 @@ interface Product {
   alert_threshold: number;
   is_low_stock?: boolean;
   is_multi_price?: boolean;
+  packaging_type_id?: string;
+  units_per_package?: number;
+  /** Prix du conditionnement, en centimes. */
+  package_price?: number;
+  packaging_type?: { name: string };
 }
 
 interface StockBatch {
@@ -36,9 +48,9 @@ interface BatchStats {
   total_value: number;
 }
 
-/** Formatte un montant en centimes -> "12 345 F". */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 345 F". */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
@@ -73,7 +85,7 @@ export default function ProductDetail() {
     total_value: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [modal, setModal] = useState<'in' | 'out' | null>(null);
+  const [modal, setModal] = useState<'in' | 'out' | 'pkg' | null>(null);
 
   const loadData = useCallback(async () => {
     if (!productId) return;
@@ -116,6 +128,12 @@ export default function ProductDetail() {
   const breadcrumbParts = [product.family, product.category].filter(Boolean) as string[];
   const breadcrumb = breadcrumbParts.join(' › ') || 'Sans catégorie';
   const headerSubtitle = [...breadcrumbParts, product.sku].filter(Boolean).join(' · ');
+  const hasPackaging = !!(product.units_per_package && product.package_price);
+  const packagingName = product.packaging_type?.name || 'Conditionnement';
+  const perUnitFromPackage =
+    hasPackaging && product.units_per_package
+      ? Math.round((product.package_price ?? 0) / product.units_per_package)
+      : 0;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -338,6 +356,56 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* Prix par conditionnement */}
+      {hasPackaging ? (
+        <div className="bg-white rounded-2xl shadow-card p-5 space-y-4">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-primary-900">Prix par conditionnement</h2>
+              <p className="text-sm text-slate-500 mt-1">Vente au détail et en gros pour cet article.</p>
+            </div>
+            {canManageStock && (
+              <button
+                onClick={() => setModal('pkg')}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg shadow-card hover:bg-slate-50 transition-colors"
+              >
+                Modifier
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Tuile conditionnement */}
+            <div className="rounded-xl bg-primary-50 p-4">
+              <p className="text-sm font-semibold text-primary-900">
+                {packagingName} · {product.units_per_package} {unit} →{' '}
+                {formatF(product.package_price ?? 0)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                soit {formatF(perUnitFromPackage)} / {unit}
+              </p>
+            </div>
+
+            {/* Tuile unité */}
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-primary-900">
+                {formatF(product.sell_price)} à l&apos;unité
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Prix de vente détail</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        canManageStock && (
+          <button
+            onClick={() => setModal('pkg')}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg shadow-card hover:bg-slate-50 transition-colors"
+          >
+            <span className="text-base leading-none">+</span> Ajouter un conditionnement
+          </button>
+        )
+      )}
+
       {modal === 'in' && (
         <StockInModal
           unit={unit}
@@ -363,7 +431,154 @@ export default function ProductDetail() {
           }}
         />
       )}
+      {modal === 'pkg' && (
+        <PackagingModal
+          unit={unit}
+          productId={product.id}
+          currentPackagingTypeId={product.packaging_type_id}
+          currentUnitsPerPackage={product.units_per_package}
+          currentPackagePrice={product.package_price}
+          onClose={() => setModal(null)}
+          onDone={() => {
+            setModal(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Modale d'édition du conditionnement (vente en gros). */
+function PackagingModal({
+  unit,
+  productId,
+  currentPackagingTypeId,
+  currentUnitsPerPackage,
+  currentPackagePrice,
+  onClose,
+  onDone,
+}: {
+  unit: string;
+  productId: string;
+  currentPackagingTypeId?: string;
+  currentUnitsPerPackage?: number;
+  currentPackagePrice?: number;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [packagingTypes, setPackagingTypes] = useState<PackagingType[]>([]);
+  const [packagingTypeId, setPackagingTypeId] = useState(currentPackagingTypeId || '');
+  const [unitsPerPackage, setUnitsPerPackage] = useState(
+    currentUnitsPerPackage ? String(currentUnitsPerPackage) : ''
+  );
+  const [packagePrice, setPackagePrice] = useState(
+    currentPackagePrice ? String(Math.round(currentPackagePrice)) : ''
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    packagingTypesApi
+      .getAll()
+      .then((data: PackagingType[]) => setPackagingTypes(data || []))
+      .catch(() => setPackagingTypes([]));
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const units = parseInt(unitsPerPackage, 10);
+    const price = Math.round(parseFloat(packagePrice));
+    if (!packagingTypeId) {
+      alert('Sélectionnez un type de conditionnement');
+      return;
+    }
+    if (!units || units <= 0) {
+      alert('Nombre de pièces invalide');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await productsApi.update(productId, {
+        packaging_type_id: packagingTypeId,
+        units_per_package: units,
+        package_price: Number.isNaN(price) ? 0 : price,
+      });
+      onDone();
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } } | undefined)
+        ?.response?.data?.message;
+      alert(apiMessage || 'Erreur lors de l’enregistrement du conditionnement');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalShell
+      title="Conditionnement"
+      subtitle="Vente en gros · prix par lot"
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div>
+          <label className="text-sm font-medium text-slate-700 mb-2 block">
+            Type de conditionnement <span className="text-danger-500">*</span>
+          </label>
+          <select
+            value={packagingTypeId}
+            onChange={e => setPackagingTypeId(e.target.value)}
+            className="input"
+            required
+          >
+            <option value="">— Sélectionner —</option>
+            {packagingTypes.map(pt => (
+              <option key={pt.id} value={pt.id}>
+                {pt.name}
+                {pt.symbol ? ` (${pt.symbol})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-slate-700 mb-2 block">
+            Pièces par conditionnement ({unit}) <span className="text-danger-500">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={unitsPerPackage}
+            onChange={e => setUnitsPerPackage(e.target.value)}
+            className="input"
+            required
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-slate-700 mb-2 block">
+            Prix du conditionnement (F)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={packagePrice}
+            onChange={e => setPackagePrice(e.target.value)}
+            className="input"
+          />
+        </div>
+        <div className="flex gap-3 pt-4 border-t border-slate-100">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-primary flex-1 disabled:opacity-60"
+          >
+            {submitting ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
   );
 }
 
@@ -385,14 +600,14 @@ function StockInModal({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [quantity, setQuantity] = useState('');
-  const [costPrice, setCostPrice] = useState(String(Math.round(defaultCost / 100)));
+  const [costPrice, setCostPrice] = useState(String(Math.round(defaultCost)));
   const [date, setDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const qty = parseInt(quantity, 10);
-    const cost = Math.round(parseFloat(costPrice) * 100);
+    const cost = Math.round(parseFloat(costPrice));
     if (!qty || qty <= 0) {
       alert('Quantité invalide');
       return;

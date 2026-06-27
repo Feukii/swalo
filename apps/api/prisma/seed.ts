@@ -420,8 +420,8 @@ async function main() {
       description: 'Coque de protection transparente',
       category: 'Coques',
       unit: 'pièce',
-      cost_price: 500000, // 5000 FCFA en centimes
-      sell_price: 1000000, // 10000 FCFA
+      cost_price: 5000, // 5000 FCFA
+      sell_price: 10000, // 10000 FCFA
       alert_threshold: 10,
     },
     {
@@ -431,8 +431,8 @@ async function main() {
       description: 'Chargeur rapide 20W',
       category: 'Chargeurs',
       unit: 'pièce',
-      cost_price: 200000, // 2000 FCFA
-      sell_price: 350000, // 3500 FCFA
+      cost_price: 2000, // 2000 FCFA
+      sell_price: 3500, // 3500 FCFA
       alert_threshold: 15,
     },
     {
@@ -442,8 +442,8 @@ async function main() {
       description: 'Écouteurs sans fil',
       category: 'Audio',
       unit: 'pièce',
-      cost_price: 1500000, // 15000 FCFA
-      sell_price: 2500000, // 25000 FCFA
+      cost_price: 15000, // 15000 FCFA
+      sell_price: 25000, // 25000 FCFA
       alert_threshold: 5,
     },
   ];

@@ -18,9 +18,12 @@ export const Product = z
     brand: z.string().max(100).optional(), // Marque (e.g., Tecno, Samsung, Oraimo)
     reference: z.string().max(100).optional(), // Référence/Série (e.g., Spark 4, A10E)
     unit: z.string().default('unit'), // unité, kg, litre, etc.
+    packaging_type_id: UUID.optional(), // Conditionnement (Carton, Boîte…) — réf. PackagingType
+    units_per_package: z.number().int().positive().optional(), // Pièces par conditionnement (ex: 24)
+    package_price: Currency.optional(), // Prix du conditionnement complet (en FCFA)
     tax_rate: z.number().min(0).max(1).default(0),
-    cost_price: Currency, // Prix d'achat (en centimes)
-    sell_price: Currency, // Prix de vente (en centimes)
+    cost_price: Currency, // Prix d'achat (en FCFA)
+    sell_price: Currency, // Prix de vente (en FCFA)
     is_active: z.boolean().default(true),
     alert_threshold: z.number().int().default(5), // Seuil d'alerte stock
     image_url: z.string().url().optional(),

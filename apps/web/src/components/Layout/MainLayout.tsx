@@ -51,7 +51,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items: [
         { name: 'Produits & prix', path: '/products', icon: '📦', module: 'products' },
         { name: 'Inventaire', path: '/stock', icon: '📋', module: 'inventory' },
-        { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'inventory' },
+        { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'transfers' },
       ],
     },
     {
@@ -69,7 +69,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       label: 'Pilotage',
       items: [
         { name: 'Rapports', path: '/reports', icon: '📈', module: 'reports' },
-        { name: 'Comptabilité', path: '#', icon: '🧮', disabled: true },
+        { name: 'Comptabilité', path: '/accounting', icon: '🧮', module: 'reports' },
+        { name: 'Supervision', path: '/supervision', icon: '🛡️', module: 'reports' },
         { name: 'Bilans boutiques', path: '#', icon: '🏬', disabled: true },
       ],
     },

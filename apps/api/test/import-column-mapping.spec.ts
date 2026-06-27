@@ -136,6 +136,25 @@ describe('Import Column Mapping', () => {
         expect(mapColumnName('prix de vente')).toBe('sell_price');
         expect(mapColumnName('PV')).toBe('sell_price');
       });
+
+      it('should map packaging (conditionnement) columns', () => {
+        expect(mapColumnName('Cond.')).toBe('packaging');
+        expect(mapColumnName('Cond')).toBe('packaging');
+        expect(mapColumnName('Conditionnement')).toBe('packaging');
+        expect(mapColumnName('Emballage')).toBe('packaging');
+      });
+
+      it('should map units-per-package (sous-cond.) columns', () => {
+        expect(mapColumnName('Sous-cond.')).toBe('units_per_package');
+        expect(mapColumnName('Sous-cond')).toBe('units_per_package');
+        expect(mapColumnName('Pièces / cart')).toBe('units_per_package');
+        expect(mapColumnName('Pièces par carton')).toBe('units_per_package');
+      });
+
+      it('should map package price columns', () => {
+        expect(mapColumnName('Prix carton')).toBe('package_price');
+        expect(mapColumnName('Prix du conditionnement')).toBe('package_price');
+      });
     });
 
     describe('Unknown columns', () => {

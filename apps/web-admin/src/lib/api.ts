@@ -95,6 +95,9 @@ export interface AdminShopProduct {
   value: number;
   multi_price: boolean;
   is_active: boolean;
+  packaging: string | null;
+  units_per_package: number | null;
+  package_price: number | null;
 }
 
 export type AdminPartyStatus = 'A jour' | 'Doit' | 'A rembourser';
@@ -162,6 +165,88 @@ export interface AdminEnterpriseReports {
     marge_reseau: number;
     marge_moyenne: number;
   };
+}
+
+// Comptabilité en partie double. Tous les montants sont des entiers en FCFA.
+export interface AdminAccountingEntryLine {
+  account: string;
+  name: string;
+  debit: number;
+  credit: number;
+}
+
+export interface AdminAccountingJournalEntry {
+  date: string;
+  libelle: string;
+  lines: AdminAccountingEntryLine[];
+}
+
+export interface AdminAccountingLedgerMovement {
+  account: string;
+  debit: number;
+  credit: number;
+  date: string;
+  libelle: string;
+}
+
+export interface AdminAccountingLedgerAccount {
+  account: string;
+  name: string;
+  classe: number;
+  debit: number;
+  credit: number;
+  solde: number;
+  mouvements: AdminAccountingLedgerMovement[];
+}
+
+export interface AdminAccountingAmountRow {
+  account: string;
+  name: string;
+  montant: number;
+}
+
+export interface AdminAccountingBalanceSheet {
+  actif: AdminAccountingAmountRow[];
+  passif: AdminAccountingAmountRow[];
+  totalActif: number;
+  totalPassif: number;
+  resultat: number;
+  equilibre: boolean;
+}
+
+export interface AdminAccountingIncomeStatement {
+  ca: number;
+  cogs: number;
+  margeBrute: number;
+  charges: AdminAccountingAmountRow[];
+  autresProduits: number;
+  beneficeNet: number;
+}
+
+export interface AdminShopAccounting {
+  journal: AdminAccountingJournalEntry[];
+  grand_livre: AdminAccountingLedgerAccount[];
+  bilan: AdminAccountingBalanceSheet;
+  resultat: AdminAccountingIncomeStatement;
+}
+
+export type AdminSupervisionSeverity = 'critical' | 'review';
+
+export interface AdminSupervisionAlert {
+  id: string;
+  kind: string;
+  severity: AdminSupervisionSeverity;
+  title: string;
+  detail: string;
+  author: string | null;
+  created_at: string;
+}
+
+export interface AdminShopSupervision {
+  alerts: AdminSupervisionAlert[];
+  critical_count: number;
+  review_count: number;
+  total: number;
 }
 
 // Admin API
@@ -420,6 +505,16 @@ export const adminApi = {
     const response = await api.get<AdminEnterpriseReports>(
       `/admin/enterprises/${enterpriseId}/reports`
     );
+    return response.data;
+  },
+
+  getShopAccounting: async (shopId: string): Promise<AdminShopAccounting> => {
+    const response = await api.get<AdminShopAccounting>(`/admin/shops/${shopId}/accounting`);
+    return response.data;
+  },
+
+  getShopSupervision: async (shopId: string): Promise<AdminShopSupervision> => {
+    const response = await api.get<AdminShopSupervision>(`/admin/shops/${shopId}/supervision`);
     return response.data;
   },
 

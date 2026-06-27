@@ -89,6 +89,38 @@ export const COLUMN_ALIASES: Record<string, string> = {
   unite: 'unit',
   'unite de mesure': 'unit',
 
+  // Packaging / Conditionnement (nom du conditionnement, ex: Carton, Boite)
+  cond: 'packaging',
+  'cond.': 'packaging',
+  conditionnement: 'packaging',
+  emballage: 'packaging',
+  packaging: 'packaging',
+  'type conditionnement': 'packaging',
+
+  // Units per package / Pieces par conditionnement (ex: 24 pieces / carton)
+  'sous-cond': 'units_per_package',
+  'sous-cond.': 'units_per_package',
+  'sous cond': 'units_per_package',
+  units_per_package: 'units_per_package',
+  'pieces / cart': 'units_per_package',
+  'pieces/cart': 'units_per_package',
+  'pieces par cart': 'units_per_package',
+  'pieces par carton': 'units_per_package',
+  'pieces par conditionnement': 'units_per_package',
+  'pieces par paquet': 'units_per_package',
+  'qte par carton': 'units_per_package',
+  'qte par conditionnement': 'units_per_package',
+  'nb pieces': 'units_per_package',
+
+  // Package price / Prix du conditionnement complet (optionnel)
+  package_price: 'package_price',
+  'prix conditionnement': 'package_price',
+  'prix du conditionnement': 'package_price',
+  'prix carton': 'package_price',
+  'prix du carton': 'package_price',
+  'prix pack': 'package_price',
+  'prix paquet': 'package_price',
+
   // Alert Threshold / Seuil d'alerte
   alert_threshold: 'alert_threshold',
   'alert threshold': 'alert_threshold',
@@ -143,6 +175,9 @@ export const OPTIONAL_COLUMNS = [
   'sell_price',
   'unit',
   'alert_threshold',
+  'packaging',
+  'units_per_package',
+  'package_price',
 ];
 
 /**

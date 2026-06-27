@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, Param, Headers } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MovementType, Role } from '@prisma/client';
 
@@ -11,6 +12,7 @@ interface CurrentUserPayload {
 }
 
 @Controller('inventory')
+@RequireModule('inventory')
 export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 

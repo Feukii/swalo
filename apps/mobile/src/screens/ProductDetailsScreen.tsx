@@ -9,10 +9,19 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Package, Plus, Minus, AlertTriangle, ChevronRight } from '../components/icons/SimpleIcons';
+import {
+  Package,
+  Plus,
+  Minus,
+  AlertTriangle,
+  ChevronRight,
+  Edit,
+  TrendingUp,
+} from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
@@ -22,6 +31,7 @@ import {
   productRepo,
   stockBatchRepo,
   inventoryMovementRepo,
+  packagingTypeRepo,
   LocalStockBatch,
   LocalInventoryMovement,
 } from '../db/repositories';
@@ -48,8 +58,12 @@ interface ProductDetail {
   brand: string | null;
   reference: string | null;
   unit: string;
+  cost_price: number;
   sell_price: number;
   alert_threshold: number;
+  packaging_type_id: string | null;
+  units_per_package: number | null;
+  package_price: number | null;
 }
 
 /** Motifs de sortie de stock (FIFO). */
@@ -87,6 +101,12 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const canEditProduct = can('products', 'edit');
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [packagingName, setPackagingName] = useState<string | null>(null);
+  const [packagingList, setPackagingList] = useState<{ id: string; name: string }[]>([]);
+  // Conditionnement (édition)
+  const [editPkgTypeId, setEditPkgTypeId] = useState<string | null>(null);
+  const [editUnitsPerPackage, setEditUnitsPerPackage] = useState('');
+  const [editPackagePrice, setEditPackagePrice] = useState('');
   const [batches, setBatches] = useState<LocalStockBatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,6 +115,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const [showEntrySheet, setShowEntrySheet] = useState(false);
   const [showExitSheet, setShowExitSheet] = useState(false);
   const [showThresholdSheet, setShowThresholdSheet] = useState(false);
+  const [showEditSheet, setShowEditSheet] = useState(false);
 
   // Entrée form
   const [entryQty, setEntryQty] = useState('');
@@ -107,6 +128,14 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
   // Seuil form
   const [thresholdValue, setThresholdValue] = useState('');
+
+  // Édition de l'article — sheet « Modifier l'article »
+  // (CONDITIONNEMENT obligatoire + SOUS-CONDITIONNEMENT optionnel)
+  const [editName, setEditName] = useState('');
+  const [editCost, setEditCost] = useState(''); // prix de revient AU CARTON
+  const [editSell, setEditSell] = useState(''); // prix de DÉTAIL (pièce)
+  const [editDetailEnabled, setEditDetailEnabled] = useState(false); // toggle sous-cond
+  const [editAlertThreshold, setEditAlertThreshold] = useState(''); // seuil en cartons
 
   const loadProduct = useCallback(async () => {
     if (!shopId) return;
@@ -126,9 +155,21 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         brand: local.brand,
         reference: local.reference,
         unit: local.unit,
+        cost_price: local.cost_price,
         sell_price: local.sell_price,
         alert_threshold: local.alert_threshold,
+        packaging_type_id: local.packaging_type_id,
+        units_per_package: local.units_per_package,
+        package_price: local.package_price,
       });
+      if (local.packaging_type_id) {
+        const pkg = await packagingTypeRepo.getById(local.packaging_type_id);
+        setPackagingName(pkg?.name ?? null);
+      } else {
+        setPackagingName(null);
+      }
+      const pkgList = await packagingTypeRepo.getAll(shopId, { orderBy: 'name ASC' });
+      setPackagingList(pkgList.map(p => ({ id: p.id, name: p.name })));
       const localBatches = await stockBatchRepo.getByProduct(shopId, id, false);
       setBatches(localBatches);
     } catch (error: unknown) {
@@ -148,15 +189,65 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     }, [loadProduct])
   );
 
+  // AUTO-ADAPT : dès que le prix de gros (carton) ou l'UPP change, si le prix de détail
+  // saisi passe sous le plancher ceil(gros/UPP), on le remonte automatiquement au plancher
+  // (live). On ne le baisse jamais : le détail peut être supérieur au plancher.
+  useEffect(() => {
+    if (!editDetailEnabled) return;
+    const pkg = parseInt(editPackagePrice, 10);
+    const u = parseInt(editUnitsPerPackage, 10);
+    if (isNaN(pkg) || pkg <= 0 || isNaN(u) || u <= 1) return;
+    const floor = Math.ceil(pkg / u);
+    const cur = parseInt(editSell, 10);
+    if (isNaN(cur) || cur < floor) {
+      setEditSell(String(floor));
+    }
+  }, [editPackagePrice, editUnitsPerPackage, editDetailEnabled, editSell]);
+
   // Dérivés (valorisation FIFO)
   const activeBatches = batches.filter(b => b.remaining_quantity > 0);
   const currentStock = activeBatches.reduce((s, b) => s + b.remaining_quantity, 0);
   const stockValue = activeBatches.reduce((s, b) => s + b.remaining_quantity * b.cost_price, 0);
   const pmp = currentStock > 0 ? Math.round(stockValue / currentStock) : 0;
   const sellPrice = product?.sell_price ?? 0;
-  const margin = sellPrice - pmp;
-  const marginPct = sellPrice > 0 ? Math.round((margin / sellPrice) * 100) : 0;
-  const isLowStock = product ? currentStock <= product.alert_threshold : false;
+
+  // Modèle carton-primary : l'unité atomique reste la PIÈCE (lots/FIFO inchangés),
+  // mais le carton (units_per_package > 1) devient l'unité d'affichage du stock,
+  // du coût et du seuil d'alerte. null/1 = vendu uniquement à la pièce.
+  const upp =
+    product?.units_per_package && product.units_per_package > 1 ? product.units_per_package : 0;
+  const isConditioned = upp > 0;
+  // UPP "réel" (≥1) pour les conversions cartons↔pièces (UPP=1 = carton = unité simple).
+  const uppReal =
+    product?.units_per_package && product.units_per_package > 0 ? product.units_per_package : 1;
+  // Sous-conditionnement (vente au détail) actif ⟺ UPP>1 ET prix de détail défini (>0).
+  const hasDetail = isConditioned && (product?.sell_price ?? 0) > 0;
+  // Plancher de détail courant (gros ramené à la pièce).
+  const detailFloor =
+    isConditioned && product?.package_price ? Math.ceil(product.package_price / upp) : 0;
+  const cartons = isConditioned ? Math.floor(currentStock / upp) : 0;
+  const looseUnits = isConditioned ? currentStock % upp : 0;
+  // Coût par carton = PMP/pièce × pièces par carton.
+  const pmpPerCarton = isConditioned ? pmp * upp : pmp;
+  // Prix de vente affiché sur la carte : DÉTAIL (pièce) si sous-cond actif, sinon GROS (carton).
+  const saleDisplayPrice = hasDetail ? sellPrice : (product?.package_price ?? 0);
+  const saleDisplayCost = hasDetail ? pmp : pmpPerCarton;
+  const saleMargin = saleDisplayPrice - saleDisplayCost;
+  const saleMarginPct =
+    saleDisplayPrice > 0 ? Math.round((saleMargin / saleDisplayPrice) * 100) : 0;
+  const saleDisplayUnit = hasDetail ? '/ pièce' : isConditioned ? '/ carton' : '';
+  // Stock affiché : "N cartons (+ M pièces)" si conditionné, sinon "N pièces".
+  const stockLabel = isConditioned
+    ? `${cartons} carton${cartons > 1 ? 's' : ''}${
+        looseUnits ? ` (+ ${looseUnits} pièce${looseUnits > 1 ? 's' : ''})` : ''
+      }`
+    : `${currentStock} ${product?.unit ?? ''}`;
+  // Seuil d'alerte en cartons quand conditionné (sinon en pièces).
+  const isLowStock = product
+    ? isConditioned
+      ? cartons <= product.alert_threshold
+      : currentStock <= product.alert_threshold
+    : false;
   const statusLabel = isLowStock ? 'Stock bas' : 'En stock';
 
   const resetEntryForm = () => {
@@ -186,6 +277,24 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     setShowThresholdSheet(true);
   };
 
+  const openEditSheet = () => {
+    if (!product) return;
+    setEditName(product.name);
+    // Prix de revient TOUJOURS saisi PAR CARTON : on pré-remplit avec le coût/pièce
+    // (PMP courant, sinon coût catalogue) × pièces par conditionnement.
+    const baseCostPiece = pmp > 0 ? pmp : product.cost_price;
+    setEditCost(String(baseCostPiece * uppReal));
+    // Conditionnement OBLIGATOIRE : on sélectionne par défaut le type courant, sinon le 1er.
+    setEditPkgTypeId(product.packaging_type_id ?? packagingList[0]?.id ?? null);
+    setEditUnitsPerPackage(String(uppReal));
+    setEditPackagePrice(product.package_price ? String(product.package_price) : '');
+    // Sous-conditionnement (détail) : activé si déjà un prix de détail défini.
+    setEditDetailEnabled(hasDetail);
+    setEditSell(product.sell_price > 0 ? String(product.sell_price) : String(detailFloor || ''));
+    setEditAlertThreshold(String(product.alert_threshold));
+    setShowEditSheet(true);
+  };
+
   const computeEntryDateISO = (choice: EntryDateChoice): string => {
     const d = new Date();
     if (choice === 'yesterday') d.setDate(d.getDate() - 1);
@@ -209,12 +318,17 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
     setIsSubmitting(true);
     try {
+      // Réception saisie EN CARTONS quand l'article est conditionné : on convertit
+      // en unité atomique (pièce). quantité_pièces = cartons × UPP ;
+      // coût/pièce = round(coût_carton / UPP). UPP=1 ⇒ aucune conversion.
+      const quantityPieces = qty * uppReal;
+      const costPiece = Math.round(cost / uppReal);
       // La date de prise en compte est propagée au lot (local + serveur via la sync)
       await createStockBatchOffline({
         shopId,
         productId: product.id,
-        quantity: qty,
-        costPrice: cost,
+        quantity: quantityPieces,
+        costPrice: costPiece,
         sellPrice: product.sell_price,
         notes: 'Réception',
         priceValidFrom: computeEntryDateISO(entryDate),
@@ -296,6 +410,76 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     }
   };
 
+  // Sheet « Modifier l'article » : CONDITIONNEMENT (obligatoire) + SOUS-CONDITIONNEMENT (optionnel).
+  // - Prix de revient saisi AU CARTON → stocké PAR PIÈCE (round(coût_carton / UPP)).
+  // - package_price = prix de vente au CARTON (gros), obligatoire.
+  // - sell_price = prix de DÉTAIL (pièce), clampé au plancher ceil(gros/UPP) si sous-cond,
+  //   0 si la vente au détail est désactivée (article vendu uniquement au carton).
+  const handleSubmitEdit = async () => {
+    if (!product || !shopId) return;
+    const name = editName.trim();
+    if (!name) {
+      Alert.alert('Erreur', 'Veuillez saisir une désignation');
+      return;
+    }
+    const costCarton = parseInt(editCost, 10);
+    if (isNaN(costCarton) || costCarton < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de revient (au carton) valide');
+      return;
+    }
+    const unitsPerPackage = parseInt(editUnitsPerPackage, 10);
+    if (isNaN(unitsPerPackage) || unitsPerPackage < 1) {
+      Alert.alert('Erreur', 'Veuillez entrer un nombre de pièces par conditionnement (≥ 1)');
+      return;
+    }
+    const packagePrice = parseInt(editPackagePrice, 10);
+    if (isNaN(packagePrice) || packagePrice <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de vente au carton (gros) valide');
+      return;
+    }
+    if (packagingList.length > 0 && !editPkgTypeId) {
+      Alert.alert('Erreur', 'Veuillez choisir un type de conditionnement');
+      return;
+    }
+    const threshold = parseInt(editAlertThreshold, 10);
+    if (isNaN(threshold) || threshold < 0) {
+      Alert.alert('Erreur', "Veuillez entrer un seuil d'alerte (en cartons) valide");
+      return;
+    }
+
+    // Vente au détail seulement possible avec un sous-conditionnement (UPP > 1).
+    const detailOn = editDetailEnabled && unitsPerPackage > 1;
+    let sellPiece = 0;
+    if (detailOn) {
+      const floor = Math.ceil(packagePrice / unitsPerPackage);
+      const raw = parseInt(editSell, 10);
+      sellPiece = isNaN(raw) || raw < floor ? floor : raw; // clamp au plancher
+    }
+    // Coût saisi AU CARTON → stocké PAR PIÈCE.
+    const costPerPiece = Math.round(costCarton / unitsPerPackage);
+
+    setIsSubmitting(true);
+    try {
+      await updateProductOffline(product.id, {
+        name,
+        costPrice: costPerPiece,
+        sellPrice: sellPiece,
+        packagingTypeId: editPkgTypeId,
+        unitsPerPackage,
+        packagePrice,
+        alertThreshold: threshold,
+      });
+
+      setShowEditSheet(false);
+      await loadProduct();
+      Alert.alert('Succès', 'Article mis à jour');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible de mettre à jour l'article");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading || !product) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -308,6 +492,61 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   }
 
   const breadcrumb = buildBreadcrumb(product);
+
+  // Prix par conditionnement :
+  //  • GROS (toujours) : le carton au prix de vente `package_price`
+  //    (+ "soit X / pièce" quand UPP > 1).
+  //  • DÉTAIL (uniquement si sous-conditionnement actif) : la pièce, au prix `sell_price`.
+  const grosTile = product.package_price
+    ? [
+        {
+          key: 'gros',
+          title: isConditioned
+            ? `${packagingName ?? 'Carton'} · ${uppReal} pièces`
+            : (packagingName ?? 'Carton'),
+          price: product.package_price,
+          sub: isConditioned
+            ? `soit ${formatMoney(Math.round(product.package_price / upp))} / pièce`
+            : 'au carton',
+          subColor: Colors.success.main,
+        },
+      ]
+    : [];
+  const detailTile = hasDetail
+    ? [
+        {
+          key: 'detail',
+          title: 'Pièce · Détail',
+          price: sellPrice,
+          sub: "à l'unité",
+          subColor: Colors.textColors.tertiary,
+        },
+      ]
+    : [];
+  const packagingTiles = [...grosTile, ...detailTile];
+
+  // Valeurs dérivées (live) de la sheet d'édition. Le prix de revient est saisi AU CARTON ;
+  // on le ramène au coût/pièce pour la marge détail. Le plancher de détail = ceil(gros/UPP).
+  const editUnits = parseInt(editUnitsPerPackage, 10);
+  const editUnitsValid = !isNaN(editUnits) && editUnits >= 1;
+  const editDetailPossible = editUnitsValid && editUnits > 1;
+  const editCostCartonNum = parseInt(editCost, 10);
+  const editPackagePriceNum = parseInt(editPackagePrice, 10);
+  const editSellNum = parseInt(editSell, 10);
+  const editGrosMarginPct =
+    !isNaN(editPackagePriceNum) && editPackagePriceNum > 0 && !isNaN(editCostCartonNum)
+      ? Math.round(((editPackagePriceNum - editCostCartonNum) / editPackagePriceNum) * 100)
+      : 0;
+  const editDetailFloor =
+    editDetailPossible && !isNaN(editPackagePriceNum) && editPackagePriceNum > 0
+      ? Math.ceil(editPackagePriceNum / editUnits)
+      : 0;
+  const editCostPerPiece =
+    editUnitsValid && !isNaN(editCostCartonNum) ? Math.round(editCostCartonNum / editUnits) : 0;
+  const editDetailMarginPct =
+    !isNaN(editSellNum) && editSellNum > 0
+      ? Math.round(((editSellNum - editCostPerPiece) / editSellNum) * 100)
+      : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -339,29 +578,39 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 </Text>
               ) : null}
             </View>
-            <View
-              style={[
-                styles.statusBadge,
-                isLowStock ? styles.statusBadgeLow : styles.statusBadgeOk,
-              ]}
-            >
-              <Text
+            <View style={styles.cardTopRight}>
+              <View
                 style={[
-                  styles.statusBadgeText,
-                  isLowStock ? styles.statusBadgeTextLow : styles.statusBadgeTextOk,
+                  styles.statusBadge,
+                  isLowStock ? styles.statusBadgeLow : styles.statusBadgeOk,
                 ]}
               >
-                {statusLabel}
-              </Text>
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    isLowStock ? styles.statusBadgeTextLow : styles.statusBadgeTextOk,
+                  ]}
+                >
+                  {statusLabel}
+                </Text>
+              </View>
+              {canEditProduct ? (
+                <TouchableOpacity
+                  style={styles.editIconButton}
+                  onPress={openEditSheet}
+                  activeOpacity={0.7}
+                >
+                  <Edit size={16} color={Colors.action} />
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
           <View style={styles.metricsRow}>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Stock actuel</Text>
-              <Text style={styles.metricValue}>
-                {currentStock}
-                <Text style={styles.metricUnit}> {product.unit}</Text>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+                {stockLabel}
               </Text>
             </View>
             <View style={styles.metricCol}>
@@ -373,16 +622,24 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           <View style={[styles.metricsRow, styles.metricsRowBordered]}>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Prix de revient (PMP)</Text>
-              <Text style={styles.metricValue}>{formatMoney(pmp)}</Text>
+              <Text style={styles.metricValue}>
+                {formatMoney(pmpPerCarton)}
+                {isConditioned ? <Text style={styles.metricUnit}> / carton</Text> : null}
+              </Text>
             </View>
             <View style={styles.metricCol}>
-              <Text style={styles.metricLabel}>Prix de vente · marge</Text>
+              <Text style={styles.metricLabel}>
+                {hasDetail ? 'Prix de détail · marge' : 'Prix de gros · marge'}
+              </Text>
               <Text style={styles.metricValue}>
-                {formatMoney(sellPrice)}{' '}
+                {formatMoney(saleDisplayPrice)}
+                {saleDisplayUnit ? (
+                  <Text style={styles.metricUnit}> {saleDisplayUnit}</Text>
+                ) : null}{' '}
                 <Text
-                  style={[styles.marginText, margin >= 0 ? styles.marginPos : styles.marginNeg]}
+                  style={[styles.marginText, saleMargin >= 0 ? styles.marginPos : styles.marginNeg]}
                 >
-                  · {marginPct}%
+                  · {saleMarginPct}%
                 </Text>
               </Text>
             </View>
@@ -398,40 +655,71 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <AlertTriangle size={18} color={Colors.warning.main} />
             <Text style={styles.thresholdLabel}>Seuil d&apos;alerte</Text>
             <Text style={styles.thresholdValue}>
-              {product.alert_threshold} {product.unit}
+              {product.alert_threshold}{' '}
+              {isConditioned ? `carton${product.alert_threshold > 1 ? 's' : ''}` : product.unit}
             </Text>
             {canEditProduct ? <ChevronRight size={18} color={Colors.warning.main} /> : null}
           </TouchableOpacity>
         </View>
 
-        {/* BOUTONS ENTRÉE / SORTIE */}
-        {canEditProduct ? (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonEntry]}
-              onPress={openEntrySheet}
-            >
-              <View style={[styles.actionIcon, styles.actionIconEntry]}>
-                <Plus size={16} color={Colors.success.foreground} />
-              </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
-            </TouchableOpacity>
+        {/* PRIX PAR CONDITIONNEMENT */}
+        {packagingTiles.length > 0 && (
+          <View style={styles.packCard}>
+            <View style={styles.packTitleRow}>
+              <Package size={18} color={Colors.success.main} />
+              <Text style={styles.packTitle}>Prix par conditionnement</Text>
+            </View>
+            <View style={styles.packTiles}>
+              {packagingTiles.map(tile => (
+                <View key={tile.key} style={styles.packTile}>
+                  <Text style={styles.packTileLabel} numberOfLines={1}>
+                    {tile.title}
+                  </Text>
+                  <Text style={styles.packTilePrice}>{formatMoney(tile.price)}</Text>
+                  <Text style={[styles.packTileSub, { color: tile.subColor }]} numberOfLines={1}>
+                    {tile.sub}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonExit]}
-              onPress={openExitSheet}
-            >
-              <View style={[styles.actionIcon, styles.actionIconExit]}>
-                <Minus size={16} color={Colors.danger.foreground} />
-              </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
-            </TouchableOpacity>
+        {/* BOUTONS ENTRÉE / SORTIE — MANAGER+ uniquement */}
+        {canEditProduct ? (
+          <View style={styles.actionGroup}>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonEntry]}
+                onPress={openEntrySheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconEntry]}>
+                  <Plus size={16} color={Colors.success.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonExit]}
+                onPress={openExitSheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconExit]}>
+                  <Minus size={16} color={Colors.danger.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
         {/* PRIX DE REVIENT & LOTS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PRIX DE REVIENT &amp; LOTS</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>PRIX DE REVIENT &amp; LOTS</Text>
+            <Text style={styles.sectionCount}>
+              {activeBatches.length} lot{activeBatches.length > 1 ? 's' : ''}
+            </Text>
+          </View>
           <Text style={styles.sectionSubtitle}>
             Chaque réception fixe un prix de revient daté. Le coût d&apos;un même article évolue
             dans le temps (sortie FIFO).
@@ -495,7 +783,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             </Text>
 
             <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Quantité</Text>
+              <Text style={styles.formLabel}>
+                {isConditioned ? 'Quantité (cartons)' : 'Quantité'}
+              </Text>
               <TextInput
                 style={styles.input}
                 value={entryQty}
@@ -506,7 +796,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
               />
 
               <Text style={[styles.formLabel, styles.formLabelSpaced]}>
-                Prix de revient unitaire (FCFA)
+                {isConditioned
+                  ? 'Prix de revient (au carton, FCFA)'
+                  : 'Prix de revient unitaire (FCFA)'}
               </Text>
               <TextInput
                 style={styles.input}
@@ -653,7 +945,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <Text style={styles.sheetSubtitle}>{product.name}</Text>
 
             <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Seuil ({product.unit})</Text>
+              <Text style={styles.formLabel}>
+                Seuil ({isConditioned ? 'cartons' : product.unit})
+              </Text>
               <TextInput
                 style={styles.input}
                 value={thresholdValue}
@@ -683,6 +977,214 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SHEET — MODIFIER L'ARTICLE (nom + prix + ajustement de stock) */}
+      <Modal
+        visible={showEditSheet}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditSheet(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Modifier l&apos;article</Text>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              Conditionnement (obligatoire) et vente au détail (optionnel)
+            </Text>
+
+            <ScrollView
+              style={styles.editScroll}
+              contentContainerStyle={styles.sheetBody}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* ===== CONDITIONNEMENT (obligatoire) ===== */}
+              <Text style={styles.editSectionTitle}>CONDITIONNEMENT</Text>
+
+              <Text style={styles.formLabel}>Désignation</Text>
+              <TextInput
+                style={styles.input}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Nom de l'article"
+                placeholderTextColor={Colors.muted.foreground}
+              />
+
+              {packagingList.length > 0 && (
+                <>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Type de conditionnement
+                  </Text>
+                  <View style={styles.pkgChipRow}>
+                    {packagingList.map(pkg => (
+                      <TouchableOpacity
+                        key={pkg.id}
+                        style={[styles.pkgChip, editPkgTypeId === pkg.id && styles.pkgChipActive]}
+                        onPress={() => setEditPkgTypeId(pkg.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.pkgChipText,
+                            editPkgTypeId === pkg.id && styles.pkgChipTextActive,
+                          ]}
+                        >
+                          {pkg.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              <View style={styles.editPriceRow}>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Pièces / conditionnement
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editUnitsPerPackage}
+                      onChangeText={t => setEditUnitsPerPackage(t.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="24"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>{product.unit}</Text>
+                  </View>
+                </View>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Prix de revient (carton)
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editCost}
+                      onChangeText={text => setEditCost(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                Prix de vente (carton · gros)
+              </Text>
+              <View style={styles.inputSuffixWrap}>
+                <TextInput
+                  style={styles.inputSuffix}
+                  value={editPackagePrice}
+                  onChangeText={t => setEditPackagePrice(t.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted.foreground}
+                />
+                <Text style={styles.inputSuffixText}>F</Text>
+              </View>
+
+              <View style={styles.marginRow}>
+                <TrendingUp size={16} color={Colors.info.text} />
+                <Text style={styles.marginRowLabel}>Marge gros (carton)</Text>
+                <Text style={styles.marginRowValue}>{editGrosMarginPct} %</Text>
+              </View>
+
+              {/* ===== SOUS-CONDITIONNEMENT (optionnel) ===== */}
+              <Text style={[styles.editSectionTitle, styles.formLabelSpaced]}>
+                SOUS-CONDITIONNEMENT
+              </Text>
+
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={styles.toggleTitle}>Vendre aussi au détail (pièce)</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    {editDetailPossible
+                      ? 'Active la vente à la pièce en plus du carton'
+                      : 'Nécessite plus d’1 pièce par conditionnement'}
+                  </Text>
+                </View>
+                <Switch
+                  value={editDetailEnabled && editDetailPossible}
+                  onValueChange={setEditDetailEnabled}
+                  disabled={!editDetailPossible}
+                  trackColor={{ false: Colors.muted.main, true: Colors.action }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.muted.main}
+                />
+              </View>
+
+              {editDetailEnabled && editDetailPossible && (
+                <>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Prix de détail (pièce)
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editSell}
+                      onChangeText={text => setEditSell(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                  <Text style={styles.adjustHint}>
+                    min {formatMoney(editDetailFloor)} / pièce (= prix de gros ÷ quantité)
+                  </Text>
+                  <View style={styles.marginRow}>
+                    <TrendingUp size={16} color={Colors.info.text} />
+                    <Text style={styles.marginRowLabel}>Marge détail (pièce)</Text>
+                    <Text style={styles.marginRowValue}>{editDetailMarginPct} %</Text>
+                  </View>
+                </>
+              )}
+
+              {/* ===== SEUIL D'ALERTE (en cartons) ===== */}
+              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                Seuil d&apos;alerte (cartons)
+              </Text>
+              <View style={styles.inputSuffixWrap}>
+                <TextInput
+                  style={styles.inputSuffix}
+                  value={editAlertThreshold}
+                  onChangeText={text => setEditAlertThreshold(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted.foreground}
+                />
+                <Text style={styles.inputSuffixText}>cartons</Text>
+              </View>
+
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={styles.sheetCancelButton}
+                  onPress={() => setShowEditSheet(false)}
+                >
+                  <Text style={styles.sheetCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sheetSubmitButton, styles.sheetSubmitSky]}
+                  onPress={handleSubmitEdit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
+                  ) : (
+                    <Text style={styles.sheetSubmitText}>Enregistrer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -741,6 +1243,20 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: Colors.textColors.tertiary,
     marginTop: 1,
+  },
+  cardTopRight: {
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+  },
+  editIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: Colors.action + '14',
+    borderWidth: 1,
+    borderColor: Colors.action + '33',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -826,6 +1342,9 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // ACTION BUTTONS
+  actionGroup: {
+    gap: Spacing.md,
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -873,16 +1392,77 @@ const styles = StyleSheet.create({
   actionButtonTextExit: {
     color: Colors.danger.text,
   },
+  // PRIX PAR CONDITIONNEMENT
+  packCard: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  packTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  packTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.success.text,
+  },
+  packTiles: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  packTile: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: 4,
+  },
+  packTileLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  packTilePrice: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  packTileSub: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   // SECTION
   section: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.sm,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionTitle: {
     fontSize: 12.5,
     fontWeight: '800',
     color: Colors.textColors.tertiary,
     letterSpacing: 0.5,
+  },
+  sectionCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    fontVariant: ['tabular-nums'],
   },
   sectionSubtitle: {
     fontSize: 12.5,
@@ -991,7 +1571,37 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.sheet,
     borderTopRightRadius: BorderRadius.sheet,
     paddingBottom: Spacing['2xl'],
+    maxHeight: '92%',
     ...Shadows.lg,
+  },
+  editScroll: {
+    flexGrow: 0,
+  },
+  editSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  toggleTextWrap: {
+    flex: 1,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
   },
   sheetHandle: {
     width: 40,
@@ -1038,6 +1648,38 @@ const styles = StyleSheet.create({
   formLabelSpaced: {
     marginTop: Spacing.lg,
   },
+  adjustHint: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+    marginTop: Spacing.sm,
+    lineHeight: 18,
+  },
+  pkgChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  pkgChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pkgChipActive: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  pkgChipText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  pkgChipTextActive: {
+    color: '#FFFFFF',
+  },
   input: {
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -1047,6 +1689,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text,
     backgroundColor: Colors.surfaceAlt,
+  },
+  inputSuffixWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  inputSuffix: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  inputSuffixText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+    marginLeft: Spacing.sm,
+  },
+  editPriceRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  editPriceCol: {
+    flex: 1,
+  },
+  marginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.info.background,
+  },
+  marginRowLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.info.text,
+  },
+  marginRowValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.info.text,
+    fontVariant: ['tabular-nums'],
   },
   chipsRow: {
     flexDirection: 'row',

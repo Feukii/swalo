@@ -1,123 +1,66 @@
 /**
- * Utilitaires pour la gestion des numéros de téléphone camerounais
- * Préfixe: +237
- * Format: +237 6XX XXX XXX (mobile) ou +237 2XX XXX XXX (fixe)
+ * Utilitaires pour les numéros de téléphone camerounais.
+ * Format cible : +237 6XX XXX XXX (mobile : +237 6 suivi de 8 chiffres)
+ *                +237 2XX XXX XXX (fixe)
+ *
+ * Implémentation 100% "digits-only" : on supprime TOUT sauf les chiffres, puis on
+ * reconstruit le préfixe. Garantit qu'il n'y a JAMAIS deux "+" (ex. un numéro
+ * étranger +241… ne devient pas "+237+241…").
  */
 
 const CAMEROON_PREFIX = '+237';
 
-/**
- * Nettoie un numéro de téléphone (supprime espaces et caractères non numériques sauf +)
- */
-export function cleanPhoneNumber(phone: string): string {
-  return phone.replace(/[^\d+]/g, '');
+/** Garde uniquement les chiffres. */
+function digitsOnly(phone: string): string {
+  return (phone || '').replace(/\D/g, '');
 }
 
 /**
- * Formate un numéro de téléphone camerounais
- * @param phone - Numéro brut (avec ou sans préfixe +237)
- * @returns Numéro formaté: +237 6XX XXX XXX
+ * Renvoie le numéro local (9 chiffres max), sans indicatif pays ni 0 initial.
  */
+function localDigits(phone: string): string {
+  let d = digitsOnly(phone);
+  if (d.startsWith('237')) d = d.slice(3);
+  else if (d.startsWith('0')) d = d.slice(1);
+  return d.slice(0, 9);
+}
+
+/** Nettoie un numéro (chiffres uniquement). */
+export function cleanPhoneNumber(phone: string): string {
+  return digitsOnly(phone);
+}
+
+/** Formate un numéro pour l'affichage : +237 6XX XXX XXX. */
 export function formatCameroonPhone(phone: string): string {
   if (!phone) return '';
-
-  // Nettoyer le numéro
-  let cleaned = cleanPhoneNumber(phone);
-
-  // Si le numéro commence par 237 sans +, ajouter le +
-  if (cleaned.startsWith('237') && !cleaned.startsWith('+')) {
-    cleaned = '+' + cleaned;
-  }
-
-  // Si le numéro ne commence pas par +237, ajouter le préfixe
-  if (!cleaned.startsWith(CAMEROON_PREFIX)) {
-    // Enlever le 0 initial si présent (format local)
-    if (cleaned.startsWith('0')) {
-      cleaned = cleaned.substring(1);
-    }
-    cleaned = CAMEROON_PREFIX + cleaned;
-  }
-
-  // Extraire les parties du numéro
-  const withoutPrefix = cleaned.replace(CAMEROON_PREFIX, '');
-
-  if (withoutPrefix.length === 9) {
-    // Format: +237 6XX XXX XXX
-    return `${CAMEROON_PREFIX} ${withoutPrefix.substring(0, 3)} ${withoutPrefix.substring(3, 6)} ${withoutPrefix.substring(6, 9)}`;
-  }
-
-  // Si le format n'est pas valide, retourner tel quel avec préfixe
-  return cleaned;
+  const d = localDigits(phone);
+  if (d.length === 0) return '';
+  if (d.length <= 3) return `${CAMEROON_PREFIX} ${d}`;
+  if (d.length <= 6) return `${CAMEROON_PREFIX} ${d.slice(0, 3)} ${d.slice(3)}`;
+  return `${CAMEROON_PREFIX} ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)}`;
 }
 
 /**
- * Valide un numéro de téléphone camerounais
- * @param phone - Numéro à valider
- * @returns true si le numéro est valide
+ * Valide un numéro camerounais : 9 chiffres commençant par 6 (mobile) ou 2 (fixe).
  */
 export function isValidCameroonPhone(phone: string): boolean {
-  if (!phone) return true; // Téléphone optionnel
-
-  const cleaned = cleanPhoneNumber(phone);
-
-  // Accepter avec ou sans préfixe
-  let withoutPrefix = cleaned;
-  if (cleaned.startsWith(CAMEROON_PREFIX)) {
-    withoutPrefix = cleaned.replace(CAMEROON_PREFIX, '');
-  } else if (cleaned.startsWith('237')) {
-    withoutPrefix = cleaned.substring(3);
-  } else if (cleaned.startsWith('0')) {
-    withoutPrefix = cleaned.substring(1);
-  }
-
-  // Doit avoir 9 chiffres et commencer par 6 (mobile) ou 2 (fixe)
-  return /^[62]\d{8}$/.test(withoutPrefix);
+  if (!phone) return true; // téléphone optionnel
+  return /^[62]\d{8}$/.test(localDigits(phone));
 }
 
-/**
- * Obtient le préfixe téléphonique du Cameroun
- */
+/** Préfixe téléphonique du Cameroun. */
 export function getCameroonPrefix(): string {
   return CAMEROON_PREFIX;
 }
 
 /**
- * Formate le numéro pendant la saisie (auto-format live)
- * @param text - Texte saisi par l'utilisateur
- * @returns Numéro partiellement formaté
+ * Formatage en direct pendant la saisie. Toujours un seul "+237 ".
  */
 export function formatPhoneOnInput(text: string): string {
-  // Nettoyer le texte
-  let cleaned = text.replace(/[^\d+]/g, '');
-
-  // Si l'utilisateur efface tout, laisser vide
-  if (!cleaned) return '';
-
-  // Si l'utilisateur tape sans préfixe, ajouter automatiquement +237
-  if (!cleaned.startsWith('+') && !cleaned.startsWith('237')) {
-    // Enlever le 0 initial si présent
-    if (cleaned.startsWith('0')) {
-      cleaned = cleaned.substring(1);
-    }
-    cleaned = '+237' + cleaned;
-  } else if (cleaned.startsWith('237') && !cleaned.startsWith('+')) {
-    cleaned = '+' + cleaned;
-  }
-
-  // Limiter à +237 + 9 chiffres = 13 caractères max
-  const prefix = '+237';
-  if (cleaned.startsWith(prefix)) {
-    const digits = cleaned.substring(4).substring(0, 9);
-
-    // Formater progressivement
-    if (digits.length <= 3) {
-      return `${prefix} ${digits}`;
-    } else if (digits.length <= 6) {
-      return `${prefix} ${digits.substring(0, 3)} ${digits.substring(3)}`;
-    } else {
-      return `${prefix} ${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}`;
-    }
-  }
-
-  return cleaned;
+  if (!text) return '';
+  const d = localDigits(text);
+  if (d.length === 0) return `${CAMEROON_PREFIX} `;
+  if (d.length <= 3) return `${CAMEROON_PREFIX} ${d}`;
+  if (d.length <= 6) return `${CAMEROON_PREFIX} ${d.slice(0, 3)} ${d.slice(3)}`;
+  return `${CAMEROON_PREFIX} ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)}`;
 }

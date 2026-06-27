@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -21,10 +22,10 @@ import {
   Check,
   Calendar,
 } from '../components/icons/SimpleIcons';
-import { ScreenHeader, IconButton } from '../components/ui';
+import { ScreenHeader, IconButton, SyncPill } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
-import { formatPhoneOnInput } from '../utils/phone';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import { useLocalCustomers, useLocalClientReceivables } from '../hooks/useLocalData';
@@ -102,6 +103,11 @@ function buildDueChip(dueIso: string): DueChipInfo {
   }
   return { date: formatDueDate(dueIso), label: `Retard ${Math.abs(diffDays)}j`, urgent: true };
 }
+
+// Catégorie de filtre par situation de solde du client.
+// all = tous · debtors = ils doivent (solde > 0) · settled = à jour (solde = 0)
+// creditors = on leur doit / avance (solde < 0)
+type BalanceFilter = 'all' | 'debtors' | 'settled' | 'creditors';
 
 interface NotificationChannelsValue {
   email: boolean;
@@ -188,12 +194,18 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   const canCreateCustomer = can('customers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
   const [showModal, setShowModal] = useState(false);
 
   // Local data hook - reads from SQLite
   const { data: customers, loading: isLoading, refresh } = useLocalCustomers(shopId);
   // Créances actives du shop (une seule requête) — agrégées par client en mémoire
-  const { data: receivables } = useLocalClientReceivables(shopId);
+  const { data: receivables, refresh: refreshReceivables } = useLocalClientReceivables(shopId);
+
+  const handleRefresh = async () => {
+    await refresh();
+    await refreshReceivables();
+  };
 
   // Form state
   const [name, setName] = useState('');
@@ -245,6 +257,15 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       Alert.alert(
         'Client existant',
         `Un client avec le nom "${firstName.trim() ? `${firstName.trim()} ${name.trim()}` : name.trim()}" existe déjà.`
+      );
+      return;
+    }
+
+    // Valider le téléphone camerounais si fourni
+    if (phone.trim() && !isValidCameroonPhone(phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
       );
       return;
     }
@@ -302,6 +323,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       Alert.alert('Succes', 'Client cree avec succes');
       handleCloseModal();
       await refresh();
+      await refreshReceivables();
     } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
       const message = error instanceof Error ? error.message : '';
@@ -350,14 +372,53 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
     return { totalReceivable: total, debtorCount: count };
   }, [balanceByCustomer]);
 
+  // Nombre de clients par catégorie de solde (pour les compteurs des puces).
+  const categoryCounts = useMemo(() => {
+    let debtors = 0;
+    let creditors = 0;
+    for (const customer of customers) {
+      const balance = balanceByCustomer.get(customer.id) ?? 0;
+      if (balance > 0) debtors += 1;
+      else if (balance < 0) creditors += 1;
+    }
+    return {
+      all: customers.length,
+      debtors,
+      settled: customers.length - debtors - creditors,
+      creditors,
+    };
+  }, [customers, balanceByCustomer]);
+
+  const balanceFilters: Array<{ key: BalanceFilter; label: string }> = [
+    { key: 'all', label: 'Tous' },
+    { key: 'debtors', label: 'Ils doivent' },
+    { key: 'settled', label: 'À jour' },
+    { key: 'creditors', label: 'On leur doit' },
+  ];
+
+  const matchesBalanceFilter = (balance: number): boolean => {
+    switch (balanceFilter) {
+      case 'debtors':
+        return balance > 0;
+      case 'settled':
+        return balance === 0;
+      case 'creditors':
+        return balance < 0;
+      default:
+        return true;
+    }
+  };
+
   const filteredCustomers = customers.filter(customer => {
     const fullName = `${customer.first_name || ''} ${customer.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       customer.phone?.includes(query) ||
-      customer.email?.toLowerCase().includes(query)
-    );
+      customer.email?.toLowerCase().includes(query);
+    if (!matchesSearch) return false;
+    const balance = balanceByCustomer.get(customer.id) ?? 0;
+    return matchesBalanceFilter(balance);
   });
 
   return (
@@ -369,6 +430,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         onBack={() => navigation.goBack()}
         rightAction={
           <View style={styles.headerActions}>
+            <SyncPill />
             <IconButton onPress={() => navigation.navigate('CustomerBalancesSummary')}>
               <Eye size={22} color={Colors.action} />
             </IconButton>
@@ -381,7 +443,18 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={[Colors.action]}
+            tintColor={Colors.action}
+          />
+        }
+      >
         {/* Carte HERO — Créances en cours */}
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>Créances en cours</Text>
@@ -403,6 +476,35 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
           />
         </View>
 
+        {/* Filtres par situation de solde */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          style={styles.filterScroll}
+        >
+          {balanceFilters.map(filter => {
+            const active = balanceFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                activeOpacity={0.7}
+                onPress={() => setBalanceFilter(filter.key)}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {filter.label}
+                </Text>
+                <View style={[styles.filterCount, active && styles.filterCountActive]}>
+                  <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>
+                    {categoryCounts[filter.key]}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Liste clients */}
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -412,7 +514,9 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
           <View style={styles.emptyState}>
             <Users size={48} color={Colors.muted.foreground} />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun client trouvé'
+                : 'Aucun client enregistré'}
             </Text>
           </View>
         ) : (
@@ -447,7 +551,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
                     </Text>
                     {customer.phone ? (
                       <Text style={styles.customerPhone} numberOfLines={1}>
-                        {customer.phone}
+                        {formatCameroonPhone(customer.phone)}
                       </Text>
                     ) : null}
                   </View>
@@ -681,6 +785,58 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.text,
     padding: 0,
+  },
+  // Filtres par solde
+  filterScroll: {
+    marginBottom: Spacing.lg,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingRight: Spacing.lg,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  filterChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.muted.foreground,
+  },
+  filterChipTextActive: {
+    color: Colors.action,
+  },
+  filterCount: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCountActive: {
+    backgroundColor: Colors.action,
+  },
+  filterCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.muted.foreground,
+  },
+  filterCountTextActive: {
+    color: Colors.onMarine,
   },
   // Customer card
   customerCard: {

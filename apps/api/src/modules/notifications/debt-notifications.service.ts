@@ -40,11 +40,15 @@ export class DebtNotificationsService {
   private async loadCustomer(
     shopId: string,
     customerId: string
-  ): Promise<(ChannelResolvableCustomer & { id: string }) | null> {
+  ): Promise<
+    (ChannelResolvableCustomer & { id: string; name: string; first_name: string | null }) | null
+  > {
     return this.prisma.customer.findFirst({
       where: { id: customerId, shop_id: shopId, deleted: false },
       select: {
         id: true,
+        name: true,
+        first_name: true,
         email: true,
         phone: true,
         email_notifications_enabled: true,
@@ -73,8 +77,15 @@ export class DebtNotificationsService {
       if (channels.length === 0) return;
 
       const subject = 'Nouvelle dette enregistrée';
-      const dueText = params.dueDate ? `, échéance le ${this.formatDate(params.dueDate)}` : '';
-      const body = `Nouvelle dette de ${this.formatAmount(params.amount)} FCFA enregistrée${dueText}.`;
+      const dueText = params.dueDate
+        ? ` Votre échéance de remboursement est le ${this.formatDate(params.dueDate)}.`
+        : '';
+      const body =
+        `Bonjour ${customer.first_name || customer.name},\n\n` +
+        `Une nouvelle dette de ${this.formatAmount(params.amount)} FCFA a été enregistrée sur votre compte.` +
+        `${dueText}\n\n` +
+        `Montant dû à ce jour : ${this.formatAmount(params.amount)} FCFA.\n\n` +
+        `Merci de votre confiance.\n— Swalo`;
 
       for (const { channel, recipient } of channels) {
         await this.dispatcher.dispatch({
@@ -117,11 +128,15 @@ export class DebtNotificationsService {
       if (channels.length === 0) return;
 
       const isFullyPaid = params.balance <= 0;
-      const subject = 'Paiement reçu';
+      const subject = isFullyPaid ? 'Dette soldée — merci' : 'Paiement reçu';
       const settlement = isFullyPaid
-        ? 'Votre dette est entièrement réglée.'
-        : `Solde restant ${this.formatAmount(params.balance)} FCFA (paiement partiel).`;
-      const body = `Paiement de ${this.formatAmount(params.amount)} FCFA reçu. ${settlement}`;
+        ? 'Votre dette est désormais entièrement réglée. Merci !'
+        : `Il vous reste ${this.formatAmount(params.balance)} FCFA à régler.`;
+      const body =
+        `Bonjour ${customer.first_name || customer.name},\n\n` +
+        `Nous confirmons la réception d'un paiement de ${this.formatAmount(params.amount)} FCFA.\n\n` +
+        `Point de situation : ${settlement}\n\n` +
+        `Merci de votre confiance.\n— Swalo`;
 
       for (const { channel, recipient } of channels) {
         await this.dispatcher.dispatch({

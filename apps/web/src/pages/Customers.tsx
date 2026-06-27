@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { customersApi } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
 
 interface CustomerReceivable {
   id: string;
@@ -44,15 +50,15 @@ interface RawCustomer {
   whatsapp_notifications_enabled?: boolean;
 }
 
-/** Formatte un montant en centimes -> "12 500 F" (présentation, maquette). */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 500 F" (présentation, maquette). */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
-/** Formatte un montant en centimes en version compacte KPI -> "2,34 M F". */
-function formatCompactF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA en version compacte KPI -> "2,34 M F". */
+function formatCompactF(value: number): string {
+  const amount = Math.round(value ?? 0);
   if (amount >= 1_000_000) {
     return `${(amount / 1_000_000).toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
@@ -154,6 +160,19 @@ function isOverdue(customer: Customer): boolean {
   );
 }
 
+/**
+ * Filtre par catégorie de solde (sémantique client : un solde positif = le
+ * client nous doit, un solde négatif = on lui doit une avance / un trop-perçu).
+ */
+type BalanceFilter = 'all' | 'they_owe' | 'settled' | 'we_owe';
+
+const BALANCE_FILTERS: { key: BalanceFilter; label: string }[] = [
+  { key: 'all', label: 'Tous' },
+  { key: 'they_owe', label: 'Ils doivent' },
+  { key: 'settled', label: 'À jour' },
+  { key: 'we_owe', label: 'On leur doit' },
+];
+
 export default function Customers() {
   const navigate = useNavigate();
   const { can } = usePermissions();
@@ -163,6 +182,7 @@ export default function Customers() {
   const [showModal, setShowModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -216,10 +236,10 @@ export default function Customers() {
       setFormData({
         name: customer.name,
         first_name: customer.first_name || '',
-        phone: customer.phone || '',
+        phone: customer.phone ? formatCameroonPhone(customer.phone) : '',
         email: customer.email || '',
         address: customer.address || '',
-        credit_limit: customer.credit_limit ? String(customer.credit_limit / 100) : '',
+        credit_limit: customer.credit_limit ? String(customer.credit_limit) : '',
         email_notifications_enabled: customer.email_notifications_enabled ?? true,
         sms_notifications_enabled: customer.sms_notifications_enabled ?? false,
         whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled ?? false,
@@ -260,14 +280,20 @@ export default function Customers() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const phoneValue = formData.phone.trim();
+    if (phoneValue && !isValidCameroonPhone(phoneValue)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     const creditLimitValue = formData.credit_limit?.trim();
     const payload = {
       name: formData.name.trim(),
       first_name: formData.first_name.trim() || undefined,
-      phone: formData.phone.trim() || undefined,
+      phone: phoneValue ? cleanPhoneNumber(phoneValue) : undefined,
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
-      credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue) * 100) : undefined,
+      credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue)) : undefined,
       email_notifications_enabled: formData.email_notifications_enabled,
       sms_notifications_enabled: formData.sms_notifications_enabled,
       whatsapp_notifications_enabled: formData.whatsapp_notifications_enabled,
@@ -295,12 +321,28 @@ export default function Customers() {
   const filteredCustomers = customers.filter(customer => {
     const fullName = `${customer.first_name || ''} ${customer.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       customer.phone?.includes(query) ||
-      customer.email?.toLowerCase().includes(query)
-    );
+      customer.email?.toLowerCase().includes(query);
+
+    const balance = customer.current_balance || 0;
+    const matchesBalance =
+      balanceFilter === 'all' ||
+      (balanceFilter === 'they_owe' && balance > 0) ||
+      (balanceFilter === 'settled' && balance === 0) ||
+      (balanceFilter === 'we_owe' && balance < 0);
+
+    return matchesSearch && matchesBalance;
   });
+
+  // Compteurs par catégorie de solde (sur la liste déjà chargée)
+  const balanceCounts: Record<BalanceFilter, number> = {
+    all: customers.length,
+    they_owe: customers.filter(c => (c.current_balance || 0) > 0).length,
+    settled: customers.filter(c => (c.current_balance || 0) === 0).length,
+    we_owe: customers.filter(c => (c.current_balance || 0) < 0).length,
+  };
 
   // KPI calculés depuis la liste déjà chargée
   const toRecover = customers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
@@ -377,6 +419,30 @@ export default function Customers() {
           </div>
         </div>
 
+        {/* Filtres par catégorie de solde */}
+        <div className="flex flex-wrap gap-2 px-6 pb-4">
+          {BALANCE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setBalanceFilter(f.key)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                balanceFilter === f.key
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {f.label}
+              <span
+                className={`ml-1.5 ${
+                  balanceFilter === f.key ? 'text-white/80' : 'text-slate-400'
+                }`}
+              >
+                {balanceCounts[f.key]}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-16">
             <div className="w-12 h-12 spinner"></div>
@@ -384,9 +450,11 @@ export default function Customers() {
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-slate-500">
-              {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun client trouvé'
+                : 'Aucun client enregistré'}
             </p>
-            {!searchQuery && canCreate && (
+            {!searchQuery && balanceFilter === 'all' && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier client
               </button>
@@ -453,7 +521,9 @@ export default function Customers() {
                         </div>
                       </td>
                       {/* TÉLÉPHONE */}
-                      <td className="px-6 py-4 text-sm text-slate-600">{customer.phone || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {customer.phone ? formatCameroonPhone(customer.phone) : '—'}
+                      </td>
                       {/* DOIT */}
                       <td className="px-6 py-4 text-right">
                         {balance > 0 ? (
@@ -588,9 +658,11 @@ export default function Customers() {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={e =>
+                      setFormData({ ...formData, phone: formatPhoneOnInput(e.target.value) })
+                    }
                     className="input"
-                    placeholder="+221 XX XXX XX XX"
+                    placeholder="+237 6XX XXX XXX"
                   />
                 </div>
 

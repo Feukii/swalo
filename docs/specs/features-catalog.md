@@ -1,6 +1,6 @@
 # Swalo - Catalogue Exhaustif des Fonctionnalités
 
-> **Dernière mise à jour** : 2026-06-26
+> **Dernière mise à jour** : 2026-06-27
 > **Version application** : 1.0.0
 > **Branche** : develop
 >
@@ -49,7 +49,7 @@
 
 ### Monnaie
 
-Tous les montants sont stockés en **entiers FCFA** (francs CFA). Aucune décimale n'est nécessaire pour cette monnaie.
+Tous les montants sont des **entiers FCFA** (francs CFA) de bout en bout — base, API, mobile, web, web-admin. Le FCFA n'a **pas de centimes** : **aucune conversion d'échelle** (jamais de `×100`/`÷100`). Le montant saisi = le montant réel = le montant stocké = le montant affiché. Seul un **séparateur de milliers** (espace) est ajouté à l'affichage pour la lisibilité (ex. `1 000 000 F`).
 
 ---
 
@@ -250,8 +250,15 @@ valorisation du stock + carte « Alertes seuil » (filtre stock bas), recherche,
 de catégories, liste groupée par catégorie (chip stock, seuil, prix de vente + prix
 de revient, badge MULTI). L'appui sur un article ouvre l'écran détail
 (`ProductDetailsScreen.tsx`, offline-first) : valorisation (PMP, marge %), boutons
-Entrée/Sortie (bottom-sheets), table des lots FIFO datés, et édition du seuil.
+Entrée/Sortie/Ajustement (bottom-sheets), table des lots FIFO datés, et édition du seuil.
 L'appui long sur un article expose Modifier/Supprimer selon les permissions.
+
+**Édition prix & stock réservée MANAGER+** : la modification du produit, des prix, du
+seuil et toutes les opérations de stock (Entrée / Sortie / Ajustement) sont gardées par
+la capacité `products.edit` via le hook `usePermissions()` (`can('products', 'edit')`).
+Concrètement, `SUPERADMIN`, `BOSS` et `MANAGER` peuvent éditer ; `EMPLOYEE` est en
+**lecture seule** (uniquement `view` + `create` par défaut). Les boutons sont désactivés
+lorsque `canEditProduct === false`. Voir §2.7b (permissions fines).
 
 ### 3.2 Hiérarchie produits (Famille / Marque / Type)
 
@@ -266,6 +273,20 @@ L'appui long sur un article expose Modifier/Supprimer selon les permissions.
 - Famille → Marque → Type d'article
 - Filtrage en cascade : sélectionner une famille filtre les marques et types disponibles
 - Mise à jour en masse : `POST /api/products/batch-update-hierarchy`
+
+### 3.2b Codification SKU des articles (Code Article auto-généré)
+
+| Propriété         | Valeur                                                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | À la création d'un produit, un **Code Article (SKU)** peut être généré automatiquement à partir de la classification : préfixe **famille** (3 lettres) + **marque** (3 lettres) + **référence** (6 car.) + suffixe numérique aléatoire (2 chiffres). Le bouton « Générer » remplit le champ SKU. |
+| **Plateformes**   | Mobile                                                                                                                                                                                 |
+| **Module**        | Coeur                                                                                                                                                                                  |
+| **Fichiers clés** | `apps/mobile/src/screens/ProductCatalogScreen.tsx` (fonction `generateSku`)                                                                                                            |
+| **Statut**        | **Implémenté**                                                                                                                                                                        |
+
+- Le préfixe est dérivé du nom de famille saisi (ex. **GLASSES** → `GLA`, **CHARGEURS** → `CHA`, **KIT BLUETOOTH** → `KIT`, **CARTES MEMOIRES** → `CAR`). Pas de table de correspondance figée : la codification est dynamique à partir de la valeur du champ `family`.
+- Le SKU reste **unique par boutique** et éditable manuellement avant enregistrement. La génération n'est proposée qu'en création (pas en édition).
+- Les jeux de données de seed illustrent la convention (`GLA01TECSpk4`, `CHAOR1ATC2`, `KITB29`, …).
 
 ### 3.3 Recherche et filtres produits
 
@@ -353,10 +374,54 @@ L'appui long sur un article expose Modifier/Supprimer selon les permissions.
 | **Plateformes** | Web, API                                                                              |
 | **Module**      | Étendu                                                                                |
 | **Endpoints**   | `GET/POST/PUT/DELETE /api/packaging-types`, `POST /api/packaging-types/init-defaults` |
-| **Modèle**      | `PackagingType` (name, symbol, is_default)                                            |
+| **Modèle**      | `PackagingType` (name, symbol, is_default) ; `Product.packaging_type_id`, `Product.units_per_package`, `Product.package_price` |
 
 - Conditionnements par défaut initialisables par boutique
 - Chaque boutique peut personnaliser ses conditionnements
+### 3.9b Modèle de gestion de stock « carton-primaire » (gros / détail)
+
+Modèle de prix et de stock par article, centré sur le **conditionnement**.
+
+| Élément | Règle |
+| --- | --- |
+| **Conditionnement (carton)** | **Obligatoire**. Choisi parmi **tous les types** disponibles (`PackagingType` : Carton, Boîte, Douzaine, Paquet, Pièce, Unité, Kg, g, L…). Porte : `units_per_package` (UPP = pièces par conditionnement, ≥1), le **prix de revient AU CARTON**, le **prix de vente au carton (gros)** = `package_price`. |
+| **Stock** | Compté et saisi **en cartons** (« 4 en stock » = 4 cartons). Unité atomique interne = **la pièce** (`stock_batches.remaining_quantity` en pièces, FIFO inchangé) ; affichage = `floor(pièces / UPP)` cartons (+ pièces résiduelles). Valeur du stock = Σ pièces × coût/pièce. |
+| **Prix de revient** | Saisi/affiché **au carton** ; stocké **par pièce** (`cost_price = round(coût_carton / UPP)`) pour rester l'unité atomique de la **comptabilité/valorisation** (inchangée). |
+| **Seuil d'alerte** | Exprimé **en cartons** (`floor(pièces / UPP) ≤ alert_threshold`). |
+| **Sous-conditionnement (pièce)** | **Optionnel** (interrupteur « Vendre aussi au détail », possible si UPP > 1). Porte le **prix de détail** = `sell_price`. **Plancher** : `sell_price ≥ ceil(package_price / UPP)` (le détail/pièce ne descend jamais sous le gros/pièce). **Auto-ajustement** : si le prix de gros (ou UPP) change, le prix de détail remonte automatiquement au plancher s'il était en dessous. Désactivé ⇒ `sell_price = 0` (vendu uniquement au carton). |
+| **Vente** | En choisissant un article, on choisit **l'unité** : **Carton** (prix de gros) ou **Pièce** (prix de détail, si sous-cond activé) + une **quantité**. Déduction FIFO = `quantité × UPP` pièces (carton) ou `quantité` pièces (pièce). |
+
+Plancher/auto-ajustement **appliqués sur 3 couches** : formulaire (live), `offlineWrite`, et backend `products.service` (`clampSellPriceToFloor`).
+
+**Écrans alignés (mobile)** : `ProductDetailsScreen` (fiche + feuille « Modifier l'article » conditionnement/sous-conditionnement), `ProductCatalogScreen` (création + liste « /carton » ou « /pièce »), `SaleScreen` (choix d'unité + quantité), `StockManagementScreen` (stock en cartons, réception en cartons au coût carton). Montants en **entiers FCFA**. La comptabilité (coût/pièce) reste intacte.
+
+### 3.10 Entrée / Sortie / Ajustement de stock (réception datée, FIFO + motif)
+
+| Propriété         | Valeur                                                                                                                                                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Opérations de stock manuelles depuis la fiche produit : **Entrée** (réception datée créant un nouveau lot avec prix de revient), **Sortie** (déstockage FIFO avec **motif** obligatoire) et **Ajustement** (correction d'inventaire vers une quantité cible). |
+| **Plateformes**   | Mobile (offline-first), API                                                                                                                                                        |
+| **Module**        | Coeur (inventory)                                                                                                                                                                  |
+| **Fichiers clés** | `apps/mobile/src/screens/ProductDetailsScreen.tsx` (bottom-sheets Entrée/Sortie/Ajustement), `apps/mobile/src/screens/StockManagementScreen.tsx`                                  |
+| **Statut**        | **Implémenté**                                                                                                                                                                    |
+
+- **Entrée** : choix de la date de réception (aujourd'hui / hier / cette semaine), quantité, prix de revient et prix de vente → crée un lot daté (`createStockBatchOffline`).
+- **Sortie** : déstockage FIFO avec sélection d'un **motif** parmi `Vente comptoir`, `Perte / casse`, `Inventaire`, `Retour fournisseur` ; enregistre un `InventoryMovement`.
+- **Ajustement** : saisie d'une quantité cible. Si cible < stock → déstockage FIFO + mouvement `ADJUSTMENT` ; si cible > stock → nouveau lot daté au PMP courant + mouvement `ADJUSTMENT`.
+- Réservé MANAGER+ (`products.edit`, voir §3.1).
+
+### 3.11 Cohérence Stock ↔ Produits & prix ↔ Vente (source locale unique)
+
+| Propriété         | Valeur                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Les écrans **Stock**, **Produits & prix** et **Vente** lisent la **même source locale** (SQLite via repositories partagés). Tout mouvement (entrée, sortie, ajustement, vente) se répercute instantanément sur les trois écrans, et est synchronisé au serveur. |
+| **Plateformes**   | Mobile                                                                                                                                                         |
+| **Module**        | Coeur                                                                                                                                                          |
+| **Fichiers clés** | `apps/mobile/src/db/repositories.ts` (singletons `productRepo`, `stockBatchRepo`), `StockManagementScreen.tsx`, `ProductCatalogScreen.tsx`, `SaleScreen.tsx`  |
+| **Statut**        | **Implémenté**                                                                                                                                                |
+
+- Les trois écrans utilisent `productRepo.getAll()` + `stockBatchRepo.getTotalStock()` et rechargent via `useFocusEffect()`.
+- Les mutations passent par les opérations offline (`createStockBatchOffline`, `updateProductOffline`, `createSaleOffline`) qui marquent les enregistrements `_sync_status = 'pending'` puis synchronisent.
 
 ---
 
@@ -404,6 +469,9 @@ L'appui long sur un article expose Modifier/Supprimer selon les permissions.
 
 - Ajout par recherche ou scan (futur)
 - Modification de quantité par article
+- **Quantité éditable au clavier** (mobile) : chaque ligne du panier expose un `TextInput` (`keyboardType="number-pad"`) en plus des boutons +/− ; la saisie directe est validée (chiffres uniquement, min 1, plafonnée au stock disponible) via `setExactQuantity()` dans `SaleScreen.tsx`
+- Grille d'articles affichant les **mêmes données que Stock / Produits & prix** (stock, prix, badge multi-prix) — source locale partagée (voir §3.11)
+- Multi-prix : sélection du prix/lot par article (voir §3.7)
 - Suppression d'articles
 - Affichage du sous-total en temps réel
 
@@ -610,7 +678,7 @@ Champs client : `name`, `first_name`, `phone`, `email`, `address`, `credit_limit
 
 Affiche :
 
-- Informations personnelles
+- Informations personnelles, **éditables directement depuis la fiche** via un modal « Modifier » (nom, prénom, téléphone, email, adresse, limite de crédit) — gardé par la capacité `customers.edit` ; le téléphone est validé au format **Cameroun +237** (voir §15.7)
 - Solde total (créances en cours)
 - KPIs : total créances, total payé, nombre de ventes
 - Historique des transactions (créances, paiements, remboursements, ventes) complet
@@ -704,6 +772,8 @@ Affiche :
 | **Fichiers clés** | `apps/mobile/src/screens/SuppliersScreen.tsx`, `apps/web/src/pages/Suppliers.tsx` |
 
 Champs fournisseur : `name`, `first_name`, `phone`, `email`, `address`, `notes`, `is_active`, `borrowing_limit`
+
+Le téléphone fournisseur suit le même format **Cameroun +237 6XX XXX XXX** (formatage + validation) que les clients (voir §15.7).
 
 ### 7.2 Limite d'emprunt fournisseur (avec enforcement)
 
@@ -830,6 +900,44 @@ Sections disponibles :
 | **Plateformes** | Mobile                                                   |
 | **Module**      | Étendu                                                   |
 | **Fichier**     | `apps/mobile/src/screens/TransactionHistoryScreen.tsx`   |
+
+### 8.5 Comptabilité (Journal, Grand livre, Bilan, Résultat)
+
+| Propriété         | Valeur                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| **Description**   | Comptabilité **en partie double (OHADA/SYSCOHADA simplifié)** : chaque opération génère des écritures débit/crédit ; Journal, Grand livre, Bilan (Actif = Passif) et Compte de résultat sont **dérivés des écritures** |
+| **Plateformes**   | Mobile (offline, moteur sur données SQLite), Web (dashboard boutique), Web-admin (console lecture seule), API |
+| **Module**        | Premium (pilotage)                                                                                |
+| **Endpoints**     | `GET /reports/accounting` (BOSS/MANAGER), `GET /admin/shops/:id/accounting` (SUPERADMIN, console) |
+| **Fichiers clés** | **Moteur partagé** : `packages/core/src/accounting/` (`accounts.ts` plan de comptes, `operations.ts` `operationsToEcritures`, `journal.ts` `postJournal`, `computeAccounting`). Mobile : `ComptabilityScreen.tsx`, `apps/mobile/src/db/accounting.ts`. API : `reports.service.ts` (`getAccountingReport` + `buildPeriodOperations`/`buildSnapshotOperation`). Web : `Accounting.tsx`. Web-admin : `EnterpriseAccounting.tsx` |
+
+Caractéristiques :
+
+- **Moteur comptable partagé** (`@swalo/core/accounting`, TS pur sans IO) réutilisé par mobile (SQLite), backend (Prisma) et web. Garantit par construction : chaque écriture équilibrée, **Actif = Passif**, `bilan.résultat === bénéfice net`.
+- **Plan de comptes SYSCOHADA simplifié** : 101/108/110/120 capitaux, 311 stocks, 401/411 tiers, 521/551/571 trésorerie, 601/603/61/62/64/641/658 charges, 701/758 produits.
+- **Mapping opération → écritures** : vente cash/crédit, COGS perpétuel (D603/C311 au coût pièce), encaissement créance, achat crédit/comptant, règlement fournisseur, charges, retrait personnel (capitaux 108), remboursements, ajustement de stock, solde d'ouverture (capital en *plug*). **Anti-double-comptage** : une seule source par flux (ventes vs caisse `ventes`, paiements vs `reglement_fournisseur`, exclusion `CLOSING` et caisses liées aux paiements).
+- **Sélecteur de périmètre** (Toutes les boutiques / une boutique) + **période** Jour/Semaine/Mois/Année.
+- **Bilan** = instantané courant (Actif = Passif) ; **Journal** = écritures équilibrées de la période ; **Grand livre** = comptes (débit/crédit/solde signé) ; **Résultat** = CA, COGS (net 601+603), marge brute, charges, bénéfice net.
+- Tests Jest du moteur (équilibre, Actif=Passif, cohérence résultat) ; validé sur données réelles (bilan équilibré).
+
+### 8.6 Supervision (journal des actions anormales)
+
+| Propriété         | Valeur                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| **Description**   | Tableau de supervision listant les actions anormales du jour, chacune avec auteur et heure, classées Critique / À vérifier |
+| **Plateformes**   | Mobile (offline, détection sur données locales), Web (dashboard boutique), Web-admin (console lecture seule), API |
+| **Module**        | Premium (pilotage)                                                                                |
+| **Endpoints**     | `GET /reports/supervision` (BOSS/MANAGER), `GET /admin/shops/:id/supervision` (SUPERADMIN, console) |
+| **Fichiers clés** | Mobile : `apps/mobile/src/screens/SupervisionScreen.tsx`, `apps/mobile/src/db/reports.ts` (`getSupervisionAlerts`). API : `reports.service.ts` (`getSupervisionReport`, `SupervisionAlert`), `admin.service.ts` (`getShopSupervision`). Web : `apps/web/src/pages/Supervision.tsx`. Web-admin : `apps/web-admin/src/pages/console/EnterpriseSupervision.tsx` |
+
+Alertes détectées :
+
+- **Sortie de stock sans vente** (mouvement OUT non lié à une vente) — Critique.
+- **Correction de caisse négative** (sortie annotée « erreur » / « correction ») — Critique.
+- **Modification manuelle du stock** (ajustement d'inventaire) — À vérifier.
+- **Remise inhabituelle** (remise ≥ 25 % du total de la vente) — À vérifier.
+
+Compteurs en tête (Critiques / À vérifier / Total du jour). L'auteur est résolu depuis la liste des utilisateurs de la boutique (`adminApi.getShopUsers`, dégradation silencieuse hors-ligne).
 
 ---
 
@@ -1033,6 +1141,45 @@ Chaque opération :
 - Protection des enregistrements avec mutations en attente
 - Exécution quotidienne automatique après la première synchronisation réussie
 
+### 9.11 Auto-réparation de la base locale (delete-and-rebuild)
+
+| Propriété         | Valeur                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | À l'initialisation, si la base SQLite locale est corrompue ou inutilisable, l'app la **recrée automatiquement** : suppression du fichier, réinitialisation du curseur de sync, recréation du schéma, puis resynchronisation complète depuis le serveur. |
+| **Plateformes**   | Mobile                                                                                                                                                            |
+| **Module**        | Coeur                                                                                                                                                             |
+| **Fichiers clés** | `apps/mobile/src/db/schema.ts` (`initDatabase` → `resetLocalDatabase` → `initDatabaseInner`)                                                                     |
+| **Statut**        | **Implémenté**                                                                                                                                                  |
+
+- `initDatabase()` encapsule l'initialisation dans un `try/catch` et exécute un test de validité (`SELECT 1`) pour détecter une base ouverte mais cassée.
+- En cas d'échec : log `[DB] init échouée, recréation de la base locale`, puis delete-and-rebuild + full resync (curseur effacé). Les données de référence sont retéléchargées du serveur ; aucune intervention utilisateur requise.
+
+### 9.12 Bouton « Forcer la resynchronisation »
+
+| Propriété         | Valeur                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Action manuelle (écran « Plus ») qui **efface les données locales et les retélécharge** depuis le serveur. Confirmation requise avant exécution.                |
+| **Plateformes**   | Mobile                                                                                                                                                            |
+| **Module**        | Coeur                                                                                                                                                             |
+| **Fichiers clés** | `apps/mobile/src/screens/MoreScreen.tsx`, `apps/mobile/src/db/sync.ts` (`syncEngine.forceFullResync`)                                                            |
+| **Statut**        | **Implémenté**                                                                                                                                                  |
+
+- `forceFullResync()` : `resetLocalDatabase()` → `initDatabase()` → `pull()` complet → mise à jour du timestamp de sync ; renvoie le nombre de produits retéléchargés.
+- Utile après un changement de boutique, une corruption suspectée ou un état de sync incohérent.
+
+### 9.13 Détection de connectivité = réseau présent
+
+| Propriété         | Valeur                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | La connectivité est définie comme « **réseau présent** » (`expo-network.isConnected`), **sans dépendre** de l'accessibilité Internet (`isInternetReachable`).   |
+| **Plateformes**   | Mobile                                                                                                                                                            |
+| **Module**        | Coeur                                                                                                                                                             |
+| **Fichiers clés** | `apps/mobile/src/db/sync.ts` (`checkConnectivity`)                                                                                                               |
+| **Statut**        | **Implémenté**                                                                                                                                                  |
+
+- Rationale : un serveur peut être en LAN sans Internet public, et certains réseaux bloquent les tests Internet de l'OS. Les échecs d'API sont gérés gracieusement (un push échoué ne bloque pas le pull, retries en place).
+- Une transition hors-ligne → en-ligne déclenche une synchronisation automatique.
+
 ---
 
 ## 10. Entreprise & Multi-boutique
@@ -1215,6 +1362,36 @@ Chaque opération :
 - Accessible à tout utilisateur authentifié de la boutique (vendeur / gérant / patron) — pas de restriction de rôle supplémentaire.
 - Navigation : mobile via la route `Relances` (stack `App.tsx`) ; web via `/relances` (entrée sidebar « Relances », module `customers`).
 - Marquage « fait » enregistre `done_at` + `done_by` (passage en statut DONE).
+
+### 11.9 Transport email RÉEL (SMTP) + repli Ethereal en dev
+
+| Propriété         | Valeur                                                                                                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Les emails sont **réellement envoyés** via SMTP (`MailerService` / nodemailer). En production : SMTP Gmail avec **mot de passe d'application**. En développement (sans identifiants) : **repli automatique sur Ethereal** (compte de test + URL de prévisualisation), puis `jsonTransport` (no-op) si Ethereal indisponible. |
+| **Plateformes**   | API                                                                                                                                                                               |
+| **Module**        | Premium (notifications)                                                                                                                                                          |
+| **Fichiers clés** | `apps/api/src/modules/notifications/notifications.module.ts` (config transport), `notification-dispatcher.service.ts`                                                            |
+| **Variables**     | `SMTP_HOST` (déf. `smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_SECURE` (false), `SMTP_USER`, `SMTP_PASS` (mot de passe d'application Gmail), `SMTP_FROM`                            |
+| **Statut**        | **Implémenté**                                                                                                                                                                  |
+
+- **SMTP réel** activé dès que `SMTP_USER` **et** `SMTP_PASS` sont renseignés ; sinon repli Ethereal (`nodemailer.createTestAccount()`) avec log de l'URL de prévisualisation à chaque envoi.
+- **Templates Handlebars** (`templates/*.hbs`) : `payment-reminder.hbs` (relances), `low-stock-alert.hbs` (alertes stock bas), `monthly-summary.hbs` (récap mensuel). Les notifications `DEBT_CREATED` / `DEBT_PAYMENT` sont composées par le dispatcher multi-canal (§11.5/§11.6).
+
+### 11.10 Réglages des relances par boutique (UI)
+
+| Propriété         | Valeur                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Écran de configuration des relances **par boutique** : activer/désactiver les relances automatiques, e-mail de notification, cadence de rappel (jours). Le calendrier J-7 / J-3 / J-0 est affiché en lecture seule. |
+| **Plateformes**   | Mobile, Web, API                                                                                                                                                  |
+| **Module**        | Premium (notifications)                                                                                                                                          |
+| **Endpoints**     | `GET/PUT /api/shops/me/reminder-settings`                                                                                                                        |
+| **Fichiers clés** | `apps/api/src/modules/notifications/shop-reminder-settings.controller.ts`, `apps/web/src/pages/ReminderSettings.tsx`, `apps/mobile/src/screens/ReminderSettingsScreen.tsx` |
+| **Champs Shop**   | `payment_reminders_enabled`, `notification_email`, `payment_reminder_cadence_days` (1–90), `low_stock_alerts_enabled`                                            |
+| **Rôles**         | BOSS, MANAGER                                                                                                                                                    |
+| **Statut**        | **Implémenté**                                                                                                                                                  |
+
+- Web : route `/reminder-settings` (entrée sidebar « Réglages relances »). Mobile : écran `ReminderSettingsScreen`. Validation e-mail + cadence 1–90 jours.
+- Les **canaux par client** (email / SMS / WhatsApp) restent configurés sur la fiche client (voir §6.2, §11.5).
 
 ---
 
@@ -1506,7 +1683,7 @@ Chaque opération :
 | Propriété       | Valeur                                                                 |
 | --------------- | ---------------------------------------------------------------------- |
 | **Description** | Importer un catalogue produit complet depuis un fichier CSV ou Excel   |
-| **Plateformes** | Web, API                                                               |
+| **Plateformes** | Mobile, Web, API                                                       |
 | **Module**      | Premium (import)                                                       |
 | **Endpoints**   | `POST /api/import/catalog/preview`, `POST /api/import/catalog/confirm` |
 | **Rôles**       | BOSS, MANAGER                                                          |
@@ -1516,10 +1693,12 @@ Chaque opération :
 1. **Preview** : upload du fichier, mapping des colonnes, validation, détection des doublons
 2. **Confirm** : exécution de l'import après validation
 
-- Mapping automatique des colonnes
+- Mapping automatique des colonnes (`column-mapping.ts`)
 - Détection de doublons SKU
 - Validation des données (types, formats, valeurs)
 - Rapport d'erreurs détaillé
+- **Colonnes de conditionnement** : `Cond.` / `Conditionnement` → nom du conditionnement (résolu/créé en `PackagingType`, `packaging_type_id`) ; `Sous-cond.` / `Pièces / cart` → `units_per_package` ; `Prix carton` / `Prix du conditionnement` → `package_price` (optionnel). Les conditionnements absents sont créés à la volée (cache anti-doublon sur `[shop_id, name]`).
+- Déclenché côté **mobile** depuis `ProductCatalogScreen` (`importApi.previewCatalog`/`confirmCatalog`, sélection de fichier `expo-document-picker`).
 
 ---
 
@@ -1606,6 +1785,8 @@ Composants : `ScreenHeader`, `KPICard`, `ListItem`, `SearchableSelect`, `Balance
 | Plus    | `MoreScreen`            | Menu         |
 
 - L'onglet **Vente** est rendu comme un bouton flottant central surélevé (`CustomTabBar`, fond `Colors.action` Sky #0EA5E9).
+
+Le menu **Plus** (`MoreScreen`) est organisé en sections : **Relances client** (Relances & tâches, Réglages relances), **Gestion** (Clients & créances, Fournisseurs & dettes, Produits & prix), **Pilotage** (Rapports, Supervision, Comptabilité, Factures, Historique des transactions), **Boutique** (Transferts inter-boutiques, Mes boutiques, Utilisateurs, Synchronisation, Administration).
 
 ### 14.5 Layout web (sidebar + top bar) - Module-aware
 
@@ -1699,6 +1880,21 @@ Erreurs Prisma mappées :
 | **Module**      | Coeur                                      |
 | **Endpoint**    | `GET /api/health`                          |
 
+### 15.7 Numéros de téléphone Cameroun (+237)
+
+| Propriété         | Valeur                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Description**   | Formatage et validation des numéros de téléphone au format **Cameroun +237 6XX XXX XXX**, appliqués aux fiches **clients** et **fournisseurs**.                 |
+| **Plateformes**   | Mobile, Web, API (core)                                                                                                                                          |
+| **Module**        | Coeur (transversal)                                                                                                                                              |
+| **Fichiers clés** | `packages/core/src/utils/phone.ts`, `apps/mobile/src/utils/phone.ts`, `apps/web/src/utils/phone.ts`, `packages/core/src/schemas/customer.ts` / `supplier.ts`     |
+| **Statut**        | **Implémenté**                                                                                                                                                  |
+
+- **Préfixe** : `+237` (constante `CAMEROON_PREFIX`). **Format d'affichage** : `+237 6XX XXX XXX` (groupes de 3 chiffres).
+- **Validation** (`isValidCameroonPhone`) : 9 chiffres nationaux commençant par `6` (mobile) ou `2` (fixe) — regex `^[62]\d{8}$`. Le champ téléphone reste **optionnel** (chaîne vide acceptée).
+- **Saisie assistée** (`formatPhoneOnInput`) : garantit un seul préfixe `+237`, supprime les caractères non numériques, gère les variantes `237…` et `0…`.
+- Appliqué dans les modals d'édition client (`CustomerDetailsScreen.tsx`, `CustomerDetails.tsx`) et fournisseur ; le numéro est stocké avec le préfixe `+237`.
+
 ---
 
 ## 16. Fonctionnalités planifiées (non implémentées)
@@ -1726,7 +1922,10 @@ Erreurs Prisma mappées :
 | Gestion produits (CRUD)    |   X    |  X  |  X  |    X    |
 | Stock batches & FIFO       |   X    |  X  |  X  |    X    |
 | Multi-prix                 |   X    |  X  |  X  |    X    |
+| Codification SKU (auto)    |   X    |  -  |  -  |    X    |
+| Entrée/Sortie/Ajust. stock |   X    |  X  |  X  |    X    |
 | Ventes (POS)               |   X    |  X  |  X  |    X    |
+| Quantité éditable clavier  |   X    |  -  |  -  |    X    |
 | Facturation PDF            |   X    |  -  |  X  |    X    |
 | Gestion de caisse          |   X    |  X  |  X  |    X    |
 | Clients (CRUD)             |   X    |  X  |  X  |    X    |
@@ -1735,12 +1934,15 @@ Erreurs Prisma mappées :
 | Dettes & paiements         |   X    |  X  |  X  |    X    |
 | Rapports & KPIs            |   X    |  X  |  X  |    X    |
 | Synchronisation            |   X    |  -  |  X  |    X    |
+| Forcer la resync. (manuel) |   X    |  -  |  X  |    X    |
+| Auto-réparation base locale|   X    |  -  |  -  |    X    |
 | Résolution conflits        |   X    |  -  |  X  |    -    |
 | Entreprise multi-shop      |   -    |  X  |  X  |    -    |
 | Transferts inter-boutiques |   X    |  X  |  X  |    -    |
-| Email notifications        |   -    |  -  |  X  |    -    |
+| Email notifications (SMTP) |   -    |  -  |  X  |    -    |
 | Alertes stock bas (email)  |   -    |  -  |  X  |    -    |
 | Rappels de paiement        |   -    |  -  |  X  |    -    |
+| Réglages relances (UI)     |   X    |  X  |  X  |    -    |
 | Notifs dettes (transp.)    |   -    |  -  |  X  |    -    |
 | Dispatcher multi-canal     |   -    |  -  |  X  |    -    |
 | Relances (tâches vendeur)  |   X    |  X  |  X  |    -    |
@@ -1750,6 +1952,7 @@ Erreurs Prisma mappées :
 | Console super-admin (MRR)  |   -    | X(admin) |  X  | - |
 | Drill-down entreprise      |   -    | X(admin) |  X  | - |
 | Permissions fines          |   X    |  X  |  X  |    -    |
+| Téléphone Cameroun +237    |   X    |  X  |  X  |    X    |
 | Switch de boutique         |   X    |  X  |  X  |    -    |
 | Design system Swalo        |   X    |  X  |  -  |    -    |
 | Gestion utilisateurs       |   X    |  X  |  X  |    -    |
@@ -1883,6 +2086,15 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 | Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Auteur      |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-06-27 | **Rapports 100% réels + filtre clients par solde + synchro dédupliquée**. Rapports mobile : « Ventes espèces vs crédit » ne sont plus prorationnés (approximation) mais issus d'une vraie requête `getSalesByPaymentMethod` (ventes groupées par `payment_method`) ; reste des indicateurs déjà réels (flux 7 j, KPI, top produits, créances/dettes). Clients (mobile) : **filtre par catégorie** Tous / Ils doivent / À jour / On leur doit, basé sur le solde net réel des créances + compteurs. Synchronisation : action « Forcer la resynchronisation » déplacée du menu Plus vers l'écran Synchronisation (plus de doublon). Consolidation : branche compta + 4 améliorations (caisse non négative, relance manuelle, acquittement supervision, flux interactif) fusionnées. Fix CI : `import type` sur le moteur comptable (verbatimModuleSyntax). | Claude Code |
+| 2026-06-27 | **Modèle de stock carton-primaire finalisé (gros/détail) — §3.9b**. Conditionnement (carton) **obligatoire** (tous les types `PackagingType` conservés) : prix de revient + stock + seuil **au carton**. Sous-conditionnement (pièce) **optionnel** : prix de détail avec **plancher `ceil(prix_gros / UPP)`** + **auto-ajustement** (3 couches : formulaire, `offlineWrite`, backend `clampSellPriceToFloor`). **Vente** : choix de l'unité (Carton/gros ou Pièce/détail) + quantité, déduction FIFO `qté×UPP` ou `qté`. Écrans alignés : `ProductDetailsScreen`, `ProductCatalogScreen` (création + liste), `SaleScreen`, `StockManagementScreen`. `cost_price` reste par pièce → comptabilité intacte. Type-check + lint OK. | Claude Code |
+| 2026-06-27 | **Refonte Comptabilité en partie double (OHADA/SYSCOHADA) + modèle stock carton-primaire**. **Moteur partagé** `packages/core/src/accounting/` (TS pur : plan de comptes, `operationsToEcritures`, `postJournal`, `computeAccounting`) — invariants prouvés par tests Jest (écritures équilibrées, **Actif=Passif**, `bilan.résultat===bénéfice net`). **Backend** `reports.service.getAccountingReport` reconstruit les opérations depuis Prisma (`buildPeriodOperations`/`buildSnapshotOperation`, anti-double-comptage ventes/caisse/paiements) → `{journal, grand_livre, bilan, resultat}` ; validé sur Neon dev (bilan équilibré). **Mobile** `db/accounting.ts` (opérations depuis SQLite) + `ComptabilityScreen` refondu (Journal écritures, Grand livre comptes, Bilan, Résultat). **Web/Web-admin** : pages Accounting sur la nouvelle forme. **Stock carton-primaire** (§3.9) : conditionnement = unité primaire (revient/stock/seuil au carton ; pièce = unité atomique interne), deux prix (`package_price`=gros, `sell_price`=détail), alerte stock en cartons (mobile + backend). `CashCategoryKey` étendu à 13 clés. Validation : core 23 tests, type-check api+mobile+web+web-admin OK, lint 0 erreur. | Claude Code |
+| 2026-06-27 | **Suppression de la logique « centimes » — montants en entier FCFA partout**. Le FCFA n'a pas de centimes : plus aucune conversion d'échelle (`×100`/`÷100`). Montant saisi = réel = stocké = affiché ; séparateur de milliers conservé. `@swalo/core` `currency.ts` : `formatCurrency` n'affiche plus `÷100`, `centsToAmount`/`amountToCents` = identité (dépréciés), `maximumFractionDigits: 0`. `apps/mobile/src/db/sync.ts` : `convertMoneyFields` sans conversion d'échelle. `apps/web` : 11 pages — retrait de tous les `÷100` (affichage/préremplissage) et `×100` (envoi) ; pourcentages/barres/formats compacts conservés. `apps/web-admin` : déjà en FCFA brut (inchangé). Seed `apps/api/prisma/seed.ts` : 6 littéraux prix passés de centimes à FCFA ; `seed-test-shop.ts` était déjà en FCFA. Commentaires « centimes » corrigés dans les DTO API + schémas core. Validation : core build, type-check api+mobile+web OK, lint 0 erreur, tests API 144 + mobile OK. | Claude Code |
+| 2026-06-27 | **Comptabilité + Supervision portées sur Web & Web-admin (§8.5, §8.6)**. **API** : nouveaux endpoints `GET /reports/accounting` et `GET /reports/supervision` (BOSS/MANAGER) dans `reports.service.ts`/`reports.controller.ts` (bilan + compte de résultat + journal ; détection d'anomalies avec auteur résolu via `cashier.display_name`, type `SupervisionAlert` exporté) ; drill-down console `GET /admin/shops/:id/accounting` et `/supervision` (SUPERADMIN) délégant à `ReportsService` (injecté via `ReportsModule` dans `AdminModule`) ; `getShopProducts` renvoie désormais `packaging`/`units_per_package`/`package_price`. **Web** (`apps/web`) : pages `Accounting.tsx` (périmètre période Jour/Semaine/Mois/Année, onglets Bilan/Résultat/Journal/Grand livre) et `Supervision.tsx`, entrées de menu Pilotage activées, conditionnement éditable sur la fiche produit (`PackagingModal` + carte « Prix par conditionnement »). **Web-admin** (`apps/web-admin`) : vues console `EnterpriseAccounting.tsx` + `EnterpriseSupervision.tsx` (lecture seule, scope boutique), nav Pilotage activée, colonne « Cond. » dans la console produits. Validation : type-check api+web+web-admin OK, lint 0 erreur partout, tests API 144. | Claude Code |
+| 2026-06-27 | **Import catalogue — colonnes de conditionnement (§13.1)**. Mapping ajouté dans `column-mapping.ts` : `Cond.`/`Conditionnement` → `packaging` (nom), `Sous-cond.`/`Pièces / cart` → `units_per_package`, `Prix carton`/`Prix du conditionnement` → `package_price` (+ `OPTIONAL_COLUMNS`). `ImportService` : extraction des champs (preview + confirm), résolution/création du `PackagingType` à la volée (`resolvePackagingTypeId`, cache anti-doublon `[shop_id, name]`), `parsePositiveInt`, persistance de `packaging_type_id`/`units_per_package`/`package_price` à la création. Flux mobile inchangé (`ProductCatalogScreen` → preview/confirm). Tests : +3 cas de mapping (27 import, **144 API au total**), type-check + lint API OK. | Claude Code |
+| 2026-06-27 | **Conditionnement produit (quantité + prix) — schéma + UI**. Ajout de `units_per_package` et `package_price` au modèle `Product` (Prisma + migration `20260627120000_add_product_packaging_qty_price`, `@swalo/core` `Product` schema, DTO/service API create+update, SQLite mobile migration v7, `MONEY_FIELDS.products += package_price`, `OfflineProductInput`/`updateProductOffline`/`createProductOffline`, `LocalProduct`). UI : carte « Prix par conditionnement » réelle (fiche produit §3.9), section Conditionnement éditable dans la feuille « Modifier l'article » (sélecteur de type + pièces/cond. + prix/cond.), badge `Carton ×24` piloté par `units_per_package` et option de conditionnement (prix de pack + prix/pièce) dans la feuille de vente. Validation : Prisma generate OK, core build OK, type-check api+mobile OK, lint api+mobile 0 erreur, tests API 141 + mobile OK. | Claude Code |
+| 2026-06-27 | Refonte mobile selon les maquettes « v2 ». **Comptabilité (NOUVEL écran mobile, §8.5)** : `ComptabilityScreen` offline avec sélecteur de **périmètre boutique** (Toutes les boutiques / boutique précise), filtres **Jour/Semaine/Mois/Année**, onglets **Journal / Grand livre / Bilan / Résultat** (Actif = Passif, marge brute → bénéfice net) ; agrégats SQLite `getBalanceSheet`/`getIncomeStatement`/`getJournalEntries`/`getCashBalance`/`getLocalShopIds`. **Supervision (NOUVEL écran mobile, §8.6)** : `SupervisionScreen` — journal des actions anormales du jour (sortie de stock sans vente, correction de caisse négative, modification manuelle du stock, remise inhabituelle), **chacune avec auteur et heure**, compteurs Critiques/À vérifier/Total (`getSupervisionAlerts`). **Menu Plus restructuré (§14.4)** : fusion « Clients & créances » et « Fournisseurs & dettes », nouvelle section **PILOTAGE** (Rapports, Supervision, Comptabilité, Factures). **Écrans alignés sur les maquettes** : Caisse (10 catégories de sortie), Vente (conditionnement, toggle « Générer une facture », crédit en ligne + canaux de relance SMS/WA/email, « Valider à crédit »), Fiche client (crayon dans la carte, feuille « Relance J-x » avec aperçu, édition « Nom complet »/limite de crédit, timeline « Relance envoyée »), Produits (carte « Prix par conditionnement », feuille unifiée « Modifier l'article »), Fournisseurs (en-tête dettes, « Plafond d'emprunt »), Factures (carte facture vedette PDF/Envoyer, « TOUTES LES FACTURES »), Rapports (KPI 2×2, flux de caisse, espèces vs crédit, top produits), Réglages relances (canaux boutique + planificateur J-7/J-3/J-0), Transferts & import (import catalogue CSV/Excel + mapping colonnes), Utilisateurs (« Inviter un employé », présence, accès actif). _Limite connue_ : les multiplicateurs de conditionnement (`Carton ×24`, prix/pièce) nécessitent un champ `units_per_package` au modèle `PackagingType`/`Product` (non présent) — libellés réels affichés sans chiffres fabriqués. Validation : lint 0 erreur, type-check OK, tests mobile OK. | Claude Code |
+| 2026-06-27 | Recensement exhaustif des fonctionnalités récentes. **Produits & prix** : codification SKU auto par famille (`generateSku`, préfixes GLASSES→GLA, CHARGEURS→CHA, KIT BLUETOOTH→KIT, CARTES MEMOIRES→CAR ; §3.2b) ; opérations stock Entrée (réception datée) / Sortie (FIFO + motif) / Ajustement depuis la fiche produit (§3.10) ; **édition prix & stock réservée MANAGER+** via `products.edit` (§3.1) ; cohérence Stock ↔ Produits & prix ↔ Vente via repositories locaux partagés (§3.11). **Vente** : quantité éditable au clavier (`setExactQuantity`, `TextInput` number-pad ; §4.2). **Clients/Fournisseurs** : téléphone **Cameroun +237 6XX XXX XXX** (format + validation `utils/phone.ts` ; §15.7), édition des infos personnelles depuis la fiche client (§6.2). **Notifications** : transport email **RÉEL** SMTP (Gmail mot de passe d'application, repli Ethereal en dev ; §11.9), écran **Réglages relances** par boutique (web `/reminder-settings` + mobile, `/shops/me/reminder-settings` ; §11.10). **Offline** : auto-réparation de la base locale (delete-and-rebuild ; §9.11), bouton « Forcer la resynchronisation » (`forceFullResync` ; §9.12), connectivité = réseau présent (`expo-network.isConnected`, sans `isInternetReachable` ; §9.13). Mise à jour de la matrice plateformes (§17). | Claude Code |
 | 2026-06-26 | Plan 031 (design) + Plan 032 (livraisons) : **Rebranding Swalo** + design system unifié (tokens `@swalo/core/brand`, palette Marine #0B2A45 + Sky #0EA5E9, preset Tailwind `tailwind-preset.cjs`, theme-v2 mobile aligné) ; refonte UI selon maquettes (mobile tab bar à bouton central/FAB Vente, hero, bottom-sheets ; web & web-admin sidebars/pages). **Système de dettes & notifications** : échéance obligatoire sur `ClientReceivable.due_date`, notifications de transparence `DEBT_CREATED`/`DEBT_PAYMENT`, relances auto J-7/J-3/J-0, **tâches vendeur** (écran Relances mobile + page web, `SellerTask`, `/seller-tasks`), **dispatcher multi-canal** (Email réel ; SMS/WhatsApp adaptateurs `NotificationChannelAdapter` prêts à brancher), historique client + `notifications_summary`, préférences canaux par client (`sms_/whatsapp_notifications_enabled`). **Console super-admin** : Vue d'ensemble avec MRR réel (`Enterprise.monthly_price`) + drill-down lecture seule par entreprise (`/admin/shops/:id/{pos,products,customers,suppliers}`, `/admin/enterprises/:id/reports`, pages `console/`). **Permissions fines** module × rôle × capacités (`@swalo/core/modules/permissions`, `Shop.module_permissions`/`Enterprise.default_module_permissions`, `/auth/me` permissions effectives, `@RequireCapability`+`CapabilityGuard`, page web-admin `EnterprisePermissions`). Harmonisation rôles `EMPLOYEE/MANAGER/BOSS/SUPERADMIN`. Switch de boutique : rechargement complet du contexte. Code boutique alphanumérique (déjà livré Plan 030). | Claude Code |
 | 2026-06-25 | Plan 030 (incrément 1) : code boutique alphanumérique (4–10 maj., normalisé `[A-Z0-9]`, anciens codes numériques conservés) sur api/core/mobile/web/web-admin ; rapport financier consolidé PDG (`GET /enterprises/:id/financial-summary`, récap santé par boutique + total) ; alertes stock bas par email + rappels de paiement (CRON quotidiens, `NotificationLog`, `ClientReceivable.due_date`, réglages notifications par boutique) ; fix rôle `OWNER`→`BOSS` (web). Validation OK (lint 0 warning, type-check, 134 tests API, e2e 16, builds web/web-admin) | Claude Code |
 | 2026-04-23 | Ajout section 19 "Matrice des rôles" (SUPERADMIN/BOSS/MANAGER/EMPLOYEE × domaines fonctionnels). Fix erreurs compilation : ProductCatalogScreen.tsx (loadProducts → loadData, TS2552) ; LicenseConfig.tsx (suppression import React inutilisé, TS6133). Validation complète OK (lint + tests + builds web/web-admin/api)                                                                                                                                                                                                                                         | Claude Code |

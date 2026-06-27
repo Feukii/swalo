@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,14 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Building, Plus, Eye } from '../components/icons/SimpleIcons';
-import { ScreenHeader, ListItem, KPICard, IconButton } from '../components/ui';
+import { Building, Plus, Eye, Search } from '../components/icons/SimpleIcons';
+import { ScreenHeader, IconButton, SyncPill } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
-import { formatPhoneOnInput } from '../utils/phone';
-import { useLocalSuppliers } from '../hooks/useLocalData';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
+import { useLocalSuppliers, useLocalSupplierDebts } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import { createSupplierOffline, createSupplierDebtOffline } from '../db/offlineWrite';
@@ -32,16 +33,54 @@ interface SuppliersScreenProps {
   navigation: SuppliersScreenNavigation;
 }
 
+// Teintes d'avatar stables dérivées du nom (tokens uniquement)
+const AVATAR_PALETTE = [
+  { bg: Colors.warning.background, fg: Colors.warning.text },
+  { bg: Colors.danger.background, fg: Colors.danger.text },
+  { bg: Colors.info.background, fg: Colors.info.text },
+  { bg: Colors.muted.main, fg: Colors.muted.foreground },
+] as const;
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function formatFcfa(amount: number): string {
+  // Normalise les espaces insécables/étroits (format fr-FR) en espace simple
+  const grouped = Math.round(amount).toLocaleString('fr-FR').replace(/\s/g, ' ');
+  return `${grouped} F`;
+}
+
+// Catégorie de filtre par situation de solde du fournisseur (sémantique inversée).
+// all = tous · we_owe = on leur doit (solde > 0) · settled = à jour (solde = 0)
+// they_owe = ils nous doivent / avoir (solde < 0)
+type BalanceFilter = 'all' | 'we_owe' | 'settled' | 'they_owe';
+
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const { shop } = useCurrentUser();
   const { can } = usePermissions();
   const canCreateSupplier = can('suppliers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
   const [showModal, setShowModal] = useState(false);
 
   // Local data hook - reads from SQLite
   const { data: suppliers, loading: isLoading, refresh } = useLocalSuppliers(shopId);
+  // Dettes actives du shop (une seule requête) — agrégées par fournisseur en mémoire
+  const { data: debts, refresh: refreshDebts } = useLocalSupplierDebts(shopId);
 
   // Form state
   const [name, setName] = useState('');
@@ -94,6 +133,15 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       return;
     }
 
+    // Valider le téléphone camerounais si fourni
+    if (phone.trim() && !isValidCameroonPhone(phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
+      );
+      return;
+    }
+
     // Valider la limite d'endettement si fournie (0 ou vide = illimité)
     let borrowingLimitFCFA: number | undefined;
     if (borrowingLimit.trim()) {
@@ -139,6 +187,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       Alert.alert('Succes', 'Fournisseur cree avec succes');
       handleCloseModal();
       await refresh();
+      await refreshDebts();
     } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
       const message = error instanceof Error ? error.message : '';
@@ -148,110 +197,263 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     }
   };
 
-  const getPersonName = (person: { name: string; first_name?: string }): string => {
+  const handleRefresh = async () => {
+    await refresh();
+    await refreshDebts();
+  };
+
+  const getPersonName = (person: { name: string; first_name?: string | null }): string => {
     return person.first_name ? `${person.first_name} ${person.name}` : person.name;
+  };
+
+  // Solde par fournisseur (positif = on doit / dette en cours)
+  const balanceBySupplier = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of debts) {
+      map.set(d.supplier_id, (map.get(d.supplier_id) ?? 0) + d.balance);
+    }
+    return map;
+  }, [debts]);
+
+  // Total des dettes + nombre de fournisseurs avec dette (depuis les données déjà chargées)
+  const { totalDebt, debtorCount } = useMemo(() => {
+    let total = 0;
+    let count = 0;
+    for (const balance of balanceBySupplier.values()) {
+      if (balance > 0) {
+        total += balance;
+        count += 1;
+      }
+    }
+    return { totalDebt: total, debtorCount: count };
+  }, [balanceBySupplier]);
+
+  // Nombre de fournisseurs par catégorie de solde (pour les compteurs des puces).
+  const categoryCounts = useMemo(() => {
+    let weOwe = 0;
+    let theyOwe = 0;
+    for (const supplier of suppliers) {
+      const balance = balanceBySupplier.get(supplier.id) ?? 0;
+      if (balance > 0) weOwe += 1;
+      else if (balance < 0) theyOwe += 1;
+    }
+    return {
+      all: suppliers.length,
+      we_owe: weOwe,
+      settled: suppliers.length - weOwe - theyOwe,
+      they_owe: theyOwe,
+    };
+  }, [suppliers, balanceBySupplier]);
+
+  const balanceFilters: Array<{ key: BalanceFilter; label: string }> = [
+    { key: 'all', label: 'Tous' },
+    { key: 'we_owe', label: 'On leur doit' },
+    { key: 'settled', label: 'À jour' },
+    { key: 'they_owe', label: 'Ils nous doivent' },
+  ];
+
+  const matchesBalanceFilter = (balance: number): boolean => {
+    switch (balanceFilter) {
+      case 'we_owe':
+        return balance > 0;
+      case 'settled':
+        return balance === 0;
+      case 'they_owe':
+        return balance < 0;
+      default:
+        return true;
+    }
   };
 
   const filteredSuppliers = suppliers.filter(supplier => {
     const fullName = `${supplier.first_name || ''} ${supplier.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       supplier.phone?.includes(query) ||
-      supplier.email?.toLowerCase().includes(query)
-    );
+      supplier.email?.toLowerCase().includes(query);
+    if (!matchesSearch) return false;
+    const balance = balanceBySupplier.get(supplier.id) ?? 0;
+    return matchesBalanceFilter(balance);
   });
-
-  const stats = {
-    total: suppliers.length,
-    active: suppliers.filter(s => s.is_active).length,
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
         title="Fournisseurs"
+        subtitle="Dettes & paiements"
         showBack={true}
         onBack={() => navigation.goBack()}
         rightAction={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={styles.headerActions}>
+            <SyncPill />
             <IconButton onPress={() => navigation.navigate('SupplierBalancesSummary')}>
-              <Eye size={24} color={Colors.action} />
+              <Eye size={22} color={Colors.action} />
             </IconButton>
             {canCreateSupplier && (
               <IconButton onPress={handleOpenModal}>
-                <Plus size={24} color={Colors.action} />
+                <Plus size={22} color={Colors.action} />
               </IconButton>
             )}
           </View>
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={{ flex: 1 }}>
-            <KPICard
-              label="Total fournisseurs"
-              value={String(stats.total)}
-              icon={<Building size={20} color={Colors.action} />}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <KPICard label="Fournisseurs actifs" value={String(stats.active)} />
-          </View>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={[Colors.action]}
+            tintColor={Colors.action}
+          />
+        }
+      >
+        {/* Carte HERO — Dettes fournisseurs */}
+        <View style={styles.hero}>
+          <Text style={styles.heroLabel}>Dettes fournisseurs en cours</Text>
+          <Text style={styles.heroAmount}>{formatFcfa(totalDebt)}</Text>
+          <Text style={styles.heroSub}>
+            {debtorCount} {debtorCount > 1 ? 'fournisseurs à payer' : 'fournisseur à payer'}
+          </Text>
         </View>
 
-        {/* Search */}
+        {/* Barre de recherche */}
         <View style={styles.searchCard}>
+          <Search size={18} color={Colors.action} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Rechercher un fournisseur..."
+            placeholder="Rechercher un fournisseur…"
             placeholderTextColor={Colors.muted.foreground}
           />
         </View>
 
-        {/* Suppliers List */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Liste des fournisseurs</Text>
-          </View>
+        {/* Filtres par situation de solde */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          style={styles.filterScroll}
+        >
+          {balanceFilters.map(filter => {
+            const active = balanceFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                activeOpacity={0.7}
+                onPress={() => setBalanceFilter(filter.key)}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {filter.label}
+                </Text>
+                <View style={[styles.filterCount, active && styles.filterCountActive]}>
+                  <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>
+                    {categoryCounts[filter.key]}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.action} />
-            </View>
-          ) : filteredSuppliers.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Building size={48} color={Colors.muted.foreground} />
-              <Text style={styles.emptyText}>
-                {searchQuery ? 'Aucun fournisseur trouvé' : 'Aucun fournisseur enregistré'}
-              </Text>
-            </View>
-          ) : (
-            filteredSuppliers.map(supplier => (
-              <ListItem
+        {/* Liste fournisseurs */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.action} />
+          </View>
+        ) : filteredSuppliers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Building size={48} color={Colors.muted.foreground} />
+            <Text style={styles.emptyText}>
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun fournisseur trouvé'
+                : 'Aucun fournisseur enregistré'}
+            </Text>
+          </View>
+        ) : (
+          filteredSuppliers.map(supplier => {
+            const fullName = getPersonName(supplier);
+            const balance = balanceBySupplier.get(supplier.id) ?? 0;
+            const avatar = AVATAR_PALETTE[hashString(fullName) % AVATAR_PALETTE.length];
+            const borrowingLimitValue = supplier.borrowing_limit ?? 0;
+            const hasLimit = borrowingLimitValue > 0 && balance > 0;
+            const ratio = hasLimit ? Math.min(balance / borrowingLimitValue, 1) : 0;
+
+            return (
+              <TouchableOpacity
                 key={supplier.id}
-                icon={<Building size={20} color={Colors.action} />}
-                title={getPersonName(supplier)}
-                subtitle={
-                  supplier.phone
-                    ? `📱 ${supplier.phone}`
-                    : supplier.email
-                      ? `✉️ ${supplier.email}`
-                      : undefined
-                }
-                badge={{
-                  text: supplier.is_active ? 'Actif' : 'Inactif',
-                  variant: supplier.is_active ? 'success' : 'danger',
-                }}
-                onClick={() => navigation.navigate('SupplierDetails', { id: supplier.id })}
-              />
-            ))
-          )}
-        </View>
+                style={styles.supplierCard}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('SupplierDetails', { id: supplier.id })}
+              >
+                <View style={styles.supplierRow}>
+                  <View style={[styles.avatar, { backgroundColor: avatar.bg }]}>
+                    <Text style={[styles.avatarText, { color: avatar.fg }]}>
+                      {getInitials(fullName)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.supplierInfo}>
+                    <View style={styles.supplierNameRow}>
+                      <Text style={styles.supplierName} numberOfLines={1}>
+                        {fullName}
+                      </Text>
+                    </View>
+                    {supplier.phone ? (
+                      <Text style={styles.supplierPhone} numberOfLines={1}>
+                        {formatCameroonPhone(supplier.phone)}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.amountBlock}>
+                    {balance > 0 ? (
+                      <>
+                        <Text style={styles.amountDue}>{formatFcfa(balance)}</Text>
+                        <Text style={styles.statusDue}>À payer</Text>
+                      </>
+                    ) : balance < 0 ? (
+                      <>
+                        <Text style={styles.amountCredit}>{formatFcfa(-balance)}</Text>
+                        <Text style={styles.statusCredit}>Avoir</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.amountOk}>{formatFcfa(0)}</Text>
+                        <Text style={styles.statusOk}>Soldé</Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+
+                {hasLimit ? (
+                  <View style={styles.limitBlock}>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${ratio * 100}%`,
+                            backgroundColor: Colors.action,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.limitLabels}>
+                      <Text style={styles.limitText}>Plafond d'emprunt</Text>
+                      <Text style={styles.limitText}>{formatFcfa(borrowingLimitValue)}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       {/* Add Supplier Modal */}
@@ -306,7 +508,10 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                 placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
               />
-              <Text style={styles.hint}>0 ou vide = illimité</Text>
+              <Text style={styles.hint}>
+                Plafond d'endettement autorisé pour ce fournisseur. 0 ou vide = illimité. Ne crée
+                aucune dette.
+              </Text>
             </View>
 
             <View style={styles.formGroup}>
@@ -319,7 +524,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                 placeholderTextColor="#9ca3af"
                 keyboardType="numeric"
               />
-              <Text style={styles.hint}>Crée une dette de départ — laisser vide si aucune</Text>
+              <Text style={styles.hint}>Crée une dette de départ — laisser vide si aucune.</Text>
             </View>
 
             <View style={styles.modalButtons}>
@@ -354,43 +559,210 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
   content: {
     flex: 1,
     padding: Spacing.lg,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing['2xl'],
+  // Hero
+  hero: {
+    backgroundColor: '#4A1414',
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
   },
+  heroLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginBottom: Spacing.xs,
+  },
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: -0.5,
+  },
+  heroSub: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: Spacing.xs,
+  },
+  // Search
   searchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     marginBottom: Spacing.lg,
     ...Shadows.sm,
   },
   searchInput: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
     color: Colors.text,
+    padding: 0,
   },
-  card: {
+  // Filtres par solde
+  filterScroll: {
+    marginBottom: Spacing.lg,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingRight: Spacing.lg,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  filterChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.muted.foreground,
+  },
+  filterChipTextActive: {
+    color: Colors.action,
+  },
+  filterCount: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCountActive: {
+    backgroundColor: Colors.action,
+  },
+  filterCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.muted.foreground,
+  },
+  filterCountTextActive: {
+    color: Colors.onMarine,
+  },
+  // Supplier card
+  supplierCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: Spacing.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
     ...Shadows.sm,
   },
-  cardHeader: {
-    padding: Spacing.lg,
+  supplierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
   },
-  cardTitle: {
-    fontSize: 17,
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  supplierInfo: {
+    flex: 1,
+  },
+  supplierNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  supplierName: {
+    flexShrink: 1,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
+  },
+  supplierPhone: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  amountBlock: {
+    alignItems: 'flex-end',
+  },
+  amountDue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.danger.main,
+  },
+  statusDue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.danger.main,
+    marginTop: 1,
+  },
+  amountCredit: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  statusCredit: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.action,
+    marginTop: 1,
+  },
+  amountOk: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  statusOk: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  // Borrowing limit progress
+  limitBlock: {
+    marginTop: Spacing.md,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  limitLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.sm,
+  },
+  limitText: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
   },
   loadingContainer: {
     paddingVertical: Spacing['3xl'],

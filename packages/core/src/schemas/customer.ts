@@ -13,7 +13,7 @@ export const Customer = z
     phone: z.string().optional(),
     email: z.string().email().optional(),
     address: z.string().optional(),
-    credit_limit: Currency.default(0), // Limite de crédit (en centimes)
+    credit_limit: Currency.default(0), // Limite de crédit (en FCFA)
     notes: z.string().optional(),
     is_active: z.boolean().default(true),
     email_notifications_enabled: z.boolean().default(true),

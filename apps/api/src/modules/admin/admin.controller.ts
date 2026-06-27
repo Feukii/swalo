@@ -14,6 +14,7 @@ import {
 import type { Request as ExpressRequest, Response } from 'express';
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { Role } from '@prisma/client';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
@@ -27,6 +28,7 @@ type AuthenticatedRequest = ExpressRequest & {
 };
 
 @Controller('admin')
+@RequireModule('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -215,6 +217,32 @@ export class AdminController {
   @Roles(Role.SUPERADMIN)
   async getShopPos(@Param('shopId') shopId: string) {
     return this.adminService.getShopPos(shopId);
+  }
+
+  @Get('shops/:shopId/accounting')
+  @Roles(Role.SUPERADMIN)
+  async getShopAccounting(
+    @Param('shopId') shopId: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.adminService.getShopAccounting(shopId, filters);
+  }
+
+  @Get('shops/:shopId/supervision')
+  @Roles(Role.SUPERADMIN)
+  async getShopSupervision(
+    @Param('shopId') shopId: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.adminService.getShopSupervision(shopId, filters);
   }
 
   @Get('enterprises/:id/reports')

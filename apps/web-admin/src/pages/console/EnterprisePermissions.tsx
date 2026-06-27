@@ -43,6 +43,7 @@ const MODULE_LABELS: Record<PermissionModule, string> = {
   invoices: 'Factures',
   'packaging-types': 'Emballages',
   notifications: 'Notifications',
+  relances: 'Relances',
 };
 
 /**

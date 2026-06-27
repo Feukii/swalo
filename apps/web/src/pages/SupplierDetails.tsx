@@ -2,6 +2,70 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { suppliersApi, debtsApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
+
+interface NotificationLogEntry {
+  id: string;
+  type: string;
+  channel: string;
+  status: string;
+  recipient: string;
+  target_type?: string | null;
+  target_id?: string | null;
+  error?: string | null;
+  sent_at: string;
+}
+
+interface NotificationsSummary {
+  total: number;
+  by_status: Record<string, number>;
+  by_channel: Record<string, number>;
+  recent: NotificationLogEntry[];
+}
+
+/** Toggle (switch) pour activer/désactiver un canal de notification. */
+function NotificationToggle({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-marine-900">{label}</p>
+        <p className="text-xs text-slate-400">{description}</p>
+      </div>
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? 'bg-action-500' : 'bg-slate-300'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
 
 interface SupplierDetails {
   id: string;
@@ -12,6 +76,10 @@ interface SupplierDetails {
   address?: string;
   borrowing_limit: number;
   notes?: string;
+  email_notifications_enabled?: boolean;
+  sms_notifications_enabled?: boolean;
+  whatsapp_notifications_enabled?: boolean;
+  notifications_summary?: NotificationsSummary;
   debts: Array<{
     id: string;
     amount: number;
@@ -75,7 +143,13 @@ export default function SupplierDetails() {
     email: '',
     address: '',
     borrowing_limit: '',
+    email_notifications_enabled: true,
+    sms_notifications_enabled: false,
+    whatsapp_notifications_enabled: false,
   });
+
+  // Relance manuelle
+  const [isReminding, setIsReminding] = useState(false);
 
   useEffect(() => {
     loadSupplier();
@@ -120,9 +194,9 @@ export default function SupplierDetails() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(paymentAmount) * 100);
+    const amount = Math.round(parseFloat(paymentAmount));
 
-    if (isNaN(amountInCentimes) || amountInCentimes <= 0) {
+    if (isNaN(amount) || amount <= 0) {
       alert('Montant invalide');
       return;
     }
@@ -141,7 +215,7 @@ export default function SupplierDetails() {
     try {
       const debtId = pendingDebts[0].id;
       await debtsApi.addPayment(debtId, {
-        amount: amountInCentimes,
+        amount,
         payment_method: 'Espèces',
         note: paymentNote || `Paiement à ${getPersonName()}`,
       });
@@ -176,9 +250,9 @@ export default function SupplierDetails() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(debtAmount) * 100);
+    const amount = Math.round(parseFloat(debtAmount));
 
-    if (isNaN(amountInCentimes) || amountInCentimes <= 0) {
+    if (isNaN(amount) || amount <= 0) {
       alert('Montant invalide');
       return;
     }
@@ -187,7 +261,7 @@ export default function SupplierDetails() {
     try {
       await debtsApi.create({
         supplier_id: id!,
-        amount: amountInCentimes,
+        amount,
         description: debtNote || `Dette contractée auprès de ${getPersonName()}`,
       });
 
@@ -208,10 +282,13 @@ export default function SupplierDetails() {
     setEditForm({
       name: supplier.name,
       first_name: supplier.first_name || '',
-      phone: supplier.phone || '',
+      phone: supplier.phone ? formatCameroonPhone(supplier.phone) : '',
       email: supplier.email || '',
       address: supplier.address || '',
       borrowing_limit: supplier.borrowing_limit ? String(supplier.borrowing_limit) : '',
+      email_notifications_enabled: supplier.email_notifications_enabled ?? true,
+      sms_notifications_enabled: supplier.sms_notifications_enabled ?? false,
+      whatsapp_notifications_enabled: supplier.whatsapp_notifications_enabled ?? false,
     });
     setShowEditModal(true);
   };
@@ -226,14 +303,22 @@ export default function SupplierDetails() {
       return;
     }
 
+    if (editForm.phone && !isValidCameroonPhone(editForm.phone)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const updateData: any = {
         name: editForm.name,
         first_name: editForm.first_name || undefined,
-        phone: editForm.phone || undefined,
+        phone: editForm.phone ? cleanPhoneNumber(editForm.phone) : undefined,
         email: editForm.email || undefined,
         address: editForm.address || undefined,
+        email_notifications_enabled: editForm.email_notifications_enabled,
+        sms_notifications_enabled: editForm.sms_notifications_enabled,
+        whatsapp_notifications_enabled: editForm.whatsapp_notifications_enabled,
       };
 
       if (editForm.borrowing_limit) {
@@ -271,6 +356,28 @@ export default function SupplierDetails() {
     }
   };
 
+  // Relance manuelle : envoie une relance au fournisseur sans dépendre d'une
+  // tâche préexistante. Le message + le solde dû sont construits côté API à
+  // partir des dettes en cours (sémantique inversée : nous devons au fournisseur).
+  const handleSendReminder = async () => {
+    if (!supplier) return;
+    setIsReminding(true);
+    try {
+      const result = await suppliersApi.manualRemind(supplier.id);
+      if (result?.ok === false) {
+        alert(result.error || "La relance n'a pas pu être envoyée.");
+      } else {
+        alert('Relance envoyée au fournisseur.');
+        loadSupplier();
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de l'envoi de la relance:", error);
+      alert(error.message || "Impossible d'envoyer la relance.");
+    } finally {
+      setIsReminding(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
@@ -280,6 +387,39 @@ export default function SupplierDetails() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // --- Notifications (transparence des relances) ---
+  const getChannelLabel = (channel: string) => {
+    const labels: Record<string, string> = {
+      EMAIL: 'Email',
+      SMS: 'SMS',
+      WHATSAPP: 'WhatsApp',
+    };
+    return labels[channel] || channel;
+  };
+
+  const getNotifTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      LOW_STOCK: 'Stock bas',
+      PAYMENT_REMINDER: 'Rappel de paiement',
+      MONTHLY_SUMMARY: 'Résumé mensuel',
+      RECEIPT: 'Reçu',
+      DEBT_CREATED: 'Dette créée',
+      DEBT_PAYMENT: 'Paiement de dette',
+      DEBT_REMINDER: 'Rappel de dette',
+    };
+    return labels[type] || type;
+  };
+
+  const getNotifStatus = (status: string): { label: string; badge: string } => {
+    const map: Record<string, { label: string; badge: string }> = {
+      SENT: { label: 'Envoyé', badge: 'badge-success' },
+      QUEUED: { label: 'En file', badge: 'badge-warning' },
+      FAILED: { label: 'Échec', badge: 'badge-danger' },
+      SKIPPED: { label: 'Ignoré', badge: 'badge-secondary' },
+    };
+    return map[status] || { label: status, badge: 'badge-secondary' };
   };
 
   const getStatusBadge = (status: string) => {
@@ -413,7 +553,7 @@ export default function SupplierDetails() {
           {supplier.phone && (
             <div>
               <p className="text-sm text-slate-500">Téléphone</p>
-              <p className="font-medium text-slate-900">{supplier.phone}</p>
+              <p className="font-medium text-slate-900">{formatCameroonPhone(supplier.phone)}</p>
             </div>
           )}
           {supplier.email && (
@@ -467,6 +607,79 @@ export default function SupplierDetails() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Notifications (transparence des relances) */}
+      <div className="card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">🔔 Notifications</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap gap-1.5">
+              {supplier.email_notifications_enabled && (
+                <span className="badge bg-action-100 text-action-700">Email</span>
+              )}
+              {supplier.sms_notifications_enabled && (
+                <span className="badge bg-action-100 text-action-700">SMS</span>
+              )}
+              {supplier.whatsapp_notifications_enabled && (
+                <span className="badge bg-action-100 text-action-700">WhatsApp</span>
+              )}
+              {!supplier.email_notifications_enabled &&
+                !supplier.sms_notifications_enabled &&
+                !supplier.whatsapp_notifications_enabled && (
+                  <span className="badge badge-secondary">Aucun canal actif</span>
+                )}
+            </div>
+            <button
+              onClick={handleSendReminder}
+              disabled={isReminding}
+              className="btn-secondary text-sm whitespace-nowrap"
+              title="Envoyer une relance maintenant"
+            >
+              {isReminding ? 'Envoi…' : '🔔 Relancer maintenant'}
+            </button>
+          </div>
+        </div>
+
+        {!supplier.notifications_summary || supplier.notifications_summary.total === 0 ? (
+          <div className="py-10 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-50 flex items-center justify-center">
+              <span className="text-3xl">🔕</span>
+            </div>
+            <p className="text-sm text-slate-500">
+              Aucune notification envoyée pour ce fournisseur
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {supplier.notifications_summary.recent.map(notif => {
+              const statusInfo = getNotifStatus(notif.status);
+              return (
+                <div
+                  key={notif.id}
+                  className="flex items-start justify-between gap-3 p-3 bg-slate-50 rounded-lg"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="badge bg-slate-200 text-slate-700">
+                        {getChannelLabel(notif.channel)}
+                      </span>
+                      <span className={`badge ${statusInfo.badge}`}>{statusInfo.label}</span>
+                      <span className="text-xs text-slate-400">{formatDate(notif.sent_at)}</span>
+                    </div>
+                    <p className="text-sm text-slate-700">{getNotifTypeLabel(notif.type)}</p>
+                    {notif.recipient && (
+                      <p className="text-xs text-slate-400 truncate">{notif.recipient}</p>
+                    )}
+                    {notif.status === 'FAILED' && notif.error && (
+                      <p className="text-xs text-danger-600 mt-1">{notif.error}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Statistiques */}
@@ -792,7 +1005,10 @@ export default function SupplierDetails() {
                   <input
                     type="tel"
                     value={editForm.phone}
-                    onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                    onChange={e =>
+                      setEditForm({ ...editForm, phone: formatPhoneOnInput(e.target.value) })
+                    }
+                    placeholder="+237 6XX XXX XXX"
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>
@@ -828,6 +1044,42 @@ export default function SupplierDetails() {
                     value={editForm.address}
                     onChange={e => setEditForm({ ...editForm, address: e.target.value })}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
+                  />
+                </div>
+              </div>
+
+              {/* Préférences de notification */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">
+                  Canaux de relance
+                </label>
+                <p className="text-xs text-slate-500 mb-3">
+                  Comment prévenir ce fournisseur en cas d'échéance de dette.
+                </p>
+                <div className="space-y-2">
+                  <NotificationToggle
+                    label="Email"
+                    description="Rappels par courriel"
+                    checked={editForm.email_notifications_enabled}
+                    onChange={value =>
+                      setEditForm({ ...editForm, email_notifications_enabled: value })
+                    }
+                  />
+                  <NotificationToggle
+                    label="SMS"
+                    description="Rappels par message texte"
+                    checked={editForm.sms_notifications_enabled}
+                    onChange={value =>
+                      setEditForm({ ...editForm, sms_notifications_enabled: value })
+                    }
+                  />
+                  <NotificationToggle
+                    label="WhatsApp"
+                    description="Rappels via WhatsApp"
+                    checked={editForm.whatsapp_notifications_enabled}
+                    onChange={value =>
+                      setEditForm({ ...editForm, whatsapp_notifications_enabled: value })
+                    }
                   />
                 </div>
               </div>

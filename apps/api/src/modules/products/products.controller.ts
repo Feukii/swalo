@@ -6,6 +6,7 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { BatchUpdateHierarchyDto } from './dto/batch-update-hierarchy.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 
@@ -16,6 +17,7 @@ interface AuthUser {
 }
 
 @Controller('products')
+@RequireModule('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
 

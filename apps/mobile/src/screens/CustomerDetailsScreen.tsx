@@ -13,10 +13,7 @@ import {
   Switch,
 } from 'react-native';
 import {
-  DollarSign,
   Edit,
-  Trash,
-  Plus,
   Smartphone,
   Mail,
   MapPin,
@@ -25,12 +22,20 @@ import {
   X,
   Calendar,
   Bell,
+  Send,
+  Receipt,
 } from '../components/icons/SimpleIcons';
-import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
+import {
+  ScreenHeader,
+  StatusBadge,
+  TransactionDetailModal,
+  IconButton,
+  SyncPill,
+} from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
-import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import {
@@ -44,7 +49,6 @@ import {
 import { getDatabase } from '../db/schema';
 import {
   updateCustomerOffline,
-  deleteCustomerOffline,
   createReceivableOffline,
   payReceivableOffline,
 } from '../db/offlineWrite';
@@ -132,12 +136,6 @@ function parseNotificationsSummary(raw: unknown): NotificationsSummary | null {
   };
 }
 
-const NOTIF_CHANNEL_LABELS: Record<string, string> = {
-  email: 'Email',
-  sms: 'SMS',
-  whatsapp: 'WhatsApp',
-};
-
 // Étiquette courte d'un canal (badges "SMS Livré", "WA Livré"...)
 const NOTIF_CHANNEL_SHORT: Record<string, string> = {
   EMAIL: 'E-mail',
@@ -196,24 +194,6 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function addDays(base: Date, days: number): string {
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  return toISODate(d);
-}
-
-function endOfMonth(base: Date): string {
-  const d = new Date(base.getFullYear(), base.getMonth() + 1, 0);
-  return toISODate(d);
-}
-
-function formatDueDateLabel(iso: string): string {
-  const [y, m, day] = iso.split('-').map(Number);
-  if (!y || !m || !day) return iso;
-  const d = new Date(y, m - 1, day);
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
 // Échéance la plus proche parmi les créances en cours (PENDING/PARTIAL).
 function nearestDueDate(receivables: ReceivableWithPayments[]): string | null {
   const dues = receivables
@@ -241,6 +221,69 @@ function dueRelativeLabel(due: string): { text: string; overdue: boolean } {
   if (delta < 0) return { text: `Retard ${Math.abs(delta)}j`, overdue: true };
   if (delta === 0) return { text: "Aujourd'hui", overdue: true };
   return { text: `Dans ${delta}j`, overdue: false };
+}
+
+// Palier de relance (J-7 / J-3 / J-0) à partir du nombre de jours avant
+// échéance. En retard ou aujourd'hui -> J-0.
+function reminderPalier(delta: number | null): string {
+  if (delta === null) return 'J-7';
+  if (delta <= 0) return 'J-0';
+  if (delta <= 3) return 'J-3';
+  return 'J-7';
+}
+
+// Palier reconstruit pour un évènement passé : on compare la date d'envoi à
+// l'échéance la plus proche (approximation, faute d'historique d'échéance par
+// notification).
+function reminderPalierForDate(sent: string | null, due: string | null): string {
+  if (sent && due) {
+    const d = Math.round(
+      (new Date(due).getTime() - new Date(sent).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (!isNaN(d)) return reminderPalier(d);
+  }
+  return 'J-7';
+}
+
+// Évènement d'historique : un envoi de relance peut produire plusieurs lignes
+// (une par canal). On regroupe par type + jour pour afficher une seule ligne
+// avec plusieurs badges de canal.
+interface ReminderEvent {
+  key: string;
+  type: string;
+  date: string | null;
+  isReminder: boolean;
+  channels: Array<{
+    short: string;
+    label: string;
+    variant: 'success' | 'warning' | 'danger' | 'default';
+  }>;
+}
+
+function groupNotifications(recent: NotificationEntry[]): ReminderEvent[] {
+  const groups = new Map<string, ReminderEvent>();
+  for (const n of recent) {
+    const day = n.created_at ? n.created_at.slice(0, 10) : 'na';
+    const key = `${n.type}|${day}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        type: n.type,
+        date: n.created_at ?? null,
+        isReminder: n.type === 'PAYMENT_REMINDER' || n.type === 'DEBT_REMINDER',
+        channels: [],
+      };
+      groups.set(key, group);
+    }
+    const meta = getNotifStatusMeta(n.status);
+    group.channels.push({
+      short: NOTIF_CHANNEL_SHORT[n.channel] ?? n.channel,
+      label: getDeliveryLabel(n.status),
+      variant: meta.variant,
+    });
+  }
+  return Array.from(groups.values());
 }
 
 // Initiales (max 2 lettres) à partir du prénom + nom
@@ -311,7 +354,7 @@ function readNotificationPrefs(record: Record<string, unknown>): {
 
 export default function CustomerDetailsScreen({ navigation, route }: CustomerDetailsScreenProps) {
   const { id } = route.params;
-  const { user, shopId, userId } = useCurrentUser();
+  const { user, shop, shopId, userId } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
   const { can } = usePermissions();
   const canCreateReceivable = can('receivables', 'create');
@@ -372,6 +415,12 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
   // Relance manuelle (depuis la fiche client)
   const [isReminding, setIsReminding] = useState(false);
+  // Bottom sheet "Relancer maintenant"
+  const [showRemindSheet, setShowRemindSheet] = useState(false);
+  const [remindChannels, setRemindChannels] = useState<{ SMS: boolean; WHATSAPP: boolean }>({
+    SMS: true,
+    WHATSAPP: false,
+  });
   // Bascule d'un canal de notification (préférence client) en cours
   const [togglingChannel, setTogglingChannel] = useState<ReminderChannel | null>(null);
 
@@ -819,7 +868,8 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const handleOpenEditModal = () => {
     if (!customer) return;
     setEditForm({
-      name: customer.name,
+      // "Nom complet" : on stocke le nom affiché (prénom + nom) dans `name`.
+      name: getPersonName(customer),
       first_name: customer.first_name || '',
       phone: customer.phone || '',
       email: customer.email || '',
@@ -840,13 +890,27 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
+    if (editForm.phone.trim() && !isValidCameroonPhone(editForm.phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
+      );
+      return;
+    }
+
+    // "Nom complet" -> on scinde en prénom + nom (inverse de getPersonName) :
+    // premier mot = prénom, le reste = nom. Un seul mot -> tout dans le nom.
+    const fullName = editForm.name.trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts.length > 1 ? parts[0] : '';
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : fullName;
+
     setIsSubmitting(true);
     try {
       await updateCustomerOffline(id, {
-        name: editForm.name.trim(),
-        firstName: editForm.first_name.trim() || undefined,
+        name: lastName,
+        firstName: firstName || undefined,
         phone: editForm.phone.trim() || undefined,
-        email: editForm.email.trim() || undefined,
         address: editForm.address.trim() || undefined,
         creditLimit: editForm.credit_limit.trim()
           ? Math.round(parseFloat(editForm.credit_limit))
@@ -861,34 +925,6 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleDelete = () => {
-    if (!customer) return;
-    Alert.alert(
-      'Confirmer la suppression',
-      `Voulez-vous vraiment supprimer le client ${getPersonName(customer)} ?`,
-      [
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteCustomerOffline(id);
-              Alert.alert('Succes', 'Client supprime avec succes');
-              navigation.goBack();
-            } catch (error: unknown) {
-              console.error('Erreur lors de la suppression:', error);
-              Alert.alert('Erreur', getErrorMessage(error) ?? 'Erreur lors de la suppression');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const getPersonName = (person: { name: string; first_name?: string | null }): string => {
@@ -906,24 +942,40 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     Linking.openURL(`tel:${customer.phone}`).catch(() => undefined);
   };
 
-  // Relance manuelle : retrouve la tâche vendeur liée à ce client puis envoie
-  // la relance sur tous ses canaux activés.
-  const handleRemindNow = async () => {
+  // Ouvre le bottom sheet de relance en pré-cochant les canaux pertinents.
+  const handleOpenRemindSheet = () => {
     if (!customer) return;
+    const phoneOk = !!customer.phone;
+    let sms = customer.sms_notifications_enabled && phoneOk;
+    let wa = customer.whatsapp_notifications_enabled && phoneOk;
+    // Aucun canal activé : on propose ceux disponibles côté boutique.
+    if (!sms && !wa) {
+      sms = phoneOk;
+      wa = phoneOk;
+    }
+    setRemindChannels({ SMS: sms, WHATSAPP: wa });
+    setShowRemindSheet(true);
+  };
+
+  // Relance manuelle : envoie la relance sur les canaux sélectionnés dans le
+  // sheet, sans dépendre d'une tâche vendeur. Le message + le solde dû sont
+  // construits côté API à partir des créances en cours du client.
+  const handleSendReminder = async () => {
+    if (!customer) return;
+    const channels = (Object.keys(remindChannels) as Array<'SMS' | 'WHATSAPP'>).filter(
+      c => remindChannels[c]
+    );
+    if (channels.length === 0) {
+      Alert.alert('Aucun canal', "Sélectionnez au moins un canal d'envoi.");
+      return;
+    }
     setIsReminding(true);
     try {
-      const tasks = await sellerTasksApi.getTasks();
-      const task = tasks.find(t => t.customer_id === customer.id || t.customer?.id === customer.id);
-      if (!task) {
-        Alert.alert(
-          'Aucune relance',
-          "Ce client n'a pas de tâche de relance en cours (créance échue)."
-        );
-        return;
-      }
-      const result = await sellerTasksApi.remind(task.id);
+      const result = await sellerTasksApi.manualRemind(customer.id, channels as ReminderChannel[]);
       if (result.ok) {
+        setShowRemindSheet(false);
         Alert.alert('Relance envoyée', 'La relance a été envoyée au client.');
+        loadCustomer();
       } else {
         Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
       }
@@ -969,21 +1021,12 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     }
   };
 
-  const canEditOrDelete = () => {
-    return (
-      userRole === 'OWNER' ||
-      userRole === 'BOSS' ||
-      userRole === 'MANAGER' ||
-      userRole === 'SUPERADMIN'
-    );
-  };
-
   if (isLoading) {
     return (
       <View style={styles.container}>
         <ScreenHeader
           title="Client"
-          subtitle="Créances & paiements"
+          subtitle="Fiche & historique"
           showBack
           onBack={() => navigation.goBack()}
         />
@@ -1047,32 +1090,30 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   ];
 
   const recentNotifications = customer.notifications_summary?.recent ?? [];
+  // Historique regroupé (une ligne par évènement de relance, badges par canal).
+  const reminderEvents = groupNotifications(recentNotifications);
+
+  // Données pour le bottom sheet de relance.
+  const dueDelta = dueDate ? diffInDays(dueDate) : null;
+  const remindPalier = reminderPalier(dueDelta);
+  const reminderFirstName =
+    (customer.first_name && customer.first_name.trim()) || customer.name.split(/\s+/)[0] || '';
+  const shopName = shop?.name || 'la boutique';
+  const dueDateLabel = dueDate
+    ? formatDate(dueDate, 'fr-FR', { day: 'numeric', month: 'long' })
+    : '';
+  const reminderMessage = `Bonjour ${reminderFirstName}, nous vous rappelons courtoisement que votre solde de ${formatMoney(
+    Math.abs(totalBalance)
+  )} arrive à échéance le ${dueDateLabel}. Merci de votre confiance. — ${shopName}`;
 
   return (
     <View style={styles.container}>
       <ScreenHeader
         title={getPersonName(customer)}
-        subtitle="Créances & paiements"
+        subtitle="Fiche & historique"
         showBack={true}
         onBack={() => navigation.goBack()}
-        rightAction={
-          <View style={styles.headerActions}>
-            {canEditOrDelete() && (
-              <>
-                {can('customers', 'edit') && (
-                  <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
-                    <Edit size={20} color={Colors.action} />
-                  </IconButton>
-                )}
-                {can('customers', 'delete') && (
-                  <IconButton onPress={handleDelete}>
-                    <Trash size={20} color={Colors.danger.main} />
-                  </IconButton>
-                )}
-              </>
-            )}
-          </View>
-        }
+        rightAction={<SyncPill />}
       />
 
       <ScrollView
@@ -1098,6 +1139,15 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 </Text>
               )}
             </View>
+            {can('customers', 'edit') && (
+              <IconButton
+                onPress={handleOpenEditModal}
+                style={styles.cardEditButton}
+                hoverColor={Colors.action}
+              >
+                <Edit size={18} color={Colors.action} />
+              </IconButton>
+            )}
           </View>
 
           <View style={styles.balanceRow}>
@@ -1143,18 +1193,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             {canRemind && (
               <TouchableOpacity
                 style={styles.remindButton}
-                onPress={handleRemindNow}
-                disabled={isReminding}
+                onPress={handleOpenRemindSheet}
                 activeOpacity={0.85}
               >
-                {isReminding ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Bell size={18} color="#FFFFFF" />
-                    <Text style={styles.remindButtonText}>Relancer maintenant</Text>
-                  </>
-                )}
+                <Bell size={18} color="#FFFFFF" />
+                <Text style={styles.remindButtonText}>Relancer maintenant</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1227,23 +1270,40 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             <View style={styles.actionButtons}>
               {canRefundReceivable && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+                  style={[
+                    styles.actionButton,
+                    {
+                      backgroundColor: Colors.success.background,
+                      borderColor: Colors.success.main,
+                    },
+                  ]}
                   onPress={handleOpenRefundModal}
                   activeOpacity={0.85}
                 >
-                  <DollarSign size={20} color={Colors.success.foreground} />
-                  <Text style={styles.actionButtonText}>Recevoir paiement</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.success.main }]}>
+                    <ArrowDown size={18} color={Colors.success.foreground} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.success.text }]}>
+                    Recevoir un paiement
+                  </Text>
                 </TouchableOpacity>
               )}
 
               {canCreateReceivable && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: Colors.info.background, borderColor: Colors.action },
+                  ]}
                   onPress={handleOpenCreateReceivableModal}
                   activeOpacity={0.85}
                 >
-                  <Plus size={20} color={Colors.warning.foreground} />
-                  <Text style={styles.actionButtonText}>Créer créance</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.action }]}>
+                    <Receipt size={18} color={Colors.onMarine} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.info.text }]}>
+                    Créer une créance
+                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -1253,13 +1313,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   style={[
                     styles.actionButton,
                     styles.actionButtonFull,
-                    { backgroundColor: Colors.danger.main },
+                    { backgroundColor: Colors.danger.background, borderColor: Colors.danger.main },
                   ]}
                   onPress={handleOpenCustomerRefundModal}
                   activeOpacity={0.85}
                 >
-                  <DollarSign size={20} color={Colors.danger.foreground} />
-                  <Text style={styles.actionButtonText}>Rembourser le client</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.danger.main }]}>
+                    <ArrowUp size={18} color={Colors.danger.foreground} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.danger.text }]}>
+                    Rembourser le client
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1269,33 +1333,37 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>HISTORIQUE & TRANSPARENCE</Text>
 
-          {recentNotifications.length > 0 && (
+          {reminderEvents.length > 0 && (
             <View style={styles.listCard}>
-              {recentNotifications.slice(0, 8).map((notif, idx) => {
-                const meta = getNotifStatusMeta(notif.status);
+              {reminderEvents.slice(0, 8).map((evt, idx) => {
+                const visibleCount = Math.min(reminderEvents.length, 8);
+                const isLast = idx >= visibleCount - 1;
+                const title = evt.isReminder
+                  ? `Relance ${reminderPalierForDate(evt.date, dueDate)} envoyée`
+                  : getNotifTypeLabel(evt.type);
                 return (
-                  <View
-                    key={`notif-${idx}`}
-                    style={[
-                      styles.notifRow,
-                      idx < Math.min(recentNotifications.length, 8) - 1 && styles.notifRowBordered,
-                    ]}
-                  >
-                    <View style={styles.notifIcon}>
-                      <Bell size={16} color={Colors.action} />
+                  <View key={evt.key} style={[styles.notifRow, !isLast && styles.notifRowBordered]}>
+                    <View style={styles.notifIconCol}>
+                      <View style={styles.notifIcon}>
+                        <Bell size={16} color={Colors.action} />
+                      </View>
+                      {!isLast && <View style={styles.notifConnector} />}
                     </View>
                     <View style={styles.notifBody}>
                       <Text style={styles.notifTitle} numberOfLines={1}>
-                        {getNotifTypeLabel(notif.type)}
+                        {title}
                       </Text>
-                      {notif.created_at ? (
-                        <Text style={styles.notifDate}>{formatDate(notif.created_at)}</Text>
+                      {evt.date ? (
+                        <Text style={styles.notifDate}>{formatDate(evt.date)}</Text>
                       ) : null}
                       <View style={styles.notifBadges}>
-                        <StatusBadge
-                          text={`${NOTIF_CHANNEL_SHORT[notif.channel] ?? notif.channel} ${getDeliveryLabel(notif.status)}`}
-                          variant={meta.variant}
-                        />
+                        {evt.channels.map((c, ci) => (
+                          <StatusBadge
+                            key={`${evt.key}-${ci}`}
+                            text={`${c.short} ${c.label}`}
+                            variant={c.variant}
+                          />
+                        ))}
                       </View>
                     </View>
                   </View>
@@ -1694,7 +1762,7 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                 <View>
                   <Text style={styles.modalHeaderTitle}>Modifier le client</Text>
                   <Text style={styles.modalHeaderSubtitle}>
-                    {customer ? getPersonName(customer) : ''}
+                    Mettez à jour les coordonnées et la limite de crédit
                   </Text>
                 </View>
                 <TouchableOpacity onPress={handleCloseEditModal} style={styles.modalCloseButton}>
@@ -1704,76 +1772,65 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
 
               {/* Modal Form */}
               <View style={styles.modalBody}>
-                {/* Name */}
+                {/* Full name */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Nom *</Text>
+                  <Text style={styles.formLabel}>Nom complet</Text>
                   <TextInput
                     style={styles.input}
                     value={editForm.name}
                     onChangeText={text => setEditForm({ ...editForm, name: text })}
-                    placeholder="Nom du client"
-                  />
-                </View>
-
-                {/* First Name */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Prénom</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.first_name}
-                    onChangeText={text => setEditForm({ ...editForm, first_name: text })}
-                    placeholder="Prénom du client"
+                    placeholder="Nom et prénom du client"
                   />
                 </View>
 
                 {/* Phone */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Téléphone</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.phone}
-                    onChangeText={text =>
-                      setEditForm({ ...editForm, phone: formatPhoneOnInput(text) })
-                    }
-                    placeholder="+237 6XX XXX XXX"
-                    keyboardType="phone-pad"
-                  />
-                </View>
-
-                {/* Email */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Email</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.email}
-                    onChangeText={text => setEditForm({ ...editForm, email: text })}
-                    placeholder="email@exemple.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
+                  <View style={styles.inputWithIcon}>
+                    <Smartphone size={18} color={Colors.textColors.tertiary} />
+                    <TextInput
+                      style={styles.inputWithIconField}
+                      value={editForm.phone}
+                      onChangeText={text =>
+                        setEditForm({ ...editForm, phone: formatPhoneOnInput(text) })
+                      }
+                      placeholder="+237 6XX XXX XXX"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
                 </View>
 
                 {/* Address */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Adresse</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.address}
-                    onChangeText={text => setEditForm({ ...editForm, address: text })}
-                    placeholder="Adresse complète"
-                  />
+                  <View style={styles.inputWithIcon}>
+                    <MapPin size={18} color={Colors.textColors.tertiary} />
+                    <TextInput
+                      style={styles.inputWithIconField}
+                      value={editForm.address}
+                      onChangeText={text => setEditForm({ ...editForm, address: text })}
+                      placeholder="Quartier, ville…"
+                    />
+                  </View>
                 </View>
 
                 {/* Credit Limit */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Limite de crédit (FCFA)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={editForm.credit_limit}
-                    onChangeText={text => setEditForm({ ...editForm, credit_limit: text })}
-                    placeholder="0"
-                    keyboardType="numeric"
-                  />
+                  <View style={styles.inputWithIcon}>
+                    <TextInput
+                      style={styles.inputWithIconField}
+                      value={editForm.credit_limit}
+                      onChangeText={text => setEditForm({ ...editForm, credit_limit: text })}
+                      placeholder="0"
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.inputSuffix}>F</Text>
+                  </View>
+                  <Text style={styles.inputHelper}>
+                    {formatMoney(Math.round(parseFloat(editForm.credit_limit)) || 0)} · laissez à 0
+                    pour un crédit illimité
+                  </Text>
                 </View>
 
                 {/* Actions */}
@@ -1799,6 +1856,102 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         </View>
       </Modal>
 
+      {/* Relance bottom sheet ("Relancer maintenant") */}
+      <Modal
+        visible={showRemindSheet}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRemindSheet(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalBody}>
+              {/* Titre + ton */}
+              <View style={styles.remindTitleRow}>
+                <Text style={styles.modalHeaderTitle}>Relance {remindPalier}</Text>
+                <View style={styles.tonePill}>
+                  <Text style={styles.tonePillText}>Courtois</Text>
+                </View>
+              </View>
+
+              {/* Ligne client */}
+              <Text style={styles.remindClientLine}>
+                {getPersonName(customer)} ·{' '}
+                <Text style={styles.remindAmount}>{formatMoney(Math.abs(totalBalance))}</Text>
+              </Text>
+
+              {/* Échéance */}
+              {dueDate ? (
+                <Text style={styles.remindDueLine}>
+                  Échéance le {dueDateLabel}
+                  {dueInfo ? ` · ${dueInfo.text}` : ''}
+                </Text>
+              ) : null}
+
+              {/* Canaux */}
+              <Text style={styles.remindSectionLabel}>Envoyer sur</Text>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    ['SMS', 'SMS', Colors.info.main],
+                    ['WHATSAPP', 'WhatsApp', Colors.success.main],
+                  ] as Array<['SMS' | 'WHATSAPP', string, string]>
+                ).map(([key, label, dot]) => {
+                  const active = remindChannels[key];
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.channelChip, active && styles.channelChipActive]}
+                      onPress={() => setRemindChannels(prev => ({ ...prev, [key]: !prev[key] }))}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.chipDot, { backgroundColor: dot }]} />
+                      <Text
+                        style={[styles.channelChipText, active && styles.channelChipTextActive]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Aperçu du message */}
+              <Text style={styles.remindSectionLabel}>Aperçu du message</Text>
+              <View style={styles.previewBox}>
+                <Text style={styles.previewText}>{reminderMessage}</Text>
+              </View>
+
+              {/* Footer */}
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowRemindSheet(false)}
+                  disabled={isReminding}
+                >
+                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, styles.remindSubmitButton]}
+                  onPress={handleSendReminder}
+                  disabled={isReminding}
+                >
+                  {isReminding ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Send size={18} color={Colors.onMarine} />
+                      <Text style={styles.modalSubmitButtonText}>Envoyer la relance</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
         visible={showDetailModal}
@@ -1818,14 +1971,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  headerIconBtn: {
-    marginRight: Spacing.xs,
   },
   scroll: {
     flex: 1,
@@ -1853,8 +1998,16 @@ const styles = StyleSheet.create({
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: 999,
+    borderRadius: 14,
     backgroundColor: Colors.warning.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardEditButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2002,6 +2155,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  notifIconCol: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
   notifIcon: {
     width: 36,
     height: 36,
@@ -2009,6 +2166,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.info.background,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notifConnector: {
+    width: 2,
+    flex: 1,
+    minHeight: 8,
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.border,
   },
   notifBody: { flex: 1, gap: 4 },
   notifTitle: {
@@ -2082,22 +2247,29 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     minWidth: '45%',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 999,
+    borderWidth: 1,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.sm,
-    minHeight: 48,
+    minHeight: 52,
     ...Shadows.sm,
   },
   actionButtonFull: {
     minWidth: '100%',
   },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionButtonText: {
-    color: Colors.onMarine,
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '700',
   },
 
@@ -2228,6 +2400,32 @@ const styles = StyleSheet.create({
     color: Colors.text,
     backgroundColor: Colors.surfaceAlt,
   },
+  inputWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  inputWithIconField: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: 14,
+    color: Colors.text,
+  },
+  inputSuffix: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  inputHelper: {
+    marginTop: Spacing.xs,
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+  },
   amountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2304,5 +2502,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.onMarine,
+  },
+
+  // RELANCE BOTTOM SHEET
+  remindTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  tonePill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+  },
+  tonePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  remindClientLine: {
+    marginTop: Spacing.sm,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  remindAmount: {
+    color: Colors.danger.main,
+    fontWeight: '800',
+  },
+  remindDueLine: {
+    marginTop: 2,
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+  },
+  remindSectionLabel: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  channelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  channelChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  chipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  channelChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  channelChipTextActive: {
+    color: Colors.action,
+  },
+  previewBox: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceAlt,
+    padding: Spacing.md,
+  },
+  previewText: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: Colors.text,
+  },
+  remindSubmitButton: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
 });

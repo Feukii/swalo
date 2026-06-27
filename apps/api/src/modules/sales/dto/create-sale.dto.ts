@@ -21,12 +21,12 @@ class SaleItemDto {
 
   @IsInt()
   @Min(0)
-  unit_price: number; // En centimes
+  unit_price: number; // En FCFA
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  discount?: number; // En centimes
+  discount?: number; // En FCFA
 
   @IsOptional()
   @IsUUID()
@@ -46,12 +46,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  discount?: number; // En centimes - remise globale
+  discount?: number; // En FCFA - remise globale
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  tax?: number; // En centimes
+  tax?: number; // En FCFA
 
   @IsOptional()
   @IsString()

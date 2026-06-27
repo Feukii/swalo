@@ -70,6 +70,8 @@ const AVAILABLE_MODULES = [
   { value: 'debts', label: 'Dettes', tier: 'EXTENDED' },
   { value: 'admin', label: 'Gestion Utilisateurs', tier: 'EXTENDED' },
   { value: 'reports', label: 'Rapports', tier: 'EXTENDED' },
+  { value: 'supervision', label: 'Supervision', tier: 'EXTENDED' },
+  { value: 'pin-invites', label: 'Invitations PIN', tier: 'EXTENDED' },
   // PREMIUM
   { value: 'enterprise', label: 'Multi-boutique', tier: 'PREMIUM' },
   { value: 'transfers', label: 'Transferts', tier: 'PREMIUM' },
@@ -77,6 +79,8 @@ const AVAILABLE_MODULES = [
   { value: 'notifications', label: 'Notifications', tier: 'PREMIUM' },
   { value: 'import', label: 'Import Bulk', tier: 'PREMIUM' },
   { value: 'packaging-types', label: 'Conditionnements', tier: 'PREMIUM' },
+  { value: 'accounting', label: 'Comptabilite', tier: 'PREMIUM' },
+  { value: 'relances', label: 'Relances Clients', tier: 'PREMIUM' },
 ];
 
 export default function AdminShops() {

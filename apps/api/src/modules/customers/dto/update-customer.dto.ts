@@ -24,7 +24,7 @@ export class UpdateCustomerDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  credit_limit?: number; // En centimes
+  credit_limit?: number; // En FCFA
 
   @IsString()
   @IsOptional()

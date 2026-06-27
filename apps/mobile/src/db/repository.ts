@@ -50,6 +50,17 @@ export class LocalRepository<T extends LocalRecord> {
     protected shopIdField: string = 'shop_id'
   ) {}
 
+  /** Colonnes réelles de la table (cache) — pour ignorer les champs serveur
+   * inconnus et éviter un "table X has no column named Y" qui ferait échouer
+   * tout l'upsert (et donc la synchro des produits). */
+  private columnsCache: Set<string> | null = null;
+  protected async getColumns(db: SQLite.SQLiteDatabase): Promise<Set<string>> {
+    if (this.columnsCache) return this.columnsCache;
+    const rows = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${this.tableName})`);
+    this.columnsCache = new Set(rows.map(r => r.name));
+    return this.columnsCache;
+  }
+
   /**
    * Get all records for a shop
    */
@@ -215,6 +226,7 @@ export class LocalRepository<T extends LocalRecord> {
     if (records.length === 0) return;
     const db = await getDatabase();
     const now = nowISO();
+    const cols = await this.getColumns(db);
 
     await db.withExclusiveTransactionAsync(async tx => {
       for (const data of records) {
@@ -225,7 +237,8 @@ export class LocalRepository<T extends LocalRecord> {
           _last_synced_at: now,
         };
 
-        const keys = Object.keys(record);
+        // Ne garder que les clés correspondant à une colonne réelle de la table.
+        const keys = Object.keys(record).filter(k => cols.has(k));
         const placeholders = keys.map(() => '?').join(', ');
         const values = keys.map(k => {
           const val = (record as Record<string, unknown>)[k];

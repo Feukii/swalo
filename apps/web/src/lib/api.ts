@@ -177,6 +177,9 @@ export const productsApi = {
     sell_price: number;
     alert_threshold?: number;
     tax_rate?: number;
+    packaging_type_id?: string;
+    units_per_package?: number;
+    package_price?: number;
   }) => {
     const response = await api.post('/products', data);
     return response.data;
@@ -196,6 +199,9 @@ export const productsApi = {
       alert_threshold?: number;
       tax_rate?: number;
       is_active: boolean;
+      packaging_type_id?: string;
+      units_per_package?: number;
+      package_price?: number;
     }>
   ) => {
     const response = await api.put(`/products/${id}`, data);
@@ -336,6 +342,10 @@ export const suppliersApi = {
     email?: string;
     address?: string;
     notes?: string;
+    borrowing_limit?: number;
+    email_notifications_enabled?: boolean;
+    sms_notifications_enabled?: boolean;
+    whatsapp_notifications_enabled?: boolean;
   }) => {
     const response = await api.post('/suppliers', data);
     return response.data;
@@ -352,6 +362,10 @@ export const suppliersApi = {
       address?: string;
       notes?: string;
       is_active: boolean;
+      borrowing_limit?: number;
+      email_notifications_enabled?: boolean;
+      sms_notifications_enabled?: boolean;
+      whatsapp_notifications_enabled?: boolean;
     }>
   ) => {
     const response = await api.put(`/suppliers/${id}`, data);
@@ -360,6 +374,22 @@ export const suppliersApi = {
 
   delete: async (id: string) => {
     const response = await api.delete(`/suppliers/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Envoie une relance maintenant à un fournisseur (sans tâche préexistante).
+   * Le message + le solde dû sont construits côté API à partir des dettes
+   * PENDING/PARTIAL du fournisseur. Sémantique inversée : nous devons au
+   * fournisseur.
+   * @param supplierId - identifiant du fournisseur à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux activés.
+   */
+  manualRemind: async (supplierId: string, channels?: string[]) => {
+    const response = await api.post('/seller-tasks/manual-remind-supplier', {
+      supplier_id: supplierId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
     return response.data;
   },
 };
@@ -642,50 +672,86 @@ export const enterpriseApi = {
 };
 
 // Transfers API (Inter-shop)
+export type TransferStatus = 'DRAFT' | 'CONFIRMED' | 'SHIPPED' | 'RECEIVED' | 'CANCELLED';
+
+export interface TransferShopRef {
+  id: string;
+  code: string;
+  name: string;
+  shop_type?: string;
+}
+
+export interface TransferItem {
+  id: string;
+  product_sku: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  cost_price: number;
+  total: number;
+}
+
+export interface Transfer {
+  id: string;
+  status: TransferStatus;
+  notes?: string;
+  created_at: string;
+  enterprise_id?: string;
+  source_shop: TransferShopRef;
+  target_shop: TransferShopRef;
+  creator: { id: string; display_name: string };
+  items: TransferItem[];
+}
+
+export interface CreateTransferItemPayload {
+  product_sku: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  cost_price: number;
+}
+
+export interface CreateTransferPayload {
+  source_shop_id: string;
+  target_shop_id: string;
+  items: CreateTransferItemPayload[];
+  notes?: string;
+}
+
 export const transfersApi = {
-  getAll: async () => {
-    const response = await api.get('/transfers');
+  getAll: async (enterpriseId?: string): Promise<Transfer[]> => {
+    const params = enterpriseId ? { enterprise_id: enterpriseId } : undefined;
+    const response = await api.get<Transfer[]>('/transfers', { params });
     return response.data;
   },
 
-  getOne: async (id: string) => {
-    const response = await api.get(`/transfers/${id}`);
+  getOne: async (id: string): Promise<Transfer> => {
+    const response = await api.get<Transfer>(`/transfers/${id}`);
     return response.data;
   },
 
-  create: async (data: {
-    source_shop_id: string;
-    target_shop_id: string;
-    items: Array<{
-      product_sku: string;
-      product_name: string;
-      quantity: number;
-      unit_price: number;
-      cost_price: number;
-    }>;
-    notes?: string;
-  }) => {
-    const response = await api.post('/transfers', data);
+  create: async (data: CreateTransferPayload): Promise<Transfer> => {
+    const response = await api.post<Transfer>('/transfers', data);
     return response.data;
   },
 
-  confirm: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/confirm`);
+  confirm: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/confirm`);
     return response.data;
   },
 
-  ship: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/ship`);
+  ship: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/ship`);
     return response.data;
   },
 
-  receive: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/receive`);
+  receive: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/receive`);
     return response.data;
   },
 
-  cancel: async (id: string) => {
-    const response = await api.put(`/transfers/${id}/cancel`);
+  cancel: async (id: string): Promise<Transfer> => {
+    const response = await api.put<Transfer>(`/transfers/${id}/cancel`);
     return response.data;
   },
 };
@@ -938,6 +1004,9 @@ export const adminApi = {
 };
 
 // Seller Tasks API (Taches vendeur — relances dettes/creances)
+/** Canaux de notification d'une relance (alignés sur l'enum Prisma). */
+export type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
 export interface SellerTask {
   id: string;
   type: string;
@@ -949,10 +1018,25 @@ export interface SellerTask {
   receivable_id?: string;
   created_at: string;
   done_at?: string;
+  /** Client associé (enrichi par l'API), avec nom + téléphone. */
+  customer?: { id?: string; name: string; phone?: string | null } | null;
+  /** Solde restant dû (FCFA entier), null si aucune créance liée. */
+  amount?: number | null;
+  /** Canaux activés par le client pour cette relance. */
+  channels?: ReminderChannel[];
+  /** Message courtois prêt à envoyer (généré par l'API). */
+  preview_message?: string | null;
 }
 
 export interface SellerTaskCount {
   count: number;
+}
+
+/** Résultat d'un envoi manuel de relance. */
+export interface RemindResult {
+  ok: boolean;
+  channelsSent?: ReminderChannel[];
+  error?: string;
 }
 
 export const sellerTasksApi = {
@@ -966,6 +1050,36 @@ export const sellerTasksApi = {
   },
   markDone: async (id: string): Promise<SellerTask> => {
     const response = await api.post<SellerTask>(`/seller-tasks/${id}/done`);
+    return response.data;
+  },
+  /**
+   * Envoie une relance maintenant pour la tâche donnée.
+   * @param id - identifiant de la tâche vendeur.
+   * @param channel - canal unique à utiliser ; si omis, tous les canaux
+   *   activés par le client sont utilisés.
+   */
+  remind: async (id: string, channel?: ReminderChannel): Promise<RemindResult> => {
+    const response = await api.post<RemindResult>(
+      `/seller-tasks/${id}/remind`,
+      channel ? { channel } : {}
+    );
+    return response.data;
+  },
+  /**
+   * Envoie une relance maintenant à un client SANS tâche vendeur préexistante.
+   * Le message est construit côté API à partir du solde dû actuel du client
+   * (créances PENDING/PARTIAL).
+   * @param customerId - identifiant du client à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux activés par le client.
+   */
+  manualRemind: async (
+    customerId: string,
+    channels?: ReminderChannel[]
+  ): Promise<RemindResult> => {
+    const response = await api.post<RemindResult>('/seller-tasks/manual-remind', {
+      customer_id: customerId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
     return response.data;
   },
 };
@@ -994,6 +1108,226 @@ export const reminderSettingsApi = {
     const response = await api.put<ReminderSettings>('/shops/me/reminder-settings', payload);
     return response.data;
   },
+};
+
+// Reports API (Rapports réseau multi-boutiques)
+export type ShopHealth = 'Sain' | 'A surveiller' | 'En difficulte';
+
+export interface NetworkShopReport {
+  id: string;
+  name: string;
+  /** CA du jour, en centimes */
+  ca_jour: number;
+  /** Marge en pourcentage (ex: 38 pour 38%) */
+  marge: number;
+  /** Solde de caisse, en centimes */
+  caisse: number;
+  /** Créances clients, en centimes */
+  creances: number;
+  etat: ShopHealth;
+}
+
+export interface NetworkReportTotals {
+  /** CA réseau du jour, en centimes */
+  ca_reseau: number;
+  /** Trésorerie réseau (somme des caisses), en centimes */
+  tresorerie_reseau: number;
+  /** Créances réseau, en centimes */
+  creances_reseau: number;
+  /** Marge réseau, en centimes */
+  marge_reseau: number;
+  /** Marge moyenne en pourcentage (ex: 35.5 pour 35,5%) */
+  marge_moyenne: number;
+}
+
+export interface NetworkReport {
+  shops: NetworkShopReport[];
+  totals: NetworkReportTotals;
+}
+
+// --- Rapports boutique (vue business mono-boutique, miroir mobile) ---
+// Tous les montants sont des entiers en FCFA (affichés tels quels).
+export interface ShopCashFlowDailyPoint {
+  /** Jour au format YYYY-MM-DD. */
+  date: string;
+  /** Solde net du jour (encaissements − décaissements). */
+  net: number;
+}
+
+export interface ShopCashCategoryRow {
+  /** Catégorie d'encaissement normalisée (ventes, remboursement_client, …). */
+  category: string;
+  amount: number;
+}
+
+export interface ShopCashFlowReport {
+  total_in: number;
+  total_out: number;
+  net: number;
+  /** Tendance des 7 derniers jours glissants (du plus ancien au plus récent). */
+  daily: ShopCashFlowDailyPoint[];
+  by_category_in: ShopCashCategoryRow[];
+}
+
+export interface ShopPaymentMethodRow {
+  method: string;
+  count: number;
+  total: number;
+}
+
+export interface ShopSalesReport {
+  total_sales: number;
+  completed_sales: number;
+  cancelled_sales: number;
+  total_revenue: number;
+  average_ticket: number;
+  by_payment_method: ShopPaymentMethodRow[];
+}
+
+export interface ShopCashReport {
+  total_entries: number;
+  total_exits: number;
+  net_flow: number;
+  entries_count: number;
+  exits_count: number;
+  cash_balance: number;
+  pending_receivables: number;
+  pending_receivables_count: number;
+  pending_debts: number;
+  pending_debts_count: number;
+}
+
+export interface ShopTopProduct {
+  id: string;
+  name: string;
+  /** Chiffre d'affaires du produit sur la période (FCFA). */
+  value: number;
+  /** Quantité vendue. */
+  count: number;
+}
+
+type DateRangeFilter = { start_date?: string; end_date?: string };
+
+export const reportsApi = {
+  /** Vue réseau multi-boutiques (rôle BOSS). Tous les montants sont en centimes. */
+  getNetwork: async (): Promise<NetworkReport> => {
+    const response = await api.get<NetworkReport>('/reports/network');
+    return response.data;
+  },
+
+  /** Flux de caisse de la boutique : totaux, tendance 7 jours, répartition encaissements. */
+  getCashFlow: async (filters?: DateRangeFilter): Promise<ShopCashFlowReport> =>
+    (await api.get<ShopCashFlowReport>('/reports/cash-flow', { params: filters })).data,
+
+  /** Rapport ventes de la boutique (totaux + répartition par moyen de paiement). */
+  getSales: async (filters?: DateRangeFilter): Promise<ShopSalesReport> =>
+    (await api.get<ShopSalesReport>('/reports/sales', { params: filters })).data,
+
+  /** Rapport trésorerie de la boutique (inclut créances et dettes en cours). */
+  getCash: async (filters?: DateRangeFilter): Promise<ShopCashReport> =>
+    (await api.get<ShopCashReport>('/reports/cash', { params: filters })).data,
+
+  /** Top produits de la boutique par chiffre d'affaires sur la période. */
+  getTopProducts: async (filters?: DateRangeFilter, limit = 5): Promise<ShopTopProduct[]> =>
+    (await api.get<ShopTopProduct[]>('/reports/top-products', { params: { ...filters, limit } }))
+      .data,
+};
+
+// Accounting API (Comptabilité en partie double : journal, grand livre, bilan, résultat)
+// Tous les montants sont des entiers en FCFA (aucune division à l'affichage).
+export interface AccountingEntryLine {
+  account: string;
+  name: string;
+  debit: number;
+  credit: number;
+}
+
+export interface AccountingJournalEntry {
+  date: string;
+  libelle: string;
+  lines: AccountingEntryLine[];
+}
+
+export interface AccountingLedgerMovement {
+  account: string;
+  debit: number;
+  credit: number;
+  date: string;
+  libelle: string;
+}
+
+export interface AccountingLedgerAccount {
+  account: string;
+  name: string;
+  classe: number;
+  debit: number;
+  credit: number;
+  solde: number;
+  mouvements: AccountingLedgerMovement[];
+}
+
+export interface AccountingAmountRow {
+  account: string;
+  name: string;
+  montant: number;
+}
+
+export interface AccountingBalanceSheet {
+  actif: AccountingAmountRow[];
+  passif: AccountingAmountRow[];
+  totalActif: number;
+  totalPassif: number;
+  resultat: number;
+  equilibre: boolean;
+}
+
+export interface AccountingIncomeStatement {
+  ca: number;
+  cogs: number;
+  margeBrute: number;
+  charges: AccountingAmountRow[];
+  autresProduits: number;
+  beneficeNet: number;
+}
+
+export interface AccountingReport {
+  journal: AccountingJournalEntry[];
+  grand_livre: AccountingLedgerAccount[];
+  bilan: AccountingBalanceSheet;
+  resultat: AccountingIncomeStatement;
+}
+
+export const accountingApi = {
+  getReport: async (filters?: { start_date?: string; end_date?: string }): Promise<AccountingReport> =>
+    (await api.get<AccountingReport>('/reports/accounting', { params: filters })).data,
+};
+
+// Supervision API (Actions anormales du jour)
+export type SupervisionSeverity = 'critical' | 'review';
+
+export interface SupervisionAlert {
+  id: string;
+  kind: string;
+  severity: SupervisionSeverity;
+  title: string;
+  detail: string;
+  author: string | null;
+  created_at: string;
+}
+
+export interface SupervisionReport {
+  alerts: SupervisionAlert[];
+  critical_count: number;
+  review_count: number;
+  total: number;
+}
+
+export const supervisionApi = {
+  getReport: async (filters?: { start_date?: string; end_date?: string }): Promise<SupervisionReport> =>
+    (await api.get<SupervisionReport>('/reports/supervision', { params: filters })).data,
+  acknowledgeAlert: async (alertId: string, note?: string): Promise<{ ok: boolean }> =>
+    (await api.post<{ ok: boolean }>('/reports/supervision/ack', { alert_id: alertId, ...(note ? { note } : {}) }))
+      .data,
 };
 
 // Packaging Types API (Conditionnements)
