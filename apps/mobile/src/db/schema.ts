@@ -51,7 +51,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
  * Ferme et supprime le fichier de base locale (auto-réparation quand la base
  * est corrompue/verrouillée, ex. "NativeDatabase.prepareSync has been rejected").
  */
-async function resetDatabaseFile(): Promise<void> {
+export async function resetLocalDatabase(): Promise<void> {
   try {
     await dbInstance?.closeAsync();
   } catch {
@@ -86,7 +86,7 @@ export async function initDatabase(): Promise<void> {
     await db.getFirstAsync('SELECT 1');
   } catch (err) {
     console.warn('[DB] init échouée, recréation de la base locale', err);
-    await resetDatabaseFile();
+    await resetLocalDatabase();
     await initDatabaseInner();
   }
 }

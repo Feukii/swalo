@@ -7,7 +7,7 @@
 import * as Network from 'expo-network';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getDatabase } from './schema';
+import { getDatabase, initDatabase, resetLocalDatabase } from './schema';
 import {
   dequeuePending,
   markBatchProcessing,
@@ -346,6 +346,35 @@ class SyncEngine {
       });
     } finally {
       this.syncLock = false;
+    }
+  }
+
+  /**
+   * Resynchronisation COMPLÈTE forcée : supprime la base locale + le curseur,
+   * recrée le schéma, puis re-télécharge TOUTES les données du serveur.
+   * Renvoie le nombre de produits réellement écrits en local (ou l'erreur exacte).
+   * Utilisé par le bouton "Forcer la resynchronisation" — répare + diagnostique.
+   */
+  async forceFullResync(): Promise<{ ok: boolean; products: number; error?: string }> {
+    try {
+      this.emit({ type: 'sync_start' });
+      await resetLocalDatabase();
+      await initDatabase();
+      this._isOnline = true; // on force ; le pull validera réellement la connexion
+      await this.pull();
+      await AsyncStorage.setItem(SYNC_META_LAST_SYNC, new Date().toISOString());
+      await this.updatePendingCount();
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ n: number }>(
+        'SELECT COUNT(*) as n FROM products WHERE deleted = 0'
+      );
+      const products = row?.n ?? 0;
+      this.emit({ type: 'sync_complete', pendingCount: this._pendingCount });
+      return { ok: true, products };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit({ type: 'sync_error', error: message });
+      return { ok: false, products: 0, error: message };
     }
   }
 

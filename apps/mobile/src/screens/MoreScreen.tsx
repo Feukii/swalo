@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncEngine } from '../db/sync';
 import {
   Users,
   Building,
@@ -233,6 +234,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [licenseTier, setLicenseTier] = useState<string>('STARTER');
   const [relanceCount, setRelanceCount] = useState(0);
+  const [resyncing, setResyncing] = useState(false);
   const { can } = usePermissions();
 
   // Bug 9: Recharger les modules a chaque focus (au lieu de useEffect([]))
@@ -280,6 +282,32 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
     Alert.alert(
       'Module non disponible',
       `Vous avez une licence ${licenseTier}. Le module "${name}" n'est pas inclus dans votre licence actuelle. Contactez votre administrateur.`
+    );
+  };
+
+  const handleForceResync = () => {
+    Alert.alert(
+      'Forcer la resynchronisation',
+      'Cela efface les données locales et les retélécharge depuis le serveur. Continuer ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Resynchroniser',
+          onPress: async () => {
+            setResyncing(true);
+            const res = await syncEngine.forceFullResync();
+            setResyncing(false);
+            if (res.ok) {
+              Alert.alert(
+                'Resynchronisation terminée',
+                `${res.products} produit(s) synchronisé(s).`
+              );
+            } else {
+              Alert.alert('Échec de la synchronisation', res.error ?? 'Erreur inconnue');
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -365,6 +393,19 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
             </View>
           </View>
         )}
+
+        <Pressable
+          onPress={handleForceResync}
+          disabled={resyncing}
+          style={({ pressed }) => [styles.logoutCard, pressed && styles.rowPressed]}
+        >
+          <View style={[styles.iconSquare, { backgroundColor: `${Colors.action}1A` }]}>
+            <RefreshCw size={20} color={Colors.action} />
+          </View>
+          <Text style={[styles.logoutText, { color: Colors.action }]}>
+            {resyncing ? 'Resynchronisation…' : 'Forcer la resynchronisation'}
+          </Text>
+        </Pressable>
 
         <Pressable
           onPress={handleLogout}
