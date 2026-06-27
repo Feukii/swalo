@@ -108,11 +108,13 @@ export class NotificationDispatcherService {
             text: input.body,
             html: `<p>${input.body.replace(/\n/g, '<br/>')}</p>`,
           });
-          // En repli Ethereal (dev), logge l'URL de prévisualisation de l'email.
+          // Log de confirmation d'envoi. En repli Ethereal, ajoute l'URL d'aperçu.
           const preview = nodemailer.getTestMessageUrl(info as nodemailer.SentMessageInfo);
-          if (preview) {
-            this.logger.log(`📧 Email envoyé à ${input.recipient} — aperçu: ${preview}`);
-          }
+          this.logger.log(
+            preview
+              ? `📧 Email envoyé à ${input.recipient} — aperçu: ${preview}`
+              : `📧 Email envoyé à ${input.recipient} (SMTP)`
+          );
           status = NotificationStatus.SENT;
           break;
         }
