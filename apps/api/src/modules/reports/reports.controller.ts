@@ -81,6 +81,44 @@ export class ReportsController {
   }
 
   /**
+   * GET /api/reports/cash-flow
+   * Flux de caisse de la boutique : totaux (période), tendance 7 jours, et
+   * répartition des encaissements (catégories IN). Vue business mobile.
+   */
+  @Get('cash-flow')
+  @Roles(Role.BOSS, Role.MANAGER)
+  getCashFlow(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.reportsService.getCashFlowReport(user.shopId, filters);
+  }
+
+  /**
+   * GET /api/reports/top-products
+   * Top produits de la boutique par chiffre d'affaires sur la période.
+   */
+  @Get('top-products')
+  @Roles(Role.BOSS, Role.MANAGER)
+  getTopProducts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('limit') limit?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : 5;
+    const safeLimit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 5;
+    return this.reportsService.getTopProducts(user.shopId, filters, safeLimit);
+  }
+
+  /**
    * GET /api/reports/overview
    * Vue d'ensemble consolidée (dashboard)
    */

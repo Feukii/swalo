@@ -1109,12 +1109,92 @@ export interface NetworkReport {
   totals: NetworkReportTotals;
 }
 
+// --- Rapports boutique (vue business mono-boutique, miroir mobile) ---
+// Tous les montants sont des entiers en FCFA (affichés tels quels).
+export interface ShopCashFlowDailyPoint {
+  /** Jour au format YYYY-MM-DD. */
+  date: string;
+  /** Solde net du jour (encaissements − décaissements). */
+  net: number;
+}
+
+export interface ShopCashCategoryRow {
+  /** Catégorie d'encaissement normalisée (ventes, remboursement_client, …). */
+  category: string;
+  amount: number;
+}
+
+export interface ShopCashFlowReport {
+  total_in: number;
+  total_out: number;
+  net: number;
+  /** Tendance des 7 derniers jours glissants (du plus ancien au plus récent). */
+  daily: ShopCashFlowDailyPoint[];
+  by_category_in: ShopCashCategoryRow[];
+}
+
+export interface ShopPaymentMethodRow {
+  method: string;
+  count: number;
+  total: number;
+}
+
+export interface ShopSalesReport {
+  total_sales: number;
+  completed_sales: number;
+  cancelled_sales: number;
+  total_revenue: number;
+  average_ticket: number;
+  by_payment_method: ShopPaymentMethodRow[];
+}
+
+export interface ShopCashReport {
+  total_entries: number;
+  total_exits: number;
+  net_flow: number;
+  entries_count: number;
+  exits_count: number;
+  cash_balance: number;
+  pending_receivables: number;
+  pending_receivables_count: number;
+  pending_debts: number;
+  pending_debts_count: number;
+}
+
+export interface ShopTopProduct {
+  id: string;
+  name: string;
+  /** Chiffre d'affaires du produit sur la période (FCFA). */
+  value: number;
+  /** Quantité vendue. */
+  count: number;
+}
+
+type DateRangeFilter = { start_date?: string; end_date?: string };
+
 export const reportsApi = {
   /** Vue réseau multi-boutiques (rôle BOSS). Tous les montants sont en centimes. */
   getNetwork: async (): Promise<NetworkReport> => {
     const response = await api.get<NetworkReport>('/reports/network');
     return response.data;
   },
+
+  /** Flux de caisse de la boutique : totaux, tendance 7 jours, répartition encaissements. */
+  getCashFlow: async (filters?: DateRangeFilter): Promise<ShopCashFlowReport> =>
+    (await api.get<ShopCashFlowReport>('/reports/cash-flow', { params: filters })).data,
+
+  /** Rapport ventes de la boutique (totaux + répartition par moyen de paiement). */
+  getSales: async (filters?: DateRangeFilter): Promise<ShopSalesReport> =>
+    (await api.get<ShopSalesReport>('/reports/sales', { params: filters })).data,
+
+  /** Rapport trésorerie de la boutique (inclut créances et dettes en cours). */
+  getCash: async (filters?: DateRangeFilter): Promise<ShopCashReport> =>
+    (await api.get<ShopCashReport>('/reports/cash', { params: filters })).data,
+
+  /** Top produits de la boutique par chiffre d'affaires sur la période. */
+  getTopProducts: async (filters?: DateRangeFilter, limit = 5): Promise<ShopTopProduct[]> =>
+    (await api.get<ShopTopProduct[]>('/reports/top-products', { params: { ...filters, limit } }))
+      .data,
 };
 
 // Accounting API (Comptabilité en partie double : journal, grand livre, bilan, résultat)

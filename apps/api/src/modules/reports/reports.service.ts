@@ -34,6 +34,14 @@ function treasuryFor(method: string | null | undefined): Treasury {
   return 'CAISSE';
 }
 
+/** Clé de jour locale (YYYY-MM-DD) utilisée pour regrouper la tendance 7 jours. */
+function dateKey(d: Date): string {
+  const y = String(d.getFullYear());
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export interface SupervisionAlert {
   id: string;
   kind: string;
@@ -318,6 +326,124 @@ export class ReportsService {
       pending_debts: debtsStats._sum.balance ?? 0,
       pending_debts_count: debtsStats._count,
     };
+  }
+
+  /**
+   * Rapport « flux de caisse » d'une boutique (vue business mobile).
+   * Renvoie, pour la boutique authentifiée :
+   *  - les totaux de la période (encaissements / décaissements / solde net) ;
+   *  - la tendance des 7 derniers jours glissants (net par jour), indépendante
+   *    de la période sélectionnée (miroir de l'écran mobile) ;
+   *  - la répartition des encaissements (catégories IN, normalisées).
+   * Montants en FCFA (entiers).
+   */
+  async getCashFlowReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
+    const createdAtFilter: Prisma.DateTimeFilter = {};
+    if (filters?.start_date) createdAtFilter.gte = new Date(filters.start_date);
+    if (filters?.end_date) createdAtFilter.lte = new Date(filters.end_date);
+    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
+
+    const where: Prisma.CashEntryWhereInput = {
+      shop_id: shopId,
+      deleted: false,
+      ...(hasDateFilter ? { created_at: createdAtFilter } : {}),
+    };
+
+    // Tendance des 7 derniers jours glissants (toujours relative à aujourd'hui).
+    const now = new Date();
+    const start7 = new Date(now);
+    start7.setDate(now.getDate() - 6);
+    start7.setHours(0, 0, 0, 0);
+    const end7 = new Date(now);
+    end7.setHours(23, 59, 59, 999);
+
+    const [inAgg, outAgg, inByCategory, entries7] = await Promise.all([
+      this.prisma.cashEntry.aggregate({ where: { ...where, type: 'IN' }, _sum: { amount: true } }),
+      this.prisma.cashEntry.aggregate({ where: { ...where, type: 'OUT' }, _sum: { amount: true } }),
+      this.prisma.cashEntry.groupBy({
+        by: ['category'],
+        where: { ...where, type: 'IN' },
+        _sum: { amount: true },
+      }),
+      this.prisma.cashEntry.findMany({
+        where: { shop_id: shopId, deleted: false, created_at: { gte: start7, lte: end7 } },
+        select: { type: true, amount: true, created_at: true },
+      }),
+    ]);
+
+    const totalIn = inAgg._sum.amount ?? 0;
+    const totalOut = outAgg._sum.amount ?? 0;
+
+    // Net par jour (IN positif, OUT négatif ; OPENING/CLOSING ignorés — miroir mobile).
+    const dailyMap = new Map<string, number>();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      dailyMap.set(dateKey(d), 0);
+    }
+    for (const e of entries7) {
+      const key = dateKey(e.created_at);
+      if (!dailyMap.has(key)) continue;
+      const signed = e.type === 'IN' ? e.amount : e.type === 'OUT' ? -e.amount : 0;
+      dailyMap.set(key, (dailyMap.get(key) ?? 0) + signed);
+    }
+    const daily = Array.from(dailyMap.entries()).map(([date, net]) => ({ date, net }));
+
+    // Répartition des encaissements par catégorie normalisée.
+    const catMap = new Map<string, number>();
+    for (const c of inByCategory) {
+      const norm = normalizeCashCategory(c.category) ?? 'divers';
+      catMap.set(norm, (catMap.get(norm) ?? 0) + (c._sum.amount ?? 0));
+    }
+    const byCategoryIn = Array.from(catMap.entries())
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    return {
+      total_in: totalIn,
+      total_out: totalOut,
+      net: totalIn - totalOut,
+      daily,
+      by_category_in: byCategoryIn,
+    };
+  }
+
+  /**
+   * Top produits d'une boutique par chiffre d'affaires sur une période.
+   * Montants en FCFA (entiers).
+   */
+  async getTopProducts(
+    shopId: string,
+    filters?: { start_date?: string; end_date?: string },
+    limit = 5
+  ) {
+    const createdAtFilter: Prisma.DateTimeFilter = {};
+    if (filters?.start_date) createdAtFilter.gte = new Date(filters.start_date);
+    if (filters?.end_date) createdAtFilter.lte = new Date(filters.end_date);
+    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
+
+    const grouped = await this.prisma.saleItem.groupBy({
+      by: ['product_id', 'product_name'],
+      where: {
+        deleted: false,
+        sale: {
+          shop_id: shopId,
+          deleted: false,
+          status: 'COMPLETED',
+          ...(hasDateFilter ? { created_at: createdAtFilter } : {}),
+        },
+      },
+      _sum: { total: true, qty: true },
+      orderBy: { _sum: { total: 'desc' } },
+      take: limit,
+    });
+
+    return grouped.map(g => ({
+      id: g.product_id,
+      name: g.product_name,
+      value: g._sum.total ?? 0,
+      count: g._sum.qty ?? 0,
+    }));
   }
 
   /**
