@@ -188,7 +188,8 @@ export default function SaleScreen() {
   }, [products]);
 
   const addToCart = async (product: SaleProduct) => {
-    const productName = `${product.family} - ${product.article_type} ${product.brand}`;
+    const productName =
+      product.name || `${product.family} - ${product.article_type} ${product.brand}`;
     const currentStock = product.current_stock || 0;
 
     // Check multi-price from local stock batches
@@ -282,7 +283,9 @@ export default function SaleScreen() {
 
   const handlePriceSelection = (priceOption: PriceOption) => {
     if (!priceModalProduct) return;
-    const productName = `${priceModalProduct.family} - ${priceModalProduct.article_type} ${priceModalProduct.brand}`;
+    const productName =
+      priceModalProduct.name ||
+      `${priceModalProduct.family} - ${priceModalProduct.article_type} ${priceModalProduct.brand}`;
     // Utiliser le premier lot de ce groupe de prix (FIFO dans le groupe)
     const firstBatch = priceOption.batches[0];
     addToCartDirect(
@@ -647,9 +650,9 @@ export default function SaleScreen() {
   // Nom d'affichage compact d'un produit (carte grille). On garde la même
   // logique métier pour le nom envoyé au panier (cf. addToCart).
   const productLabel = (product: SaleProduct) =>
-    product.family ||
+    product.name ||
     [product.article_type, product.brand].filter(Boolean).join(' ') ||
-    product.name;
+    product.family;
 
   // Total d'une ligne panier (présentation uniquement, mêmes prix que computedTotal).
   const lineTotal = (item: CartItem) => {
