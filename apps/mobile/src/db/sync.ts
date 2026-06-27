@@ -5,7 +5,6 @@
  */
 
 import * as Network from 'expo-network';
-import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase, initDatabase, resetLocalDatabase } from './schema';
 import {
@@ -234,36 +233,17 @@ class SyncEngine {
   /**
    * Check current connectivity
    */
-  /**
-   * URL de health de l'API (dérivée de la même config que le client API).
-   */
-  private getHealthUrl(): string {
-    const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
-    const base = extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.10:3000/api';
-    return `${base.replace(/\/+$/, '')}/health`;
-  }
-
   async checkConnectivity(): Promise<boolean> {
     try {
       const networkState = await Network.getNetworkStateAsync();
       const wasOnline = this._isOnline;
 
-      // Offline-first : le serveur peut être en LAN (sans Internet public). On se
-      // base sur la JOIGNABILITÉ RÉELLE de l'API (ping /health) plutôt que sur
-      // isInternetReachable, qui rendrait l'app "hors ligne" sur un réseau local.
-      let reachable = networkState.isConnected === true;
-      if (reachable) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 4000);
-          const res = await fetch(this.getHealthUrl(), { signal: controller.signal });
-          clearTimeout(timer);
-          reachable = res.ok;
-        } catch {
-          reachable = false;
-        }
-      }
-      this._isOnline = reachable;
+      // Offline-first : "en ligne" dès qu'une connexion réseau est disponible.
+      // On NE dépend PAS de isInternetReachable (le serveur peut être en LAN sans
+      // Internet public, et certains réseaux bloquent le test Internet de l'OS).
+      // S'il y a un réseau -> en ligne, et la synchro s'exécute (les échecs d'API
+      // sont gérés proprement : push qui n'empêche pas le pull, retries, etc.).
+      this._isOnline = networkState.isConnected === true;
 
       if (wasOnline !== this._isOnline) {
         this.emit({
