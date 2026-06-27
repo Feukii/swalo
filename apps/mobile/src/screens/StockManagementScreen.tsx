@@ -34,6 +34,22 @@ interface StockItem {
   alert_threshold: number;
   cost_price?: number;
   sell_price?: number;
+  units_per_package?: number | null;
+  package_price?: number | null;
+}
+
+/**
+ * Modèle carton-primary (identique au reste de l'app) : l'unité atomique du stock
+ * reste la PIÈCE, mais le carton (units_per_package > 1) devient l'unité d'affichage.
+ * Retourne l'UPP "réel" (≥ 1) ; UPP = 1 ⟺ article vendu uniquement à la pièce.
+ */
+function getUppReal(item: StockItem): number {
+  return item.units_per_package && item.units_per_package > 0 ? item.units_per_package : 1;
+}
+
+/** True si l'article est conditionné (UPP > 1) : affichage et seuil en cartons. */
+function isConditioned(item: StockItem): boolean {
+  return !!item.units_per_package && item.units_per_package > 1;
 }
 
 interface StockManagementScreenProps {
@@ -52,9 +68,9 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
   // Modal d'approvisionnement
   const [showStockModal, setShowStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<StockItem | null>(null);
+  // Réception saisie EN CARTONS : quantité en cartons, prix de revient au carton.
   const [stockQuantity, setStockQuantity] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
-  const [sellingPrice, setSellingPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadProducts = useCallback(
@@ -74,6 +90,8 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
             return {
               ...p,
               current_stock: totalStock,
+              units_per_package: p.units_per_package,
+              package_price: p.package_price,
               is_active: true,
             } as StockItem;
           })
@@ -124,8 +142,9 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
   const openStockModal = (product: StockItem) => {
     setSelectedProduct(product);
     setStockQuantity('');
-    setUnitPrice(product.cost_price ? String(product.cost_price) : '');
-    setSellingPrice(product.sell_price ? String(product.sell_price) : '');
+    // cost_price est stocké PAR PIÈCE → pré-remplir le coût AU CARTON (× UPP).
+    const uppReal = getUppReal(product);
+    setUnitPrice(product.cost_price ? String(product.cost_price * uppReal) : '');
     setShowStockModal(true);
   };
 
@@ -134,41 +153,46 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
     setSelectedProduct(null);
     setStockQuantity('');
     setUnitPrice('');
-    setSellingPrice('');
   };
 
   const handleStockUpdate = async () => {
     if (!selectedProduct || !shopId) return;
 
-    const quantity = parseInt(stockQuantity);
-    const buyPrice = parseInt(unitPrice);
-    const sellPrice = parseInt(sellingPrice);
+    // Saisie EN CARTONS : on convertit en unité atomique (pièce) pour le lot.
+    const cartons = parseInt(stockQuantity);
+    const costCarton = parseInt(unitPrice);
 
-    if (isNaN(quantity) || quantity <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer une quantité valide');
+    if (isNaN(cartons) || cartons <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer une quantité (en cartons) valide');
       return;
     }
 
-    if (isNaN(buyPrice) || buyPrice <= 0) {
-      Alert.alert('Erreur', "Veuillez entrer un prix d'achat valide");
-      return;
-    }
-
-    if (isNaN(sellPrice) || sellPrice <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix de vente valide');
+    if (isNaN(costCarton) || costCarton <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de revient (au carton) valide');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const newStock = (selectedProduct.current_stock || 0) + quantity;
+      const uppReal = getUppReal(selectedProduct);
+      // quantité_pièces = cartons × UPP ; coût/pièce = round(coût_carton / UPP).
+      const quantityPieces = cartons * uppReal;
+      const costPiece = Math.round(costCarton / uppReal);
+      // Le prix de vente du lot reste celui déjà défini sur l'article (détail si
+      // dispo, sinon prix au carton/gros) ; il se gère dans la fiche article.
+      const sellPrice =
+        selectedProduct.sell_price && selectedProduct.sell_price > 0
+          ? selectedProduct.sell_price
+          : (selectedProduct.package_price ?? 0);
+      const newPieces = (selectedProduct.current_stock || 0) + quantityPieces;
+      const newCartons = Math.floor(newPieces / uppReal);
 
       await createStockBatchOffline({
         shopId,
         productId: selectedProduct.id,
-        quantity,
-        costPrice: buyPrice,
+        quantity: quantityPieces,
+        costPrice: costPiece,
         sellPrice: sellPrice,
         notes: 'Approvisionnement',
       });
@@ -177,10 +201,9 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
       await loadProducts();
 
       const message =
-        `+${quantity} unités ajoutées\n\n` +
-        `Nouveau stock: ${newStock} unités\n` +
-        `Prix d'achat: ${formatMoney(buyPrice)}/unité\n` +
-        `Prix de vente: ${formatMoney(sellPrice)}/unité`;
+        `+${cartons} carton${cartons > 1 ? 's' : ''} ajouté${cartons > 1 ? 's' : ''}\n\n` +
+        `Nouveau stock : ${newCartons} carton${newCartons > 1 ? 's' : ''}\n` +
+        `Prix de revient : ${formatMoney(costCarton)} / carton`;
 
       Alert.alert('Approvisionnement enregistré', message);
     } catch (error: unknown) {
@@ -195,9 +218,11 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
   const getStockStatus = (product: StockItem) => {
     const stock = product.current_stock || 0;
     const threshold = product.alert_threshold || 0;
+    // Seuil comparé en CARTONS quand conditionné (sinon en pièces).
+    const level = isConditioned(product) ? Math.floor(stock / getUppReal(product)) : stock;
 
     if (stock === 0) return 'out';
-    if (stock <= threshold) return 'low';
+    if (level <= threshold) return 'low';
     return 'ok';
   };
 
@@ -271,6 +296,32 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
               const status = getStockStatus(product);
               const isLow = status === 'low' || status === 'out';
               const stock = product.current_stock || 0;
+              const conditioned = isConditioned(product);
+              const uppReal = getUppReal(product);
+              // Stock en CARTONS (+ pièces restantes) si conditionné, sinon en pièces.
+              const cartons = conditioned ? Math.floor(stock / uppReal) : 0;
+              const looseUnits = conditioned ? stock % uppReal : 0;
+              const stockLabel = conditioned
+                ? `${cartons} carton${cartons > 1 ? 's' : ''}${
+                    looseUnits ? ` (+ ${looseUnits} pièce${looseUnits > 1 ? 's' : ''})` : ''
+                  }`
+                : `${stock} pièce${stock > 1 ? 's' : ''}`;
+              const badgeLabel = conditioned ? `${cartons} ctn` : `${stock} pcs`;
+              // Coût AU CARTON (cost_price stocké par pièce) + prix de gros au carton.
+              const cartonCost = (product.cost_price ?? 0) * uppReal;
+              const hasDetail = conditioned && (product.sell_price ?? 0) > 0;
+              const metaParts = [stockLabel];
+              metaParts.push(
+                conditioned
+                  ? `PR ${formatMoney(cartonCost)} / carton`
+                  : `PR ${formatMoney(product.cost_price ?? 0)} / pièce`
+              );
+              if (product.package_price) {
+                metaParts.push(`${formatMoney(product.package_price)} / carton`);
+              }
+              if (hasDetail) {
+                metaParts.push(`${formatMoney(product.sell_price ?? 0)} / pièce`);
+              }
 
               return (
                 <TouchableOpacity
@@ -287,16 +338,14 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
                     <Text style={styles.rowName} numberOfLines={1}>
                       {product.name || product.family}
                     </Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {[product.category || product.family, formatMoney(product.sell_price ?? 0)]
-                        .filter(Boolean)
-                        .join(' · ')}
+                    <Text style={styles.rowMeta} numberOfLines={2}>
+                      {metaParts.join(' · ')}
                     </Text>
                   </View>
 
                   <View style={[styles.unitBadge, isLow && styles.unitBadgeLow]}>
                     <Text style={[styles.unitBadgeText, isLow && styles.unitBadgeTextLow]}>
-                      {stock} u.
+                      {badgeLabel}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -332,15 +381,20 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
                     {selectedProduct.article_type} - {selectedProduct.brand}
                   </Text>
                   <Text style={styles.modalProductStock}>
-                    Stock actuel: {selectedProduct.current_stock || 0} unités
+                    Stock actuel :{' '}
+                    {isConditioned(selectedProduct)
+                      ? `${Math.floor(
+                          (selectedProduct.current_stock || 0) / getUppReal(selectedProduct)
+                        )} carton(s)`
+                      : `${selectedProduct.current_stock || 0} pièce(s)`}
                   </Text>
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Quantité à ajouter *</Text>
+                  <Text style={styles.label}>Quantité (cartons) *</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Ex: 50"
+                    placeholder="Ex: 5"
                     placeholderTextColor={Colors.muted.foreground}
                     value={stockQuantity}
                     onChangeText={setStockQuantity}
@@ -349,10 +403,10 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Prix d'achat unitaire (FCFA) *</Text>
+                  <Text style={styles.label}>Prix de revient (au carton, FCFA) *</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Ex: 500"
+                    placeholder="Ex: 12000"
                     placeholderTextColor={Colors.muted.foreground}
                     value={unitPrice}
                     onChangeText={setUnitPrice}
@@ -360,42 +414,30 @@ export default function StockManagementScreen(_props: StockManagementScreenProps
                   />
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Prix de vente unitaire (FCFA) *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: 750"
-                    placeholderTextColor={Colors.muted.foreground}
-                    value={sellingPrice}
-                    onChangeText={setSellingPrice}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                {stockQuantity && unitPrice && sellingPrice && (
+                {stockQuantity && unitPrice && (
                   <View style={styles.summary}>
                     <Text style={styles.summaryTitle}>Résumé</Text>
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Quantité ajoutée</Text>
-                      <Text style={styles.summaryValue}>+{stockQuantity} unités</Text>
+                      <Text style={styles.summaryValue}>
+                        +{parseInt(stockQuantity || '0')} cartons
+                      </Text>
                     </View>
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Nouveau stock</Text>
                       <Text style={styles.summaryValue}>
-                        {(selectedProduct.current_stock || 0) + parseInt(stockQuantity || '0')}{' '}
-                        unités
+                        {Math.floor(
+                          ((selectedProduct.current_stock || 0) +
+                            parseInt(stockQuantity || '0') * getUppReal(selectedProduct)) /
+                            getUppReal(selectedProduct)
+                        )}{' '}
+                        cartons
                       </Text>
                     </View>
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Coût total</Text>
                       <Text style={styles.summaryValue}>
                         {formatMoney(parseInt(stockQuantity || '0') * parseInt(unitPrice || '0'))}
-                      </Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Marge unitaire</Text>
-                      <Text style={[styles.summaryValue, styles.summaryValueSuccess]}>
-                        {formatMoney(parseInt(sellingPrice || '0') - parseInt(unitPrice || '0'))}
                       </Text>
                     </View>
                   </View>
@@ -654,9 +696,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: Colors.text,
-  },
-  summaryValueSuccess: {
-    color: Colors.success.main,
   },
   modalActions: {
     flexDirection: 'row',
