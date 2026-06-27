@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Users, Smartphone, Clock } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { adminApi } from '../lib/api';
 import type { RootStackParamList } from '../../App';
 
@@ -225,11 +225,15 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
         keyExtractor={item => item.user.id}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryCount}>{users.length}</Text>
-            <Text style={styles.summaryLabel}>
-              {users.length > 1 ? 'membres de l’équipe' : 'membre de l’équipe'}
-            </Text>
+          <View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Équipe</Text>
+              <Text style={styles.summaryCount}>{users.length}</Text>
+              <Text style={styles.summarySub}>
+                {users.length > 1 ? 'membres de l’équipe' : 'membre de l’équipe'}
+              </Text>
+            </View>
+            {users.length > 0 ? <Text style={styles.sectionTitle}>Membres</Text> : null}
           </View>
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -261,8 +265,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary[900],
     borderRadius: 20,
     padding: Spacing.xl,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
     ...Shadows.md,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary[300],
+    marginBottom: Spacing.xs,
   },
   summaryCount: {
     fontSize: 34,
@@ -270,14 +280,23 @@ const styles = StyleSheet.create({
     color: Colors.onMarine,
     letterSpacing: -0.5,
   },
-  summaryLabel: {
+  summarySub: {
     fontSize: 13,
     color: Colors.primary[300],
     marginTop: Spacing.xs,
   },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
   userCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
     ...Shadows.sm,
@@ -291,7 +310,7 @@ const styles = StyleSheet.create({
   userAvatar: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -342,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary[50],
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderRadius: 12,
+    borderRadius: BorderRadius.sm,
     flex: 1,
     minHeight: 44,
   },

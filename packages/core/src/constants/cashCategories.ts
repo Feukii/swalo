@@ -23,6 +23,68 @@ export type EntryCategoryType = (typeof ENTRY_CATEGORIES)[number];
 export type ExitCategoryType = (typeof EXIT_CATEGORIES)[number];
 
 /**
+ * Clés canoniques (snake_case) des catégories de caisse.
+ *
+ * Historiquement, les catégories ont été stockées sous plusieurs formes selon
+ * l'écran qui a créé l'entrée : libellé humain capitalisé ("Ventes",
+ * "Achats Marchandises"), libellé accentué ("Règlement fournisseur"), ou clé
+ * snake_case ("ventes", "achats_marchandises"). De plus, une vente espèces
+ * mobile écrit "vente" (singulier). Cette table de correspondance permet aux
+ * rapports d'agréger correctement quelle que soit la forme stockée.
+ */
+export type CashCategoryKey =
+  | 'ventes'
+  | 'remboursement_client'
+  | 'remboursement_fournisseur'
+  | 'achats_marchandises'
+  | 'loyers'
+  | 'reglement_fournisseur'
+  | 'depenses_courantes'
+  | 'divers';
+
+/**
+ * Normalise une valeur de catégorie de caisse (quelle que soit sa forme
+ * historique : libellé, accents, casse, singulier "vente") vers sa clé
+ * canonique snake_case. Retourne `null` si la catégorie est inconnue/absente.
+ */
+export function normalizeCashCategory(category: string | null | undefined): CashCategoryKey | null {
+  if (!category) return null;
+
+  // Supprime les accents, met en minuscules, remplace les séparateurs par "_".
+  const normalized = category
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_');
+
+  const map: Record<string, CashCategoryKey> = {
+    // Ventes (inclut le singulier "vente" écrit par la vente espèces mobile)
+    ventes: 'ventes',
+    vente: 'ventes',
+    // Remboursement client (entrée ou sortie)
+    remboursement_client: 'remboursement_client',
+    // Remboursement fournisseur (entrée)
+    remboursement_fournisseur: 'remboursement_fournisseur',
+    // Achats marchandises
+    achats_marchandises: 'achats_marchandises',
+    achat_marchandises: 'achats_marchandises',
+    // Loyers
+    loyers: 'loyers',
+    loyer: 'loyers',
+    // Règlement fournisseur
+    reglement_fournisseur: 'reglement_fournisseur',
+    // Dépenses courantes
+    depenses_courantes: 'depenses_courantes',
+    depense_courante: 'depenses_courantes',
+    // Divers
+    divers: 'divers',
+  };
+
+  return map[normalized] ?? null;
+}
+
+/**
  * Vérifie si une catégorie nécessite un commentaire obligatoire
  */
 export function requiresNote(category: string): boolean {

@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { normalizeCashCategory } from '@swalo/core';
 import { formatMoney } from '../utils/money';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
@@ -194,6 +195,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
     const labels: { [key: string]: string } = {
       ventes: 'Ventes',
       remboursement_client: 'Remb. client',
+      remboursement_fournisseur: 'Remb. fournisseur',
       divers: 'Divers',
       achats_marchandises: 'Achats marchandises',
       loyers: 'Loyers',
@@ -225,10 +227,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       const exitsByCategory: { [key: string]: { amount: number; count: number } } = {};
 
       periodEntries.forEach(entry => {
+        // Normalise la catégorie (libellé capitalisé, accentué, snake_case ou
+        // "vente" singulier) vers une clé canonique pour un regroupement fiable.
+        const cat = normalizeCashCategory(entry.category) ?? 'divers';
         if (entry.type === 'IN') {
           totalEntries += entry.amount;
           entriesCount += 1;
-          const cat = entry.category || 'divers';
           if (!entriesByCategory[cat]) {
             entriesByCategory[cat] = { amount: 0, count: 0 };
           }
@@ -237,7 +241,6 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         } else if (entry.type === 'OUT') {
           totalExits += entry.amount;
           exitsCount += 1;
-          const cat = entry.category || 'divers';
           if (!exitsByCategory[cat]) {
             exitsByCategory[cat] = { amount: 0, count: 0 };
           }
@@ -266,9 +269,9 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       });
       const balance = globalTotalIn - globalTotalOut;
 
-      // Ventes cash = somme des entrées avec catégorie 'ventes' ou 'vente'
+      // Ventes cash = somme des entrées de catégorie "Ventes" (toutes formes confondues)
       const salesCash = periodEntries
-        .filter(e => e.type === 'IN' && (e.category === 'ventes' || e.category === 'vente'))
+        .filter(e => e.type === 'IN' && normalizeCashCategory(e.category) === 'ventes')
         .reduce((sum, e) => sum + e.amount, 0);
 
       // Ventes crédit = somme des créances créées pendant la période
@@ -282,9 +285,11 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         )
         .reduce((sum, r) => sum + r.amount, 0);
 
-      // Achats cash = somme des sorties avec catégorie 'achats_marchandises'
+      // Achats cash = somme des sorties de catégorie "Achats Marchandises" (toutes formes)
       const purchasesCash = periodEntries
-        .filter(e => e.type === 'OUT' && e.category === 'achats_marchandises')
+        .filter(
+          e => e.type === 'OUT' && normalizeCashCategory(e.category) === 'achats_marchandises'
+        )
         .reduce((sum, e) => sum + e.amount, 0);
 
       // Achats crédit = somme des dettes créées pendant la période
@@ -447,9 +452,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         });
       }
 
-      // Ajouter les remboursements clients des entrées de caisse (catégorie remboursement_client)
+      // Ajouter les remboursements clients des entrées de caisse (catégorie "Remboursement client")
       cashEntriesData.forEach(entry => {
-        if (entry.type === 'IN' && entry.category === 'remboursement_client') {
+        if (
+          entry.type === 'IN' &&
+          normalizeCashCategory(entry.category) === 'remboursement_client'
+        ) {
           paymentsReceived += entry.amount || 0;
           paymentsCount++;
         }
@@ -610,9 +618,12 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         });
       }
 
-      // Ajouter les règlements fournisseurs des sorties de caisse (catégorie reglement_fournisseur)
+      // Ajouter les règlements fournisseurs des sorties de caisse (catégorie "Règlement fournisseur")
       cashEntriesData.forEach(entry => {
-        if (entry.type === 'OUT' && entry.category === 'reglement_fournisseur') {
+        if (
+          entry.type === 'OUT' &&
+          normalizeCashCategory(entry.category) === 'reglement_fournisseur'
+        ) {
           paymentsMade += entry.amount || 0;
           paymentsCount++;
         }

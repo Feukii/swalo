@@ -22,7 +22,7 @@ import {
   ChevronRight,
   IconProps,
 } from '../components/icons/SimpleIcons';
-import { ScreenHeader, SearchableSelect } from '../components/ui';
+import { ScreenHeader, SearchableSelect, DatePickerField } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -638,6 +638,32 @@ export default function SaleScreen() {
     return d.toLocaleDateString('fr-FR');
   };
 
+  // Conversion entre la date ISO complète (état `dueDate`) et la clé jour
+  // (YYYY-MM-DD) attendue par le sélecteur de date.
+  const dueDateKey = (iso: string): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Sélection depuis le date picker (YYYY-MM-DD) -> ISO complet à midi (fuseau-safe).
+  const handleDueDateSelect = (isoDay: string) => {
+    if (!isoDay) {
+      setDueDate('');
+      return;
+    }
+    const [y, m, day] = isoDay.split('-').map(Number);
+    const d = new Date(y, m - 1, day, 12, 0, 0, 0);
+    setDueDate(d.toISOString());
+  };
+
+  // Date minimale sélectionnable : aujourd'hui (une échéance est forcément future).
+  const today = new Date();
+
   // Raccourcis d'échéance proposés au vendeur.
   const dueDatePresets: Array<{ label: string; days: number }> = [
     { label: '+7j', days: 7 },
@@ -1042,11 +1068,14 @@ export default function SaleScreen() {
               {/* Date d'échéance (obligatoire en crédit) */}
               {paymentMethod === 'credit' && (
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Date d'échéance *</Text>
+                  <Text style={styles.label}>Date d'échéance de remboursement *</Text>
+                  <Text style={styles.dueDateSubLabel}>Quand le client doit-il rembourser ?</Text>
+
+                  {/* Raccourcis rapides */}
                   <View style={styles.dueDatePresets}>
                     {dueDatePresets.map(preset => {
                       const iso = isoInDays(preset.days);
-                      const active = dueDate === iso;
+                      const active = dueDateKey(dueDate) === dueDateKey(iso);
                       return (
                         <TouchableOpacity
                           key={preset.days}
@@ -1063,26 +1092,20 @@ export default function SaleScreen() {
                       );
                     })}
                   </View>
-                  <TextInput
-                    style={[styles.input, styles.dueDateInput]}
-                    placeholder="AAAA-MM-JJ"
-                    placeholderTextColor={Colors.muted.foreground}
-                    value={dueDate ? dueDate.slice(0, 10) : ''}
-                    onChangeText={text => {
-                      // Saisie manuelle : on accepte une date AAAA-MM-JJ valide.
-                      const parsed = new Date(`${text}T12:00:00`);
-                      if (/^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(parsed.getTime())) {
-                        setDueDate(parsed.toISOString());
-                      } else if (text === '') {
-                        setDueDate('');
-                      }
-                    }}
+
+                  {/* Sélecteur de date clair (ouvre un calendrier) */}
+                  <DatePickerField
+                    value={dueDateKey(dueDate)}
+                    onChange={handleDueDateSelect}
+                    placeholder="Choisir une date d'échéance"
+                    minDate={today}
                   />
+
                   {dueDate ? (
                     <Text style={styles.dueDateSelected}>Échéance : {formatDueDate(dueDate)}</Text>
                   ) : (
                     <Text style={styles.dueDateHint}>
-                      Choisissez une échéance (raccourci ou date manuelle).
+                      Choisissez une échéance (raccourci rapide ou calendrier).
                     </Text>
                   )}
                 </View>
@@ -1656,10 +1679,16 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
     marginLeft: 'auto',
   },
+  dueDateSubLabel: {
+    fontSize: 12,
+    color: Colors.muted.foreground,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
   dueDatePresets: {
     flexDirection: 'row',
     gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   dueDateChip: {
     flex: 1,
@@ -1682,9 +1711,6 @@ const styles = StyleSheet.create({
   },
   dueDateChipTextActive: {
     color: Colors.action,
-  },
-  dueDateInput: {
-    marginTop: 0,
   },
   dueDateSelected: {
     marginTop: Spacing.sm,

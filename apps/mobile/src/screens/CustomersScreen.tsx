@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -193,7 +194,12 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
   // Local data hook - reads from SQLite
   const { data: customers, loading: isLoading, refresh } = useLocalCustomers(shopId);
   // Créances actives du shop (une seule requête) — agrégées par client en mémoire
-  const { data: receivables } = useLocalClientReceivables(shopId);
+  const { data: receivables, refresh: refreshReceivables } = useLocalClientReceivables(shopId);
+
+  const handleRefresh = async () => {
+    await refresh();
+    await refreshReceivables();
+  };
 
   // Form state
   const [name, setName] = useState('');
@@ -302,6 +308,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       Alert.alert('Succes', 'Client cree avec succes');
       handleCloseModal();
       await refresh();
+      await refreshReceivables();
     } catch (error: unknown) {
       console.error('Erreur lors de la creation:', error);
       const message = error instanceof Error ? error.message : '';
@@ -382,7 +389,18 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={[Colors.action]}
+            tintColor={Colors.action}
+          />
+        }
+      >
         {/* Carte HERO — Créances en cours */}
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>Créances en cours</Text>

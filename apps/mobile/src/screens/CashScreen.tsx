@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Plus, Minus, ArrowDown, ArrowUp } from '../components/icons/SimpleIcons';
+import { ArrowDown, ArrowUp } from '../components/icons/SimpleIcons';
+import { normalizeCashCategory } from '@swalo/core';
 import { ScreenHeader, SearchableSelect } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
@@ -201,13 +202,13 @@ export default function CashScreen() {
         .reduce((s, e) => s + e.amount, 0);
 
       const salesCashEntries = todayCashEntries.filter(
-        e => e.type === 'IN' && (e.category === 'ventes' || e.category === 'vente')
+        e => e.type === 'IN' && normalizeCashCategory(e.category) === 'ventes'
       );
       const salesCash = salesCashEntries.reduce((s, e) => s + e.amount, 0);
       const salesCredit = todayReceivables.reduce((s, r) => s + Math.max(0, r.amount), 0);
 
       const purchaseCashEntries = todayCashEntries.filter(
-        e => e.type === 'OUT' && e.category === 'achats_marchandises'
+        e => e.type === 'OUT' && normalizeCashCategory(e.category) === 'achats_marchandises'
       );
       const purchasesCash = purchaseCashEntries.reduce((s, e) => s + e.amount, 0);
       const purchasesCredit = todayDebts.reduce((s, d) => s + Math.max(0, d.amount), 0);
@@ -612,7 +613,7 @@ export default function CashScreen() {
             activeOpacity={0.85}
           >
             <View style={[styles.actionIconBadge, { backgroundColor: Colors.success.main }]}>
-              <Plus size={16} color="#FFFFFF" />
+              <ArrowUp size={16} color="#FFFFFF" />
             </View>
             <Text style={[styles.actionButtonText, { color: Colors.success.main }]}>Entrée</Text>
           </TouchableOpacity>
@@ -622,7 +623,7 @@ export default function CashScreen() {
             activeOpacity={0.85}
           >
             <View style={[styles.actionIconBadge, { backgroundColor: Colors.danger.main }]}>
-              <Minus size={16} color="#FFFFFF" />
+              <ArrowDown size={16} color="#FFFFFF" />
             </View>
             <Text style={[styles.actionButtonText, { color: Colors.danger.main }]}>Sortie</Text>
           </TouchableOpacity>
@@ -671,9 +672,9 @@ export default function CashScreen() {
                   >
                     <View style={[styles.journalIcon, { backgroundColor: tint.background }]}>
                       {isIn ? (
-                        <ArrowDown size={18} color={tint.main} />
-                      ) : (
                         <ArrowUp size={18} color={tint.main} />
+                      ) : (
+                        <ArrowDown size={18} color={tint.main} />
                       )}
                     </View>
                     <View style={styles.journalInfo}>

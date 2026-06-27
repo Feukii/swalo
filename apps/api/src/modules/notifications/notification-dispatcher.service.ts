@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
+import * as nodemailer from 'nodemailer';
 import { NotificationChannel, NotificationStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
@@ -101,12 +102,19 @@ export class NotificationDispatcherService {
 
       switch (input.channel) {
         case NotificationChannel.EMAIL: {
-          await this.mailer.sendMail({
+          const info = await this.mailer.sendMail({
             to: input.recipient,
             subject: input.subject,
             text: input.body,
-            html: `<p>${input.body}</p>`,
+            html: `<p>${input.body.replace(/\n/g, '<br/>')}</p>`,
           });
+          // Log de confirmation d'envoi. En repli Ethereal, ajoute l'URL d'aperçu.
+          const preview = nodemailer.getTestMessageUrl(info as nodemailer.SentMessageInfo);
+          this.logger.log(
+            preview
+              ? `📧 Email envoyé à ${input.recipient} — aperçu: ${preview}`
+              : `📧 Email envoyé à ${input.recipient} (SMTP)`
+          );
           status = NotificationStatus.SENT;
           break;
         }

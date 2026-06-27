@@ -4,12 +4,21 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'swalo.db';
 /** Current target schema version (see runMigrations). Kept for documentation. */
 const _DB_VERSION = 6;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+/**
+ * Promesse d'ouverture partagée : garantit que la base n'est ouverte qu'UNE
+ * seule fois même si plusieurs appelants concurrents (init, sync engine, repos)
+ * appellent getDatabase() avant la fin de l'ouverture. Sans ce guard, deux
+ * connexions WAL sont ouvertes en parallèle -> "NativeDatabase.prepareSync has
+ * been rejected" et base verrouillée.
+ */
+let dbOpenPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
  * Sync status for local records
@@ -21,16 +30,71 @@ export type SyncStatus = 'synced' | 'pending' | 'conflict';
  */
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-  await dbInstance.execAsync('PRAGMA journal_mode = WAL;');
-  await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
-  return dbInstance;
+  // Une seule ouverture, partagée par tous les appelants concurrents.
+  if (!dbOpenPromise) {
+    dbOpenPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await db.execAsync('PRAGMA journal_mode = WAL;');
+      await db.execAsync('PRAGMA foreign_keys = ON;');
+      dbInstance = db;
+      return db;
+    })().catch(err => {
+      // En cas d'échec, on réinitialise pour permettre une nouvelle tentative.
+      dbOpenPromise = null;
+      throw err;
+    });
+  }
+  return dbOpenPromise;
+}
+
+/**
+ * Ferme et supprime le fichier de base locale (auto-réparation quand la base
+ * est corrompue/verrouillée, ex. "NativeDatabase.prepareSync has been rejected").
+ */
+async function resetDatabaseFile(): Promise<void> {
+  try {
+    await dbInstance?.closeAsync();
+  } catch {
+    // ignore
+  }
+  dbInstance = null;
+  dbOpenPromise = null;
+  try {
+    await SQLite.deleteDatabaseAsync(DB_NAME);
+  } catch {
+    // la base peut ne pas exister : on ignore
+  }
+  // Réinitialise le curseur de synchro : la base étant vide, on doit re-puller
+  // TOUTES les données du serveur (sinon un last_sync_at périmé renvoie un pull vide).
+  try {
+    await AsyncStorage.multiRemove(['sync_last_sync_at', 'sync_cursor']);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Initialise le schéma de la base, avec AUTO-RÉPARATION : si l'initialisation
+ * échoue (base locale corrompue/verrouillée), on supprime le fichier et on
+ * recrée une base saine, puis on relance la synchro depuis le serveur.
+ */
+export async function initDatabase(): Promise<void> {
+  try {
+    await initDatabaseInner();
+    // Test de sanité : détecte une base ouverte mais cassée/verrouillée.
+    const db = await getDatabase();
+    await db.getFirstAsync('SELECT 1');
+  } catch (err) {
+    console.warn('[DB] init échouée, recréation de la base locale', err);
+    await resetDatabaseFile();
+    await initDatabaseInner();
+  }
 }
 
 /**
  * Initialize the database schema (create all tables)
  */
-export async function initDatabase(): Promise<void> {
+async function initDatabaseInner(): Promise<void> {
   const db = await getDatabase();
 
   await db.execAsync(`

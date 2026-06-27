@@ -5,6 +5,7 @@
  */
 
 import * as Network from 'expo-network';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './schema';
 import {
@@ -233,12 +234,36 @@ class SyncEngine {
   /**
    * Check current connectivity
    */
+  /**
+   * URL de health de l'API (dérivée de la même config que le client API).
+   */
+  private getHealthUrl(): string {
+    const extra = Constants.expoConfig?.extra as { apiUrl?: string } | undefined;
+    const base = extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.10:3000/api';
+    return `${base.replace(/\/+$/, '')}/health`;
+  }
+
   async checkConnectivity(): Promise<boolean> {
     try {
       const networkState = await Network.getNetworkStateAsync();
       const wasOnline = this._isOnline;
-      this._isOnline =
-        networkState.isConnected === true && networkState.isInternetReachable !== false;
+
+      // Offline-first : le serveur peut être en LAN (sans Internet public). On se
+      // base sur la JOIGNABILITÉ RÉELLE de l'API (ping /health) plutôt que sur
+      // isInternetReachable, qui rendrait l'app "hors ligne" sur un réseau local.
+      let reachable = networkState.isConnected === true;
+      if (reachable) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 4000);
+          const res = await fetch(this.getHealthUrl(), { signal: controller.signal });
+          clearTimeout(timer);
+          reachable = res.ok;
+        } catch {
+          reachable = false;
+        }
+      }
+      this._isOnline = reachable;
 
       if (wasOnline !== this._isOnline) {
         this.emit({
@@ -279,8 +304,19 @@ class SyncEngine {
     try {
       this.emit({ type: 'sync_start' });
 
-      // Push first (local changes to server)
-      const pushResult = await this.push();
+      // Push first (local changes to server). Un échec de push ne doit PAS
+      // empêcher le pull : on doit toujours pouvoir lire les données du serveur
+      // (sinon une mutation locale en erreur bloque tout le catalogue).
+      let pushResult: { applied?: Record<string, string[]>; conflicts?: SyncConflict[] } | null =
+        null;
+      try {
+        pushResult = await this.push();
+      } catch (pushErr) {
+        console.log(
+          '[Sync] push échoué, on poursuit le pull:',
+          pushErr instanceof Error ? pushErr.message : String(pushErr)
+        );
+      }
 
       // Then pull (server changes to local)
       await this.pull();
@@ -469,7 +505,16 @@ class SyncEngine {
         } as Record<string, unknown> & { id: string };
       });
 
-      await repo.bulkUpsertFromServer(localRecords);
+      // Résilience : l'échec d'une entité ne doit pas bloquer les autres
+      // (ex. les produits doivent s'écrire même si une autre table échoue).
+      try {
+        await repo.bulkUpsertFromServer(localRecords);
+      } catch (applyErr) {
+        console.log(
+          `[Sync] échec application "${entity}":`,
+          applyErr instanceof Error ? applyErr.message : String(applyErr)
+        );
+      }
     }
 
     // Save sync metadata
