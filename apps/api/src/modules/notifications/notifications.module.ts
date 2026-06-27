@@ -30,16 +30,19 @@ import { LoggingWhatsappAdapter } from './adapters/logging-whatsapp.adapter';
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
         const smtpUser = config.get<string>('SMTP_USER', '');
+        const smtpPass = config.get<string>('SMTP_PASS', '');
         let transport: nodemailer.TransportOptions | Record<string, unknown>;
         let from = config.get<string>('SMTP_FROM', '"Swalo" <noreply@swalo.app>');
 
-        if (smtpUser) {
+        // Bascule sur le vrai SMTP seulement si user ET pass sont renseignés
+        // (un user sans mot de passe ferait échouer tous les envois).
+        if (smtpUser && smtpPass) {
           // SMTP réel configuré
           transport = {
             host: config.get<string>('SMTP_HOST', 'smtp.gmail.com'),
             port: config.get<number>('SMTP_PORT', 587),
             secure: config.get<string>('SMTP_SECURE', 'false') === 'true',
-            auth: { user: smtpUser, pass: config.get<string>('SMTP_PASS', '') },
+            auth: { user: smtpUser, pass: smtpPass },
           };
         } else {
           // Aucun SMTP configuré -> repli Ethereal (compte de test nodemailer) :
