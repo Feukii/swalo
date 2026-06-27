@@ -1,6 +1,38 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { normalizeCashCategory } from '@swalo/core';
+import {
+  computeAccounting,
+  getAccount,
+  type OperationInput,
+  type Treasury,
+  type ExpenseAccount,
+} from '@swalo/core/accounting';
+
+/** Compte de charge SYSCOHADA selon la catégorie de sortie de caisse. */
+function expenseAccountFor(category: string | null): ExpenseAccount {
+  switch (normalizeCashCategory(category)) {
+    case 'loyers':
+    case 'electricite_eau':
+      return '62';
+    case 'taxes_impots':
+      return '64';
+    case 'salaires':
+      return '641';
+    case 'transport':
+      return '61';
+    default:
+      return '658';
+  }
+}
+
+/** Moyen de règlement → compte de trésorerie. */
+function treasuryFor(method: string | null | undefined): Treasury {
+  if (method === 'CARD') return 'BANQUE';
+  if (method === 'MOBILE') return 'MOBILE';
+  return 'CAISSE';
+}
 
 export interface SupervisionAlert {
   id: string;
@@ -300,62 +332,45 @@ export class ReportsService {
   }
 
   /**
-   * Comptabilité : bilan (instantané) + compte de résultat (sur période) + journal.
+   * Comptabilité en partie double (moteur @swalo/core/accounting).
+   * Bilan = instantané courant (Actif=Passif) ; Journal/Grand livre/Résultat = sur la période.
    * Montants en FCFA (entiers).
    */
   async getAccountingReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
-    const createdAtFilter: Prisma.DateTimeFilter = {};
-    if (filters?.start_date) createdAtFilter.gte = new Date(filters.start_date);
-    if (filters?.end_date) createdAtFilter.lte = new Date(filters.end_date);
-    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
-    const dateClause = hasDateFilter ? { created_at: createdAtFilter } : {};
+    const start = filters?.start_date ? new Date(filters.start_date) : undefined;
+    const end = filters?.end_date ? new Date(filters.end_date) : undefined;
 
-    // --- Compte de résultat (sur la période) ---
-    const saleWhere: Prisma.SaleWhereInput = {
-      shop_id: shopId,
-      deleted: false,
-      status: 'COMPLETED',
-      ...dateClause,
-    };
-
-    const [revenueAgg, saleItems, cashOutByCategory] = await Promise.all([
-      this.prisma.sale.aggregate({ where: saleWhere, _sum: { grand_total: true } }),
-      this.prisma.saleItem.findMany({
-        where: { deleted: false, sale: saleWhere },
-        select: { qty: true, product: { select: { cost_price: true } } },
-      }),
-      this.prisma.cashEntry.groupBy({
-        by: ['category'],
-        where: { shop_id: shopId, deleted: false, type: 'OUT', ...dateClause },
-        _sum: { amount: true },
-      }),
+    const [periodOps, snapshotOp] = await Promise.all([
+      this.buildPeriodOperations(shopId, start, end),
+      this.buildSnapshotOperation(shopId),
     ]);
 
-    const revenue = revenueAgg._sum.grand_total ?? 0;
-    const cogs = saleItems.reduce((sum, i) => sum + i.product.cost_price * i.qty, 0);
-    const grossMargin = revenue - cogs;
+    const periodResult = computeAccounting(periodOps);
+    const snapshotResult = computeAccounting([snapshotOp]);
 
-    let rentCharges = 0;
-    let salaries = 0;
-    let transportMisc = 0;
-    for (const c of cashOutByCategory) {
-      const cat = (c.category ?? '').toLowerCase();
-      const amount = c._sum.amount ?? 0;
-      if (cat.includes('salaire')) salaries += amount;
-      else if (
-        cat.includes('loyer') ||
-        cat.includes('electricite') ||
-        cat.includes('eau') ||
-        cat.includes('taxe')
-      )
-        rentCharges += amount;
-      else if (cat.includes('transport') || cat.includes('divers') || cat.includes('retrait'))
-        transportMisc += amount;
-    }
-    const netProfit = grossMargin - rentCharges - salaries - transportMisc;
+    // Enrichir les lignes du journal avec le libellé du compte (pour l'UI).
+    const journal = periodResult.journal.map(e => ({
+      date: e.date,
+      libelle: e.libelle,
+      lines: e.lines.map(l => ({
+        account: l.account,
+        name: getAccount(l.account).name,
+        debit: l.debit,
+        credit: l.credit,
+      })),
+    }));
 
-    // --- Bilan (instantané) ---
-    const [stock, receivablesAgg, debtsAgg, allIn, allOut, journalRows] = await Promise.all([
+    return {
+      journal,
+      grand_livre: periodResult.ledger,
+      bilan: snapshotResult.balanceSheet,
+      resultat: periodResult.incomeStatement,
+    };
+  }
+
+  /** Construit l'écriture de solde d'ouverture (instantané courant des classes 1–5). */
+  private async buildSnapshotOperation(shopId: string): Promise<OperationInput> {
+    const [stock, receivablesAgg, debtsAgg, allIn, allOut] = await Promise.all([
       this.getStockReport(shopId),
       this.prisma.clientReceivable.aggregate({
         where: { shop_id: shopId, deleted: false, status: { in: ['PENDING', 'PARTIAL'] } },
@@ -373,58 +388,174 @@ export class ReportsService {
         where: { shop_id: shopId, deleted: false, type: 'OUT' },
         _sum: { amount: true },
       }),
-      this.prisma.cashEntry.findMany({
-        where: { shop_id: shopId, deleted: false, ...dateClause },
-        orderBy: { created_at: 'desc' },
-        take: 100,
-        select: {
-          id: true,
-          created_at: true,
-          type: true,
-          amount: true,
-          category: true,
-          note: true,
+    ]);
+    return {
+      kind: 'OPENING_BALANCE',
+      date: new Date().toISOString(),
+      stock: stock.total_stock_value,
+      caisse: (allIn._sum.amount ?? 0) - (allOut._sum.amount ?? 0),
+      banque: 0,
+      mobile: 0,
+      receivables: receivablesAgg._sum.balance ?? 0,
+      debts: debtsAgg._sum.balance ?? 0,
+    };
+  }
+
+  /** Construit les opérations métier d'une période (anti-double-comptage appliqué). */
+  private async buildPeriodOperations(
+    shopId: string,
+    start?: Date,
+    end?: Date
+  ): Promise<OperationInput[]> {
+    const range = (field = 'created_at') => {
+      const f: Prisma.DateTimeFilter = {};
+      if (start) f.gte = start;
+      if (end) f.lte = end;
+      return start || end ? { [field]: f } : {};
+    };
+    const ops: OperationInput[] = [];
+
+    // 1. Ventes (COMPLETED) + COGS.
+    const sales = await this.prisma.sale.findMany({
+      where: { shop_id: shopId, deleted: false, status: 'COMPLETED', ...range() },
+      select: {
+        id: true,
+        grand_total: true,
+        payment_method: true,
+        created_at: true,
+        items: {
+          where: { deleted: false },
+          select: { qty: true, product: { select: { cost_price: true } } },
         },
+      },
+    });
+    for (const s of sales) {
+      const date = s.created_at.toISOString();
+      if (s.payment_method === 'CREDIT') {
+        ops.push({ kind: 'CREDIT_SALE', date, saleId: s.id, amount: s.grand_total });
+      } else {
+        ops.push({
+          kind: 'CASH_SALE',
+          date,
+          saleId: s.id,
+          amount: s.grand_total,
+          treasury: treasuryFor(s.payment_method),
+        });
+      }
+      const cogs = s.items.reduce((sum, i) => sum + i.product.cost_price * i.qty, 0);
+      if (cogs > 0) ops.push({ kind: 'COGS', date, saleId: s.id, amount: cogs });
+    }
+
+    // 2. Encaissements de créances + paiements fournisseurs + dettes créées.
+    const [recvPayments, debtPayments, supplierDebts] = await Promise.all([
+      this.prisma.clientReceivablePayment.findMany({
+        where: { deleted: false, receivable: { shop_id: shopId }, ...range('payment_date') },
+        select: { id: true, amount: true, payment_date: true, cash_entry_id: true },
+      }),
+      this.prisma.supplierDebtPayment.findMany({
+        where: { deleted: false, debt: { shop_id: shopId }, ...range('payment_date') },
+        select: { id: true, amount: true, payment_date: true, cash_exit_id: true },
+      }),
+      this.prisma.supplierDebt.findMany({
+        where: { shop_id: shopId, deleted: false, ...range() },
+        select: { id: true, amount: true, created_at: true },
       }),
     ]);
+    const linkedCashIds = new Set<string>();
+    for (const p of recvPayments) {
+      if (p.cash_entry_id) linkedCashIds.add(p.cash_entry_id);
+      ops.push({
+        kind: 'RECEIVABLE_SETTLEMENT',
+        date: p.payment_date.toISOString(),
+        refId: p.id,
+        amount: p.amount,
+        treasury: 'CAISSE',
+      });
+    }
+    for (const p of debtPayments) {
+      if (p.cash_exit_id) linkedCashIds.add(p.cash_exit_id);
+      ops.push({
+        kind: 'SUPPLIER_PAYMENT',
+        date: p.payment_date.toISOString(),
+        refId: p.id,
+        amount: p.amount,
+        treasury: 'CAISSE',
+      });
+    }
+    for (const dbt of supplierDebts) {
+      ops.push({
+        kind: 'SUPPLIER_DEBT_CREATE',
+        date: dbt.created_at.toISOString(),
+        refId: dbt.id,
+        amount: dbt.amount,
+      });
+    }
 
-    const stockValue = stock.total_stock_value;
-    const receivables = receivablesAgg._sum.balance ?? 0;
-    const debts = debtsAgg._sum.balance ?? 0;
-    const cash = (allIn._sum.amount ?? 0) - (allOut._sum.amount ?? 0);
-    const totalActif = stockValue + receivables + cash;
-    const equity = totalActif - debts;
-
-    const journal = journalRows.map(r => ({
-      id: r.id,
-      created_at: r.created_at,
-      label:
-        (r.note ?? '').trim() || r.category || (r.type === 'IN' ? 'Encaissement' : 'Décaissement'),
-      reference: r.type === 'IN' ? 'Caisse · Entrée' : 'Caisse · Sortie',
-      amount: r.type === 'IN' ? r.amount : -r.amount,
-    }));
-
-    return {
-      balance_sheet: {
-        stock_value: stockValue,
-        receivables,
-        cash,
-        total_actif: totalActif,
-        debts,
-        equity,
-        total_passif: debts + equity,
+    // 3. Caisse (filtre anti-double-comptage).
+    const cashEntries = await this.prisma.cashEntry.findMany({
+      where: { shop_id: shopId, deleted: false, ...range() },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        category: true,
+        created_at: true,
       },
-      income_statement: {
-        revenue,
-        cogs,
-        gross_margin: grossMargin,
-        rent_charges: rentCharges,
-        salaries,
-        transport_misc: transportMisc,
-        net_profit: netProfit,
+    });
+    for (const ce of cashEntries) {
+      if (linkedCashIds.has(ce.id)) continue; // règlement déjà compté via paiement
+      if (ce.type === 'CLOSING') continue; // comptage de caisse, pas un flux
+      const date = ce.created_at.toISOString();
+      if (ce.type === 'OPENING') {
+        ops.push({ kind: 'CAPITAL_INJECTION', date, amount: ce.amount, treasury: 'CAISSE' });
+        continue;
+      }
+      const cat = normalizeCashCategory(ce.category);
+      if (cat === 'ventes') continue; // compté depuis les ventes
+      if (cat === 'reglement_fournisseur') continue; // compté depuis les paiements fournisseur
+      if (cat === 'achats_marchandises') {
+        ops.push({ kind: 'CASH_PURCHASE_STOCK', date, refId: ce.id, amount: ce.amount, treasury: 'CAISSE' });
+      } else if (cat === 'retrait_personnel') {
+        ops.push({ kind: 'OWNER_DRAWING', date, amount: ce.amount, treasury: 'CAISSE' });
+      } else if (cat === 'remboursement_client') {
+        ops.push({ kind: 'CUSTOMER_REFUND', date, amount: ce.amount, treasury: 'CAISSE' });
+      } else if (cat === 'remboursement_fournisseur') {
+        ops.push({ kind: 'SUPPLIER_REFUND', date, amount: ce.amount, treasury: 'CAISSE' });
+      } else if (ce.type === 'OUT') {
+        ops.push({
+          kind: 'OPERATING_EXPENSE',
+          date,
+          account: expenseAccountFor(ce.category),
+          amount: ce.amount,
+          treasury: 'CAISSE',
+        });
+      }
+    }
+
+    // 4. Ajustements de stock.
+    const movements = await this.prisma.inventoryMovement.findMany({
+      where: {
+        shop_id: shopId,
+        deleted: false,
+        type: { in: ['ADJUSTMENT', 'INVENTORY'] },
+        ...range(),
       },
-      journal,
-    };
+      select: { id: true, qty: true, unit_cost: true, created_at: true },
+    });
+    for (const m of movements) {
+      const unitCost = m.unit_cost ?? 0;
+      const amount = Math.abs(m.qty) * unitCost;
+      if (amount <= 0) continue;
+      ops.push({
+        kind: 'STOCK_ADJUSTMENT',
+        date: m.created_at.toISOString(),
+        refId: m.id,
+        amount,
+        direction: m.qty >= 0 ? 'INCREASE' : 'DECREASE',
+      });
+    }
+
+    return ops;
   }
 
   /**
