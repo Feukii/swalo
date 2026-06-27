@@ -13,12 +13,38 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowLeftRight, Package, CheckCircle, XCircle } from '../components/icons/SimpleIcons';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  ArrowLeftRight,
+  Package,
+  CheckCircle,
+  XCircle,
+  Upload,
+} from '../components/icons/SimpleIcons';
 import { ScreenHeader, StatusBadge } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
 import { transfersApi } from '../lib/api';
 import type { RootStackParamList } from '../../App';
+
+// Mapping colonne fichier -> champ SWALO (apercu de classification a l'import)
+interface ColumnMapping {
+  fileColumn: string;
+  swaloField: string;
+  required: boolean;
+  example: string;
+}
+
+const CATALOG_MAPPING: ColumnMapping[] = [
+  { fileColumn: 'Famille', swaloField: 'Famille produit', required: true, example: 'Connecti…' },
+  { fileColumn: 'Article', swaloField: 'Article', required: true, example: 'Câble' },
+  { fileColumn: 'Type', swaloField: "Type d'article", required: true, example: 'USB-C' },
+  { fileColumn: 'Marque', swaloField: 'Marque', required: true, example: 'Oraimo' },
+  { fileColumn: 'Cond.', swaloField: 'Conditionnement', required: true, example: 'Carton' },
+  { fileColumn: 'Sous-cond.', swaloField: 'Pièces / cart…', required: true, example: '24' },
+  { fileColumn: 'P. revient', swaloField: 'Prix de revient', required: true, example: '920' },
+  { fileColumn: 'P. vente', swaloField: 'Prix de vente', required: true, example: '1 500' },
+];
 
 interface Transfer {
   id: string;
@@ -67,6 +93,33 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<TransferFilter>('all');
+  // Fichier catalogue selectionne pour l'import (nom affiche dans le chip)
+  const [importFileName, setImportFileName] = useState<string | null>('catalogue_juin.xlsx');
+
+  const handleBrowseFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'text/csv',
+          'text/comma-separated-values',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      setImportFileName(asset.name);
+      // TODO: brancher importApi.previewCatalog/confirmCatalog pour l'import du catalogue
+      Alert.alert('Fichier selectionne', asset.name);
+    } catch {
+      Alert.alert('Erreur', 'Impossible de selectionner le fichier.');
+    }
+  };
 
   const loadTransfers = useCallback(async () => {
     try {
@@ -263,8 +316,8 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
     <View style={styles.container}>
       <StatusBar style="dark" />
       <ScreenHeader
-        title="Transferts"
-        subtitle="Échanges inter-boutiques"
+        title="Transferts & import"
+        subtitle="Inter-boutiques & catalogue"
         showBack={true}
         onBack={() => navigation.goBack()}
       />
@@ -281,6 +334,67 @@ export default function TransfersScreen({ navigation }: TransfersScreenProps) {
           />
         }
       >
+        {/* IMPORT CATALOGUE */}
+        <View style={styles.importSection}>
+          <Text style={styles.sectionHeader}>IMPORT CATALOGUE</Text>
+
+          {/* Dropzone */}
+          <View style={styles.dropzone}>
+            <View style={styles.dropzoneIcon}>
+              <Upload size={26} color={Colors.action} />
+            </View>
+            <Text style={styles.dropzoneTitle}>Importer un fichier CSV / Excel</Text>
+            <Text style={styles.dropzoneHelper}>
+              Glissez votre catalogue ou parcourez vos fichiers. Colonnes détectées automatiquement.
+            </Text>
+            <TouchableOpacity style={styles.browseBtn} onPress={handleBrowseFile}>
+              <Text style={styles.browseBtnText}>Parcourir</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Classification + mapping (visible uniquement si un fichier est selectionne) */}
+          {importFileName ? (
+            <>
+              <View style={styles.classificationRow}>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>2</Text>
+                </View>
+                <Text style={styles.classificationTitle}>Classification obligatoire</Text>
+                <View style={styles.fileChip}>
+                  <Text style={styles.fileChipText} numberOfLines={1}>
+                    {importFileName}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.mappingTable}>
+                <View style={styles.mappingHeaderRow}>
+                  <Text style={[styles.mappingHeaderCell, styles.colFile]}>COLONNE FICHIER</Text>
+                  <Text style={[styles.mappingHeaderCell, styles.colField]}>CHAMP SWALO</Text>
+                  <Text style={[styles.mappingHeaderCell, styles.colExample]}>EXEMPLE</Text>
+                </View>
+                {CATALOG_MAPPING.map(row => (
+                  <View key={row.fileColumn} style={styles.mappingRow}>
+                    <Text style={[styles.mappingFileText, styles.colFile]} numberOfLines={1}>
+                      {row.fileColumn}
+                    </Text>
+                    <View style={[styles.colField, styles.mappingFieldCell]}>
+                      <Text style={styles.mappingArrow}>→</Text>
+                      <Text style={styles.mappingFieldText} numberOfLines={1}>
+                        {row.swaloField}
+                        {row.required ? <Text style={styles.requiredStar}> *</Text> : null}
+                      </Text>
+                    </View>
+                    <Text style={[styles.mappingExampleText, styles.colExample]} numberOfLines={1}>
+                      {row.example}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
+        </View>
+
         {/* HERO MARINE — Transferts en attente */}
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>Transferts en attente</Text>
@@ -350,6 +464,165 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: 96,
     gap: Spacing.xl,
+  },
+  // IMPORT CATALOGUE
+  importSection: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: Colors.textColors.tertiary,
+  },
+  dropzone: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.borderStrong,
+    borderStyle: 'dashed',
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  dropzoneIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  dropzoneTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  dropzoneHelper: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  browseBtn: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.action,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  browseBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  classificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  countBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  classificationTitle: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  fileChip: {
+    maxWidth: 130,
+  },
+  fileChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.action,
+  },
+  mappingTable: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  mappingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  mappingHeaderCell: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: Colors.textColors.tertiary,
+  },
+  mappingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  colFile: {
+    flex: 1.1,
+  },
+  colField: {
+    flex: 1.5,
+  },
+  colExample: {
+    flex: 0.9,
+    textAlign: 'right',
+  },
+  mappingFileText: {
+    fontSize: 13,
+    color: Colors.text,
+  },
+  mappingFieldCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mappingArrow: {
+    fontSize: 13,
+    color: Colors.success.main,
+    fontWeight: '700',
+  },
+  mappingFieldText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  requiredStar: {
+    color: Colors.danger.main,
+    fontWeight: '700',
+  },
+  mappingExampleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.action,
   },
   // HERO MARINE
   hero: {

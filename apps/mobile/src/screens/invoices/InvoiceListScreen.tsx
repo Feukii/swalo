@@ -9,7 +9,7 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
-import { FileText, Eye } from '../../components/icons/SimpleIcons';
+import { FileText, Printer, Send } from '../../components/icons/SimpleIcons';
 import { ScreenHeader, StatusBadge } from '../../components/ui';
 import { Colors, Spacing, Shadows } from '../../constants/theme-v2';
 import { invoicesApi } from '../../lib/api';
@@ -46,14 +46,22 @@ const STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = 
 };
 
 function formatFCFA(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(amount) + ' F';
 }
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+function formatDueDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
   });
 }
@@ -106,10 +114,8 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
     Alert.alert('Facture', `Facture ${invoice.number}`);
   };
 
-  // Total facturé (hors annulées) — métrique de la carte hero
-  const totalInvoiced = invoices
-    .filter(inv => inv.status !== 'CANCELLED')
-    .reduce((sum, inv) => sum + inv.grand_total, 0);
+  // Facture mise en avant : la plus récente / en tête de liste
+  const featuredInvoice = invoices[0];
 
   const renderStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.DRAFT;
@@ -126,33 +132,75 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
         <FileText size={20} color={Colors.action} />
       </View>
       <View style={styles.invoiceContent}>
-        <View style={styles.invoiceTopRow}>
-          <Text style={styles.invoiceNumber} numberOfLines={1}>
-            {item.number}
-          </Text>
-          {renderStatusBadge(item.status)}
-        </View>
-        <Text style={styles.invoiceCustomer} numberOfLines={1}>
-          {getCustomerName(item.customer)}
+        <Text style={styles.invoiceNumber} numberOfLines={1}>
+          {item.number}
         </Text>
-        <View style={styles.invoiceBottomRow}>
-          <Text style={styles.invoiceDate}>{formatDate(item.created_at)}</Text>
-          <Text style={styles.invoiceAmount}>{formatFCFA(item.grand_total)}</Text>
-        </View>
+        <Text style={styles.invoiceMeta} numberOfLines={1}>
+          {getCustomerName(item.customer)} · {formatDate(item.created_at)}
+        </Text>
       </View>
-      <View style={styles.invoiceAction}>
-        <Eye size={20} color={Colors.action} />
+      <View style={styles.invoiceRight}>
+        <Text style={styles.invoiceAmount}>{formatFCFA(item.grand_total)}</Text>
+        {renderStatusBadge(item.status)}
       </View>
     </TouchableOpacity>
   );
 
-  const renderHero = () => (
-    <View style={styles.hero}>
-      <Text style={styles.heroLabel}>Total facturé</Text>
-      <Text style={styles.heroAmount}>{formatFCFA(totalInvoiced)}</Text>
-      <Text style={styles.heroMeta}>
-        {invoices.length} {invoices.length > 1 ? 'factures' : 'facture'}
-      </Text>
+  const renderFeatured = () => {
+    if (!featuredInvoice) return null;
+    return (
+      <View style={styles.featuredCard}>
+        <View style={styles.featuredTopRow}>
+          <View style={styles.featuredCol}>
+            <Text style={styles.featuredLabel}>FACTURE À</Text>
+            <Text style={styles.featuredClient} numberOfLines={1}>
+              {getCustomerName(featuredInvoice.customer)}
+            </Text>
+          </View>
+          {featuredInvoice.created_at ? (
+            <View style={[styles.featuredCol, styles.featuredColRight]}>
+              <Text style={styles.featuredLabel}>ÉCHÉANCE</Text>
+              <Text style={styles.featuredDue} numberOfLines={1}>
+                {formatDueDate(featuredInvoice.created_at)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.featuredDivider} />
+
+        <View style={styles.featuredBottomRow}>
+          <View style={styles.featuredCol}>
+            <Text style={styles.featuredLabel}>TOTAL DÛ</Text>
+            <Text style={styles.featuredAmount}>{formatFCFA(featuredInvoice.grand_total)}</Text>
+          </View>
+          <View style={styles.featuredActions}>
+            <TouchableOpacity
+              style={styles.featuredPdfBtn}
+              onPress={() => handleInvoicePress(featuredInvoice)}
+              activeOpacity={0.7}
+            >
+              <Printer size={16} color={Colors.action} />
+              <Text style={styles.featuredPdfText}>PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.featuredSendBtn}
+              onPress={() => handleInvoicePress(featuredInvoice)}
+              activeOpacity={0.7}
+            >
+              <Send size={16} color={Colors.onMarine} />
+              <Text style={styles.featuredSendText}>Envoyer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderListHeader = () => (
+    <View>
+      {renderFeatured()}
+      <Text style={styles.sectionHeader}>TOUTES LES FACTURES · {invoices.length}</Text>
     </View>
   );
 
@@ -170,7 +218,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
     <View style={styles.container}>
       <ScreenHeader
         title="Factures"
-        subtitle="Documents de vente"
+        subtitle="Émission & suivi"
         showBack={true}
         onBack={() => navigation.goBack()}
       />
@@ -185,7 +233,7 @@ export default function InvoiceListScreen({ navigation }: InvoiceListScreenProps
           data={invoices}
           keyExtractor={item => item.id}
           renderItem={renderInvoiceItem}
-          ListHeaderComponent={invoices.length > 0 ? renderHero : null}
+          ListHeaderComponent={invoices.length > 0 ? renderListHeader : null}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={
             invoices.length === 0 ? styles.emptyListContent : styles.listContent
@@ -228,38 +276,111 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
   },
-  // HERO MARINE
-  hero: {
-    backgroundColor: Colors.primary[900],
+  // CARTE FACTURE EN AVANT
+  featuredCard: {
+    backgroundColor: Colors.surface,
     borderRadius: 20,
     padding: Spacing.xl,
     marginBottom: Spacing.lg,
+    ...Shadows.sm,
   },
-  heroLabel: {
+  featuredTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  featuredCol: {
+    flexShrink: 1,
+  },
+  featuredColRight: {
+    alignItems: 'flex-end',
+    marginLeft: Spacing.md,
+  },
+  featuredLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.muted.foreground,
+    letterSpacing: 0.5,
+  },
+  featuredClient: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  featuredDue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  featuredDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.lg,
+  },
+  featuredBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  featuredAmount: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: Colors.text,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+  },
+  featuredActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  featuredPdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  featuredPdfText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.action,
   },
-  heroAmount: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: Colors.onMarine,
-    marginTop: Spacing.xs,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
+  featuredSendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    backgroundColor: Colors.action,
   },
-  heroMeta: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: Spacing.xs,
+  featuredSendText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  // EN-TÊTE DE SECTION
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.muted.foreground,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.md,
   },
   invoiceItem: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: Spacing.lg,
-    alignItems: 'flex-start',
+    alignItems: 'center',
     ...Shadows.sm,
   },
   invoiceIconContainer: {
@@ -273,48 +394,27 @@ const styles = StyleSheet.create({
   },
   invoiceContent: {
     flex: 1,
-  },
-  invoiceTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    marginRight: Spacing.sm,
   },
   invoiceNumber: {
     fontSize: 15,
     fontWeight: '600',
     color: Colors.text,
-    flex: 1,
-    marginRight: Spacing.sm,
   },
-  invoiceCustomer: {
-    fontSize: 14,
-    color: Colors.textColors.secondary,
-    marginBottom: 6,
-  },
-  invoiceBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  invoiceDate: {
+  invoiceMeta: {
     fontSize: 13,
     color: Colors.muted.foreground,
+    marginTop: 2,
+  },
+  invoiceRight: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   invoiceAmount: {
     fontSize: 15,
     fontWeight: '700',
     color: Colors.primary[900],
     fontVariant: ['tabular-nums'],
-  },
-  invoiceAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.info.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: Spacing.sm,
   },
   separator: {
     height: Spacing.md,

@@ -15,11 +15,12 @@ import {
   Clock,
   Receipt,
   RefreshCw,
-  ArrowUp,
   ArrowLeftRight,
   Store,
   Lock,
   Bell,
+  AlertTriangle,
+  FileText,
   ChevronRight,
   IconProps,
 } from '../components/icons/SimpleIcons';
@@ -78,14 +79,15 @@ const MENU_SECTIONS: MenuSection[] = [
     items: [
       {
         icon: Users,
-        title: 'Clients',
+        title: 'Clients & créances',
         screen: 'Customers',
         module: 'customers',
         tint: Colors.warning.main,
+        showRelanceBadge: true,
       },
       {
         icon: Building,
-        title: 'Fournisseurs',
+        title: 'Fournisseurs & dettes',
         screen: 'Suppliers',
         module: 'suppliers',
         tint: Colors.danger.main,
@@ -100,22 +102,8 @@ const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
-    title: 'Finances',
+    title: 'Pilotage',
     items: [
-      {
-        icon: RefreshCw,
-        title: 'Créances',
-        screen: 'CustomerBalancesSummary',
-        module: 'receivables',
-        tint: Colors.warning.main,
-      },
-      {
-        icon: ArrowUp,
-        title: 'Dettes fournisseurs',
-        screen: 'SupplierBalancesSummary',
-        module: 'debts',
-        tint: Colors.danger.main,
-      },
       {
         icon: BarChart3,
         title: 'Rapports',
@@ -124,10 +112,15 @@ const MENU_SECTIONS: MenuSection[] = [
         tint: Colors.primary.main,
       },
       {
-        icon: Clock,
-        title: 'Historique des transactions',
-        screen: 'TransactionHistory',
-        module: 'sales',
+        icon: AlertTriangle,
+        title: 'Supervision',
+        screen: 'Supervision',
+        tint: Colors.danger.main,
+      },
+      {
+        icon: FileText,
+        title: 'Comptabilité',
+        screen: 'Comptability',
         tint: Colors.tertiary,
       },
       {
@@ -136,6 +129,13 @@ const MENU_SECTIONS: MenuSection[] = [
         screen: 'InvoiceList',
         module: 'invoices',
         tint: Colors.action,
+      },
+      {
+        icon: Clock,
+        title: 'Historique des transactions',
+        screen: 'TransactionHistory',
+        module: 'sales',
+        tint: Colors.tertiary,
       },
     ],
   },

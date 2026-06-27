@@ -21,6 +21,8 @@ import ReminderSettings from './pages/ReminderSettings';
 import Debts from './pages/Debts';
 import TransactionHistory from './pages/TransactionHistory';
 import BusinessReports from './pages/BusinessReports';
+import Accounting from './pages/Accounting';
+import Supervision from './pages/Supervision';
 import PackagingTypes from './pages/PackagingTypes';
 import Invoices from './pages/Invoices';
 import UserManagement from './pages/UserManagement';
@@ -251,6 +253,26 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <BusinessReports />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/accounting"
+          element={
+            <ProtectedRoute requireRole={['BOSS', 'MANAGER']}>
+              <MainLayout>
+                <Accounting />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/supervision"
+          element={
+            <ProtectedRoute requireRole={['BOSS', 'MANAGER']}>
+              <MainLayout>
+                <Supervision />
               </MainLayout>
             </ProtectedRoute>
           }

@@ -84,4 +84,38 @@ export class ReportsController {
     if (endDate) filters.end_date = endDate;
     return this.reportsService.getOverview(user.shopId, filters);
   }
+
+  /**
+   * GET /api/reports/accounting
+   * Comptabilité : bilan + compte de résultat + journal (filtré par période)
+   */
+  @Get('accounting')
+  @Roles(Role.BOSS, Role.MANAGER)
+  getAccountingReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.reportsService.getAccountingReport(user.shopId, filters);
+  }
+
+  /**
+   * GET /api/reports/supervision
+   * Supervision : journal des actions anormales (par défaut le jour)
+   */
+  @Get('supervision')
+  @Roles(Role.BOSS, Role.MANAGER)
+  getSupervisionReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.reportsService.getSupervisionReport(user.shopId, filters);
+  }
 }

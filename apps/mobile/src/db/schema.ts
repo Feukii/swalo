@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'swalo.db';
 /** Current target schema version (see runMigrations). Kept for documentation. */
-const _DB_VERSION = 6;
+const _DB_VERSION = 7;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 /**
@@ -144,6 +144,8 @@ async function initDatabaseInner(): Promise<void> {
       device_id TEXT,
       client_op_id TEXT,
       packaging_type_id TEXT,
+      units_per_package INTEGER,
+      package_price INTEGER,
       _sync_status TEXT NOT NULL DEFAULT 'synced',
       _server_id TEXT,
       _last_synced_at TEXT
@@ -763,6 +765,22 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       // Column already exists, ignore
     }
     await db.runAsync('UPDATE _schema_version SET version = 6');
+  }
+
+  if (currentVersion < 7) {
+    // Migration v7: Add packaging quantity/price to products (conditionnement multi-prix)
+    const alterStatements = [
+      'ALTER TABLE products ADD COLUMN units_per_package INTEGER;',
+      'ALTER TABLE products ADD COLUMN package_price INTEGER;',
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await db.execAsync(stmt);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 7');
   }
 }
 

@@ -21,6 +21,8 @@ import EnterpriseClients from './pages/console/EnterpriseClients';
 import EnterpriseSuppliers from './pages/console/EnterpriseSuppliers';
 import EnterpriseReports from './pages/console/EnterpriseReports';
 import EnterprisePermissions from './pages/console/EnterprisePermissions';
+import EnterpriseAccounting from './pages/console/EnterpriseAccounting';
+import EnterpriseSupervision from './pages/console/EnterpriseSupervision';
 import './App.css';
 
 function App() {
@@ -160,6 +162,8 @@ function App() {
           <Route path="products" element={<EnterpriseProducts />} />
           <Route path="clients" element={<EnterpriseClients />} />
           <Route path="suppliers" element={<EnterpriseSuppliers />} />
+          <Route path="accounting" element={<EnterpriseAccounting />} />
+          <Route path="supervision" element={<EnterpriseSupervision />} />
           <Route path="permissions" element={<EnterprisePermissions />} />
         </Route>
 

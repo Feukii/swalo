@@ -268,7 +268,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       >
         {/* Carte HERO — Dettes fournisseurs */}
         <View style={styles.hero}>
-          <Text style={styles.heroLabel}>Dettes fournisseurs</Text>
+          <Text style={styles.heroLabel}>Dettes fournisseurs en cours</Text>
           <Text style={styles.heroAmount}>{formatFcfa(totalDebt)}</Text>
           <Text style={styles.heroSub}>
             {debtorCount} {debtorCount > 1 ? 'fournisseurs à payer' : 'fournisseur à payer'}
@@ -307,8 +307,6 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
             const borrowingLimitValue = supplier.borrowing_limit ?? 0;
             const hasLimit = borrowingLimitValue > 0 && balance > 0;
             const ratio = hasLimit ? Math.min(balance / borrowingLimitValue, 1) : 0;
-            const nearLimit = ratio >= 0.8;
-            const isActive = Boolean(supplier.is_active);
 
             return (
               <TouchableOpacity
@@ -329,21 +327,6 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                       <Text style={styles.supplierName} numberOfLines={1}>
                         {fullName}
                       </Text>
-                      <View
-                        style={[
-                          styles.statusChip,
-                          isActive ? styles.statusChipActive : styles.statusChipInactive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusChipText,
-                            isActive ? styles.statusChipTextActive : styles.statusChipTextInactive,
-                          ]}
-                        >
-                          {isActive ? 'Actif' : 'Inactif'}
-                        </Text>
-                      </View>
                     </View>
                     {supplier.phone ? (
                       <Text style={styles.supplierPhone} numberOfLines={1}>
@@ -365,7 +348,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                       </>
                     ) : (
                       <>
-                        <Text style={styles.amountOk}>À jour</Text>
+                        <Text style={styles.amountOk}>{formatFcfa(0)}</Text>
                         <Text style={styles.statusOk}>Soldé</Text>
                       </>
                     )}
@@ -380,13 +363,13 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                           styles.progressFill,
                           {
                             width: `${ratio * 100}%`,
-                            backgroundColor: nearLimit ? Colors.danger.main : Colors.success.main,
+                            backgroundColor: Colors.action,
                           },
                         ]}
                       />
                     </View>
                     <View style={styles.limitLabels}>
-                      <Text style={styles.limitText}>Limite d'endettement</Text>
+                      <Text style={styles.limitText}>Plafond d'emprunt</Text>
                       <Text style={styles.limitText}>{formatFcfa(borrowingLimitValue)}</Text>
                     </View>
                   </View>
@@ -510,7 +493,7 @@ const styles = StyleSheet.create({
   },
   // Hero
   hero: {
-    backgroundColor: Colors.primary[900],
+    backgroundColor: '#4A1414',
     borderRadius: 20,
     padding: Spacing.xl,
     marginBottom: Spacing.lg,
@@ -519,7 +502,7 @@ const styles = StyleSheet.create({
   heroLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary[300],
+    color: 'rgba(255, 255, 255, 0.85)',
     marginBottom: Spacing.xs,
   },
   heroAmount: {
@@ -594,27 +577,6 @@ const styles = StyleSheet.create({
     color: Colors.textColors.tertiary,
     marginTop: 1,
   },
-  statusChip: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  statusChipActive: {
-    backgroundColor: Colors.success.background,
-  },
-  statusChipInactive: {
-    backgroundColor: Colors.muted.main,
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  statusChipTextActive: {
-    color: Colors.success.text,
-  },
-  statusChipTextInactive: {
-    color: Colors.muted.foreground,
-  },
   amountBlock: {
     alignItems: 'flex-end',
   },
@@ -641,14 +603,14 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   amountOk: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.success.main,
+    color: Colors.textColors.tertiary,
   },
   statusOk: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.success.main,
+    color: Colors.textColors.tertiary,
     marginTop: 1,
   },
   // Borrowing limit progress

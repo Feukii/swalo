@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +21,11 @@ import {
   DollarSign,
   CreditCard,
   ChevronRight,
+  FileText,
+  Calendar,
+  Smartphone,
+  Send,
+  Mail,
   IconProps,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, SearchableSelect, DatePickerField } from '../components/ui';
@@ -28,7 +34,14 @@ import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import { useResponsive } from '../hooks/useResponsive';
-import { productRepo, customerRepo, stockBatchRepo, LocalProduct } from '../db/repositories';
+import {
+  productRepo,
+  customerRepo,
+  stockBatchRepo,
+  packagingTypeRepo,
+  LocalProduct,
+  LocalPackagingType,
+} from '../db/repositories';
 import { checkCreditLimit } from '../utils/creditCheck';
 import {
   createSaleOffline,
@@ -57,6 +70,16 @@ interface SaleProduct extends LocalProduct {
   is_multi_price?: boolean;
   price_min?: number;
   price_max?: number;
+}
+
+// Info de conditionnement dérivée des données réelles (jamais inventée).
+// `qty` n'est renseignée que si un nombre est réellement présent dans le
+// nom/symbole du type d'emballage (ex. "Carton 24"). Sinon on n'affiche
+// que le libellé du conditionnement.
+interface PackagingInfo {
+  name: string;
+  symbol: string | null;
+  qty: number | null;
 }
 
 // Client utilisable dans l'écran de vente (client comptant par défaut + clients locaux)
@@ -93,8 +116,21 @@ export default function SaleScreen() {
   // Date d'échéance (ISO) — OBLIGATOIRE pour une vente à crédit (notifications serveur).
   const [dueDate, setDueDate] = useState<string>('');
 
+  // Génération de facture PDF à la validation (toggle de la maquette, ON par défaut).
+  const [generateInvoice, setGenerateInvoice] = useState(true);
+
+  // Canaux de relance choisis pour une vente à crédit (maquette "Canaux de relance").
+  const [reminderChannels, setReminderChannels] = useState<{
+    sms: boolean;
+    wa: boolean;
+    email: boolean;
+  }>({ sms: true, wa: true, email: false });
+
   // Clients disponibles (chargés depuis local DB + API)
   const [customers, setCustomers] = useState<SaleCustomer[]>([]);
+
+  // Types de conditionnement (emballages) chargés depuis la DB locale.
+  const [packagingTypes, setPackagingTypes] = useState<LocalPackagingType[]>([]);
 
   // Produits disponibles (chargés depuis local DB + API)
   const [products, setProducts] = useState<SaleProduct[]>([]);
@@ -115,12 +151,27 @@ export default function SaleScreen() {
       const enriched: SaleProduct[] = await Promise.all(
         localProducts.map(async p => {
           const totalStock = await stockBatchRepo.getTotalStock(shopId, p.id);
-          return { ...p, current_stock: totalStock };
+          // packaging_type_id existe en colonne DB (SELECT *) même s'il n'est
+          // pas dans l'interface LocalProduct — on le récupère explicitement.
+          const packagingTypeId =
+            (p as LocalProduct & { packaging_type_id?: string | null }).packaging_type_id ?? null;
+          return { ...p, current_stock: totalStock, packaging_type_id: packagingTypeId };
         })
       );
       setProducts(enriched);
     } catch (error) {
       console.error('Erreur chargement produits:', error);
+    }
+  }, [shopId]);
+
+  // Offline-first: Load packaging types from local SQLite
+  const loadPackagingTypes = useCallback(async () => {
+    if (!shopId) return;
+    try {
+      const types = await packagingTypeRepo.getAll(shopId, { orderBy: 'name ASC' });
+      setPackagingTypes(types);
+    } catch (error) {
+      console.error('Erreur chargement conditionnements:', error);
     }
   }, [shopId]);
 
@@ -143,13 +194,15 @@ export default function SaleScreen() {
   useEffect(() => {
     loadProducts();
     loadCustomers();
-  }, [loadProducts, loadCustomers]);
+    loadPackagingTypes();
+  }, [loadProducts, loadCustomers, loadPackagingTypes]);
 
   useFocusEffect(
     useCallback(() => {
       loadProducts();
       loadCustomers();
-    }, [loadProducts, loadCustomers])
+      loadPackagingTypes();
+    }, [loadProducts, loadCustomers, loadPackagingTypes])
   );
 
   // Quand on change de client, vérifier si crédit est valide
@@ -281,6 +334,29 @@ export default function SaleScreen() {
     }
   };
 
+  // Sélection d'un conditionnement complet (ex. Carton de 24) : ajoute `qty`
+  // pièces au prix/pièce du pack (total ligne = prix du conditionnement).
+  const handlePackSelection = (product: SaleProduct, qty: number, perPiece: number) => {
+    if (qty > product.current_stock) {
+      Alert.alert('Stock insuffisant', `Stock disponible: ${product.current_stock} unités`);
+      return;
+    }
+    const productName = product.name || `${product.family} ${product.article_type}`;
+    setCart(prev => [
+      ...prev,
+      {
+        productId: product.id,
+        productName: `${productName} (×${qty})`,
+        quantity: qty,
+        unitPrice: perPiece,
+        batchId: undefined,
+      },
+    ]);
+    setShowPriceModal(false);
+    setPriceModalProduct(null);
+    setPriceOptions([]);
+  };
+
   const handlePriceSelection = (priceOption: PriceOption) => {
     if (!priceModalProduct) return;
     const productName =
@@ -401,9 +477,11 @@ export default function SaleScreen() {
       Alert.alert('Accès non autorisé', "Vous n'êtes pas autorisé à enregistrer une vente.");
       return;
     }
+    // Client par défaut = comptant (la vente cash n'exige pas de client choisi).
+    const customerId = selectedCustomer || 'cash';
     // Validations
-    if (!selectedCustomer) {
-      Alert.alert('Client requis', 'Veuillez sélectionner un client');
+    if (cart.length === 0) {
+      Alert.alert('Panier vide', 'Ajoutez des produits avant de valider');
       return;
     }
     if (effectiveTotal <= 0) {
@@ -418,7 +496,7 @@ export default function SaleScreen() {
     }
 
     // Vérifier qu'on ne peut pas vendre à crédit à un client comptant
-    if (paymentMethod === 'credit' && selectedCustomer === 'cash') {
+    if (paymentMethod === 'credit' && customerId === 'cash') {
       Alert.alert(
         'Client requis',
         'Impossible de vendre à crédit à un client comptant.\nVeuillez sélectionner un client enregistré.'
@@ -438,7 +516,7 @@ export default function SaleScreen() {
     setIsSubmitting(true);
 
     try {
-      const customer = customers.find(c => c.id === selectedCustomer);
+      const customer = customers.find(c => c.id === customerId);
       const customerName = customer
         ? customer.first_name
           ? `${customer.first_name} ${customer.name}`
@@ -457,7 +535,7 @@ export default function SaleScreen() {
         // Vérifier le plafond de crédit du client
         const creditError = await checkCreditLimit(
           shopId,
-          selectedCustomer,
+          customerId,
           customer?.credit_limit || 0,
           amount
         );
@@ -467,12 +545,18 @@ export default function SaleScreen() {
           return;
         }
 
+        // On joint les canaux de relance choisis aux notes de la créance.
+        const channelsSummary = reminderChannelsSummary();
+        const receivableNotes = channelsSummary
+          ? `${itemsDescription}\nRelances: ${channelsSummary}`
+          : itemsDescription;
+
         await createReceivableOffline({
           shopId,
-          customerId: selectedCustomer,
+          customerId,
           amount: amount,
           description: `Vente à crédit - ${getTotalItems()} article(s)`,
-          notes: itemsDescription,
+          notes: receivableNotes,
           dueDate,
         });
       } else {
@@ -484,7 +568,7 @@ export default function SaleScreen() {
           category: 'vente',
           amount: amount,
           note: `Vente espèces - ${getTotalItems()} article(s): ${itemsDescription}`,
-          customerId: selectedCustomer !== 'cash' ? selectedCustomer : undefined,
+          customerId: customerId !== 'cash' ? customerId : undefined,
         });
       }
 
@@ -492,7 +576,7 @@ export default function SaleScreen() {
       await createSaleOffline({
         shopId,
         cashierId: userId,
-        customerId: selectedCustomer !== 'cash' ? selectedCustomer : null,
+        customerId: customerId !== 'cash' ? customerId : null,
         paymentMethod,
         grandTotal: amount,
         items: cart.map(item => {
@@ -539,7 +623,7 @@ export default function SaleScreen() {
             code: shop?.code || '',
           },
           customer:
-            selectedCustomer !== 'cash' && customer
+            customerId !== 'cash' && customer
               ? {
                   name: customer.first_name
                     ? `${customer.first_name} ${customer.name}`
@@ -557,31 +641,38 @@ export default function SaleScreen() {
         };
       };
 
-      const handleGenerateInvoice = () => {
-        const invoiceData = buildInvoiceData();
-        showInvoiceActions(invoiceData);
-      };
+      // Génération de facture pilotée par le toggle "Générer une facture".
+      // Si activé, on ouvre directement les actions de facture (partage/PDF) ;
+      // sinon on propose tout de même un bouton "Facture" dans le récapitulatif.
+      const invoiceButtons = generateInvoice
+        ? [{ text: 'OK', onPress: resetForm }]
+        : [
+            {
+              text: 'Facture',
+              onPress: () => {
+                showInvoiceActions(buildInvoiceData());
+                resetForm();
+              },
+            },
+            { text: 'OK', onPress: resetForm },
+          ];
 
-      // Message de succès selon le mode de paiement
-      const invoiceButton = {
-        text: 'Facture',
-        onPress: () => {
-          handleGenerateInvoice();
-          resetForm();
-        },
-      };
+      if (generateInvoice) {
+        // Le toggle est ON : on génère la facture immédiatement.
+        showInvoiceActions(buildInvoiceData());
+      }
 
       if (paymentMethod === 'credit') {
         Alert.alert(
           'Vente a credit enregistree',
           `Client: ${customerName}\nMontant: ${formatMoney(amount)}\n\n✓ Creance creee\n✓ Stock mis a jour\n\nLe solde caisse n'est pas impacte.`,
-          [invoiceButton, { text: 'OK', onPress: resetForm }]
+          invoiceButtons
         );
       } else {
         Alert.alert(
           'Vente enregistree',
           `Client: ${customerName}\nMontant: ${formatMoney(amount)}\nMode: Especes\n\n✓ Entree caisse creee\n✓ Stock mis a jour\n✓ Solde caisse +${formatMoney(amount)}`,
-          [invoiceButton, { text: 'OK', onPress: resetForm }]
+          invoiceButtons
         );
       }
 
@@ -605,6 +696,8 @@ export default function SaleScreen() {
     setSelectedCustomer('');
     setPaymentMethod('cash');
     setDueDate('');
+    setGenerateInvoice(true);
+    setReminderChannels({ sms: true, wa: true, email: false });
     setShowPaymentModal(false);
   };
 
@@ -653,6 +746,36 @@ export default function SaleScreen() {
     product.name ||
     [product.article_type, product.brand].filter(Boolean).join(' ') ||
     product.family;
+
+  // Index rapide des conditionnements par id (recalculé quand la liste change).
+  const packagingById = useMemo(() => {
+    const map = new Map<string, LocalPackagingType>();
+    packagingTypes.forEach(pt => map.set(pt.id, pt));
+    return map;
+  }, [packagingTypes]);
+
+  // Conditionnement "non trivial" d'un produit : on ignore les unités de base
+  // (Pièce/Unité) qui ne représentent pas un vrai conditionnement groupé.
+  const TRIVIAL_PACKAGING = ['pièce', 'piece', 'unité', 'unite', 'u'];
+  const packagingFor = (product: SaleProduct): PackagingInfo | null => {
+    if (!product.packaging_type_id) return null;
+    const pt = packagingById.get(product.packaging_type_id);
+    if (!pt) return null;
+    const nameKey = pt.name.trim().toLowerCase();
+    if (TRIVIAL_PACKAGING.includes(nameKey)) return null;
+    // Quantité par conditionnement : champ produit `units_per_package` en priorité
+    // (source de vérité), sinon nombre réellement présent dans le nom/symbole.
+    let qty = product.units_per_package ?? null;
+    if (!qty) {
+      const qtyMatch = `${pt.name} ${pt.symbol ?? ''}`.match(/\d+/);
+      qty = qtyMatch ? parseInt(qtyMatch[0], 10) : null;
+    }
+    return { name: pt.name, symbol: pt.symbol, qty };
+  };
+
+  // Libellé d'un badge de conditionnement (ex. "Carton ×24" ou "Carton").
+  const packagingBadgeLabel = (pkg: PackagingInfo): string =>
+    pkg.qty ? `${pkg.name} ×${pkg.qty}` : pkg.name;
 
   // Total d'une ligne panier (présentation uniquement, mêmes prix que computedTotal).
   const lineTotal = (item: CartItem) => {
@@ -710,10 +833,24 @@ export default function SaleScreen() {
 
   // Raccourcis d'échéance proposés au vendeur.
   const dueDatePresets: Array<{ label: string; days: number }> = [
-    { label: '+7j', days: 7 },
-    { label: '+15j', days: 15 },
-    { label: '+30j', days: 30 },
+    { label: '7 jours', days: 7 },
+    { label: '15 jours', days: 15 },
+    { label: '30 jours', days: 30 },
   ];
+
+  // Bascule un canal de relance (SMS / WhatsApp / email).
+  const toggleReminderChannel = (channel: 'sms' | 'wa' | 'email') => {
+    setReminderChannels(prev => ({ ...prev, [channel]: !prev[channel] }));
+  };
+
+  // Résumé texte des canaux de relance actifs (joint aux notes de la créance).
+  const reminderChannelsSummary = (): string => {
+    const active: string[] = [];
+    if (reminderChannels.sms) active.push('SMS');
+    if (reminderChannels.wa) active.push('WhatsApp');
+    if (reminderChannels.email) active.push('Email');
+    return active.join(', ');
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -773,6 +910,7 @@ export default function SaleScreen() {
           {filteredProducts.map(product => {
             const stock = product.current_stock || 0;
             const lowStock = product.alert_threshold > 0 && stock <= product.alert_threshold;
+            const packaging = packagingFor(product);
             return (
               <TouchableOpacity
                 key={product.id}
@@ -793,6 +931,13 @@ export default function SaleScreen() {
                   <Text style={[styles.productStock, lowStock && styles.productStockLow]}>
                     {stock} en stock
                   </Text>
+                  {packaging && (
+                    <View style={styles.packagingBadge}>
+                      <Text style={styles.packagingBadgeText} numberOfLines={1}>
+                        {packagingBadgeLabel(packaging)}
+                      </Text>
+                    </View>
+                  )}
                   {product.is_multi_price && (
                     <View style={styles.multiPriceBadge}>
                       <Text style={styles.multiPriceBadgeText}>MULTI-PRIX</Text>
@@ -915,7 +1060,7 @@ export default function SaleScreen() {
               ))}
             </ScrollView>
 
-            {/* Ajouter un client */}
+            {/* Ajouter un client (ouvre le sélecteur + options de prix) */}
             <TouchableOpacity style={styles.addCustomerRow} onPress={handleCheckout}>
               <View style={styles.addCustomerIcon}>
                 <Plus size={16} color={Colors.action} />
@@ -927,6 +1072,24 @@ export default function SaleScreen() {
               </Text>
               <ChevronRight size={20} color={Colors.muted.foreground} />
             </TouchableOpacity>
+
+            {/* Générer une facture (toggle, ON par défaut) */}
+            <View style={styles.invoiceRow}>
+              <View style={styles.invoiceIcon}>
+                <FileText size={18} color={Colors.action} />
+              </View>
+              <View style={styles.invoiceTextWrap}>
+                <Text style={styles.invoiceTitle}>Générer une facture</Text>
+                <Text style={styles.invoiceSubtitle}>PDF numéroté · prêt à envoyer</Text>
+              </View>
+              <Switch
+                value={generateInvoice}
+                onValueChange={setGenerateInvoice}
+                trackColor={{ false: Colors.muted.main, true: Colors.action }}
+                thumbColor={Colors.surface}
+                ios_backgroundColor={Colors.muted.main}
+              />
+            </View>
 
             {/* Toggle paiement Cash / Crédit */}
             <View style={styles.segment}>
@@ -960,21 +1123,145 @@ export default function SaleScreen() {
               })}
             </View>
 
-            {/* Grand bouton Encaisser — désactivé sans la capacité sales.create */}
-            <TouchableOpacity
-              style={[styles.encaisserButton, !canCreateSale && styles.encaisserButtonDisabled]}
-              onPress={handleCheckout}
-              disabled={!canCreateSale}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.encaisserButtonText}>
-                {!canCreateSale
-                  ? 'Accès non autorisé'
-                  : paymentMethod === 'credit'
-                    ? 'Encaisser à crédit'
-                    : 'Encaisser en cash'}
-              </Text>
-            </TouchableOpacity>
+            {/* Bloc crédit inline (carte crème/orange) — visible en mode Crédit */}
+            {paymentMethod === 'credit' && (
+              <View style={styles.creditCard}>
+                <View style={styles.creditCardHeading}>
+                  <Calendar size={16} color={Colors.warning.text} />
+                  <Text style={styles.creditCardHeadingText}>Date d'échéance *</Text>
+                </View>
+
+                {/* Raccourcis d'échéance */}
+                <View style={styles.dueDatePresets}>
+                  {dueDatePresets.map(preset => {
+                    const iso = isoInDays(preset.days);
+                    const active = dueDateKey(dueDate) === dueDateKey(iso);
+                    return (
+                      <TouchableOpacity
+                        key={preset.days}
+                        style={[styles.dueDateChip, active && styles.dueDateChipActive]}
+                        onPress={() => setDueDate(iso)}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={[styles.dueDateChipText, active && styles.dueDateChipTextActive]}
+                        >
+                          {preset.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Sélecteur de date (calendrier) */}
+                <DatePickerField
+                  value={dueDateKey(dueDate)}
+                  onChange={handleDueDateSelect}
+                  placeholder="Choisir une date d'échéance"
+                  minDate={today}
+                />
+
+                {dueDate ? (
+                  <Text style={styles.dueDateSelected}>Échéance : {formatDueDate(dueDate)}</Text>
+                ) : (
+                  <Text style={styles.echeanceEmpty}>Aucune échéance choisie</Text>
+                )}
+
+                {/* Canaux de relance */}
+                <Text style={styles.channelsLabel}>Canaux de relance</Text>
+                <View style={styles.channelsRow}>
+                  <TouchableOpacity
+                    style={[styles.channelPill, reminderChannels.sms && styles.channelPillSms]}
+                    onPress={() => toggleReminderChannel('sms')}
+                    activeOpacity={0.85}
+                  >
+                    <Smartphone
+                      size={14}
+                      color={reminderChannels.sms ? Colors.onMarine : Colors.textColors.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.channelPillText,
+                        reminderChannels.sms && styles.channelPillTextActive,
+                      ]}
+                    >
+                      SMS
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.channelPill, reminderChannels.wa && styles.channelPillWa]}
+                    onPress={() => toggleReminderChannel('wa')}
+                    activeOpacity={0.85}
+                  >
+                    <Send
+                      size={14}
+                      color={reminderChannels.wa ? Colors.onMarine : Colors.textColors.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.channelPillText,
+                        reminderChannels.wa && styles.channelPillTextActive,
+                      ]}
+                    >
+                      WA
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.channelPill,
+                      reminderChannels.email ? styles.channelPillEmailOn : styles.channelPillOff,
+                    ]}
+                    onPress={() => toggleReminderChannel('email')}
+                    activeOpacity={0.85}
+                  >
+                    <Mail
+                      size={14}
+                      color={reminderChannels.email ? Colors.onMarine : Colors.textColors.disabled}
+                    />
+                    <Text
+                      style={[
+                        styles.channelPillText,
+                        reminderChannels.email
+                          ? styles.channelPillTextActive
+                          : styles.channelPillTextOff,
+                      ]}
+                    >
+                      @ {reminderChannels.email ? 'on' : 'off'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* CTA final — Cash : encaisse direct ; Crédit : nécessite une échéance */}
+            {(() => {
+              const creditMode = paymentMethod === 'credit';
+              const disabled = !canCreateSale || isSubmitting || (creditMode && !dueDate);
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.encaisserButton,
+                    creditMode && styles.validerCreditButton,
+                    disabled && styles.encaisserButtonDisabled,
+                  ]}
+                  onPress={confirmSale}
+                  disabled={disabled}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.encaisserButtonText}>
+                    {!canCreateSale
+                      ? 'Accès non autorisé'
+                      : isSubmitting
+                        ? 'Enregistrement…'
+                        : creditMode
+                          ? 'Valider à crédit'
+                          : 'Encaisser en cash'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -988,7 +1275,7 @@ export default function SaleScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Finaliser la vente</Text>
+            <Text style={styles.modalTitle}>Client & prix</Text>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Cart Summary */}
@@ -1070,130 +1357,16 @@ export default function SaleScreen() {
                 </View>
               )}
 
-              {/* Payment Method */}
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Mode de paiement</Text>
-                <View style={styles.paymentMethods}>
-                  {paymentMethods.map(method => {
-                    const IconComponent = method.icon;
-                    const isDisabled = method.disabled;
-                    const isActive = paymentMethod === method.key;
-
-                    return (
-                      <TouchableOpacity
-                        key={method.key}
-                        style={[
-                          styles.paymentMethod,
-                          isActive && styles.paymentMethodActive,
-                          isDisabled && styles.paymentMethodDisabled,
-                        ]}
-                        onPress={() => !isDisabled && setPaymentMethod(method.key)}
-                        disabled={isDisabled}
-                      >
-                        <IconComponent
-                          size={20}
-                          color={
-                            isDisabled
-                              ? Colors.muted.foreground
-                              : isActive
-                                ? Colors.action
-                                : Colors.text
-                          }
-                        />
-                        <Text
-                          style={[
-                            styles.paymentMethodText,
-                            isActive && styles.paymentMethodTextActive,
-                            isDisabled && styles.paymentMethodTextDisabled,
-                          ]}
-                        >
-                          {method.label}
-                        </Text>
-                        {method.key === 'credit' && isDisabled && (
-                          <Text style={styles.paymentMethodHint}>(client requis)</Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Date d'échéance (obligatoire en crédit) */}
-              {paymentMethod === 'credit' && (
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Date d'échéance de remboursement *</Text>
-                  <Text style={styles.dueDateSubLabel}>Quand le client doit-il rembourser ?</Text>
-
-                  {/* Raccourcis rapides */}
-                  <View style={styles.dueDatePresets}>
-                    {dueDatePresets.map(preset => {
-                      const iso = isoInDays(preset.days);
-                      const active = dueDateKey(dueDate) === dueDateKey(iso);
-                      return (
-                        <TouchableOpacity
-                          key={preset.days}
-                          style={[styles.dueDateChip, active && styles.dueDateChipActive]}
-                          onPress={() => setDueDate(iso)}
-                          activeOpacity={0.85}
-                        >
-                          <Text
-                            style={[styles.dueDateChipText, active && styles.dueDateChipTextActive]}
-                          >
-                            {preset.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  {/* Sélecteur de date clair (ouvre un calendrier) */}
-                  <DatePickerField
-                    value={dueDateKey(dueDate)}
-                    onChange={handleDueDateSelect}
-                    placeholder="Choisir une date d'échéance"
-                    minDate={today}
-                  />
-
-                  {dueDate ? (
-                    <Text style={styles.dueDateSelected}>Échéance : {formatDueDate(dueDate)}</Text>
-                  ) : (
-                    <Text style={styles.dueDateHint}>
-                      Choisissez une échéance (raccourci rapide ou calendrier).
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              {/* Credit Warning */}
-              {paymentMethod === 'credit' && (
-                <View style={styles.creditWarning}>
-                  <Text style={styles.creditWarningText}>
-                    Une vente à crédit crée une créance client.{'\n'}
-                    Le solde caisse n'est pas impacté.
-                  </Text>
-                </View>
-              )}
+              {/* Le mode de paiement, l'échéance et les canaux de relance sont
+                  désormais gérés directement dans le bottom-sheet "Encaisser". */}
             </ScrollView>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelButton}
+                style={styles.modalConfirmButton}
                 onPress={() => setShowPaymentModal(false)}
-                disabled={isSubmitting}
               >
-                <Text style={styles.modalCancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  isSubmitting && styles.modalConfirmButtonDisabled,
-                ]}
-                onPress={confirmSale}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.modalConfirmButtonText}>
-                  {isSubmitting ? 'Enregistrement...' : 'Confirmer'}
-                </Text>
+                <Text style={styles.modalConfirmButtonText}>Appliquer</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1212,37 +1385,66 @@ export default function SaleScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Choisir le prix de vente</Text>
+            <Text style={styles.modalTitle}>Conditionnement</Text>
             {priceModalProduct && (
-              <Text style={styles.priceModalProductName}>
-                {priceModalProduct.family} - {priceModalProduct.article_type}{' '}
-                {priceModalProduct.brand}
+              <Text style={styles.condSubtitle}>
+                {productLabel(priceModalProduct)} · choisissez l'unité de vente
               </Text>
             )}
-            <Text style={styles.priceModalHint}>
-              Ce produit a plusieurs prix actifs. Sélectionnez le prix applicable.
-            </Text>
 
             <ScrollView>
-              {priceOptions.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.priceOption}
-                  onPress={() => handlePriceSelection(option)}
-                >
-                  <View style={styles.priceOptionMain}>
-                    <Text style={styles.priceOptionPrice}>{formatMoney(option.sell_price)}</Text>
-                    <Text style={styles.priceOptionStock}>
-                      {option.total_quantity} unités disponibles
-                    </Text>
-                  </View>
-                  <View style={styles.priceOptionBadge}>
-                    <Text style={styles.priceOptionBadgeText}>
-                      {option.batch_count} lot{option.batch_count > 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {/* Conditionnement complet (ex. Carton de 24) — prix de pack réel */}
+              {(() => {
+                if (!priceModalProduct) return null;
+                const pkg = packagingFor(priceModalProduct);
+                const packQty = pkg?.qty ?? null;
+                const packPrice = priceModalProduct.package_price ?? null;
+                if (!pkg || !packQty || !packPrice) return null;
+                const perPiece = Math.round(packPrice / packQty);
+                return (
+                  <TouchableOpacity
+                    style={styles.condRow}
+                    onPress={() => handlePackSelection(priceModalProduct, packQty, perPiece)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.condIcon}>
+                      <Package size={20} color={Colors.success.main} />
+                    </View>
+                    <View style={styles.condInfo}>
+                      <Text style={styles.condTitle}>{pkg.name}</Text>
+                      <Text style={styles.condSub}>
+                        {packQty} {priceModalProduct.unit} · {formatMoney(perPiece)} /{' '}
+                        {priceModalProduct.unit}
+                      </Text>
+                    </View>
+                    <Text style={styles.condPrice}>{formatMoney(packPrice)}</Text>
+                  </TouchableOpacity>
+                );
+              })()}
+
+              {priceOptions.map((option, index) => {
+                const unitTitle = 'Pièce';
+                const lotLabel = `${option.batch_count} lot${option.batch_count > 1 ? 's' : ''}`;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.condRow}
+                    onPress={() => handlePriceSelection(option)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.condIcon}>
+                      <Package size={20} color={Colors.action} />
+                    </View>
+                    <View style={styles.condInfo}>
+                      <Text style={styles.condTitle}>{unitTitle}</Text>
+                      <Text style={styles.condSub}>
+                        {option.total_quantity} en stock · {lotLabel}
+                      </Text>
+                    </View>
+                    <Text style={styles.condPrice}>{formatMoney(option.sell_price)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
             <TouchableOpacity
@@ -1391,6 +1593,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
     color: Colors.action,
+  },
+  // Badge de conditionnement (teal/vert) — distinct du badge MULTI-PRIX bleu.
+  packagingBadge: {
+    backgroundColor: Colors.success.background,
+    borderWidth: 1,
+    borderColor: Colors.success.main,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  packagingBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    color: Colors.success.text,
   },
   emptyProducts: {
     flex: 1,
@@ -1912,5 +2129,162 @@ const styles = StyleSheet.create({
   textArea: {
     height: 60,
     textAlignVertical: 'top',
+  },
+  // --- Toggle "Générer une facture" (sheet Encaisser) ---
+  invoiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  invoiceIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  invoiceTextWrap: {
+    flex: 1,
+  },
+  invoiceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  invoiceSubtitle: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  // --- Bloc crédit inline (carte crème/orange) ---
+  creditCard: {
+    backgroundColor: Colors.warning.background,
+    borderWidth: 1,
+    borderColor: Colors.warning.main,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  creditCardHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  creditCardHeadingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.warning.text,
+  },
+  echeanceEmpty: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.warning.main,
+  },
+  channelsLabel: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.warning.text,
+  },
+  channelsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  channelPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  channelPillSms: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  channelPillWa: {
+    backgroundColor: Colors.success.main,
+    borderColor: Colors.success.main,
+  },
+  channelPillEmailOn: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  channelPillOff: {
+    backgroundColor: Colors.muted.main,
+    borderColor: Colors.border,
+  },
+  channelPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+  },
+  channelPillTextActive: {
+    color: Colors.onMarine,
+  },
+  channelPillTextOff: {
+    color: Colors.textColors.disabled,
+  },
+  validerCreditButton: {
+    backgroundColor: Colors.action,
+  },
+  // --- Sheet Conditionnement ---
+  condSubtitle: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  condRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+  },
+  condIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  condInfo: {
+    flex: 1,
+  },
+  condTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  condSub: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 2,
+  },
+  condPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary[900],
   },
 });

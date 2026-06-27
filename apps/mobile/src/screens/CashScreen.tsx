@@ -67,7 +67,12 @@ const getCategoryLabel = (category: string, isCredit?: boolean): string => {
     remboursement_client: 'Remb. client',
     achats_marchandises: 'Achat marchandises',
     loyers: 'Loyer',
-    reglement_fournisseur: 'Règlement fournisseur',
+    reglement_fournisseur: 'Paiement fournisseur',
+    salaires: 'Salaires',
+    electricite_eau: 'Électricité / eau',
+    transport: 'Transport',
+    taxes_impots: 'Taxes & impôts',
+    retrait_personnel: 'Retrait personnel',
     depenses_courantes: 'Dépenses courantes',
     divers: 'Divers',
   };
@@ -77,6 +82,35 @@ const getCategoryLabel = (category: string, isCredit?: boolean): string => {
   }
   return baseLabel;
 };
+
+// Catégories de SORTIE de caisse (clés snake_case canoniques)
+// On conserve `achats_marchandises` et `reglement_fournisseur` pour rester
+// compatible avec les KPIs (normalizeCashCategory) et les flux existants.
+type ExitCategory =
+  | 'achats_marchandises'
+  | 'reglement_fournisseur'
+  | 'loyers'
+  | 'salaires'
+  | 'electricite_eau'
+  | 'transport'
+  | 'taxes_impots'
+  | 'remboursement_client'
+  | 'retrait_personnel'
+  | 'divers';
+
+// Les 10 chips affichés dans le bottom sheet "Sortie de caisse" (ordre du mockup)
+const EXIT_CATEGORY_CHIPS: { key: ExitCategory; label: string }[] = [
+  { key: 'achats_marchandises', label: 'Achat marchandise' },
+  { key: 'reglement_fournisseur', label: 'Paiement fournisseur' },
+  { key: 'loyers', label: 'Loyer' },
+  { key: 'salaires', label: 'Salaires' },
+  { key: 'electricite_eau', label: 'Électricité / eau' },
+  { key: 'transport', label: 'Transport' },
+  { key: 'taxes_impots', label: 'Taxes & impôts' },
+  { key: 'remboursement_client', label: 'Remb. client' },
+  { key: 'retrait_personnel', label: 'Retrait personnel' },
+  { key: 'divers', label: 'Divers' },
+];
 
 export default function CashScreen() {
   const { shopId, userId } = useCurrentUser();
@@ -114,9 +148,7 @@ export default function CashScreen() {
   const [customers, setCustomers] = useState<LocalCustomer[]>([]);
 
   // Exit categories and data
-  const [exitCategory, setExitCategory] = useState<
-    'achats_marchandises' | 'loyers' | 'reglement_fournisseur' | 'depenses_courantes' | 'divers'
-  >('achats_marchandises');
+  const [exitCategory, setExitCategory] = useState<ExitCategory>('achats_marchandises');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [suppliers, setSuppliers] = useState<LocalSupplier[]>([]);
 
@@ -562,13 +594,21 @@ export default function CashScreen() {
   };
 
   const getCategoryExitLabel = (category: string) => {
-    const labels = {
+    const labels: { [key: string]: string } = {
       achats_marchandises: 'Achat de marchandises',
+      reglement_fournisseur: 'Paiement fournisseur',
       loyers: 'Loyer',
+      salaires: 'Salaires',
+      electricite_eau: 'Électricité / eau',
+      transport: 'Transport',
+      taxes_impots: 'Taxes & impôts',
+      remboursement_client: 'Remboursement client',
+      retrait_personnel: 'Retrait personnel',
+      // rétro-compatibilité avec l'ancienne clé
       depenses_courantes: 'Dépense courante',
       divers: 'Sortie divers',
     };
-    return labels[category as keyof typeof labels] || 'Sortie de caisse';
+    return labels[category] || 'Sortie de caisse';
   };
 
   return (
@@ -1035,134 +1075,23 @@ export default function CashScreen() {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Catégorie</Text>
                 <View style={styles.chipRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      exitCategory === 'achats_marchandises' && styles.chipActive,
-                    ]}
-                    onPress={() => setExitCategory('achats_marchandises')}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        exitCategory === 'achats_marchandises' && styles.chipTextActive,
-                      ]}
+                  {EXIT_CATEGORY_CHIPS.map(({ key, label }) => (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.chip, exitCategory === key && styles.chipActive]}
+                      onPress={() => setExitCategory(key)}
                     >
-                      Achats
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.chip, exitCategory === 'loyers' && styles.chipActive]}
-                    onPress={() => setExitCategory('loyers')}
-                  >
-                    <Text
-                      style={[styles.chipText, exitCategory === 'loyers' && styles.chipTextActive]}
-                    >
-                      Loyers
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      exitCategory === 'reglement_fournisseur' && styles.chipActive,
-                    ]}
-                    onPress={() => setExitCategory('reglement_fournisseur')}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        exitCategory === 'reglement_fournisseur' && styles.chipTextActive,
-                      ]}
-                    >
-                      Règl. fourn.
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      exitCategory === 'depenses_courantes' && styles.chipActive,
-                    ]}
-                    onPress={() => setExitCategory('depenses_courantes')}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        exitCategory === 'depenses_courantes' && styles.chipTextActive,
-                      ]}
-                    >
-                      Dépenses
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.chip, exitCategory === 'divers' && styles.chipActive]}
-                    onPress={() => setExitCategory('divers')}
-                  >
-                    <Text
-                      style={[styles.chipText, exitCategory === 'divers' && styles.chipTextActive]}
-                    >
-                      Divers
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={[styles.chipText, exitCategory === key && styles.chipTextActive]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
 
-              {/* Payment mode selection for achats */}
-              {exitCategory === 'achats_marchandises' && (
-                <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Mode de paiement</Text>
-                  <View style={styles.chipRow}>
-                    <TouchableOpacity
-                      style={[styles.chip, exitPaymentMode === 'cash' && styles.chipActive]}
-                      onPress={() => {
-                        setExitPaymentMode('cash');
-                        setSelectedSupplierId('');
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          exitPaymentMode === 'cash' && styles.chipTextActive,
-                        ]}
-                      >
-                        Cash
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.chip, exitPaymentMode === 'credit' && styles.chipActive]}
-                      onPress={() => setExitPaymentMode('credit')}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          exitPaymentMode === 'credit' && styles.chipTextActive,
-                        ]}
-                      >
-                        Crédit
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {/* Supplier selection for achat à crédit */}
-              {exitCategory === 'achats_marchandises' && exitPaymentMode === 'credit' && (
-                <View style={styles.formGroup}>
-                  <SearchableSelect
-                    label="Fournisseur *"
-                    value={selectedSupplierId}
-                    onValueChange={setSelectedSupplierId}
-                    options={suppliers}
-                    placeholder="Sélectionner un fournisseur (obligatoire pour achat à crédit)"
-                  />
-                </View>
-              )}
-
-              {/* Supplier selection for règlement fournisseur */}
+              {/* Supplier selection for paiement fournisseur (règlement) */}
               {exitCategory === 'reglement_fournisseur' && (
                 <View style={styles.formGroup}>
                   <SearchableSelect
@@ -1187,23 +1116,22 @@ export default function CashScreen() {
                 />
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>
-                  Note {exitCategory === 'divers' ? '*' : '(optionnelle)'}
-                </Text>
-                <TextInput
-                  style={[styles.input, { height: 80 }]}
-                  placeholder={
-                    exitCategory === 'divers' ? 'Commentaire obligatoire...' : 'Description...'
-                  }
-                  placeholderTextColor={Colors.muted.foreground}
-                  value={note}
-                  onChangeText={setNote}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
+              {/* Note: requise uniquement pour la catégorie "Divers" */}
+              {exitCategory === 'divers' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Note *</Text>
+                  <TextInput
+                    style={[styles.input, { height: 80 }]}
+                    placeholder="Commentaire obligatoire..."
+                    placeholderTextColor={Colors.muted.foreground}
+                    value={note}
+                    onChangeText={setNote}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              )}
 
               <View style={styles.sheetActions}>
                 <TouchableOpacity

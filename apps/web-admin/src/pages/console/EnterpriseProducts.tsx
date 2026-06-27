@@ -171,6 +171,7 @@ export default function EnterpriseProducts() {
                 <tr className="text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
                   <th className="pb-3 pr-4">Produit</th>
                   <th className="pb-3 pr-4">Catégorie</th>
+                  <th className="pb-3 pr-4">Cond.</th>
                   <th className="pb-3 pr-4 text-right">Stock</th>
                   <th className="pb-3 pr-4 text-right">Lots</th>
                   <th className="pb-3 pr-4 text-right">P. achat</th>
@@ -210,6 +211,11 @@ export default function EnterpriseProducts() {
                         </div>
                       </td>
                       <td className="py-3 pr-4 text-slate-600">{p.category ?? '—'}</td>
+                      <td className="py-3 pr-4 text-slate-600 whitespace-nowrap">
+                        {p.packaging
+                          ? `${p.packaging}${p.units_per_package ? ` ×${p.units_per_package}` : ''}`
+                          : '—'}
+                      </td>
                       <td className={`py-3 pr-4 text-right font-medium ${stockClass}`}>
                         {p.stock}
                       </td>

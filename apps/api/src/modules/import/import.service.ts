@@ -14,6 +14,9 @@ interface ImportRow {
   sell_price: number;
   unit?: string;
   alert_threshold?: number;
+  packaging?: string; // Nom du conditionnement (ex: Carton)
+  units_per_package?: number; // Pieces par conditionnement (ex: 24)
+  package_price?: number; // Prix du conditionnement complet
 }
 
 interface ValidationError {
@@ -203,6 +206,9 @@ export class ImportService {
           sell_price: sellPrice,
           unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
           alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
+          packaging: this.toOptionalString(normalizedRow.packaging),
+          units_per_package: this.parsePositiveInt(normalizedRow.units_per_package),
+          package_price: this.parseNumber(normalizedRow.package_price) ?? undefined,
         });
       }
     }
@@ -255,6 +261,16 @@ export class ImportService {
     });
     const existingSKUSet = new Set(existingSKUs.map(p => p.sku.toLowerCase()));
 
+    // Précharger les conditionnements existants (résolution / création à la volée)
+    const existingPackaging = await this.prisma.packagingType.findMany({
+      where: { shop_id: shopId, deleted: false },
+      select: { id: true, name: true },
+    });
+    const packagingCache = new Map<string, string>();
+    for (const pt of existingPackaging) {
+      packagingCache.set(pt.name.trim().toLowerCase(), pt.id);
+    }
+
     // Importer les produits valides
     let imported = 0;
     let skipped = 0;
@@ -298,6 +314,15 @@ export class ImportService {
 
       seenSKUs.add(sku.toLowerCase());
 
+      // Conditionnement : nom -> packaging_type_id (résolution / création à la volée)
+      const packagingName = this.toTrimmedString(normalizedRow.packaging);
+      const unitsPerPackage = this.parsePositiveInt(normalizedRow.units_per_package);
+      const packagePrice = this.parseNumber(normalizedRow.package_price);
+      let packagingTypeId: string | null = null;
+      if (packagingName) {
+        packagingTypeId = await this.resolvePackagingTypeId(shopId, packagingName, packagingCache);
+      }
+
       try {
         await this.prisma.product.create({
           data: {
@@ -312,6 +337,9 @@ export class ImportService {
             sell_price: sellPrice,
             unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
             alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
+            packaging_type_id: packagingTypeId,
+            units_per_package: unitsPerPackage ?? null,
+            package_price: packagePrice ?? null,
             is_active: true,
           },
         });
@@ -385,6 +413,51 @@ export class ImportService {
   private toNullableString(value: unknown): string | null {
     const str = this.toTrimmedString(value);
     return str ? str : null;
+  }
+
+  /**
+   * Parse un entier strictement positif (ex: pièces par conditionnement).
+   * Retourne undefined si absent, nul ou <= 0.
+   */
+  private parsePositiveInt(value: unknown): number | undefined {
+    const num = this.parseNumber(value);
+    return num !== null && num > 0 ? num : undefined;
+  }
+
+  /**
+   * Résout un nom de conditionnement vers un packaging_type_id, en créant le
+   * PackagingType s'il n'existe pas encore pour la boutique. Le cache évite les
+   * doublons et les requêtes répétées au sein d'un même import.
+   */
+  private async resolvePackagingTypeId(
+    shopId: string,
+    name: string,
+    cache: Map<string, string>
+  ): Promise<string | null> {
+    const key = name.trim().toLowerCase();
+    if (!key) return null;
+    const cached = cache.get(key);
+    if (cached) return cached;
+
+    try {
+      const created = await this.prisma.packagingType.create({
+        data: { shop_id: shopId, name: name.trim() },
+        select: { id: true },
+      });
+      cache.set(key, created.id);
+      return created.id;
+    } catch {
+      // Course possible sur l'unique [shop_id, name] : on relit.
+      const existing = await this.prisma.packagingType.findFirst({
+        where: { shop_id: shopId, name: name.trim(), deleted: false },
+        select: { id: true },
+      });
+      if (existing) {
+        cache.set(key, existing.id);
+        return existing.id;
+      }
+      return null;
+    }
   }
 
   /**

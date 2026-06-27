@@ -8,13 +8,15 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Users, Smartphone, Clock } from '../components/icons/SimpleIcons';
+import { Users, Smartphone, Plus } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { adminApi } from '../lib/api';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import type { RootStackParamList } from '../../App';
 
 interface UserDevice {
@@ -63,10 +65,45 @@ function getInitials(fullName: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Dernière connexion d'un membre = la plus récente de ses appareils.
+function getLastSeen(devices: UserDevice[]): string | null {
+  const times = devices
+    .map(d => d.last_login_at)
+    .filter(Boolean)
+    .map(t => new Date(t).getTime())
+    .filter(t => !Number.isNaN(t));
+  if (times.length === 0) return null;
+  return new Date(Math.max(...times)).toISOString();
+}
+
+// Présence relative (FR) : "En ligne" / "Il y a 12 min" / "Il y a 2 h" / "Hier" / date.
+function formatPresence(timestamp: string | null): string | null {
+  if (!timestamp) return null;
+  const then = new Date(timestamp).getTime();
+  if (Number.isNaN(then)) return null;
+  const diffMin = Math.floor((Date.now() - then) / 60000);
+  if (diffMin < 2) return 'En ligne';
+  if (diffMin < 60) return `Il y a ${diffMin} min`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `Il y a ${diffHours} h`;
+  if (diffHours < 48) return 'Hier';
+  return new Date(timestamp).toLocaleDateString();
+}
+
 export default function UserManagementScreen({ navigation }: UserManagementScreenProps) {
+  const { userId: currentUserId } = useCurrentUser();
   const [users, setUsers] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Surcouche locale d'activation d'accès (clé = user.id). Voir handleToggleAccess.
+  const [accessOverrides, setAccessOverrides] = useState<Record<string, boolean>>({});
+
+  const isAccessActive = (ur: UserRole) => {
+    const override = accessOverrides[ur.user.id];
+    return override !== undefined ? override : !!ur.user.is_active;
+  };
+
+  const activeAccessCount = users.filter(isAccessActive).length;
 
   const loadUsers = async () => {
     try {
@@ -130,22 +167,37 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
     );
   };
 
+  // Flux d'invitation existant (création de code PIN) hébergé par ShopAdminScreen.
+  const handleInvite = () => {
+    navigation.navigate('ShopAdmin');
+  };
+
+  // TODO(api): brancher sur l'endpoint d'activation/désactivation d'accès quand il
+  // sera exposé (adminApi). Pour l'instant l'état est purement local (optimiste).
+  const handleToggleAccess = (userId: string, value: boolean) => {
+    setAccessOverrides(prev => ({ ...prev, [userId]: value }));
+  };
+
   const getRoleAvatar = (role: string) => AVATAR_BY_ROLE[role] ?? AVATAR_BY_ROLE.EMPLOYEE;
 
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
-      SUPERADMIN: 'Super Admin',
-      BOSS: 'Propriétaire',
-      MANAGER: 'Manager',
-      EMPLOYEE: 'Employé',
+      SUPERADMIN: 'SUPERADMIN',
+      BOSS: 'BOSS',
+      MANAGER: 'MANAGER',
+      EMPLOYEE: 'EMPLOYÉ',
     };
-    return labels[role] || role;
+    return labels[role] || role.toUpperCase();
   };
 
   const renderUser = ({ item }: { item: UserRole }) => {
-    const { user, role, work_start_time, work_end_time } = item;
-    const activeDevices = user.devices.filter(d => d.is_active).length;
+    const { user, role } = item;
+    const deviceCount = user.devices.length;
     const avatar = getRoleAvatar(role);
+    const isSelf = !!currentUserId && user.id === currentUserId;
+    const accessActive = isAccessActive(item);
+    const presence = formatPresence(getLastSeen(user.devices));
+    const contactLine = user.phone || user.email || '';
 
     return (
       <View style={styles.userCard}>
@@ -159,18 +211,12 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
             <Text style={styles.userName} numberOfLines={1}>
               {user.display_name}
             </Text>
-            {user.phone || user.email ? (
+            {contactLine || presence ? (
               <Text style={styles.userContact} numberOfLines={1}>
-                {user.phone || user.email}
+                {contactLine}
+                {contactLine && presence ? ' · ' : ''}
+                {presence ?? ''}
               </Text>
-            ) : null}
-            {work_start_time && work_end_time ? (
-              <View style={styles.scheduleRow}>
-                <Clock size={12} color={Colors.textColors.tertiary} />
-                <Text style={styles.userSchedule}>
-                  {work_start_time} - {work_end_time}
-                </Text>
-              </View>
             ) : null}
           </View>
           <View style={[styles.roleChip, { backgroundColor: avatar.bg }]}>
@@ -178,17 +224,34 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
           </View>
         </View>
 
-        <View style={styles.userActions}>
+        <View style={styles.userFooter}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={styles.deviceRow}
             activeOpacity={0.7}
             onPress={() => handleViewDevices(user.id, user.display_name)}
           >
-            <Smartphone size={16} color={Colors.action} />
-            <Text style={styles.actionButtonText}>
-              Appareils ({activeDevices}/{user.devices.length})
+            <Smartphone size={16} color={Colors.textColors.tertiary} />
+            <Text style={styles.deviceText}>
+              {deviceCount} appareil{deviceCount > 1 ? 's' : ''}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.footerRight}>
+            <Text style={accessActive ? styles.accessActiveText : styles.accessInactiveText}>
+              {accessActive ? 'Accès actif' : 'Accès suspendu'}
+            </Text>
+            {isSelf ? (
+              <>
+                <Text style={styles.selfTag}>Vous</Text>
+                <Switch
+                  value={accessActive}
+                  onValueChange={v => handleToggleAccess(user.id, v)}
+                  trackColor={{ false: Colors.primary[200], true: Colors.success.main }}
+                  thumbColor={Colors.surface}
+                />
+              </>
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -214,7 +277,7 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
         title="Utilisateurs"
-        subtitle="Équipe & accès"
+        subtitle={`${activeAccessCount} accès actif${activeAccessCount > 1 ? 's' : ''}`}
         showBack={true}
         onBack={() => navigation.goBack()}
       />
@@ -227,13 +290,26 @@ export default function UserManagementScreen({ navigation }: UserManagementScree
         ListHeaderComponent={
           <View>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Équipe</Text>
-              <Text style={styles.summaryCount}>{users.length}</Text>
-              <Text style={styles.summarySub}>
-                {users.length > 1 ? 'membres de l’équipe' : 'membre de l’équipe'}
-              </Text>
+              <View style={styles.summaryHeaderRow}>
+                <View style={styles.summaryIcon}>
+                  <Users size={18} color={Colors.onMarine} />
+                </View>
+                <Text style={styles.summaryCount}>{activeAccessCount}</Text>
+              </View>
+              <Text style={styles.summarySub}>accès actifs sur la boutique</Text>
             </View>
-            {users.length > 0 ? <Text style={styles.sectionTitle}>Membres</Text> : null}
+
+            <TouchableOpacity style={styles.inviteCard} activeOpacity={0.85} onPress={handleInvite}>
+              <View style={styles.inviteIcon}>
+                <Plus size={20} color={Colors.onMarine} />
+              </View>
+              <View style={styles.inviteTextWrap}>
+                <Text style={styles.inviteTitle}>Inviter un employé</Text>
+                <Text style={styles.inviteSubtitle}>Génère un code PIN d’accès</Text>
+              </View>
+            </TouchableOpacity>
+
+            {users.length > 0 ? <Text style={styles.sectionTitle}>Membres de l’équipe</Text> : null}
           </View>
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -268,11 +344,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     ...Shadows.md,
   },
-  summaryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.primary[300],
-    marginBottom: Spacing.xs,
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  summaryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryCount: {
     fontSize: 34,
@@ -283,7 +366,39 @@ const styles = StyleSheet.create({
   summarySub: {
     fontSize: 13,
     color: Colors.primary[300],
-    marginTop: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  inviteCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.action,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
+  },
+  inviteIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inviteTextWrap: {
+    flex: 1,
+  },
+  inviteTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  inviteSubtitle: {
+    fontSize: 13,
+    color: Colors.onMarine,
+    opacity: 0.85,
+    marginTop: 1,
   },
   sectionTitle: {
     fontSize: 12,
@@ -331,16 +446,6 @@ const styles = StyleSheet.create({
     color: Colors.textColors.tertiary,
     marginTop: 1,
   },
-  scheduleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  userSchedule: {
-    fontSize: 12,
-    color: Colors.textColors.tertiary,
-  },
   roleChip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -350,24 +455,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  userActions: {
-    flexDirection: 'row',
-  },
-  actionButton: {
+  userFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.primary[50],
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    flex: 1,
-    minHeight: 44,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: Colors.primary[100],
+    paddingTop: Spacing.md,
   },
-  actionButtonText: {
+  deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: 28,
+  },
+  deviceText: {
     fontSize: 13,
-    color: Colors.action,
+    color: Colors.textColors.tertiary,
+    fontWeight: '500',
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  accessActiveText: {
+    fontSize: 13,
+    color: Colors.success.main,
+    fontWeight: '700',
+  },
+  accessInactiveText: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    fontWeight: '600',
+  },
+  selfTag: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
     fontWeight: '600',
   },
   emptyState: {

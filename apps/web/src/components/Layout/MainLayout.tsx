@@ -69,7 +69,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       label: 'Pilotage',
       items: [
         { name: 'Rapports', path: '/reports', icon: '📈', module: 'reports' },
-        { name: 'Comptabilité', path: '#', icon: '🧮', disabled: true },
+        { name: 'Comptabilité', path: '/accounting', icon: '🧮', module: 'reports' },
+        { name: 'Supervision', path: '/supervision', icon: '🛡️', module: 'reports' },
         { name: 'Bilans boutiques', path: '#', icon: '🏬', disabled: true },
       ],
     },
