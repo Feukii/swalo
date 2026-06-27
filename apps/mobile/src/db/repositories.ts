@@ -56,14 +56,21 @@ class ProductRepository extends LocalRepository<LocalProduct> {
 
   async getLowStock(shopId: string): Promise<LocalProduct[]> {
     const db = await getDatabase();
-    // Products with total remaining stock below alert threshold
+    // Modèle carton-primary : quand l'article est conditionné (units_per_package > 1),
+    // le seuil d'alerte est en CARTONS → on compare floor(pièces / units_per_package)
+    // au seuil. Sinon (vendu à la pièce), on compare les pièces.
     return db.getAllAsync<LocalProduct>(
       `SELECT p.*, COALESCE(SUM(sb.remaining_quantity), 0) as total_stock
        FROM products p
        LEFT JOIN stock_batches sb ON sb.product_id = p.id AND sb.deleted = 0 AND sb.remaining_quantity > 0
        WHERE p.shop_id = ? AND p.deleted = 0 AND p.is_active = 1
        GROUP BY p.id
-       HAVING total_stock <= p.alert_threshold
+       HAVING (
+         CASE WHEN p.units_per_package > 1
+           THEN total_stock / p.units_per_package
+           ELSE total_stock
+         END
+       ) <= p.alert_threshold
        ORDER BY total_stock ASC`,
       [shopId]
     );
@@ -455,6 +462,9 @@ export interface LocalSupplier extends LocalRecord {
   borrowing_limit: number;
   notes: string | null;
   is_active: number;
+  sms_notifications_enabled: number;
+  whatsapp_notifications_enabled: number;
+  email_notifications_enabled: number;
   version: number;
 }
 
@@ -486,6 +496,7 @@ export interface LocalSupplierDebt extends LocalRecord {
   description: string | null;
   notes: string | null;
   status: string;
+  due_date: string | null;
   version: number;
 }
 

@@ -14,6 +14,7 @@ import {
 import type { Request as ExpressRequest, Response } from 'express';
 import { AdminService } from './admin.service';
 import { Roles } from '../auth/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { Role } from '@prisma/client';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto';
@@ -27,6 +28,7 @@ type AuthenticatedRequest = ExpressRequest & {
 };
 
 @Controller('admin')
+@RequireModule('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

@@ -123,6 +123,24 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     syncableEntities: [],
     dependencies: ['sales', 'cash'],
   },
+  {
+    code: 'supervision',
+    name: 'Supervision',
+    description: 'Journal des actions anormales, alertes et acquittements',
+    tier: 'EXTENDED',
+    minimumLicenseTier: 'STARTER',
+    syncableEntities: [],
+    dependencies: ['sales', 'cash'],
+  },
+  {
+    code: 'pin-invites',
+    name: 'Invitations PIN',
+    description: "Création de codes d'accès PIN pour les employés",
+    tier: 'EXTENDED',
+    minimumLicenseTier: 'STARTER',
+    syncableEntities: [],
+    dependencies: ['auth'],
+  },
 
   // PREMIUM modules
   {
@@ -178,6 +196,24 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     minimumLicenseTier: 'ENTERPRISE',
     syncableEntities: ['packaging_types'],
     dependencies: ['products'],
+  },
+  {
+    code: 'accounting',
+    name: 'Comptabilité',
+    description: 'Bilan, compte de résultat et journal comptable',
+    tier: 'PREMIUM',
+    minimumLicenseTier: 'PROFESSIONAL',
+    syncableEntities: [],
+    dependencies: ['sales', 'cash'],
+  },
+  {
+    code: 'relances',
+    name: 'Relances Clients',
+    description: 'Tâches de relance et suivi des créances clients',
+    tier: 'PREMIUM',
+    minimumLicenseTier: 'PROFESSIONAL',
+    syncableEntities: [],
+    dependencies: ['customers'],
   },
 ];
 

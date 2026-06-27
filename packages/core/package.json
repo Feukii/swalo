@@ -11,6 +11,7 @@
     "./brand/tokens": { "types": "./src/brand/tokens.ts", "import": "./src/brand/tokens.ts", "require": "./dist/brand/tokens.js" },
     "./modules/registry": { "types": "./src/modules/registry.ts", "import": "./src/modules/registry.ts", "require": "./dist/modules/registry.js" },
     "./modules/permissions": { "types": "./src/modules/permissions.ts", "import": "./src/modules/permissions.ts", "require": "./dist/modules/permissions.js" },
+    "./accounting": { "types": "./src/accounting/index.ts", "import": "./src/accounting/index.ts", "require": "./dist/accounting/index.js" },
     "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {

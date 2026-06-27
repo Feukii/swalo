@@ -49,22 +49,21 @@ import {
   createReceivableOffline,
 } from '../db/offlineWrite';
 
+// Unité de vente d'une ligne de panier.
+//  • 'carton' = vente au GROS (package_price), déduit UPP pièces par carton.
+//  • 'piece'  = vente au DÉTAIL (sell_price), déduit 1 pièce.
+type SaleUnit = 'carton' | 'piece';
+
 interface CartItem {
   productId: string;
   productName: string;
-  quantity: number;
-  unitPrice?: number; // Prix unitaire choisi (pour multi-prix)
-  batchId?: string; // Lot choisi (pour multi-prix)
+  quantity: number; // nombre d'unités (cartons ou pièces) — piloté par le stepper
+  unit: SaleUnit;
+  piecesPerUnit: number; // UPP pour un carton, 1 pour une pièce
+  unitPrice: number; // prix de l'unité choisie (package_price ou sell_price)
 }
 
-interface PriceOption {
-  sell_price: number;
-  total_quantity: number;
-  batch_count: number;
-  batches: { id: string; remaining_quantity: number }[];
-}
-
-// Produit enrichi avec le stock total calculé et les champs multi-prix optionnels
+// Produit enrichi avec le stock total calculé (en PIÈCES, unité atomique).
 interface SaleProduct extends LocalProduct {
   current_stock: number;
   is_multi_price?: boolean;
@@ -135,10 +134,9 @@ export default function SaleScreen() {
   // Produits disponibles (chargés depuis local DB + API)
   const [products, setProducts] = useState<SaleProduct[]>([]);
 
-  // Multi-prix: modal de sélection
+  // Sélecteur d'unité de vente (Carton / Pièce)
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [priceModalProduct, setPriceModalProduct] = useState<SaleProduct | null>(null);
-  const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
 
   // Offline-first: Load products from local SQLite
   const loadProducts = useCallback(async () => {
@@ -240,168 +238,97 @@ export default function SaleScreen() {
     return ['Tous', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [products]);
 
-  const addToCart = async (product: SaleProduct) => {
-    const productName =
-      product.name || `${product.family} - ${product.article_type} ${product.brand}`;
-    const currentStock = product.current_stock || 0;
-
-    // Check multi-price from local stock batches
-    if (shopId) {
-      try {
-        const batches = await stockBatchRepo.getByProduct(shopId, product.id);
-        const activeBatches = batches.filter(b => b.remaining_quantity > 0);
-
-        // Group by sell_price to detect multi-price
-        const priceGroups = new Map<
-          number,
-          {
-            sell_price: number;
-            total_quantity: number;
-            batch_count: number;
-            batches: { id: string; remaining_quantity: number }[];
-          }
-        >();
-        activeBatches.forEach(b => {
-          const existing = priceGroups.get(b.sell_price);
-          if (existing) {
-            existing.total_quantity += b.remaining_quantity;
-            existing.batch_count++;
-            existing.batches.push({ id: b.id, remaining_quantity: b.remaining_quantity });
-          } else {
-            priceGroups.set(b.sell_price, {
-              sell_price: b.sell_price,
-              total_quantity: b.remaining_quantity,
-              batch_count: 1,
-              batches: [{ id: b.id, remaining_quantity: b.remaining_quantity }],
-            });
-          }
-        });
-
-        if (priceGroups.size > 1) {
-          // Multi-price: show selection modal
-          setPriceModalProduct(product);
-          setPriceOptions(Array.from(priceGroups.values()));
-          setShowPriceModal(true);
-          return;
-        }
-      } catch (e) {
-        console.log('Multi-price check skipped:', e);
-      }
-    }
-
-    // Single price or no batches: add directly
-    addToCartDirect(product, productName, currentStock);
+  // Unités vendables d'un produit (modèle carton-primary).
+  //  • carton (GROS) : toujours, dès que package_price est défini ; déduit UPP pièces.
+  //  • pièce (DÉTAIL) : seulement si sous-conditionnement actif (UPP>1 et sell_price>0).
+  const unitsInfo = (product: SaleProduct) => {
+    const upp =
+      product.units_per_package && product.units_per_package > 0 ? product.units_per_package : 1;
+    const hasCarton = !!product.package_price && product.package_price > 0;
+    const hasDetail = upp > 1 && !!product.sell_price && product.sell_price > 0;
+    return { upp, hasCarton, hasDetail };
   };
 
-  const addToCartDirect = (
-    product: SaleProduct,
-    productName: string,
-    currentStock: number,
-    unitPrice?: number,
-    batchId?: string
-  ) => {
-    const existingItem = cart.find(
-      item => item.productId === product.id && item.batchId === batchId
-    );
+  // Pièces déjà réservées dans le panier pour un produit (toutes unités, ou en
+  // excluant une unité donnée pour calculer le plafond d'une ligne).
+  const piecesUsedByProduct = (productId: string, excludeUnit?: SaleUnit): number =>
+    cart
+      .filter(i => i.productId === productId && i.unit !== excludeUnit)
+      .reduce((s, i) => s + i.quantity * i.piecesPerUnit, 0);
 
-    if (existingItem) {
-      const maxStock = batchId
-        ? priceOptions.find(p => p.batches.some(b => b.id === batchId))?.total_quantity ||
-          currentStock
-        : currentStock;
-      if (existingItem.quantity >= maxStock) {
-        Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
-        return;
-      }
-      setCart(
-        cart.map(item =>
-          item.productId === product.id && item.batchId === batchId
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      );
-    } else {
-      setCart([
-        ...cart,
-        {
-          productId: product.id,
-          productName: unitPrice ? `${productName} (${formatMoney(unitPrice)})` : productName,
-          quantity: 1,
-          unitPrice,
-          batchId,
-        },
-      ]);
-    }
+  // Plafond d'une ligne EN UNITÉS = pièces disponibles / pièces par unité.
+  const maxUnitsForLine = (product: SaleProduct, unit: SaleUnit, piecesPerUnit: number): number => {
+    const availablePieces = (product.current_stock || 0) - piecesUsedByProduct(product.id, unit);
+    return Math.floor(availablePieces / piecesPerUnit);
   };
 
-  // Sélection d'un conditionnement complet (ex. Carton de 24) : ajoute `qty`
-  // pièces au prix/pièce du pack (total ligne = prix du conditionnement).
-  const handlePackSelection = (product: SaleProduct, qty: number, perPiece: number) => {
-    if (qty > product.current_stock) {
-      Alert.alert('Stock insuffisant', `Stock disponible: ${product.current_stock} unités`);
+  // Tap produit : ouvre le sélecteur d'unité si carton ET pièce sont possibles,
+  // sinon ajoute directement la seule unité disponible.
+  const addToCart = (product: SaleProduct) => {
+    const { hasCarton, hasDetail } = unitsInfo(product);
+    if (hasCarton && hasDetail) {
+      setPriceModalProduct(product);
+      setShowPriceModal(true);
       return;
     }
-    const productName = product.name || `${product.family} ${product.article_type}`;
-    setCart(prev => [
-      ...prev,
-      {
-        productId: product.id,
-        productName: `${productName} (×${qty})`,
-        quantity: qty,
-        unitPrice: perPiece,
-        batchId: undefined,
-      },
-    ]);
-    setShowPriceModal(false);
-    setPriceModalProduct(null);
-    setPriceOptions([]);
+    addUnitToCart(product, hasCarton ? 'carton' : 'piece');
   };
 
-  const handlePriceSelection = (priceOption: PriceOption) => {
-    if (!priceModalProduct) return;
-    const productName =
-      priceModalProduct.name ||
-      `${priceModalProduct.family} - ${priceModalProduct.article_type} ${priceModalProduct.brand}`;
-    // Utiliser le premier lot de ce groupe de prix (FIFO dans le groupe)
-    const firstBatch = priceOption.batches[0];
-    addToCartDirect(
-      priceModalProduct,
-      productName,
-      priceOption.total_quantity,
-      priceOption.sell_price,
-      firstBatch.id
-    );
-    setShowPriceModal(false);
-    setPriceModalProduct(null);
-    setPriceOptions([]);
-  };
+  // Ajoute (ou incrémente) une ligne pour l'unité choisie. La quantité est en UNITÉS
+  // (cartons ou pièces) ; le prix de la ligne est le prix de cette unité.
+  const addUnitToCart = (product: SaleProduct, unit: SaleUnit) => {
+    const { upp } = unitsInfo(product);
+    const piecesPerUnit = unit === 'carton' ? Math.max(upp, 1) : 1;
+    const unitPrice = unit === 'carton' ? (product.package_price ?? 0) : product.sell_price;
+    const baseName = productLabel(product) || product.name;
+    const label = unit === 'carton' ? `${baseName} (× Carton)` : `${baseName} (× Pièce)`;
+    const max = maxUnitsForLine(product, unit, piecesPerUnit);
 
-  // Stock maximum vendable pour une ligne de panier. Pour un lot multi-prix
-  // choisi, on plafonne au stock du groupe de prix (cf. addToCartDirect) ;
-  // sinon au stock total du produit.
-  const getMaxStockForItem = (productId: string, batchId?: string): number => {
-    const product = products.find(p => p.id === productId);
-    const currentStock = product?.current_stock || 0;
-    if (batchId) {
-      const group = priceOptions.find(p => p.batches.some(b => b.id === batchId));
-      return group?.total_quantity ?? currentStock;
+    if (max < 1) {
+      Alert.alert('Stock insuffisant', 'Stock disponible insuffisant pour cette unité.');
+      return;
     }
-    return currentStock;
+
+    setCart(prev => {
+      const existing = prev.find(i => i.productId === product.id && i.unit === unit);
+      if (existing) {
+        if (existing.quantity >= max) {
+          Alert.alert(
+            'Stock insuffisant',
+            `Maximum ${max} ${unit === 'carton' ? 'carton(s)' : 'pièce(s)'}.`
+          );
+          return prev;
+        }
+        return prev.map(i =>
+          i.productId === product.id && i.unit === unit ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [
+        ...prev,
+        { productId: product.id, productName: label, quantity: 1, unit, piecesPerUnit, unitPrice },
+      ];
+    });
+    setShowPriceModal(false);
+    setPriceModalProduct(null);
   };
 
-  const updateQuantity = (productId: string, delta: number, batchId?: string) => {
+  const updateQuantity = (productId: string, delta: number, unit: SaleUnit) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
-
-    const maxStock = getMaxStockForItem(productId, batchId);
+    const line = cart.find(i => i.productId === productId && i.unit === unit);
+    if (!line) return;
+    const max = maxUnitsForLine(product, unit, line.piecesPerUnit);
 
     setCart(prevCart => {
       const updated = prevCart
         .map(item => {
-          if (item.productId === productId && item.batchId === batchId) {
+          if (item.productId === productId && item.unit === unit) {
             const newQuantity = item.quantity + delta;
-            if (newQuantity > maxStock) {
-              Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
+            if (newQuantity > max) {
+              Alert.alert(
+                'Stock insuffisant',
+                `Stock disponible: ${max} ${unit === 'carton' ? 'carton(s)' : 'pièce(s)'}`
+              );
               return item;
             }
             if (newQuantity <= 0) return null;
@@ -415,46 +342,43 @@ export default function SaleScreen() {
     });
   };
 
-  // Saisie clavier de la quantité exacte. La valeur est nettoyée en entier ≥ 1,
-  // plafonnée au stock disponible (même règle que les boutons +/-). Une saisie
-  // vide ou invalide (0, non numérique) retombe sur 1.
-  const setExactQuantity = (productId: string, value: string, batchId?: string) => {
+  // Saisie clavier de la quantité exacte (en UNITÉS), plafonnée au stock disponible.
+  const setExactQuantity = (productId: string, value: string, unit: SaleUnit) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
+    const line = cart.find(i => i.productId === productId && i.unit === unit);
+    if (!line) return;
+    const max = maxUnitsForLine(product, unit, line.piecesPerUnit);
 
-    const maxStock = getMaxStockForItem(productId, batchId);
-
-    // On ne garde que les chiffres pour éviter signes/décimales sur number-pad.
     const digits = value.replace(/[^0-9]/g, '');
     const parsed = parseInt(digits, 10);
     let nextQuantity = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
 
-    if (nextQuantity > maxStock) {
-      nextQuantity = Math.max(maxStock, 1);
-      Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
+    if (nextQuantity > max) {
+      nextQuantity = Math.max(max, 1);
+      Alert.alert(
+        'Stock insuffisant',
+        `Stock disponible: ${max} ${unit === 'carton' ? 'carton(s)' : 'pièce(s)'}`
+      );
     }
 
     setCart(prevCart =>
       prevCart.map(item =>
-        item.productId === productId && item.batchId === batchId
+        item.productId === productId && item.unit === unit
           ? { ...item, quantity: nextQuantity }
           : item
       )
     );
   };
 
-  const removeFromCart = (productId: string, batchId?: string) => {
-    setCart(cart.filter(item => !(item.productId === productId && item.batchId === batchId)));
+  const removeFromCart = (productId: string, unit: SaleUnit) => {
+    setCart(cart.filter(item => !(item.productId === productId && item.unit === unit)));
   };
 
   const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Calcul automatique du total du panier
-  const computedTotal = cart.reduce((sum, item) => {
-    const product = products.find(p => p.id === item.productId);
-    const unitPrice = item.unitPrice || product?.sell_price || 0;
-    return sum + unitPrice * item.quantity;
-  }, 0);
+  // Calcul automatique du total du panier (prix de l'unité × nombre d'unités).
+  const computedTotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
 
   // Total effectif (override ou calculé)
   const effectiveTotal = overridePrice && totalPrice ? parseInt(totalPrice) : computedTotal;
@@ -581,13 +505,17 @@ export default function SaleScreen() {
         grandTotal: amount,
         items: cart.map(item => {
           const product = products.find(p => p.id === item.productId);
+          // Conversion vers l'unité ATOMIQUE (pièce) pour la déduction FIFO (local + serveur) :
+          // qty = unités × pièces/unité ; prix ramené à la pièce (round). Le total exact de la
+          // vente reste piloté par grandTotal (computedTotal), donc la monnaie est exacte.
+          const piecesQty = item.quantity * item.piecesPerUnit;
+          const pricePerPiece = Math.round(item.unitPrice / item.piecesPerUnit);
           return {
             productId: item.productId,
             productName: item.productName,
             sku: product?.sku || '',
-            qty: item.quantity,
-            unitPrice: item.unitPrice || product?.sell_price || 0,
-            batchId: item.batchId,
+            qty: piecesQty,
+            unitPrice: pricePerPiece,
           };
         }),
         note: itemsDescription,
@@ -600,8 +528,7 @@ export default function SaleScreen() {
       const buildInvoiceData = (): InvoiceData => {
         const now = new Date().toISOString();
         const invoiceItems = cart.map(item => {
-          const product = products.find(p => p.id === item.productId);
-          const unitPrice = item.unitPrice || product?.sell_price || 0;
+          const unitPrice = item.unitPrice;
           const itemTotal = unitPrice * item.quantity;
           return {
             description: item.productName,
@@ -778,16 +705,9 @@ export default function SaleScreen() {
     pkg.qty ? `${pkg.name} ×${pkg.qty}` : pkg.name;
 
   // Total d'une ligne panier (présentation uniquement, mêmes prix que computedTotal).
-  const lineTotal = (item: CartItem) => {
-    const product = products.find(p => p.id === item.productId);
-    const unitPrice = item.unitPrice || product?.sell_price || 0;
-    return unitPrice * item.quantity;
-  };
+  const lineTotal = (item: CartItem) => item.unitPrice * item.quantity;
 
-  const lineUnitPrice = (item: CartItem) => {
-    const product = products.find(p => p.id === item.productId);
-    return item.unitPrice || product?.sell_price || 0;
-  };
+  const lineUnitPrice = (item: CartItem) => item.unitPrice;
 
   // --- Date d'échéance (vente à crédit) ---
   // Renvoie une date ISO décalée de `days` jours à partir d'aujourd'hui (heure midi pour éviter les soucis de fuseau).
@@ -926,7 +846,20 @@ export default function SaleScreen() {
                     <Plus size={18} color={Colors.action} />
                   </View>
                 </View>
-                <Text style={styles.productPrice}>{formatMoney(product.sell_price)}</Text>
+                {(() => {
+                  // Détail (pièce) si sous-cond actif, sinon prix de gros (carton).
+                  const { hasDetail, upp } = unitsInfo(product);
+                  const amount = hasDetail
+                    ? product.sell_price
+                    : (product.package_price ?? product.sell_price);
+                  const suffix = hasDetail ? '' : upp > 1 ? ' / carton' : '';
+                  return (
+                    <Text style={styles.productPrice}>
+                      {formatMoney(amount)}
+                      {suffix ? <Text style={styles.productPriceUnit}>{suffix}</Text> : null}
+                    </Text>
+                  );
+                })()}
                 <View style={styles.productMetaRow}>
                   <Text style={[styles.productStock, lowStock && styles.productStockLow]}>
                     {stock} en stock
@@ -1016,20 +949,23 @@ export default function SaleScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {cart.map(item => (
-                <View key={`${item.productId}-${item.batchId || 'fifo'}`} style={styles.sheetItem}>
+                <View key={`${item.productId}-${item.unit}`} style={styles.sheetItem}>
                   <View style={styles.sheetItemInfo}>
                     <Text style={styles.sheetItemName} numberOfLines={1}>
                       {item.productName}
                     </Text>
-                    <Text style={styles.sheetItemUnit}>{formatMoney(lineUnitPrice(item))}</Text>
+                    <Text style={styles.sheetItemUnit}>
+                      {formatMoney(lineUnitPrice(item))} /{' '}
+                      {item.unit === 'carton' ? 'carton' : 'pièce'}
+                    </Text>
                   </View>
                   <View style={styles.stepper}>
                     <TouchableOpacity
                       style={styles.stepperButton}
                       onPress={() =>
                         item.quantity <= 1
-                          ? removeFromCart(item.productId, item.batchId)
-                          : updateQuantity(item.productId, -1, item.batchId)
+                          ? removeFromCart(item.productId, item.unit)
+                          : updateQuantity(item.productId, -1, item.unit)
                       }
                     >
                       {item.quantity <= 1 ? (
@@ -1041,7 +977,7 @@ export default function SaleScreen() {
                     <TextInput
                       style={styles.stepperValue}
                       value={String(item.quantity)}
-                      onChangeText={text => setExactQuantity(item.productId, text, item.batchId)}
+                      onChangeText={text => setExactQuantity(item.productId, text, item.unit)}
                       keyboardType="number-pad"
                       selectTextOnFocus
                       maxLength={6}
@@ -1050,7 +986,7 @@ export default function SaleScreen() {
                     />
                     <TouchableOpacity
                       style={styles.stepperButton}
-                      onPress={() => updateQuantity(item.productId, 1, item.batchId)}
+                      onPress={() => updateQuantity(item.productId, 1, item.unit)}
                     >
                       <Plus size={14} color={Colors.action} />
                     </TouchableOpacity>
@@ -1282,7 +1218,7 @@ export default function SaleScreen() {
               <View style={styles.cartSummary}>
                 <Text style={styles.summaryTitle}>Récapitulatif</Text>
                 {cart.map(item => (
-                  <View key={item.productId} style={styles.summaryItem}>
+                  <View key={`${item.productId}-${item.unit}`} style={styles.summaryItem}>
                     <Text style={styles.summaryItemName}>{item.productName}</Text>
                     <Text style={styles.summaryItemQty}>x{item.quantity}</Text>
                   </View>
@@ -1385,66 +1321,70 @@ export default function SaleScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Conditionnement</Text>
+            <Text style={styles.modalTitle}>Choisir l&apos;unité</Text>
             {priceModalProduct && (
               <Text style={styles.condSubtitle}>
-                {productLabel(priceModalProduct)} · choisissez l'unité de vente
+                {productLabel(priceModalProduct)} · choisissez l&apos;unité de vente
               </Text>
             )}
 
             <ScrollView>
-              {/* Conditionnement complet (ex. Carton de 24) — prix de pack réel */}
               {(() => {
                 if (!priceModalProduct) return null;
-                const pkg = packagingFor(priceModalProduct);
-                const packQty = pkg?.qty ?? null;
-                const packPrice = priceModalProduct.package_price ?? null;
-                if (!pkg || !packQty || !packPrice) return null;
-                const perPiece = Math.round(packPrice / packQty);
+                const product = priceModalProduct;
+                const { upp, hasCarton, hasDetail } = unitsInfo(product);
+                const stock = product.current_stock || 0;
+                const pkg = packagingFor(product);
+                const cartonName = pkg?.name ?? 'Carton';
+                const cartonsAvail = Math.floor(stock / Math.max(upp, 1));
+                const piecesAvail = stock;
                 return (
-                  <TouchableOpacity
-                    style={styles.condRow}
-                    onPress={() => handlePackSelection(priceModalProduct, packQty, perPiece)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.condIcon}>
-                      <Package size={20} color={Colors.success.main} />
-                    </View>
-                    <View style={styles.condInfo}>
-                      <Text style={styles.condTitle}>{pkg.name}</Text>
-                      <Text style={styles.condSub}>
-                        {packQty} {priceModalProduct.unit} · {formatMoney(perPiece)} /{' '}
-                        {priceModalProduct.unit}
-                      </Text>
-                    </View>
-                    <Text style={styles.condPrice}>{formatMoney(packPrice)}</Text>
-                  </TouchableOpacity>
+                  <>
+                    {/* CARTON (GROS) — prix de vente au carton */}
+                    {hasCarton && (
+                      <TouchableOpacity
+                        style={styles.condRow}
+                        onPress={() => addUnitToCart(product, 'carton')}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.condIcon}>
+                          <Package size={20} color={Colors.success.main} />
+                        </View>
+                        <View style={styles.condInfo}>
+                          <Text style={styles.condTitle}>{cartonName} · Gros</Text>
+                          <Text style={styles.condSub}>
+                            {upp > 1 ? `${upp} ${product.unit} · ` : ''}
+                            {cartonsAvail} carton{cartonsAvail > 1 ? 's' : ''} en stock
+                          </Text>
+                        </View>
+                        <Text style={styles.condPrice}>
+                          {formatMoney(product.package_price ?? 0)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* PIÈCE (DÉTAIL) — uniquement si sous-conditionnement actif */}
+                    {hasDetail && (
+                      <TouchableOpacity
+                        style={styles.condRow}
+                        onPress={() => addUnitToCart(product, 'piece')}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.condIcon}>
+                          <Package size={20} color={Colors.action} />
+                        </View>
+                        <View style={styles.condInfo}>
+                          <Text style={styles.condTitle}>Pièce · Détail</Text>
+                          <Text style={styles.condSub}>
+                            {piecesAvail} {product.unit} en stock
+                          </Text>
+                        </View>
+                        <Text style={styles.condPrice}>{formatMoney(product.sell_price)}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 );
               })()}
-
-              {priceOptions.map((option, index) => {
-                const unitTitle = 'Pièce';
-                const lotLabel = `${option.batch_count} lot${option.batch_count > 1 ? 's' : ''}`;
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.condRow}
-                    onPress={() => handlePriceSelection(option)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={styles.condIcon}>
-                      <Package size={20} color={Colors.action} />
-                    </View>
-                    <View style={styles.condInfo}>
-                      <Text style={styles.condTitle}>{unitTitle}</Text>
-                      <Text style={styles.condSub}>
-                        {option.total_quantity} en stock · {lotLabel}
-                      </Text>
-                    </View>
-                    <Text style={styles.condPrice}>{formatMoney(option.sell_price)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
             </ScrollView>
 
             <TouchableOpacity
@@ -1568,6 +1508,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary[900],
     marginBottom: Spacing.xs,
+  },
+  productPriceUnit: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
   },
   productMetaRow: {
     flexDirection: 'row',

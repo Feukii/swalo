@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -43,6 +44,7 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
   const [totalQueue, setTotalQueue] = useState(0);
   const [conflictCount, setConflictCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
 
   const loadStats = useCallback(async () => {
     const [sync, failed, total] = await Promise.all([
@@ -67,6 +69,34 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
     await loadStats();
     setRefreshing(false);
   }, [loadStats]);
+
+  const handleForceResync = () => {
+    Alert.alert(
+      'Forcer la resynchronisation',
+      'Cela efface les données locales et les retélécharge depuis le serveur. Continuer ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Resynchroniser',
+          onPress: async () => {
+            setResyncing(true);
+            const res = await syncEngine.forceFullResync();
+            setResyncing(false);
+            await loadStats();
+            if (res.ok) {
+              Alert.alert(
+                'Resynchronisation terminée',
+                `${res.products} produit(s) synchronisé(s).` +
+                  (res.detail ? `\n\n${res.detail}` : '')
+              );
+            } else {
+              Alert.alert('Échec de la synchronisation', res.error ?? 'Erreur inconnue');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const formatDate = (isoString: string | null) => {
     if (!isoString) return 'Jamais';
@@ -191,6 +221,26 @@ export default function SyncStatusScreen({ navigation }: SyncStatusScreenProps) 
             {isSyncing ? 'Synchronisation en cours...' : 'Synchroniser maintenant'}
           </Text>
         </TouchableOpacity>
+
+        {/* Force Full Resync */}
+        <TouchableOpacity
+          style={[styles.resyncButton, resyncing && styles.syncButtonDisabled]}
+          onPress={handleForceResync}
+          disabled={resyncing}
+        >
+          {resyncing ? (
+            <ActivityIndicator size="small" color={Colors.action} />
+          ) : (
+            <RefreshCw size={20} color={Colors.action} />
+          )}
+          <Text style={styles.resyncButtonText}>
+            {resyncing ? 'Resynchronisation…' : 'Forcer la resynchronisation'}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.resyncHelp}>
+          Efface les données locales et retélécharge tout depuis le serveur. À utiliser en cas de
+          données manquantes ou incohérentes.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -282,8 +332,28 @@ const styles = StyleSheet.create({
     minHeight: 48,
     gap: Spacing.sm,
     marginTop: Spacing.xs,
-    marginBottom: Spacing['3xl'],
+    marginBottom: Spacing.md,
   },
   syncButtonDisabled: { opacity: 0.5 },
   syncButtonText: { color: Colors.surface, fontSize: 16, fontWeight: '600' },
+  resyncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.action,
+    padding: Spacing.lg,
+    minHeight: 48,
+    gap: Spacing.sm,
+  },
+  resyncButtonText: { color: Colors.action, fontSize: 16, fontWeight: '600' },
+  resyncHelp: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing['3xl'],
+    paddingHorizontal: Spacing.xs,
+  },
 });

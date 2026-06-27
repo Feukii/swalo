@@ -1,13 +1,28 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Pressable,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScreenHeader } from '../components/ui';
-import { Package, Wallet, Edit, AlertTriangle, IconProps } from '../components/icons/SimpleIcons';
+import {
+  Package,
+  Wallet,
+  Edit,
+  AlertTriangle,
+  CheckCircle,
+  IconProps,
+} from '../components/icons/SimpleIcons';
 import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { getSupervisionAlerts, SupervisionAlert } from '../db/reports';
-import { adminApi } from '../lib/api';
+import { getSupervisionAlerts, acknowledgeAlertLocal, SupervisionAlert } from '../db/reports';
+import { adminApi, supervisionApi } from '../lib/api';
 
 const DAYS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const MONTHS_FR = [
@@ -48,10 +63,12 @@ interface SupervisionScreenProps {
 }
 
 export default function SupervisionScreen({ navigation }: SupervisionScreenProps) {
-  const { shopId } = useCurrentUser();
+  const { shopId, user } = useCurrentUser();
+  const isBoss = user?.role === 'BOSS' || user?.role === 'SUPERADMIN';
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<SupervisionAlert[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
+  const [acking, setAcking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!shopId) return;
@@ -87,6 +104,31 @@ export default function SupervisionScreen({ navigation }: SupervisionScreenProps
       load();
     }, [load])
   );
+
+  const handleAcknowledge = (alert: SupervisionAlert) => {
+    if (!shopId) return;
+    Alert.alert("Acquitter l'alerte", `Marquer « ${alert.title} » comme traitée ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Acquitter',
+        onPress: async () => {
+          setAcking(alert.id);
+          try {
+            // Acquittement local immédiat (le backend fait foi quand le réseau est dispo).
+            await acknowledgeAlertLocal(shopId, alert.id, user?.id ?? null);
+            try {
+              await supervisionApi.acknowledgeAlert(alert.id);
+            } catch {
+              // Hors-ligne : l'acquittement local tient ; il sera reposté au prochain accès.
+            }
+            setAlerts(prev => prev.filter(a => a.id !== alert.id));
+          } finally {
+            setAcking(null);
+          }
+        },
+      },
+    ]);
+  };
 
   const criticalCount = alerts.filter(a => a.severity === 'critical').length;
   const reviewCount = alerts.filter(a => a.severity === 'review').length;
@@ -164,10 +206,28 @@ export default function SupervisionScreen({ navigation }: SupervisionScreenProps
                     </View>
                   </View>
                   <Text style={styles.alertDetail}>{a.detail}</Text>
-                  <Text style={styles.alertMeta}>
-                    {author ? `${author}  ·  ` : ''}
-                    {formatTime(a.createdAt)}
-                  </Text>
+                  <View style={styles.alertFooter}>
+                    <Text style={styles.alertMeta}>
+                      {author ? `${author}  ·  ` : ''}
+                      {formatTime(a.createdAt)}
+                    </Text>
+                    {isBoss && (
+                      <Pressable
+                        style={({ pressed }) => [styles.ackButton, pressed && { opacity: 0.6 }]}
+                        onPress={() => handleAcknowledge(a)}
+                        disabled={acking === a.id}
+                      >
+                        {acking === a.id ? (
+                          <ActivityIndicator size="small" color={Colors.success.main} />
+                        ) : (
+                          <>
+                            <CheckCircle size={15} color={Colors.success.main} />
+                            <Text style={styles.ackText}>Acquitter</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
               </View>
             );
@@ -239,7 +299,24 @@ const styles = StyleSheet.create({
   },
   severityText: { fontSize: 11.5, fontWeight: '700' },
   alertDetail: { fontSize: 14, color: Colors.textColors.secondary, marginTop: 4 },
-  alertMeta: { fontSize: 12.5, color: Colors.textColors.tertiary, marginTop: 6 },
+  alertFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  alertMeta: { fontSize: 12.5, color: Colors.textColors.tertiary, flex: 1 },
+  ackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.success.background,
+    minHeight: 30,
+  },
+  ackText: { fontSize: 13, fontWeight: '600', color: Colors.success.text },
 
   emptyText: {
     textAlign: 'center',

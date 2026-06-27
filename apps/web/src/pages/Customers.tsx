@@ -160,6 +160,19 @@ function isOverdue(customer: Customer): boolean {
   );
 }
 
+/**
+ * Filtre par catégorie de solde (sémantique client : un solde positif = le
+ * client nous doit, un solde négatif = on lui doit une avance / un trop-perçu).
+ */
+type BalanceFilter = 'all' | 'they_owe' | 'settled' | 'we_owe';
+
+const BALANCE_FILTERS: { key: BalanceFilter; label: string }[] = [
+  { key: 'all', label: 'Tous' },
+  { key: 'they_owe', label: 'Ils doivent' },
+  { key: 'settled', label: 'À jour' },
+  { key: 'we_owe', label: 'On leur doit' },
+];
+
 export default function Customers() {
   const navigate = useNavigate();
   const { can } = usePermissions();
@@ -169,6 +182,7 @@ export default function Customers() {
   const [showModal, setShowModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -307,12 +321,28 @@ export default function Customers() {
   const filteredCustomers = customers.filter(customer => {
     const fullName = `${customer.first_name || ''} ${customer.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       customer.phone?.includes(query) ||
-      customer.email?.toLowerCase().includes(query)
-    );
+      customer.email?.toLowerCase().includes(query);
+
+    const balance = customer.current_balance || 0;
+    const matchesBalance =
+      balanceFilter === 'all' ||
+      (balanceFilter === 'they_owe' && balance > 0) ||
+      (balanceFilter === 'settled' && balance === 0) ||
+      (balanceFilter === 'we_owe' && balance < 0);
+
+    return matchesSearch && matchesBalance;
   });
+
+  // Compteurs par catégorie de solde (sur la liste déjà chargée)
+  const balanceCounts: Record<BalanceFilter, number> = {
+    all: customers.length,
+    they_owe: customers.filter(c => (c.current_balance || 0) > 0).length,
+    settled: customers.filter(c => (c.current_balance || 0) === 0).length,
+    we_owe: customers.filter(c => (c.current_balance || 0) < 0).length,
+  };
 
   // KPI calculés depuis la liste déjà chargée
   const toRecover = customers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
@@ -389,6 +419,30 @@ export default function Customers() {
           </div>
         </div>
 
+        {/* Filtres par catégorie de solde */}
+        <div className="flex flex-wrap gap-2 px-6 pb-4">
+          {BALANCE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setBalanceFilter(f.key)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                balanceFilter === f.key
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {f.label}
+              <span
+                className={`ml-1.5 ${
+                  balanceFilter === f.key ? 'text-white/80' : 'text-slate-400'
+                }`}
+              >
+                {balanceCounts[f.key]}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-16">
             <div className="w-12 h-12 spinner"></div>
@@ -396,9 +450,11 @@ export default function Customers() {
         ) : filteredCustomers.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-slate-500">
-              {searchQuery ? 'Aucun client trouvé' : 'Aucun client enregistré'}
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun client trouvé'
+                : 'Aucun client enregistré'}
             </p>
-            {!searchQuery && canCreate && (
+            {!searchQuery && balanceFilter === 'all' && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier client
               </button>

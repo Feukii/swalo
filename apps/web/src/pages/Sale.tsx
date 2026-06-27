@@ -25,6 +25,11 @@ interface Product {
   reference?: string;
   cost_price: number;
   sell_price: number;
+  // Modele carton-primary : prix de vente au CARTON (gros) et nombre de pieces
+  // par carton (UPP >= 1). `unit` = libelle de l'unite de base (piece, paire...).
+  package_price?: number;
+  units_per_package?: number;
+  unit?: string;
   alert_threshold: number;
   is_active: boolean;
   current_stock?: number;
@@ -46,12 +51,19 @@ interface PriceOption {
   available_qty: number;
 }
 
+// Unite de vente d'une ligne de panier (modele carton-primary, identique au mobile).
+//  - 'carton' = vente au GROS (package_price), deduit UPP pieces par carton.
+//  - 'piece'  = vente au DETAIL (sell_price), deduit 1 piece.
+type SaleUnit = 'carton' | 'piece';
+
 interface CartItem {
   productId: string;
   productName: string;
   sku: string;
-  qty: number;
-  unitPrice: number;
+  qty: number; // nombre d'unites (cartons ou pieces) — pilote par le stepper
+  unit: SaleUnit;
+  piecesPerUnit: number; // UPP pour un carton, 1 pour une piece
+  unitPrice: number; // prix de l'unite choisie (package_price ou sell_price)
   batchId?: string;
 }
 
@@ -108,6 +120,10 @@ export default function Sale() {
   const [priceModalProduct, setPriceModalProduct] = useState<Product | null>(null);
   const [priceOptions, setPriceOptions] = useState<PriceOption[]>([]);
   const [priceOptionsLoading, setPriceOptionsLoading] = useState(false);
+
+  // --- Selecteur d'unite de vente (Carton / Piece) ---
+  const [unitModalOpen, setUnitModalOpen] = useState(false);
+  const [unitModalProduct, setUnitModalProduct] = useState<Product | null>(null);
 
   // --- Loading / feedback ---
   const [productsLoading, setProductsLoading] = useState(false);
@@ -195,64 +211,124 @@ export default function Sale() {
   // Cart operations
   // =========================================================================
 
+  // Unites vendables d'un produit (modele carton-primary).
+  //  - carton (GROS) : des que package_price est defini ; deduit UPP pieces.
+  //  - piece (DETAIL) : seulement si sous-conditionnement actif (UPP>1 et sell_price>0).
+  const unitsInfo = (product: Product) => {
+    const upp =
+      product.units_per_package && product.units_per_package > 0 ? product.units_per_package : 1;
+    const hasCarton = !!product.package_price && product.package_price > 0;
+    const hasDetail = upp > 1 && !!product.sell_price && product.sell_price > 0;
+    return { upp, hasCarton, hasDetail };
+  };
+
+  // Pieces deja reservees dans le panier pour un produit (toutes lignes confondues),
+  // en option en excluant une ligne donnee (pour recalculer son plafond).
+  const piecesUsedByProduct = (productId: string, excludeIndex?: number): number =>
+    cart.reduce(
+      (sum, item, i) =>
+        i === excludeIndex || item.productId !== productId
+          ? sum
+          : sum + item.qty * item.piecesPerUnit,
+      0
+    );
+
+  // Tap produit : ouvre le selecteur d'unite si carton ET detail/multi-prix sont
+  // possibles, sinon ajoute directement la seule unite disponible.
   const addToCart = async (product: Product) => {
-    // Check if multi-price
-    if (product.is_multi_price) {
-      setPriceModalProduct(product);
-      setPriceOptionsLoading(true);
-      setPriceModalOpen(true);
-      try {
-        const prices = await productBatchesApi.getAvailablePrices(product.id);
-        setPriceOptions(
-          Array.isArray(prices)
-            ? prices.map((p: any) => ({
-                sell_price: p.sell_price ?? p.price ?? 0,
-                available_qty: p.available_qty ?? p.quantity ?? p.total_quantity ?? 0,
-              }))
-            : []
-        );
-      } catch (err) {
-        console.error('Erreur chargement prix:', err);
-        setPriceOptions([]);
-      } finally {
-        setPriceOptionsLoading(false);
-      }
+    const { hasCarton, hasDetail } = unitsInfo(product);
+
+    // Carton + detail (ou multi-prix au detail) => l'utilisateur choisit l'unite.
+    if (hasCarton && (hasDetail || product.is_multi_price)) {
+      setUnitModalProduct(product);
+      setUnitModalOpen(true);
       return;
     }
 
-    // Single price -- add directly
-    addItemToCart(product, product.sell_price);
+    // Carton uniquement (pas de sous-conditionnement).
+    if (hasCarton) {
+      addUnitToCart(product, 'carton');
+      return;
+    }
+
+    // Detail multi-prix => modale de selection du prix (lots).
+    if (product.is_multi_price) {
+      openMultiPriceModal(product);
+      return;
+    }
+
+    // Detail simple (prix unique) => ajout direct a la piece.
+    addUnitToCart(product, 'piece');
   };
 
-  const addItemToCart = (product: Product, unitPrice: number, batchId?: string) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.productId === product.id && item.batchId === batchId);
+  // Ouvre la modale multi-prix (prix par lot) pour une vente au DETAIL.
+  const openMultiPriceModal = async (product: Product) => {
+    setPriceModalProduct(product);
+    setPriceOptionsLoading(true);
+    setPriceModalOpen(true);
+    try {
+      const prices = await productBatchesApi.getAvailablePrices(product.id);
+      setPriceOptions(
+        Array.isArray(prices)
+          ? prices.map((p: any) => ({
+              sell_price: p.sell_price ?? p.price ?? 0,
+              available_qty: p.available_qty ?? p.quantity ?? p.total_quantity ?? 0,
+            }))
+          : []
+      );
+    } catch (err) {
+      console.error('Erreur chargement prix:', err);
+      setPriceOptions([]);
+    } finally {
+      setPriceOptionsLoading(false);
+    }
+  };
 
+  // Ajoute (ou incremente) une ligne pour l'unite choisie. La quantite est en
+  // UNITES (cartons ou pieces) ; le prix de la ligne est celui de cette unite.
+  // Le plafond de stock est calcule en PIECES (unite atomique).
+  const addUnitToCart = (
+    product: Product,
+    unit: SaleUnit,
+    opts?: { unitPrice?: number; batchId?: string }
+  ) => {
+    const { upp } = unitsInfo(product);
+    const piecesPerUnit = unit === 'carton' ? Math.max(upp, 1) : 1;
+    const unitPrice =
+      opts?.unitPrice ?? (unit === 'carton' ? (product.package_price ?? 0) : product.sell_price);
+    const batchId = opts?.batchId;
+    const baseName = productLabel(product);
+    const label = unit === 'carton' ? `${baseName} (× Carton)` : `${baseName} (× Pièce)`;
+
+    const stock = product.current_stock ?? 0;
+    const availablePieces = stock - piecesUsedByProduct(product.id);
+
+    if (availablePieces < piecesPerUnit) {
+      setErrorMessage(`Stock insuffisant pour ${baseName} (${stock} en stock)`);
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    setCart(prev => {
+      const existing = prev.find(
+        item => item.productId === product.id && item.unit === unit && item.batchId === batchId
+      );
       if (existing) {
-        // Check stock
-        const currentStock = product.current_stock ?? 0;
-        const totalInCart = cartQtyByProduct.get(product.id) || 0;
-        if (totalInCart >= currentStock) {
-          setErrorMessage(
-            `Stock insuffisant pour ${productLabel(product)} (${currentStock} disponibles)`
-          );
-          setTimeout(() => setErrorMessage(''), 3000);
-          return prev;
-        }
         return prev.map(item =>
-          item.productId === product.id && item.batchId === batchId
+          item.productId === product.id && item.unit === unit && item.batchId === batchId
             ? { ...item, qty: item.qty + 1 }
             : item
         );
       }
-
       return [
         ...prev,
         {
           productId: product.id,
-          productName: productLabel(product),
+          productName: label,
           sku: product.sku,
           qty: 1,
+          unit,
+          piecesPerUnit,
           unitPrice,
           batchId,
         },
@@ -260,9 +336,28 @@ export default function Sale() {
     });
   };
 
+  // Choix d'unite depuis la modale (Carton / Piece).
+  const handleUnitSelection = (unit: SaleUnit) => {
+    const product = unitModalProduct;
+    closeUnitModal();
+    if (!product) return;
+    if (unit === 'piece' && product.is_multi_price) {
+      // Detail multi-prix : on enchaine sur la modale de selection du prix.
+      openMultiPriceModal(product);
+      return;
+    }
+    addUnitToCart(product, unit);
+  };
+
+  const closeUnitModal = () => {
+    setUnitModalOpen(false);
+    setUnitModalProduct(null);
+  };
+
   const handlePriceSelection = (option: PriceOption) => {
     if (!priceModalProduct) return;
-    addItemToCart(priceModalProduct, option.sell_price);
+    // Le prix de lot est un prix au DETAIL (a la piece).
+    addUnitToCart(priceModalProduct, 'piece', { unitPrice: option.sell_price });
     closePriceModal();
   };
 
@@ -282,15 +377,15 @@ export default function Sale() {
         return prev.filter((_, i) => i !== index);
       }
 
-      // Check stock limit
+      // Plafond de stock calcule en PIECES (unite atomique).
       const product = products.find(p => p.id === item.productId);
       const currentStock = product?.current_stock ?? 0;
-      const otherQty = prev
+      const otherPieces = prev
         .filter((_, i) => i !== index)
         .filter(c => c.productId === item.productId)
-        .reduce((s, c) => s + c.qty, 0);
-      if (newQty + otherQty > currentStock) {
-        setErrorMessage(`Stock insuffisant pour ${item.productName} (${currentStock} disponibles)`);
+        .reduce((s, c) => s + c.qty * c.piecesPerUnit, 0);
+      if (newQty * item.piecesPerUnit + otherPieces > currentStock) {
+        setErrorMessage(`Stock insuffisant pour ${item.productName} (${currentStock} en stock)`);
         setTimeout(() => setErrorMessage(''), 3000);
         return prev;
       }
@@ -351,10 +446,13 @@ export default function Sale() {
       // 1. Create the sale
       const salePayload = {
         customer_id: selectedCustomerId || undefined,
+        // Conversion vers l'unite ATOMIQUE (piece) pour l'API existante :
+        //   qty = unites × pieces/unite ; prix ramene a la piece (arrondi).
+        // Le total exact reste pilote par cartTotal = Σ(qty_unite × prix_unite).
         items: cart.map(item => ({
           product_id: item.productId,
-          qty: item.qty,
-          unit_price: item.unitPrice,
+          qty: item.qty * item.piecesPerUnit,
+          unit_price: Math.round(item.unitPrice / item.piecesPerUnit),
         })),
         status: 'COMPLETED' as const,
         notes: paymentMethod === 'credit' ? 'Vente a credit' : 'Vente au comptant',
@@ -608,9 +706,24 @@ export default function Sale() {
                             {formatFCFA(product.price_min ?? product.sell_price)}
                           </p>
                         ) : (
-                          <p className="text-sm font-bold text-primary-900">
-                            {formatFCFA(product.sell_price)}
-                          </p>
+                          (() => {
+                            // Detail (piece) si sous-cond actif, sinon prix de gros (carton).
+                            const { hasDetail, upp } = unitsInfo(product);
+                            const amount = hasDetail
+                              ? product.sell_price
+                              : (product.package_price ?? product.sell_price);
+                            const suffix = hasDetail ? '' : upp > 1 ? ' /carton' : '';
+                            return (
+                              <p className="text-sm font-bold text-primary-900">
+                                {formatFCFA(amount)}
+                                {suffix && (
+                                  <span className="text-xs font-medium text-slate-400">
+                                    {suffix}
+                                  </span>
+                                )}
+                              </p>
+                            );
+                          })()
                         )}
                         <p
                           className={`text-xs font-medium whitespace-nowrap ${
@@ -724,6 +837,8 @@ export default function Sale() {
                       </button>
                       <span className="text-xs text-slate-500">
                         {item.qty} × {formatFCFA(item.unitPrice)}
+                        {' / '}
+                        {item.unit === 'carton' ? 'carton' : 'pièce'}
                       </span>
                       <button
                         onClick={() => updateQty(index, 1)}
@@ -978,6 +1093,106 @@ export default function Sale() {
             {/* Modal footer */}
             <div className="px-6 pb-6">
               <button onClick={closePriceModal} className="btn-secondary w-full">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================
+          Unit selection modal (Carton / Piece)
+          ================================================================ */}
+      {unitModalOpen && unitModalProduct && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-medium animate-scale-in overflow-hidden">
+            {/* Modal header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-action-500 to-action-600">
+              <div className="flex items-center justify-between text-white">
+                <div>
+                  <h3 className="text-lg font-bold">Choisir l'unité</h3>
+                  <p className="text-sm text-white/80 mt-0.5">
+                    {productLabel(unitModalProduct)}
+                  </p>
+                </div>
+                <button
+                  onClick={closeUnitModal}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal body */}
+            <div className="p-6 space-y-3">
+              {(() => {
+                const product = unitModalProduct;
+                const { upp, hasCarton, hasDetail } = unitsInfo(product);
+                const stock = product.current_stock ?? 0;
+                const cartonsAvail = Math.floor(stock / Math.max(upp, 1));
+                const unitLabel = product.unit || 'pièce';
+                return (
+                  <>
+                    {/* CARTON (GROS) */}
+                    {hasCarton && (
+                      <button
+                        onClick={() => handleUnitSelection('carton')}
+                        className="w-full flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-success-300 hover:bg-success-50 transition-all text-left"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">Carton · Gros</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {upp > 1 ? `${upp} ${unitLabel} · ` : ''}
+                            {cartonsAvail} carton{cartonsAvail > 1 ? 's' : ''} en stock
+                          </p>
+                        </div>
+                        <p className="text-lg font-bold text-success-700">
+                          {formatFCFA(product.package_price ?? 0)}
+                        </p>
+                      </button>
+                    )}
+
+                    {/* PIECE (DETAIL) */}
+                    {(hasDetail || product.is_multi_price) && (
+                      <button
+                        onClick={() => handleUnitSelection('piece')}
+                        className="w-full flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-action-300 hover:bg-action-50 transition-all text-left"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">Pièce · Détail</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {stock} {unitLabel} en stock
+                            {product.is_multi_price ? ' · multi-prix' : ''}
+                          </p>
+                        </div>
+                        <p className="text-lg font-bold text-action-700">
+                          {product.is_multi_price
+                            ? formatFCFA(product.price_min ?? product.sell_price)
+                            : formatFCFA(product.sell_price)}
+                        </p>
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Modal footer */}
+            <div className="px-6 pb-6">
+              <button onClick={closeUnitModal} className="btn-secondary w-full">
                 Annuler
               </button>
             </div>

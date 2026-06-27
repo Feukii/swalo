@@ -32,13 +32,12 @@ export class CashService {
 
     const normalizedAmount = dto.amount;
 
-    // Validation: pas de sortie sup?rieure au solde actuel
+    // Validation: la caisse ne peut jamais devenir negative.
+    // Pour une sortie (OUT), on refuse si le solde resultant serait negatif.
     if (dto.type === 'OUT' && normalizedAmount > 0) {
       const balanceData = await this.getBalance(shopId);
-      if (normalizedAmount > balanceData.balance) {
-        throw new BadRequestException(
-          'Solde insuffisant: le montant de la sortie d?passe le solde de caisse'
-        );
+      if (balanceData.balance - normalizedAmount < 0) {
+        throw new BadRequestException('Solde de caisse insuffisant');
       }
     }
 

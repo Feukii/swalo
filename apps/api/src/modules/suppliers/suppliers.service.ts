@@ -60,6 +60,9 @@ export class SuppliersService {
           borrowing_limit: dto.borrowing_limit ?? 0,
           notes: dto.notes,
           is_active: true,
+          sms_notifications_enabled: dto.sms_notifications_enabled ?? true,
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled ?? true,
+          email_notifications_enabled: dto.email_notifications_enabled ?? true,
         },
       });
 
@@ -190,6 +193,50 @@ export class SuppliersService {
       throw new NotFoundException('Fournisseur non trouvé');
     }
 
+    // Historique des notifications envoyées : celles ciblant ce fournisseur
+    // (relances de règlement), ou adressées à son email / téléphone (SMS/WhatsApp).
+    const recipientFilters: string[] = [];
+    if (supplier.email) recipientFilters.push(supplier.email);
+    if (supplier.phone) recipientFilters.push(supplier.phone);
+
+    const notificationWhere: Prisma.NotificationLogWhereInput = {
+      shop_id: shopId,
+      OR: [
+        { target_type: 'supplier', target_id: id },
+        ...(recipientFilters.length > 0 ? [{ recipient: { in: recipientFilters } }] : []),
+      ],
+    };
+
+    const notifications = await this.prisma.notificationLog.findMany({
+      where: notificationWhere,
+      select: {
+        id: true,
+        type: true,
+        channel: true,
+        status: true,
+        recipient: true,
+        target_type: true,
+        target_id: true,
+        error: true,
+        sent_at: true,
+      },
+      orderBy: { sent_at: 'desc' },
+      take: 50,
+    });
+
+    const notifications_summary = {
+      total: notifications.length,
+      by_status: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.status] = (acc[n.status] ?? 0) + 1;
+        return acc;
+      }, {}),
+      by_channel: notifications.reduce<Record<string, number>>((acc, n) => {
+        acc[n.channel] = (acc[n.channel] ?? 0) + 1;
+        return acc;
+      }, {}),
+      recent: notifications,
+    };
+
     // Calculer les statistiques du fournisseur
     const stats = {
       total_debts: supplier.debts.reduce((sum, d) => sum + d.amount, 0),
@@ -204,6 +251,7 @@ export class SuppliersService {
     return {
       ...supplier,
       stats,
+      notifications_summary,
     };
   }
 
@@ -261,6 +309,15 @@ export class SuppliersService {
         ...(dto.borrowing_limit !== undefined && { borrowing_limit: dto.borrowing_limit }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+        ...(dto.sms_notifications_enabled !== undefined && {
+          sms_notifications_enabled: dto.sms_notifications_enabled,
+        }),
+        ...(dto.whatsapp_notifications_enabled !== undefined && {
+          whatsapp_notifications_enabled: dto.whatsapp_notifications_enabled,
+        }),
+        ...(dto.email_notifications_enabled !== undefined && {
+          email_notifications_enabled: dto.email_notifications_enabled,
+        }),
         updated_at: new Date(),
       },
     });

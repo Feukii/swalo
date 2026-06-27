@@ -32,6 +32,9 @@ function buildSupplierWithStats(totalBalance: number): SupplierWithStats {
     borrowing_limit: 0,
     notes: null,
     is_active: true,
+    sms_notifications_enabled: true,
+    whatsapp_notifications_enabled: true,
+    email_notifications_enabled: true,
     created_at: new Date(),
     updated_at: new Date(),
     deleted: false,
@@ -49,6 +52,12 @@ function buildSupplierWithStats(totalBalance: number): SupplierWithStats {
       invoices_count: 0,
       cash_payments_count: 0,
       total_cash_payments: 0,
+    },
+    notifications_summary: {
+      total: 0,
+      by_status: {},
+      by_channel: {},
+      recent: [],
     },
   };
 }

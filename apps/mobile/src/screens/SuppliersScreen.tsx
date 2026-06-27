@@ -63,12 +63,18 @@ function formatFcfa(amount: number): string {
   return `${grouped} F`;
 }
 
+// Catégorie de filtre par situation de solde du fournisseur (sémantique inversée).
+// all = tous · we_owe = on leur doit (solde > 0) · settled = à jour (solde = 0)
+// they_owe = ils nous doivent / avoir (solde < 0)
+type BalanceFilter = 'all' | 'we_owe' | 'settled' | 'they_owe';
+
 export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
   const { shop } = useCurrentUser();
   const { can } = usePermissions();
   const canCreateSupplier = can('suppliers', 'create');
   const shopId = shop?.id || null;
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
   const [showModal, setShowModal] = useState(false);
 
   // Local data hook - reads from SQLite
@@ -222,14 +228,53 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
     return { totalDebt: total, debtorCount: count };
   }, [balanceBySupplier]);
 
+  // Nombre de fournisseurs par catégorie de solde (pour les compteurs des puces).
+  const categoryCounts = useMemo(() => {
+    let weOwe = 0;
+    let theyOwe = 0;
+    for (const supplier of suppliers) {
+      const balance = balanceBySupplier.get(supplier.id) ?? 0;
+      if (balance > 0) weOwe += 1;
+      else if (balance < 0) theyOwe += 1;
+    }
+    return {
+      all: suppliers.length,
+      we_owe: weOwe,
+      settled: suppliers.length - weOwe - theyOwe,
+      they_owe: theyOwe,
+    };
+  }, [suppliers, balanceBySupplier]);
+
+  const balanceFilters: Array<{ key: BalanceFilter; label: string }> = [
+    { key: 'all', label: 'Tous' },
+    { key: 'we_owe', label: 'On leur doit' },
+    { key: 'settled', label: 'À jour' },
+    { key: 'they_owe', label: 'Ils nous doivent' },
+  ];
+
+  const matchesBalanceFilter = (balance: number): boolean => {
+    switch (balanceFilter) {
+      case 'we_owe':
+        return balance > 0;
+      case 'settled':
+        return balance === 0;
+      case 'they_owe':
+        return balance < 0;
+      default:
+        return true;
+    }
+  };
+
   const filteredSuppliers = suppliers.filter(supplier => {
     const fullName = `${supplier.first_name || ''} ${supplier.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       supplier.phone?.includes(query) ||
-      supplier.email?.toLowerCase().includes(query)
-    );
+      supplier.email?.toLowerCase().includes(query);
+    if (!matchesSearch) return false;
+    const balance = balanceBySupplier.get(supplier.id) ?? 0;
+    return matchesBalanceFilter(balance);
   });
 
   return (
@@ -287,6 +332,35 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
           />
         </View>
 
+        {/* Filtres par situation de solde */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          style={styles.filterScroll}
+        >
+          {balanceFilters.map(filter => {
+            const active = balanceFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                activeOpacity={0.7}
+                onPress={() => setBalanceFilter(filter.key)}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  {filter.label}
+                </Text>
+                <View style={[styles.filterCount, active && styles.filterCountActive]}>
+                  <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>
+                    {categoryCounts[filter.key]}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Liste fournisseurs */}
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -296,7 +370,9 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
           <View style={styles.emptyState}>
             <Building size={48} color={Colors.muted.foreground} />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Aucun fournisseur trouvé' : 'Aucun fournisseur enregistré'}
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun fournisseur trouvé'
+                : 'Aucun fournisseur enregistré'}
             </Text>
           </View>
         ) : (
@@ -533,6 +609,58 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.text,
     padding: 0,
+  },
+  // Filtres par solde
+  filterScroll: {
+    marginBottom: Spacing.lg,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingRight: Spacing.lg,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  filterChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.muted.foreground,
+  },
+  filterChipTextActive: {
+    color: Colors.action,
+  },
+  filterCount: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: Colors.muted.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterCountActive: {
+    backgroundColor: Colors.action,
+  },
+  filterCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.muted.foreground,
+  },
+  filterCountTextActive: {
+    color: Colors.onMarine,
   },
   // Supplier card
   supplierCard: {

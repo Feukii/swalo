@@ -41,35 +41,49 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  packaging_type_id?: string; // Conditionnement (Carton, Boîte…)
+  packaging_type_id?: string; // Conditionnement / carton (Carton, Boîte…) — OBLIGATOIRE dans l'UI
 
+  // Conditionnement (carton) OBLIGATOIRE : pièces par conditionnement (UPP, ≥ 1).
+  // UPP = 1 → le carton est une unité simple (pas de sous-conditionnement possible).
   @IsOptional()
   @IsInt()
   @Min(1)
-  units_per_package?: number; // Pièces par conditionnement (ex: 24)
+  units_per_package?: number;
 
+  // Prix de vente du carton (GROS), en FCFA — OBLIGATOIRE dans l'UI. C'est le prix
+  // qui pilote la vente au carton. Le prix de revient est aussi saisi AU CARTON dans
+  // l'UI (voir cost_price) mais stocké par pièce.
   @IsOptional()
   @IsInt()
   @Min(0)
-  package_price?: number; // Prix du conditionnement complet (en FCFA)
+  package_price?: number;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
   tax_rate?: number;
 
+  // En FCFA, stocké PAR PIÈCE (valorisation/COGS, inchangé). Dans l'UI il est saisi &
+  // affiché PAR CARTON : coût_carton = cost_price × units_per_package ; à l'enregistrement
+  // cost_price = round(coût_carton / units_per_package).
   @IsInt()
   @Min(0)
-  cost_price: number; // En FCFA
+  cost_price: number;
 
+  // Prix de vente au DÉTAIL (à la pièce), en FCFA. Optionnel : utilisé seulement si le
+  // sous-conditionnement (vente à la pièce) est activé (UPP > 1 et sell_price > 0).
+  // PLANCHER : sell_price ≥ ceil(package_price / units_per_package) — clampé côté serveur.
+  // 0 = pas de vente au détail (article vendu uniquement au carton).
   @IsInt()
   @Min(0)
-  sell_price: number; // En FCFA
+  sell_price: number;
 
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
 
+  // Seuil d'alerte exprimé en CARTONS quand l'article est conditionné
+  // (units_per_package > 1), sinon en pièces.
   @IsOptional()
   @IsInt()
   @Min(0)

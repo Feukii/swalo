@@ -51,7 +51,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       items: [
         { name: 'Produits & prix', path: '/products', icon: '📦', module: 'products' },
         { name: 'Inventaire', path: '/stock', icon: '📋', module: 'inventory' },
-        { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'inventory' },
+        { name: 'Transferts', path: '/transfers', icon: '🔁', module: 'transfers' },
       ],
     },
     {

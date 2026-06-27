@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -128,11 +129,13 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   // Seuil form
   const [thresholdValue, setThresholdValue] = useState('');
 
-  // Édition de l'article (nom, prix, ajustement de stock) — sheet unifiée
+  // Édition de l'article — sheet « Modifier l'article »
+  // (CONDITIONNEMENT obligatoire + SOUS-CONDITIONNEMENT optionnel)
   const [editName, setEditName] = useState('');
-  const [editCost, setEditCost] = useState('');
-  const [editSell, setEditSell] = useState('');
-  const [editStock, setEditStock] = useState('');
+  const [editCost, setEditCost] = useState(''); // prix de revient AU CARTON
+  const [editSell, setEditSell] = useState(''); // prix de DÉTAIL (pièce)
+  const [editDetailEnabled, setEditDetailEnabled] = useState(false); // toggle sous-cond
+  const [editAlertThreshold, setEditAlertThreshold] = useState(''); // seuil en cartons
 
   const loadProduct = useCallback(async () => {
     if (!shopId) return;
@@ -186,15 +189,65 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     }, [loadProduct])
   );
 
+  // AUTO-ADAPT : dès que le prix de gros (carton) ou l'UPP change, si le prix de détail
+  // saisi passe sous le plancher ceil(gros/UPP), on le remonte automatiquement au plancher
+  // (live). On ne le baisse jamais : le détail peut être supérieur au plancher.
+  useEffect(() => {
+    if (!editDetailEnabled) return;
+    const pkg = parseInt(editPackagePrice, 10);
+    const u = parseInt(editUnitsPerPackage, 10);
+    if (isNaN(pkg) || pkg <= 0 || isNaN(u) || u <= 1) return;
+    const floor = Math.ceil(pkg / u);
+    const cur = parseInt(editSell, 10);
+    if (isNaN(cur) || cur < floor) {
+      setEditSell(String(floor));
+    }
+  }, [editPackagePrice, editUnitsPerPackage, editDetailEnabled, editSell]);
+
   // Dérivés (valorisation FIFO)
   const activeBatches = batches.filter(b => b.remaining_quantity > 0);
   const currentStock = activeBatches.reduce((s, b) => s + b.remaining_quantity, 0);
   const stockValue = activeBatches.reduce((s, b) => s + b.remaining_quantity * b.cost_price, 0);
   const pmp = currentStock > 0 ? Math.round(stockValue / currentStock) : 0;
   const sellPrice = product?.sell_price ?? 0;
-  const margin = sellPrice - pmp;
-  const marginPct = sellPrice > 0 ? Math.round((margin / sellPrice) * 100) : 0;
-  const isLowStock = product ? currentStock <= product.alert_threshold : false;
+
+  // Modèle carton-primary : l'unité atomique reste la PIÈCE (lots/FIFO inchangés),
+  // mais le carton (units_per_package > 1) devient l'unité d'affichage du stock,
+  // du coût et du seuil d'alerte. null/1 = vendu uniquement à la pièce.
+  const upp =
+    product?.units_per_package && product.units_per_package > 1 ? product.units_per_package : 0;
+  const isConditioned = upp > 0;
+  // UPP "réel" (≥1) pour les conversions cartons↔pièces (UPP=1 = carton = unité simple).
+  const uppReal =
+    product?.units_per_package && product.units_per_package > 0 ? product.units_per_package : 1;
+  // Sous-conditionnement (vente au détail) actif ⟺ UPP>1 ET prix de détail défini (>0).
+  const hasDetail = isConditioned && (product?.sell_price ?? 0) > 0;
+  // Plancher de détail courant (gros ramené à la pièce).
+  const detailFloor =
+    isConditioned && product?.package_price ? Math.ceil(product.package_price / upp) : 0;
+  const cartons = isConditioned ? Math.floor(currentStock / upp) : 0;
+  const looseUnits = isConditioned ? currentStock % upp : 0;
+  // Coût par carton = PMP/pièce × pièces par carton.
+  const pmpPerCarton = isConditioned ? pmp * upp : pmp;
+  // Prix de vente affiché sur la carte : DÉTAIL (pièce) si sous-cond actif, sinon GROS (carton).
+  const saleDisplayPrice = hasDetail ? sellPrice : (product?.package_price ?? 0);
+  const saleDisplayCost = hasDetail ? pmp : pmpPerCarton;
+  const saleMargin = saleDisplayPrice - saleDisplayCost;
+  const saleMarginPct =
+    saleDisplayPrice > 0 ? Math.round((saleMargin / saleDisplayPrice) * 100) : 0;
+  const saleDisplayUnit = hasDetail ? '/ pièce' : isConditioned ? '/ carton' : '';
+  // Stock affiché : "N cartons (+ M pièces)" si conditionné, sinon "N pièces".
+  const stockLabel = isConditioned
+    ? `${cartons} carton${cartons > 1 ? 's' : ''}${
+        looseUnits ? ` (+ ${looseUnits} pièce${looseUnits > 1 ? 's' : ''})` : ''
+      }`
+    : `${currentStock} ${product?.unit ?? ''}`;
+  // Seuil d'alerte en cartons quand conditionné (sinon en pièces).
+  const isLowStock = product
+    ? isConditioned
+      ? cartons <= product.alert_threshold
+      : currentStock <= product.alert_threshold
+    : false;
   const statusLabel = isLowStock ? 'Stock bas' : 'En stock';
 
   const resetEntryForm = () => {
@@ -227,13 +280,18 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const openEditSheet = () => {
     if (!product) return;
     setEditName(product.name);
-    // Prix de revient : on pré-remplit avec le PMP courant (sinon le coût catalogue)
-    setEditCost(String(pmp > 0 ? pmp : product.cost_price));
-    setEditSell(String(product.sell_price));
-    setEditStock(String(currentStock));
-    setEditPkgTypeId(product.packaging_type_id);
-    setEditUnitsPerPackage(product.units_per_package ? String(product.units_per_package) : '');
+    // Prix de revient TOUJOURS saisi PAR CARTON : on pré-remplit avec le coût/pièce
+    // (PMP courant, sinon coût catalogue) × pièces par conditionnement.
+    const baseCostPiece = pmp > 0 ? pmp : product.cost_price;
+    setEditCost(String(baseCostPiece * uppReal));
+    // Conditionnement OBLIGATOIRE : on sélectionne par défaut le type courant, sinon le 1er.
+    setEditPkgTypeId(product.packaging_type_id ?? packagingList[0]?.id ?? null);
+    setEditUnitsPerPackage(String(uppReal));
     setEditPackagePrice(product.package_price ? String(product.package_price) : '');
+    // Sous-conditionnement (détail) : activé si déjà un prix de détail défini.
+    setEditDetailEnabled(hasDetail);
+    setEditSell(product.sell_price > 0 ? String(product.sell_price) : String(detailFloor || ''));
+    setEditAlertThreshold(String(product.alert_threshold));
     setShowEditSheet(true);
   };
 
@@ -260,12 +318,17 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
     setIsSubmitting(true);
     try {
+      // Réception saisie EN CARTONS quand l'article est conditionné : on convertit
+      // en unité atomique (pièce). quantité_pièces = cartons × UPP ;
+      // coût/pièce = round(coût_carton / UPP). UPP=1 ⇒ aucune conversion.
+      const quantityPieces = qty * uppReal;
+      const costPiece = Math.round(cost / uppReal);
       // La date de prise en compte est propagée au lot (local + serveur via la sync)
       await createStockBatchOffline({
         shopId,
         productId: product.id,
-        quantity: qty,
-        costPrice: cost,
+        quantity: quantityPieces,
+        costPrice: costPiece,
         sellPrice: product.sell_price,
         notes: 'Réception',
         priceValidFrom: computeEntryDateISO(entryDate),
@@ -347,53 +410,11 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     }
   };
 
-  // Ajustement de stock à une quantité cible (correction d'inventaire tracée)
-  // - cible < stock : déstockage FIFO + mouvement d'ajustement
-  // - cible > stock : nouveau lot daté (entrée) au PMP courant + mouvement d'ajustement
-  // Ne déclenche pas loadProduct/alerte : utilisé en composition par handleSubmitEdit.
-  const applyStockAdjustment = async (target: number, costForNewBatch: number) => {
-    if (!product || !shopId) return;
-    const delta = target - currentStock;
-    if (delta === 0) return;
-
-    const deviceInfo = await getDeviceInfo();
-
-    if (delta < 0) {
-      // Correction négative : on retire l'excédent en FIFO
-      const removeQty = -delta;
-      const deductions = await stockBatchRepo.deductFIFO(shopId, product.id, removeQty);
-      const totalDeducted = deductions.reduce((s, d) => s + d.deducted, 0);
-
-      const movement: Partial<LocalInventoryMovement> = {
-        id: generateId(),
-        shop_id: shopId,
-        product_id: product.id,
-        type: 'ADJUSTMENT',
-        qty: -totalDeducted,
-        reason: 'Ajustement de stock',
-        ref_type: 'manual',
-        ref_id: null,
-        unit_cost: pmp,
-        device_id: deviceInfo.device_id,
-        client_op_id: `inv_adj_${product.id}_${Date.now()}`,
-        version: 1,
-      };
-      await inventoryMovementRepo.create(movement);
-    } else {
-      // Correction positive : on crée un lot d'entrée (au prix de revient saisi)
-      // createStockBatchOffline crée déjà le mouvement d'inventaire IN associé.
-      await createStockBatchOffline({
-        shopId,
-        productId: product.id,
-        quantity: delta,
-        costPrice: costForNewBatch,
-        sellPrice: product.sell_price,
-        notes: 'Ajustement de stock',
-      });
-    }
-  };
-
-  // Sheet unifiée « Modifier l'article » : nom + prix (revient/vente) + ajustement de stock.
+  // Sheet « Modifier l'article » : CONDITIONNEMENT (obligatoire) + SOUS-CONDITIONNEMENT (optionnel).
+  // - Prix de revient saisi AU CARTON → stocké PAR PIÈCE (round(coût_carton / UPP)).
+  // - package_price = prix de vente au CARTON (gros), obligatoire.
+  // - sell_price = prix de DÉTAIL (pièce), clampé au plancher ceil(gros/UPP) si sous-cond,
+  //   0 si la vente au détail est désactivée (article vendu uniquement au carton).
   const handleSubmitEdit = async () => {
     if (!product || !shopId) return;
     const name = editName.trim();
@@ -401,39 +422,53 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
       Alert.alert('Erreur', 'Veuillez saisir une désignation');
       return;
     }
-    const cost = parseInt(editCost, 10);
-    if (isNaN(cost) || cost < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix de revient valide');
+    const costCarton = parseInt(editCost, 10);
+    if (isNaN(costCarton) || costCarton < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de revient (au carton) valide');
       return;
     }
-    const sell = parseInt(editSell, 10);
-    if (isNaN(sell) || sell < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix de vente valide');
+    const unitsPerPackage = parseInt(editUnitsPerPackage, 10);
+    if (isNaN(unitsPerPackage) || unitsPerPackage < 1) {
+      Alert.alert('Erreur', 'Veuillez entrer un nombre de pièces par conditionnement (≥ 1)');
       return;
     }
-    const target = parseInt(editStock, 10);
-    if (isNaN(target) || target < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un stock valide');
+    const packagePrice = parseInt(editPackagePrice, 10);
+    if (isNaN(packagePrice) || packagePrice <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de vente au carton (gros) valide');
+      return;
+    }
+    if (packagingList.length > 0 && !editPkgTypeId) {
+      Alert.alert('Erreur', 'Veuillez choisir un type de conditionnement');
+      return;
+    }
+    const threshold = parseInt(editAlertThreshold, 10);
+    if (isNaN(threshold) || threshold < 0) {
+      Alert.alert('Erreur', "Veuillez entrer un seuil d'alerte (en cartons) valide");
       return;
     }
 
+    // Vente au détail seulement possible avec un sous-conditionnement (UPP > 1).
+    const detailOn = editDetailEnabled && unitsPerPackage > 1;
+    let sellPiece = 0;
+    if (detailOn) {
+      const floor = Math.ceil(packagePrice / unitsPerPackage);
+      const raw = parseInt(editSell, 10);
+      sellPiece = isNaN(raw) || raw < floor ? floor : raw; // clamp au plancher
+    }
+    // Coût saisi AU CARTON → stocké PAR PIÈCE.
+    const costPerPiece = Math.round(costCarton / unitsPerPackage);
+
     setIsSubmitting(true);
     try {
-      // 1) Nom + prix + conditionnement (mise à jour produit + sync)
-      const unitsPerPackage = parseInt(editUnitsPerPackage, 10);
-      const packagePrice = parseInt(editPackagePrice, 10);
-      const hasPackaging =
-        !!editPkgTypeId && !isNaN(unitsPerPackage) && unitsPerPackage > 0 && !isNaN(packagePrice);
       await updateProductOffline(product.id, {
         name,
-        costPrice: cost,
-        sellPrice: sell,
-        packagingTypeId: hasPackaging ? editPkgTypeId : null,
-        unitsPerPackage: hasPackaging ? unitsPerPackage : null,
-        packagePrice: hasPackaging ? packagePrice : null,
+        costPrice: costPerPiece,
+        sellPrice: sellPiece,
+        packagingTypeId: editPkgTypeId,
+        unitsPerPackage,
+        packagePrice,
+        alertThreshold: threshold,
       });
-      // 2) Ajustement de stock (mouvement d'inventaire tracé si écart)
-      await applyStockAdjustment(target, cost);
 
       setShowEditSheet(false);
       await loadProduct();
@@ -458,41 +493,59 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
   const breadcrumb = buildBreadcrumb(product);
 
-  // Prix par conditionnement.
-  // Le produit peut porter UN conditionnement (ex: Carton de 24) avec son prix de
-  // pack ; le prix/pièce du pack en découle (prix pack / qté). La tuile « à l'unité »
-  // utilise toujours le prix de vente unitaire.
-  const packTiles =
-    product.units_per_package && product.units_per_package > 0 && product.package_price
-      ? [
-          {
-            key: 'pack',
-            title: `${packagingName ?? 'Conditionnement'} · ${product.units_per_package} ${product.unit}`,
-            price: product.package_price,
-            sub: `soit ${formatMoney(
-              Math.round(product.package_price / product.units_per_package)
-            )} / ${product.unit}`,
-            subColor: Colors.success.main,
-          },
-        ]
-      : [];
-  const packagingTiles = [
-    ...packTiles,
-    {
-      key: 'unit',
-      title: `Sous-cond. · ${product.unit}`,
-      price: sellPrice,
-      sub: "à l'unité",
-      subColor: Colors.textColors.tertiary,
-    },
-  ];
+  // Prix par conditionnement :
+  //  • GROS (toujours) : le carton au prix de vente `package_price`
+  //    (+ "soit X / pièce" quand UPP > 1).
+  //  • DÉTAIL (uniquement si sous-conditionnement actif) : la pièce, au prix `sell_price`.
+  const grosTile = product.package_price
+    ? [
+        {
+          key: 'gros',
+          title: isConditioned
+            ? `${packagingName ?? 'Carton'} · ${uppReal} pièces`
+            : (packagingName ?? 'Carton'),
+          price: product.package_price,
+          sub: isConditioned
+            ? `soit ${formatMoney(Math.round(product.package_price / upp))} / pièce`
+            : 'au carton',
+          subColor: Colors.success.main,
+        },
+      ]
+    : [];
+  const detailTile = hasDetail
+    ? [
+        {
+          key: 'detail',
+          title: 'Pièce · Détail',
+          price: sellPrice,
+          sub: "à l'unité",
+          subColor: Colors.textColors.tertiary,
+        },
+      ]
+    : [];
+  const packagingTiles = [...grosTile, ...detailTile];
 
-  // Marge estimée en direct dans la sheet d'édition.
+  // Valeurs dérivées (live) de la sheet d'édition. Le prix de revient est saisi AU CARTON ;
+  // on le ramène au coût/pièce pour la marge détail. Le plancher de détail = ceil(gros/UPP).
+  const editUnits = parseInt(editUnitsPerPackage, 10);
+  const editUnitsValid = !isNaN(editUnits) && editUnits >= 1;
+  const editDetailPossible = editUnitsValid && editUnits > 1;
+  const editCostCartonNum = parseInt(editCost, 10);
+  const editPackagePriceNum = parseInt(editPackagePrice, 10);
   const editSellNum = parseInt(editSell, 10);
-  const editCostNum = parseInt(editCost, 10);
-  const editMarginPct =
-    !isNaN(editSellNum) && editSellNum > 0 && !isNaN(editCostNum)
-      ? Math.round(((editSellNum - editCostNum) / editSellNum) * 100)
+  const editGrosMarginPct =
+    !isNaN(editPackagePriceNum) && editPackagePriceNum > 0 && !isNaN(editCostCartonNum)
+      ? Math.round(((editPackagePriceNum - editCostCartonNum) / editPackagePriceNum) * 100)
+      : 0;
+  const editDetailFloor =
+    editDetailPossible && !isNaN(editPackagePriceNum) && editPackagePriceNum > 0
+      ? Math.ceil(editPackagePriceNum / editUnits)
+      : 0;
+  const editCostPerPiece =
+    editUnitsValid && !isNaN(editCostCartonNum) ? Math.round(editCostCartonNum / editUnits) : 0;
+  const editDetailMarginPct =
+    !isNaN(editSellNum) && editSellNum > 0
+      ? Math.round(((editSellNum - editCostPerPiece) / editSellNum) * 100)
       : 0;
 
   return (
@@ -556,9 +609,8 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           <View style={styles.metricsRow}>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Stock actuel</Text>
-              <Text style={styles.metricValue}>
-                {currentStock}
-                <Text style={styles.metricUnit}> {product.unit}</Text>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+                {stockLabel}
               </Text>
             </View>
             <View style={styles.metricCol}>
@@ -570,16 +622,24 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           <View style={[styles.metricsRow, styles.metricsRowBordered]}>
             <View style={styles.metricCol}>
               <Text style={styles.metricLabel}>Prix de revient (PMP)</Text>
-              <Text style={styles.metricValue}>{formatMoney(pmp)}</Text>
+              <Text style={styles.metricValue}>
+                {formatMoney(pmpPerCarton)}
+                {isConditioned ? <Text style={styles.metricUnit}> / carton</Text> : null}
+              </Text>
             </View>
             <View style={styles.metricCol}>
-              <Text style={styles.metricLabel}>Prix de vente · marge</Text>
+              <Text style={styles.metricLabel}>
+                {hasDetail ? 'Prix de détail · marge' : 'Prix de gros · marge'}
+              </Text>
               <Text style={styles.metricValue}>
-                {formatMoney(sellPrice)}{' '}
+                {formatMoney(saleDisplayPrice)}
+                {saleDisplayUnit ? (
+                  <Text style={styles.metricUnit}> {saleDisplayUnit}</Text>
+                ) : null}{' '}
                 <Text
-                  style={[styles.marginText, margin >= 0 ? styles.marginPos : styles.marginNeg]}
+                  style={[styles.marginText, saleMargin >= 0 ? styles.marginPos : styles.marginNeg]}
                 >
-                  · {marginPct}%
+                  · {saleMarginPct}%
                 </Text>
               </Text>
             </View>
@@ -595,32 +655,35 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <AlertTriangle size={18} color={Colors.warning.main} />
             <Text style={styles.thresholdLabel}>Seuil d&apos;alerte</Text>
             <Text style={styles.thresholdValue}>
-              {product.alert_threshold} {product.unit}
+              {product.alert_threshold}{' '}
+              {isConditioned ? `carton${product.alert_threshold > 1 ? 's' : ''}` : product.unit}
             </Text>
             {canEditProduct ? <ChevronRight size={18} color={Colors.warning.main} /> : null}
           </TouchableOpacity>
         </View>
 
         {/* PRIX PAR CONDITIONNEMENT */}
-        <View style={styles.packCard}>
-          <View style={styles.packTitleRow}>
-            <Package size={18} color={Colors.success.main} />
-            <Text style={styles.packTitle}>Prix par conditionnement</Text>
+        {packagingTiles.length > 0 && (
+          <View style={styles.packCard}>
+            <View style={styles.packTitleRow}>
+              <Package size={18} color={Colors.success.main} />
+              <Text style={styles.packTitle}>Prix par conditionnement</Text>
+            </View>
+            <View style={styles.packTiles}>
+              {packagingTiles.map(tile => (
+                <View key={tile.key} style={styles.packTile}>
+                  <Text style={styles.packTileLabel} numberOfLines={1}>
+                    {tile.title}
+                  </Text>
+                  <Text style={styles.packTilePrice}>{formatMoney(tile.price)}</Text>
+                  <Text style={[styles.packTileSub, { color: tile.subColor }]} numberOfLines={1}>
+                    {tile.sub}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={styles.packTiles}>
-            {packagingTiles.map(tile => (
-              <View key={tile.key} style={styles.packTile}>
-                <Text style={styles.packTileLabel} numberOfLines={1}>
-                  {tile.title}
-                </Text>
-                <Text style={styles.packTilePrice}>{formatMoney(tile.price)}</Text>
-                <Text style={[styles.packTileSub, { color: tile.subColor }]} numberOfLines={1}>
-                  {tile.sub}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        )}
 
         {/* BOUTONS ENTRÉE / SORTIE — MANAGER+ uniquement */}
         {canEditProduct ? (
@@ -720,7 +783,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             </Text>
 
             <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Quantité</Text>
+              <Text style={styles.formLabel}>
+                {isConditioned ? 'Quantité (cartons)' : 'Quantité'}
+              </Text>
               <TextInput
                 style={styles.input}
                 value={entryQty}
@@ -731,7 +796,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
               />
 
               <Text style={[styles.formLabel, styles.formLabelSpaced]}>
-                Prix de revient unitaire (FCFA)
+                {isConditioned
+                  ? 'Prix de revient (au carton, FCFA)'
+                  : 'Prix de revient unitaire (FCFA)'}
               </Text>
               <TextInput
                 style={styles.input}
@@ -878,7 +945,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <Text style={styles.sheetSubtitle}>{product.name}</Text>
 
             <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Seuil ({product.unit})</Text>
+              <Text style={styles.formLabel}>
+                Seuil ({isConditioned ? 'cartons' : product.unit})
+              </Text>
               <TextInput
                 style={styles.input}
                 value={thresholdValue}
@@ -925,9 +994,19 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Modifier l&apos;article</Text>
             </View>
-            <Text style={styles.sheetSubtitle}>Corrigez le nom, les prix et ajustez le stock</Text>
+            <Text style={styles.sheetSubtitle}>
+              Conditionnement (obligatoire) et vente au détail (optionnel)
+            </Text>
 
-            <View style={styles.sheetBody}>
+            <ScrollView
+              style={styles.editScroll}
+              contentContainerStyle={styles.sheetBody}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* ===== CONDITIONNEMENT (obligatoire) ===== */}
+              <Text style={styles.editSectionTitle}>CONDITIONNEMENT</Text>
+
               <Text style={styles.formLabel}>Désignation</Text>
               <TextInput
                 style={styles.input}
@@ -937,77 +1016,12 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 placeholderTextColor={Colors.muted.foreground}
               />
 
-              <View style={styles.editPriceRow}>
-                <View style={styles.editPriceCol}>
-                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>Prix de revient</Text>
-                  <View style={styles.inputSuffixWrap}>
-                    <TextInput
-                      style={styles.inputSuffix}
-                      value={editCost}
-                      onChangeText={text => setEditCost(text.replace(/[^0-9]/g, ''))}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor={Colors.muted.foreground}
-                    />
-                    <Text style={styles.inputSuffixText}>F</Text>
-                  </View>
-                </View>
-                <View style={styles.editPriceCol}>
-                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>Prix de vente</Text>
-                  <View style={styles.inputSuffixWrap}>
-                    <TextInput
-                      style={styles.inputSuffix}
-                      value={editSell}
-                      onChangeText={text => setEditSell(text.replace(/[^0-9]/g, ''))}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor={Colors.muted.foreground}
-                    />
-                    <Text style={styles.inputSuffixText}>F</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.marginRow}>
-                <TrendingUp size={16} color={Colors.info.text} />
-                <Text style={styles.marginRowLabel}>Marge estimée</Text>
-                <Text style={styles.marginRowValue}>{editMarginPct} %</Text>
-              </View>
-
-              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
-                Stock (ajustement d&apos;inventaire)
-              </Text>
-              <View style={styles.inputSuffixWrap}>
-                <TextInput
-                  style={styles.inputSuffix}
-                  value={editStock}
-                  onChangeText={text => setEditStock(text.replace(/[^0-9]/g, ''))}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor={Colors.muted.foreground}
-                />
-                <Text style={styles.inputSuffixText}>{product.unit}</Text>
-              </View>
-              <Text style={styles.adjustHint}>
-                Modifier le stock crée un mouvement d&apos;inventaire tracé (écart corrigé).
-              </Text>
-
               {packagingList.length > 0 && (
                 <>
                   <Text style={[styles.formLabel, styles.formLabelSpaced]}>
-                    Conditionnement (optionnel)
+                    Type de conditionnement
                   </Text>
                   <View style={styles.pkgChipRow}>
-                    <TouchableOpacity
-                      style={[styles.pkgChip, !editPkgTypeId && styles.pkgChipActive]}
-                      onPress={() => setEditPkgTypeId(null)}
-                    >
-                      <Text
-                        style={[styles.pkgChipText, !editPkgTypeId && styles.pkgChipTextActive]}
-                      >
-                        Aucun
-                      </Text>
-                    </TouchableOpacity>
                     {packagingList.map(pkg => (
                       <TouchableOpacity
                         key={pkg.id}
@@ -1025,41 +1039,131 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                       </TouchableOpacity>
                     ))}
                   </View>
-
-                  {!!editPkgTypeId && (
-                    <View style={styles.editPriceRow}>
-                      <View style={styles.editPriceCol}>
-                        <Text style={styles.formLabel}>Pièces / cond.</Text>
-                        <View style={styles.inputSuffixWrap}>
-                          <TextInput
-                            style={styles.inputSuffix}
-                            value={editUnitsPerPackage}
-                            onChangeText={t => setEditUnitsPerPackage(t.replace(/[^0-9]/g, ''))}
-                            keyboardType="numeric"
-                            placeholder="24"
-                            placeholderTextColor={Colors.muted.foreground}
-                          />
-                          <Text style={styles.inputSuffixText}>{product.unit}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.editPriceCol}>
-                        <Text style={styles.formLabel}>Prix du cond.</Text>
-                        <View style={styles.inputSuffixWrap}>
-                          <TextInput
-                            style={styles.inputSuffix}
-                            value={editPackagePrice}
-                            onChangeText={t => setEditPackagePrice(t.replace(/[^0-9]/g, ''))}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor={Colors.muted.foreground}
-                          />
-                          <Text style={styles.inputSuffixText}>F</Text>
-                        </View>
-                      </View>
-                    </View>
-                  )}
                 </>
               )}
+
+              <View style={styles.editPriceRow}>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Pièces / conditionnement
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editUnitsPerPackage}
+                      onChangeText={t => setEditUnitsPerPackage(t.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="24"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>{product.unit}</Text>
+                  </View>
+                </View>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Prix de revient (carton)
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editCost}
+                      onChangeText={text => setEditCost(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                Prix de vente (carton · gros)
+              </Text>
+              <View style={styles.inputSuffixWrap}>
+                <TextInput
+                  style={styles.inputSuffix}
+                  value={editPackagePrice}
+                  onChangeText={t => setEditPackagePrice(t.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted.foreground}
+                />
+                <Text style={styles.inputSuffixText}>F</Text>
+              </View>
+
+              <View style={styles.marginRow}>
+                <TrendingUp size={16} color={Colors.info.text} />
+                <Text style={styles.marginRowLabel}>Marge gros (carton)</Text>
+                <Text style={styles.marginRowValue}>{editGrosMarginPct} %</Text>
+              </View>
+
+              {/* ===== SOUS-CONDITIONNEMENT (optionnel) ===== */}
+              <Text style={[styles.editSectionTitle, styles.formLabelSpaced]}>
+                SOUS-CONDITIONNEMENT
+              </Text>
+
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={styles.toggleTitle}>Vendre aussi au détail (pièce)</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    {editDetailPossible
+                      ? 'Active la vente à la pièce en plus du carton'
+                      : 'Nécessite plus d’1 pièce par conditionnement'}
+                  </Text>
+                </View>
+                <Switch
+                  value={editDetailEnabled && editDetailPossible}
+                  onValueChange={setEditDetailEnabled}
+                  disabled={!editDetailPossible}
+                  trackColor={{ false: Colors.muted.main, true: Colors.action }}
+                  thumbColor={Colors.surface}
+                  ios_backgroundColor={Colors.muted.main}
+                />
+              </View>
+
+              {editDetailEnabled && editDetailPossible && (
+                <>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Prix de détail (pièce)
+                  </Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editSell}
+                      onChangeText={text => setEditSell(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                  <Text style={styles.adjustHint}>
+                    min {formatMoney(editDetailFloor)} / pièce (= prix de gros ÷ quantité)
+                  </Text>
+                  <View style={styles.marginRow}>
+                    <TrendingUp size={16} color={Colors.info.text} />
+                    <Text style={styles.marginRowLabel}>Marge détail (pièce)</Text>
+                    <Text style={styles.marginRowValue}>{editDetailMarginPct} %</Text>
+                  </View>
+                </>
+              )}
+
+              {/* ===== SEUIL D'ALERTE (en cartons) ===== */}
+              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                Seuil d&apos;alerte (cartons)
+              </Text>
+              <View style={styles.inputSuffixWrap}>
+                <TextInput
+                  style={styles.inputSuffix}
+                  value={editAlertThreshold}
+                  onChangeText={text => setEditAlertThreshold(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted.foreground}
+                />
+                <Text style={styles.inputSuffixText}>cartons</Text>
+              </View>
 
               <View style={styles.sheetActions}>
                 <TouchableOpacity
@@ -1080,7 +1184,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1467,7 +1571,37 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.sheet,
     borderTopRightRadius: BorderRadius.sheet,
     paddingBottom: Spacing['2xl'],
+    maxHeight: '92%',
     ...Shadows.lg,
+  },
+  editScroll: {
+    flexGrow: 0,
+  },
+  editSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  toggleTextWrap: {
+    flex: 1,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
   },
   sheetHandle: {
     width: 40,
