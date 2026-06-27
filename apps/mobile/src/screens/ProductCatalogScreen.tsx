@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   SectionList,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,6 +26,7 @@ import {
   FileSpreadsheet,
   ChevronDown,
   AlertTriangle,
+  TrendingUp,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
@@ -32,7 +34,7 @@ import { formatMoney } from '../utils/money';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import * as DocumentPicker from 'expo-document-picker';
-import { productRepo, stockBatchRepo } from '../db/repositories';
+import { productRepo, stockBatchRepo, packagingTypeRepo } from '../db/repositories';
 import { importApi } from '../lib/api';
 import {
   createProductOffline,
@@ -61,6 +63,10 @@ interface Product {
   is_multi_price?: boolean;
   price_min?: number;
   price_max?: number;
+  // Modèle carton-primary : conditionnement (carton) + sous-conditionnement (pièce).
+  packaging_type_id?: string | null;
+  units_per_package?: number | null;
+  package_price?: number | null;
 }
 
 interface Filters {
@@ -80,9 +86,15 @@ interface ProductFormData {
   brand: string;
   reference: string;
   unit: string;
-  cost_price: string;
-  sell_price: string;
-  alert_threshold: string;
+  // Conditionnement (carton) OBLIGATOIRE :
+  packaging_type_id: string | null; // type de conditionnement (Carton, Boîte, …)
+  units_per_package: string; // pièces par conditionnement (UPP ≥ 1)
+  cost_price: string; // prix de revient AU CARTON
+  package_price: string; // prix de vente au carton (gros)
+  // Sous-conditionnement (pièce) OPTIONNEL :
+  detail_enabled: boolean; // « Vendre aussi au détail (pièce) »
+  sell_price: string; // prix de détail (pièce)
+  alert_threshold: string; // seuil d'alerte en CARTONS
   is_active: boolean;
 }
 
@@ -114,8 +126,12 @@ const DEFAULT_FORM: ProductFormData = {
   brand: '',
   reference: '',
   unit: 'unit',
-  cost_price: '0',
-  sell_price: '0',
+  packaging_type_id: null,
+  units_per_package: '1',
+  cost_price: '',
+  package_price: '',
+  detail_enabled: false,
+  sell_price: '',
   alert_threshold: '5',
   is_active: true,
 };
@@ -193,10 +209,13 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
   const [isImporting, setIsImporting] = useState(false);
   const [importStep, setImportStep] = useState<'select' | 'preview' | 'success'>('select');
 
-  // Types de conditionnement (unités)
+  // Types de conditionnement (unités) — pour le sélecteur d'unité (pièce)
   const [packagingTypes, setPackagingTypes] = useState<
     Array<{ id: string; name: string; symbol: string }>
   >([]);
+  // Liste des types de conditionnement (Carton, Boîte, Douzaine, …) pour le sélecteur
+  // CONDITIONNEMENT obligatoire du formulaire d'article.
+  const [packagingList, setPackagingList] = useState<{ id: string; name: string }[]>([]);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showNewUnitInput, setShowNewUnitInput] = useState(false);
   const [newUnitName, setNewUnitName] = useState('');
@@ -244,6 +263,9 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
             alert_threshold: p.alert_threshold,
             current_stock: totalStock,
             is_low_stock: totalStock <= p.alert_threshold,
+            packaging_type_id: p.packaging_type_id,
+            units_per_package: p.units_per_package,
+            package_price: p.package_price,
           };
         })
       );
@@ -277,6 +299,44 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
     loadPackagingTypes();
   }, []);
 
+  // Charger TOUS les types de conditionnement de la boutique (Carton, Boîte, Douzaine, …)
+  // pour le sélecteur CONDITIONNEMENT obligatoire du formulaire d'article.
+  useEffect(() => {
+    if (!shopId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const pkgList = await packagingTypeRepo.getAll(shopId, { orderBy: 'name ASC' });
+        if (!cancelled) setPackagingList(pkgList.map(p => ({ id: p.id, name: p.name })));
+      } catch {
+        // silencieux : le sélecteur reste masqué si aucun type n'est disponible
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId]);
+
+  // AUTO-ADAPT : dès que le prix de gros (carton) ou l'UPP change, si le prix de détail
+  // saisi passe sous le plancher ceil(gros/UPP), on le remonte automatiquement au plancher
+  // (live). On ne le baisse jamais : le détail peut être supérieur au plancher.
+  useEffect(() => {
+    if (!formData.detail_enabled) return;
+    const pkg = parseInt(formData.package_price, 10);
+    const u = parseInt(formData.units_per_package, 10);
+    if (isNaN(pkg) || pkg <= 0 || isNaN(u) || u <= 1) return;
+    const floor = Math.ceil(pkg / u);
+    const cur = parseInt(formData.sell_price, 10);
+    if (isNaN(cur) || cur < floor) {
+      setFormData(prev => ({ ...prev, sell_price: String(floor) }));
+    }
+  }, [
+    formData.package_price,
+    formData.units_per_package,
+    formData.detail_enabled,
+    formData.sell_price,
+  ]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -300,15 +360,19 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
     setFormData(prev => ({ ...prev, sku }));
   };
 
-  // Ouvrir le modal pour ajouter
+  // Ouvrir le modal pour ajouter — conditionnement obligatoire pré-sélectionné (1er type).
   const openAddModal = () => {
-    setFormData(DEFAULT_FORM);
+    setFormData({ ...DEFAULT_FORM, packaging_type_id: packagingList[0]?.id ?? null });
     setIsEditing(false);
     setShowProductModal(true);
   };
 
-  // Ouvrir le modal pour modifier
+  // Ouvrir le modal pour modifier — le coût stocké est PAR PIÈCE : on le ré-affiche AU CARTON
+  // (coût/pièce × UPP) ; le sous-conditionnement (détail) est actif si un prix de détail existe.
   const openEditModal = (product: Product) => {
+    const uppReal =
+      product.units_per_package && product.units_per_package > 0 ? product.units_per_package : 1;
+    const hasDetail = uppReal > 1 && product.sell_price > 0;
     setFormData({
       id: product.id,
       sku: product.sku,
@@ -320,8 +384,12 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
       brand: product.brand || '',
       reference: product.reference || '',
       unit: product.unit,
-      cost_price: String(product.cost_price),
-      sell_price: String(product.sell_price),
+      packaging_type_id: product.packaging_type_id ?? packagingList[0]?.id ?? null,
+      units_per_package: String(uppReal),
+      cost_price: String(product.cost_price * uppReal),
+      package_price: product.package_price ? String(product.package_price) : '',
+      detail_enabled: hasDetail,
+      sell_price: product.sell_price > 0 ? String(product.sell_price) : '',
       alert_threshold: String(product.alert_threshold),
       is_active: product.is_active,
     });
@@ -349,6 +417,47 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
       return;
     }
 
+    // ===== Modèle carton-primary (mêmes règles que « Modifier l'article ») =====
+    // - Prix de revient saisi AU CARTON → stocké PAR PIÈCE (round(coût_carton / UPP)).
+    // - package_price = prix de vente au CARTON (gros), obligatoire.
+    // - sell_price = prix de DÉTAIL (pièce), clampé au plancher ceil(gros/UPP) si sous-cond,
+    //   0 si la vente au détail est désactivée (article vendu uniquement au carton).
+    const costCarton = parseInt(formData.cost_price, 10);
+    if (isNaN(costCarton) || costCarton < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de revient (au carton) valide');
+      return;
+    }
+    const unitsPerPackage = parseInt(formData.units_per_package, 10);
+    if (isNaN(unitsPerPackage) || unitsPerPackage < 1) {
+      Alert.alert('Erreur', 'Veuillez entrer un nombre de pièces par conditionnement (≥ 1)');
+      return;
+    }
+    const packagePrice = parseInt(formData.package_price, 10);
+    if (isNaN(packagePrice) || packagePrice <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de vente au carton (gros) valide');
+      return;
+    }
+    if (packagingList.length > 0 && !formData.packaging_type_id) {
+      Alert.alert('Erreur', 'Veuillez choisir un type de conditionnement');
+      return;
+    }
+    const threshold = parseInt(formData.alert_threshold, 10);
+    if (isNaN(threshold) || threshold < 0) {
+      Alert.alert('Erreur', "Veuillez entrer un seuil d'alerte (en cartons) valide");
+      return;
+    }
+
+    // Vente au détail seulement possible avec un sous-conditionnement (UPP > 1).
+    const detailOn = formData.detail_enabled && unitsPerPackage > 1;
+    let sellPiece = 0;
+    if (detailOn) {
+      const floor = Math.ceil(packagePrice / unitsPerPackage);
+      const raw = parseInt(formData.sell_price, 10);
+      sellPiece = isNaN(raw) || raw < floor ? floor : raw; // clamp au plancher
+    }
+    // Coût saisi AU CARTON → stocké PAR PIÈCE.
+    const costPerPiece = Math.round(costCarton / unitsPerPackage);
+
     setIsSaving(true);
     try {
       if (isEditing && formData.id) {
@@ -363,9 +472,12 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
           brand: formData.brand?.trim() || undefined,
           reference: formData.reference?.trim() || undefined,
           unit: formData.unit,
-          costPrice: parseInt(formData.cost_price) || 0,
-          sellPrice: parseInt(formData.sell_price) || 0,
-          alertThreshold: parseInt(formData.alert_threshold) || 5,
+          packagingTypeId: formData.packaging_type_id,
+          unitsPerPackage,
+          packagePrice,
+          costPrice: costPerPiece,
+          sellPrice: sellPiece,
+          alertThreshold: threshold,
         });
         Alert.alert('Succes', 'Article modifie avec succes');
       } else {
@@ -380,9 +492,12 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
           brand: formData.brand?.trim() || undefined,
           reference: formData.reference?.trim() || undefined,
           unit: formData.unit,
-          costPrice: parseInt(formData.cost_price) || 0,
-          sellPrice: parseInt(formData.sell_price) || 0,
-          alertThreshold: parseInt(formData.alert_threshold) || 5,
+          packagingTypeId: formData.packaging_type_id,
+          unitsPerPackage,
+          packagePrice,
+          costPrice: costPerPiece,
+          sellPrice: sellPiece,
+          alertThreshold: threshold,
         });
         Alert.alert('Succes', 'Article ajoute avec succes');
       }
@@ -643,6 +758,16 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
 
     const renderProduct = ({ item }: { item: Product }) => {
       const stockColor = item.is_low_stock ? Colors.warning.main : Colors.success.main;
+      // Modèle carton-primary : on affiche le prix de DÉTAIL (pièce) si le sous-conditionnement
+      // est actif (UPP > 1 ET sell_price > 0), sinon le prix de GROS (carton = package_price).
+      const hasDetail = (item.units_per_package ?? 0) > 1 && item.sell_price > 0;
+      const grosPrice = item.package_price ?? 0;
+      const displayPrice = hasDetail
+        ? item.sell_price
+        : grosPrice > 0
+          ? grosPrice
+          : item.sell_price;
+      const displayUnit = hasDetail ? '/ pièce' : grosPrice > 0 ? '/ carton' : '';
       return (
         <TouchableOpacity
           style={styles.itemCard}
@@ -676,7 +801,10 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
             </View>
           </View>
           <View style={styles.itemPrices}>
-            <Text style={styles.itemSellPrice}>{formatMoney(item.sell_price)}</Text>
+            <Text style={styles.itemSellPrice}>
+              {formatMoney(displayPrice)}
+              {displayUnit ? <Text style={styles.itemPriceUnit}> {displayUnit}</Text> : null}
+            </Text>
             <Text style={styles.itemCostPrice}>PR {formatMoney(item.cost_price)}</Text>
           </View>
         </TouchableOpacity>
@@ -985,6 +1113,30 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
       </SafeAreaView>
     );
   }
+
+  // Valeurs dérivées (live) du formulaire d'article (modèle carton-primary). Le prix de revient
+  // est saisi AU CARTON ; on le ramène au coût/pièce pour la marge détail. Le plancher de
+  // détail = ceil(gros/UPP).
+  const formUnits = parseInt(formData.units_per_package, 10);
+  const formUnitsValid = !isNaN(formUnits) && formUnits >= 1;
+  const formDetailPossible = formUnitsValid && formUnits > 1;
+  const formCostCartonNum = parseInt(formData.cost_price, 10);
+  const formPackagePriceNum = parseInt(formData.package_price, 10);
+  const formSellNum = parseInt(formData.sell_price, 10);
+  const formGrosMarginPct =
+    !isNaN(formPackagePriceNum) && formPackagePriceNum > 0 && !isNaN(formCostCartonNum)
+      ? Math.round(((formPackagePriceNum - formCostCartonNum) / formPackagePriceNum) * 100)
+      : 0;
+  const formDetailFloor =
+    formDetailPossible && !isNaN(formPackagePriceNum) && formPackagePriceNum > 0
+      ? Math.ceil(formPackagePriceNum / formUnits)
+      : 0;
+  const formCostPerPiece =
+    formUnitsValid && !isNaN(formCostCartonNum) ? Math.round(formCostCartonNum / formUnits) : 0;
+  const formDetailMarginPct =
+    !isNaN(formSellNum) && formSellNum > 0
+      ? Math.round(((formSellNum - formCostPerPiece) / formSellNum) * 100)
+      : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1388,42 +1540,173 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                   />
                 </View>
 
-                {/* Prix */}
+                {/* ===== CONDITIONNEMENT (obligatoire) ===== */}
+                <Text style={styles.editSectionTitle}>CONDITIONNEMENT</Text>
+
+                {/* Type de conditionnement (Carton, Boîte, Douzaine, …) */}
+                {packagingList.length > 0 && (
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Type de conditionnement</Text>
+                    <View style={styles.pkgChipRow}>
+                      {packagingList.map(pkg => (
+                        <TouchableOpacity
+                          key={pkg.id}
+                          style={[
+                            styles.pkgChip,
+                            formData.packaging_type_id === pkg.id && styles.pkgChipActive,
+                          ]}
+                          onPress={() =>
+                            setFormData(prev => ({ ...prev, packaging_type_id: pkg.id }))
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.pkgChipText,
+                              formData.packaging_type_id === pkg.id && styles.pkgChipTextActive,
+                            ]}
+                          >
+                            {pkg.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Pièces par conditionnement (UPP) + Prix de revient AU CARTON + Unité (pièce) */}
                 <View style={styles.formRow}>
                   <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Prix d'achat</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={formData.cost_price}
-                      onChangeText={text =>
-                        setFormData(prev => ({ ...prev, cost_price: text.replace(/[^0-9]/g, '') }))
-                      }
-                      placeholder="0"
-                      placeholderTextColor={Colors.muted.foreground}
-                      keyboardType="numeric"
-                    />
+                    <Text style={styles.formLabel}>Pièces / conditionnement</Text>
+                    <View style={styles.inputSuffixWrap}>
+                      <TextInput
+                        style={styles.inputSuffix}
+                        value={formData.units_per_package}
+                        onChangeText={text =>
+                          setFormData(prev => ({
+                            ...prev,
+                            units_per_package: text.replace(/[^0-9]/g, ''),
+                          }))
+                        }
+                        placeholder="24"
+                        placeholderTextColor={Colors.muted.foreground}
+                        keyboardType="numeric"
+                      />
+                      <TouchableOpacity
+                        style={styles.unitSuffixButton}
+                        onPress={() => setShowUnitPicker(true)}
+                      >
+                        <Text style={styles.inputSuffixText}>{formData.unit || 'pièce'}</Text>
+                        <ChevronDown size={14} color={Colors.muted.foreground} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Prix de vente</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={formData.sell_price}
-                      onChangeText={text =>
-                        setFormData(prev => ({ ...prev, sell_price: text.replace(/[^0-9]/g, '') }))
-                      }
-                      placeholder="0"
-                      placeholderTextColor={Colors.muted.foreground}
-                      keyboardType="numeric"
-                    />
+                    <Text style={styles.formLabel}>Prix de revient (carton)</Text>
+                    <View style={styles.inputSuffixWrap}>
+                      <TextInput
+                        style={styles.inputSuffix}
+                        value={formData.cost_price}
+                        onChangeText={text =>
+                          setFormData(prev => ({
+                            ...prev,
+                            cost_price: text.replace(/[^0-9]/g, ''),
+                          }))
+                        }
+                        placeholder="0"
+                        placeholderTextColor={Colors.muted.foreground}
+                        keyboardType="numeric"
+                      />
+                      <Text style={styles.inputSuffixText}>F</Text>
+                    </View>
                   </View>
                 </View>
 
-                {/* Seuil d'alerte et Unité */}
-                <View style={styles.formRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Seuil d'alerte</Text>
+                {/* Prix de vente au carton (gros) */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Prix de vente (carton · gros)</Text>
+                  <View style={styles.inputSuffixWrap}>
                     <TextInput
-                      style={styles.input}
+                      style={styles.inputSuffix}
+                      value={formData.package_price}
+                      onChangeText={text =>
+                        setFormData(prev => ({
+                          ...prev,
+                          package_price: text.replace(/[^0-9]/g, ''),
+                        }))
+                      }
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                  <View style={styles.marginRow}>
+                    <TrendingUp size={16} color={Colors.info.text} />
+                    <Text style={styles.marginRowLabel}>Marge gros (carton)</Text>
+                    <Text style={styles.marginRowValue}>{formGrosMarginPct} %</Text>
+                  </View>
+                </View>
+
+                {/* ===== SOUS-CONDITIONNEMENT (optionnel) ===== */}
+                <Text style={styles.editSectionTitle}>SOUS-CONDITIONNEMENT</Text>
+
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleTextWrap}>
+                    <Text style={styles.toggleTitle}>Vendre aussi au détail (pièce)</Text>
+                    <Text style={styles.toggleSubtitle}>
+                      {formDetailPossible
+                        ? 'Active la vente à la pièce en plus du carton'
+                        : 'Nécessite plus d’1 pièce par conditionnement'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={formData.detail_enabled && formDetailPossible}
+                    onValueChange={value =>
+                      setFormData(prev => ({ ...prev, detail_enabled: value }))
+                    }
+                    disabled={!formDetailPossible}
+                    trackColor={{ false: Colors.muted.main, true: Colors.action }}
+                    thumbColor={Colors.surface}
+                    ios_backgroundColor={Colors.muted.main}
+                  />
+                </View>
+
+                {formData.detail_enabled && formDetailPossible && (
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Prix de détail (pièce)</Text>
+                    <View style={styles.inputSuffixWrap}>
+                      <TextInput
+                        style={styles.inputSuffix}
+                        value={formData.sell_price}
+                        onChangeText={text =>
+                          setFormData(prev => ({
+                            ...prev,
+                            sell_price: text.replace(/[^0-9]/g, ''),
+                          }))
+                        }
+                        placeholder="0"
+                        placeholderTextColor={Colors.muted.foreground}
+                        keyboardType="numeric"
+                      />
+                      <Text style={styles.inputSuffixText}>F</Text>
+                    </View>
+                    <Text style={styles.adjustHint}>
+                      min {formatMoney(formDetailFloor)} / pièce (= prix de gros ÷ quantité)
+                    </Text>
+                    <View style={styles.marginRow}>
+                      <TrendingUp size={16} color={Colors.info.text} />
+                      <Text style={styles.marginRowLabel}>Marge détail (pièce)</Text>
+                      <Text style={styles.marginRowValue}>{formDetailMarginPct} %</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* ===== SEUIL D'ALERTE (en cartons) ===== */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Seuil d'alerte (cartons)</Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
                       value={formData.alert_threshold}
                       onChangeText={text =>
                         setFormData(prev => ({
@@ -1435,16 +1718,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                       placeholderTextColor={Colors.muted.foreground}
                       keyboardType="numeric"
                     />
-                  </View>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.formLabel}>Unité</Text>
-                    <TouchableOpacity
-                      style={styles.unitPicker}
-                      onPress={() => setShowUnitPicker(true)}
-                    >
-                      <Text style={styles.unitPickerText}>{formData.unit || 'Sélectionner'}</Text>
-                      <ChevronDown size={16} color={Colors.muted.foreground} />
-                    </TouchableOpacity>
+                    <Text style={styles.inputSuffixText}>cartons</Text>
                   </View>
                 </View>
 
@@ -2188,6 +2462,11 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontVariant: ['tabular-nums'],
   },
+  itemPriceUnit: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
   itemCostPrice: {
     fontSize: 11.5,
     color: Colors.textColors.tertiary,
@@ -2621,6 +2900,107 @@ const styles = StyleSheet.create({
   inputDisabled: {
     backgroundColor: Colors.muted.main,
     color: Colors.muted.foreground,
+  },
+  // ===== Formulaire carton-primary (conditionnement + sous-conditionnement) =====
+  editSectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.5,
+    marginBottom: Spacing.md,
+  },
+  pkgChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  pkgChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pkgChipActive: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  pkgChipText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  pkgChipTextActive: {
+    color: '#FFFFFF',
+  },
+  inputSuffixWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+  },
+  inputSuffix: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  inputSuffixText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+    marginLeft: Spacing.sm,
+  },
+  unitSuffixButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  marginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: 10,
+    backgroundColor: Colors.info.background,
+  },
+  marginRowLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.info.text,
+  },
+  marginRowValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.info.text,
+    fontVariant: ['tabular-nums'],
+  },
+  adjustHint: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+    marginTop: Spacing.sm,
+    lineHeight: 18,
+  },
+  toggleTextWrap: {
+    flex: 1,
+    paddingRight: Spacing.md,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
   },
   suggestions: {
     backgroundColor: Colors.surface,
