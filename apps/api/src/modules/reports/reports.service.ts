@@ -557,13 +557,42 @@ export class ReportsService {
       }
     }
 
-    alerts.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    // Exclure les alertes déjà acquittées par le boss.
+    const acks = await this.prisma.alertAcknowledgement.findMany({
+      where: { shop_id: shopId, deleted: false },
+      select: { alert_id: true },
+    });
+    const acknowledged = new Set(acks.map(a => a.alert_id));
+    const active = alerts.filter(a => !acknowledged.has(a.id));
+
+    active.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
 
     return {
-      alerts,
-      critical_count: alerts.filter(a => a.severity === 'critical').length,
-      review_count: alerts.filter(a => a.severity === 'review').length,
-      total: alerts.length,
+      alerts: active,
+      critical_count: active.filter(a => a.severity === 'critical').length,
+      review_count: active.filter(a => a.severity === 'review').length,
+      total: active.length,
+      acknowledged_count: acknowledged.size,
     };
+  }
+
+  /** Acquitter une alerte de supervision (le boss confirme l'avoir traitée). */
+  async acknowledgeAlert(shopId: string, alertId: string, userId: string, note?: string) {
+    await this.prisma.alertAcknowledgement.upsert({
+      where: { shop_id_alert_id: { shop_id: shopId, alert_id: alertId } },
+      update: {
+        deleted: false,
+        acknowledged_by: userId,
+        acknowledged_at: new Date(),
+        note: note ?? null,
+      },
+      create: {
+        shop_id: shopId,
+        alert_id: alertId,
+        acknowledged_by: userId,
+        note: note ?? null,
+      },
+    });
+    return { ok: true };
   }
 }

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { normalizeCashCategory } from '@swalo/core';
-import { formatMoney } from '../utils/money';
+import { formatMoney, formatMoneyWithSign } from '../utils/money';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { ScreenHeader } from '../components/ui';
 import { ArrowDown, ArrowUp } from '../components/icons/SimpleIcons';
@@ -54,7 +54,7 @@ interface ReportData {
   cashSharePercent: number;
   creditAvgTicket: number;
   // Flux de caisse — 7 derniers jours
-  weeklyFlow: Array<{ label: string; value: number; isToday: boolean }>;
+  weeklyFlow: Array<{ label: string; dateLabel: string; value: number; isToday: boolean }>;
   // Soldes
   receivablesBalance: number;
   debtsBalance: number;
@@ -83,6 +83,26 @@ const EMPTY_DATA: ReportData = {
 };
 
 const WEEKDAY_LETTERS = ['D', 'L', 'M', 'M', 'J', 'V', 'S']; // getDay(): 0=dimanche..6=samedi
+// Libellés de date conviviaux (ex. « Ven 26 juin ») pour le jour sélectionné du graphe
+const WEEKDAY_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const MONTH_NAMES = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+function formatDayLabel(d: Date): string {
+  return `${WEEKDAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
 
 // Libellés conviviaux pour la répartition des encaissements (catégories IN)
 const ENCAISSEMENT_LABELS: Record<string, string> = {
@@ -107,6 +127,8 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('today');
   const [data, setData] = useState<ReportData>(EMPTY_DATA);
+  // Jour sélectionné dans le graphe « Flux de caisse » (défaut = aujourd'hui = dernière barre)
+  const [selectedDayIndex, setSelectedDayIndex] = useState(6);
 
   // Calcule la plage de dates pour la période sélectionnée.
   const getPeriodRange = useCallback((period: Period): { start: Date; end: Date } => {
@@ -178,6 +200,7 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         const dayFlow = await getCashFlowReport(shopId, dStart.toISOString(), dEnd.toISOString());
         weeklyFlow.push({
           label: WEEKDAY_LETTERS[d.getDay()],
+          dateLabel: formatDayLabel(d),
           value: dayFlow.net,
           isToday: d.toISOString().split('T')[0] === todayKey,
         });
@@ -227,6 +250,8 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
         topProducts,
         encaissements,
       });
+      // Sélection par défaut = aujourd'hui (dernière barre)
+      setSelectedDayIndex(weeklyFlow.length > 0 ? weeklyFlow.length - 1 : 0);
     } catch (error) {
       console.error('Erreur chargement rapports:', error);
       setData(EMPTY_DATA);
@@ -264,6 +289,9 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
 
   // Échelle du graphe : max des nets positifs (les nets négatifs s'affichent au minimum)
   const maxFlow = Math.max(1, ...data.weeklyFlow.map(b => b.value));
+  // Barre/jour sélectionné (clamp si la sélection dépasse les données disponibles)
+  const selectedBar =
+    data.weeklyFlow[Math.min(selectedDayIndex, data.weeklyFlow.length - 1)] ?? null;
   // Échelle du split espèces/crédit
   const totalSplit = data.cashSalesAmount + data.creditSalesAmount;
   const cashFraction = totalSplit > 0 ? data.cashSalesAmount / totalSplit : 0;
@@ -338,27 +366,47 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
             <Text style={styles.cardTitle}>Flux de caisse</Text>
             <Text style={styles.cardSubtitleInline}>7 derniers jours</Text>
           </View>
+          {/* Jour sélectionné : date + flux net (encaissements − décaissements) */}
+          {selectedBar && (
+            <View style={styles.chartCallout}>
+              <Text style={styles.chartCalloutDay}>{selectedBar.dateLabel}</Text>
+              <Text
+                style={[
+                  styles.chartCalloutAmount,
+                  { color: selectedBar.value >= 0 ? Colors.success.main : Colors.danger.main },
+                ]}
+              >
+                {formatMoneyWithSign(selectedBar.value)}
+              </Text>
+            </View>
+          )}
           <View style={styles.chartRow}>
             {data.weeklyFlow.map((bar, index) => {
               const ratio = Math.max(0, bar.value) / maxFlow;
               const barHeight = Math.max(4, ratio * CHART_HEIGHT);
+              const isSelected = index === selectedDayIndex;
               return (
-                <View key={index} style={styles.chartCol}>
+                <TouchableOpacity
+                  key={index}
+                  style={styles.chartCol}
+                  onPress={() => setSelectedDayIndex(index)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.chartBarTrack}>
                     <View
                       style={[
                         styles.chartBar,
                         {
                           height: barHeight,
-                          backgroundColor: bar.isToday ? Colors.action : Colors.primary[200],
+                          backgroundColor: isSelected ? Colors.action : Colors.primary[200],
                         },
                       ]}
                     />
                   </View>
-                  <Text style={[styles.chartLabel, bar.isToday && styles.chartLabelActive]}>
+                  <Text style={[styles.chartLabel, isSelected && styles.chartLabelActive]}>
                     {bar.label}
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -589,6 +637,22 @@ const styles = StyleSheet.create({
     color: Colors.textColors.tertiary,
   },
   // CHART
+  chartCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  chartCalloutDay: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  chartCalloutAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
   chartRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',

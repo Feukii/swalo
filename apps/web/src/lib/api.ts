@@ -1109,6 +1109,9 @@ export interface SupervisionReport {
 export const supervisionApi = {
   getReport: async (filters?: { start_date?: string; end_date?: string }): Promise<SupervisionReport> =>
     (await api.get<SupervisionReport>('/reports/supervision', { params: filters })).data,
+  acknowledgeAlert: async (alertId: string, note?: string): Promise<{ ok: boolean }> =>
+    (await api.post<{ ok: boolean }>('/reports/supervision/ack', { alert_id: alertId, ...(note ? { note } : {}) }))
+      .data,
 };
 
 // Packaging Types API (Conditionnements)

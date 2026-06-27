@@ -575,6 +575,31 @@ export const sellerTasksApi = {
   remind: async (id: string, channel?: ReminderChannel): Promise<RemindResult> => {
     return api.post<RemindResult>(`/seller-tasks/${id}/remind`, channel ? { channel } : {});
   },
+  /**
+   * Envoie une relance maintenant à un client SANS tâche vendeur préexistante.
+   * Le message est construit côté API à partir du solde dû actuel du client
+   * (créances PENDING/PARTIAL).
+   * @param customerId - identifiant du client à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux activés par le client.
+   */
+  manualRemind: async (customerId: string, channels?: ReminderChannel[]): Promise<RemindResult> => {
+    return api.post<RemindResult>('/seller-tasks/manual-remind', {
+      customer_id: customerId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
+  },
+};
+
+// Supervision API
+/** Actions sur le tableau de supervision (acquittement d'alertes). */
+export const supervisionApi = {
+  /** Acquitte une alerte (réservé au boss). `alertId` = identifiant stable de l'alerte. */
+  acknowledgeAlert: async (alertId: string, note?: string): Promise<{ ok: boolean }> => {
+    return api.post<{ ok: boolean }>('/reports/supervision/ack', {
+      alert_id: alertId,
+      ...(note ? { note } : {}),
+    });
+  },
 };
 
 // Reminder Settings API (Réglages relances de créances)

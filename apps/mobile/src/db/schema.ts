@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'swalo.db';
 /** Current target schema version (see runMigrations). Kept for documentation. */
-const _DB_VERSION = 7;
+const _DB_VERSION = 8;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 /**
@@ -655,6 +655,17 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_packaging_types_name ON packaging_types(shop_id, name);
 
+      -- Acquittements d'alertes de supervision (local ; le backend fait foi via POST en ligne)
+      CREATE TABLE IF NOT EXISTS alert_acknowledgements (
+        id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        alert_id TEXT NOT NULL,
+        acknowledged_by TEXT,
+        acknowledged_at TEXT NOT NULL,
+        note TEXT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_ack_unique ON alert_acknowledgements(shop_id, alert_id);
+
       -- Cash Sessions (mirror of Prisma CashSession)
       CREATE TABLE IF NOT EXISTS cash_sessions (
         id TEXT PRIMARY KEY,
@@ -782,6 +793,26 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     }
     await db.runAsync('UPDATE _schema_version SET version = 7');
   }
+
+  if (currentVersion < 8) {
+    // Migration v8: table locale d'acquittement des alertes de supervision
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS alert_acknowledgements (
+          id TEXT PRIMARY KEY,
+          shop_id TEXT NOT NULL,
+          alert_id TEXT NOT NULL,
+          acknowledged_by TEXT,
+          acknowledged_at TEXT NOT NULL,
+          note TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_ack_unique ON alert_acknowledgements(shop_id, alert_id);
+      `);
+    } catch {
+      // Table already exists, ignore
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 8');
+  }
 }
 
 /**
@@ -795,6 +826,7 @@ export async function resetDatabase(): Promise<void> {
     DELETE FROM _sync_meta;
     DELETE FROM inventory_counts;
     DELETE FROM inventory_sessions;
+    DELETE FROM alert_acknowledgements;
     DELETE FROM invoice_items;
     DELETE FROM invoices;
     DELETE FROM supplier_invoice_items;

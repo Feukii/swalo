@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuthStore } from '../store/authStore';
 import { supervisionApi } from '../lib/api';
 import type { SupervisionReport, SupervisionAlert } from '../lib/api';
 
@@ -45,10 +46,27 @@ export default function Supervision() {
   const navigate = useNavigate();
   const { can, isPermissive } = usePermissions();
   const canView = isPermissive || can('reports', 'view');
+  const role = useAuthStore(s => s.role);
+  const isBoss = role === 'BOSS' || role === 'SUPERADMIN';
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<SupervisionReport | null>(null);
+  const [acking, setAcking] = useState<string | null>(null);
+
+  const handleAcknowledge = useCallback(async (alert: SupervisionAlert) => {
+    setAcking(alert.id);
+    try {
+      await supervisionApi.acknowledgeAlert(alert.id);
+      setReport(prev =>
+        prev ? { ...prev, alerts: prev.alerts.filter(a => a.id !== alert.id) } : prev
+      );
+    } catch {
+      // garde l'alerte si l'acquittement échoue
+    } finally {
+      setAcking(null);
+    }
+  }, []);
 
   const loadReport = useCallback(async () => {
     setIsLoading(true);
@@ -165,10 +183,22 @@ export default function Supervision() {
                           </span>
                         </div>
                         <p className="text-sm text-slate-600 mt-0.5">{alert.detail}</p>
-                        <p className="text-xs text-slate-400 mt-1.5">
-                          {alert.author ? `${alert.author} · ` : ''}
-                          {formatTime(alert.created_at)}
-                        </p>
+                        <div className="flex items-center justify-between gap-2 mt-1.5">
+                          <p className="text-xs text-slate-400">
+                            {alert.author ? `${alert.author} · ` : ''}
+                            {formatTime(alert.created_at)}
+                          </p>
+                          {isBoss && (
+                            <button
+                              type="button"
+                              onClick={() => handleAcknowledge(alert)}
+                              disabled={acking === alert.id}
+                              className="inline-flex items-center gap-1 rounded-lg bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 hover:bg-success-100 disabled:opacity-50"
+                            >
+                              {acking === alert.id ? '…' : '✓ Acquitter'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
