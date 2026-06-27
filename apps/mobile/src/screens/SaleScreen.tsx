@@ -277,8 +277,12 @@ export default function SaleScreen() {
           }
         });
 
-        if (priceGroups.size > 1) {
-          // Multi-price: show selection modal
+        // Carton-primary : on ouvre le sélecteur de conditionnement dès qu'il y a
+        // plusieurs prix OU que l'article est conditionné (carton vendable au prix
+        // de gros), afin de proposer le carton (gros) ET la pièce (détail).
+        const hasCarton =
+          !!product.units_per_package && product.units_per_package > 1 && !!product.package_price;
+        if (priceGroups.size > 1 || hasCarton) {
           setPriceModalProduct(product);
           setPriceOptions(Array.from(priceGroups.values()));
           setShowPriceModal(true);
@@ -334,19 +338,22 @@ export default function SaleScreen() {
     }
   };
 
-  // Sélection d'un conditionnement complet (ex. Carton de 24) : ajoute `qty`
-  // pièces au prix/pièce du pack (total ligne = prix du conditionnement).
-  const handlePackSelection = (product: SaleProduct, qty: number, perPiece: number) => {
+  // Sélection d'un carton complet (ex. Carton de 24) : vend le carton au prix de
+  // GROS (`package_price`) en déduisant `qty` (units_per_package) pièces du stock.
+  // Le prix/pièce de la ligne en découle (package_price / qty), pas l'inverse :
+  // c'est bien le prix de gros du carton qui pilote le total.
+  const handlePackSelection = (product: SaleProduct, qty: number, packPrice: number) => {
     if (qty > product.current_stock) {
       Alert.alert('Stock insuffisant', `Stock disponible: ${product.current_stock} unités`);
       return;
     }
     const productName = product.name || `${product.family} ${product.article_type}`;
+    const perPiece = Math.round(packPrice / qty);
     setCart(prev => [
       ...prev,
       {
         productId: product.id,
-        productName: `${productName} (×${qty})`,
+        productName: `${productName} (carton ×${qty})`,
         quantity: qty,
         unitPrice: perPiece,
         batchId: undefined,
@@ -1393,7 +1400,7 @@ export default function SaleScreen() {
             )}
 
             <ScrollView>
-              {/* Conditionnement complet (ex. Carton de 24) — prix de pack réel */}
+              {/* Carton complet (ex. Carton de 24) — vendu au PRIX DE GROS */}
               {(() => {
                 if (!priceModalProduct) return null;
                 const pkg = packagingFor(priceModalProduct);
@@ -1404,16 +1411,16 @@ export default function SaleScreen() {
                 return (
                   <TouchableOpacity
                     style={styles.condRow}
-                    onPress={() => handlePackSelection(priceModalProduct, packQty, perPiece)}
+                    onPress={() => handlePackSelection(priceModalProduct, packQty, packPrice)}
                     activeOpacity={0.85}
                   >
                     <View style={styles.condIcon}>
                       <Package size={20} color={Colors.success.main} />
                     </View>
                     <View style={styles.condInfo}>
-                      <Text style={styles.condTitle}>{pkg.name}</Text>
+                      <Text style={styles.condTitle}>{pkg.name} · Gros</Text>
                       <Text style={styles.condSub}>
-                        {packQty} {priceModalProduct.unit} · {formatMoney(perPiece)} /{' '}
+                        {packQty} {priceModalProduct.unit} · soit {formatMoney(perPiece)} /{' '}
                         {priceModalProduct.unit}
                       </Text>
                     </View>
@@ -1423,7 +1430,7 @@ export default function SaleScreen() {
               })()}
 
               {priceOptions.map((option, index) => {
-                const unitTitle = 'Pièce';
+                const unitTitle = 'Pièce · Détail';
                 const lotLabel = `${option.batch_count} lot${option.batch_count > 1 ? 's' : ''}`;
                 return (
                   <TouchableOpacity

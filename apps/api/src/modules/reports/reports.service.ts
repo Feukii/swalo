@@ -217,12 +217,16 @@ export class ReportsService {
       0
     );
 
-    // Produits en alerte stock (stock <= seuil d'alerte)
+    // Produits en alerte stock.
+    // Modèle carton-primary : quand l'article est conditionné (units_per_package > 1),
+    // le seuil d'alerte est exprimé en CARTONS → on compare floor(pièces / units_per_package)
+    // au seuil. Sinon (vendu à la pièce), on compare directement les pièces.
     const products = await this.prisma.product.findMany({
       where: { shop_id: shopId, deleted: false, is_active: true },
       select: {
         id: true,
         alert_threshold: true,
+        units_per_package: true,
         stock_batches: {
           where: { deleted: false, remaining_quantity: { gt: 0 } },
           select: { remaining_quantity: true },
@@ -231,7 +235,9 @@ export class ReportsService {
     });
     const lowStockCount = products.filter(p => {
       const stock = p.stock_batches.reduce((s, b) => s + b.remaining_quantity, 0);
-      return stock <= p.alert_threshold;
+      const upp = p.units_per_package ?? 0;
+      const units = upp > 1 ? Math.floor(stock / upp) : stock;
+      return units <= p.alert_threshold;
     }).length;
 
     return {
@@ -514,7 +520,13 @@ export class ReportsService {
       if (cat === 'ventes') continue; // compté depuis les ventes
       if (cat === 'reglement_fournisseur') continue; // compté depuis les paiements fournisseur
       if (cat === 'achats_marchandises') {
-        ops.push({ kind: 'CASH_PURCHASE_STOCK', date, refId: ce.id, amount: ce.amount, treasury: 'CAISSE' });
+        ops.push({
+          kind: 'CASH_PURCHASE_STOCK',
+          date,
+          refId: ce.id,
+          amount: ce.amount,
+          treasury: 'CAISSE',
+        });
       } else if (cat === 'retrait_personnel') {
         ops.push({ kind: 'OWNER_DRAWING', date, amount: ce.amount, treasury: 'CAISSE' });
       } else if (cat === 'remboursement_client') {

@@ -183,7 +183,9 @@ export async function getStockReport(shopId: string): Promise<StockReport> {
     [shopId]
   );
 
-  // Low stock: products where total remaining < alert_threshold
+  // Low stock (modèle carton-primary) : quand l'article est conditionné
+  // (units_per_package > 1), le seuil d'alerte est exprimé en CARTONS → on compare
+  // floor(pièces / units_per_package) au seuil. Sinon on compare les pièces.
   const lowStockRow = await db.getFirstAsync<{ cnt: number }>(
     `SELECT COUNT(*) as cnt FROM (
        SELECT p.id, p.alert_threshold, COALESCE(SUM(sb.remaining_quantity), 0) as total_qty
@@ -191,7 +193,12 @@ export async function getStockReport(shopId: string): Promise<StockReport> {
        LEFT JOIN stock_batches sb ON sb.product_id = p.id AND sb.deleted = 0 AND sb.remaining_quantity > 0
        WHERE p.shop_id = ? AND p.deleted = 0 AND p.is_active = 1
        GROUP BY p.id
-       HAVING total_qty > 0 AND total_qty <= p.alert_threshold
+       HAVING total_qty > 0 AND (
+         CASE WHEN p.units_per_package > 1
+           THEN total_qty / p.units_per_package
+           ELSE total_qty
+         END
+       ) <= p.alert_threshold
      )`,
     [shopId]
   );
