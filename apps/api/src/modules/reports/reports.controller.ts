@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { IsString, IsOptional } from 'class-validator';
 import { ReportsService } from './reports.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 
@@ -21,6 +22,7 @@ interface AuthenticatedUser {
 }
 
 @Controller('reports')
+@RequireModule('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -100,6 +102,7 @@ export class ReportsController {
    * Comptabilité : bilan + compte de résultat + journal (filtré par période)
    */
   @Get('accounting')
+  @RequireModule('accounting')
   @Roles(Role.BOSS, Role.MANAGER)
   getAccountingReport(
     @CurrentUser() user: AuthenticatedUser,
@@ -117,6 +120,7 @@ export class ReportsController {
    * Supervision : journal des actions anormales (par défaut le jour)
    */
   @Get('supervision')
+  @RequireModule('supervision')
   @Roles(Role.BOSS, Role.MANAGER)
   getSupervisionReport(
     @CurrentUser() user: AuthenticatedUser,
@@ -134,6 +138,7 @@ export class ReportsController {
    * Acquitter une alerte de supervision (réservé au boss).
    */
   @Post('supervision/ack')
+  @RequireModule('supervision')
   @Roles(Role.BOSS)
   acknowledgeAlert(@CurrentUser() user: AuthenticatedUser, @Body() dto: AcknowledgeAlertDto) {
     return this.reportsService.acknowledgeAlert(user.shopId, dto.alert_id, user.userId, dto.note);

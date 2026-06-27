@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@ne
 import type { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { Role } from '@prisma/client';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -13,6 +14,7 @@ type AuthenticatedRequest = Request & {
 };
 
 @Controller('customers')
+@RequireModule('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 

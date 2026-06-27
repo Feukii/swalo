@@ -4,6 +4,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { SearchSaleDto } from './dto/search-sale.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RequireCapability } from '../../common/decorators/require-capability.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 
@@ -14,6 +15,7 @@ interface AuthUser {
 }
 
 @Controller('sales')
+@RequireModule('sales')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 

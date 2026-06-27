@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationChannel, Role } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { SellerTasksService } from './seller-tasks.service';
 
 type AuthenticatedRequest = Request & {
@@ -31,6 +32,7 @@ interface ManualRemindSupplierDto {
  * of the shop (seller / manager / boss) — no extra role restriction.
  */
 @Controller('seller-tasks')
+@RequireModule('relances')
 export class SellerTasksController {
   constructor(private readonly sellerTasksService: SellerTasksService) {}
 

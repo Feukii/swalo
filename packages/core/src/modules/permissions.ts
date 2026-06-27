@@ -26,6 +26,7 @@ export const PERMISSION_MODULES = [
   'invoices',
   'packaging-types',
   'notifications',
+  'relances',
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
@@ -45,6 +46,7 @@ export const MODULE_CAPABILITIES: Record<PermissionModule, Capability[]> = {
   invoices: ['view', 'create', 'export'],
   'packaging-types': ['view', 'create', 'edit', 'delete'],
   notifications: ['view', 'edit'],
+  relances: ['view', 'create', 'edit'],
 };
 
 export const CAPABILITY_LABELS: Record<Capability, string> = {

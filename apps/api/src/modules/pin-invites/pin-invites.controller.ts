@@ -3,12 +3,14 @@ import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { PinInvitesService } from './pin-invites.service';
 import { CreatePinInviteDto } from './dto/create-pin-invite.dto';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 type AuthenticatedRequest = Request & {
   user: { userId: string; shopId: string; role: Role };
 };
 
 @Controller('pin-invites')
+@RequireModule('pin-invites')
 export class PinInvitesController {
   constructor(private readonly pinInvitesService: PinInvitesService) {}
 
