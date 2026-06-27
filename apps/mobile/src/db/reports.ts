@@ -56,6 +56,14 @@ export interface TopItem {
   count: number;
 }
 
+export interface SalesByPaymentMethodReport {
+  salesCount: number;
+  cashSalesAmount: number;
+  cashSalesCount: number;
+  creditSalesAmount: number;
+  creditSalesCount: number;
+}
+
 // ============================================================
 // Report Functions
 // ============================================================
@@ -287,6 +295,47 @@ export async function getDebtsReport(shopId: string): Promise<DebtsReport> {
     paidCount: row?.paid_count ?? 0,
     totalAmount: row?.total_amount ?? 0,
     totalPaid: row?.total_paid ?? 0,
+  };
+}
+
+/**
+ * Real split of sales by payment mode (espèces vs crédit) for a date range.
+ * Source = the sales rows themselves (sales.payment_method), so counts AND
+ * amounts are exact — no proration. "Espèces" regroupe tout encaissement
+ * immédiat (CASH/CARD/MOBILE) ; "Crédit" = ventes à crédit (CREDIT).
+ */
+export async function getSalesByPaymentMethod(
+  shopId: string,
+  startDate: string,
+  endDate: string
+): Promise<SalesByPaymentMethodReport> {
+  const db = await getDatabase();
+
+  const row = await db.getFirstAsync<{
+    sales_count: number;
+    cash_amount: number | null;
+    cash_count: number;
+    credit_amount: number | null;
+    credit_count: number;
+  }>(
+    `SELECT
+       COUNT(*) as sales_count,
+       COALESCE(SUM(CASE WHEN payment_method = 'CREDIT' THEN 0 ELSE grand_total END), 0) as cash_amount,
+       SUM(CASE WHEN payment_method = 'CREDIT' THEN 0 ELSE 1 END) as cash_count,
+       COALESCE(SUM(CASE WHEN payment_method = 'CREDIT' THEN grand_total ELSE 0 END), 0) as credit_amount,
+       SUM(CASE WHEN payment_method = 'CREDIT' THEN 1 ELSE 0 END) as credit_count
+     FROM sales
+     WHERE shop_id = ? AND deleted = 0 AND status != 'DRAFT'
+       AND created_at >= ? AND created_at <= ?`,
+    [shopId, startDate, endDate]
+  );
+
+  return {
+    salesCount: row?.sales_count ?? 0,
+    cashSalesAmount: row?.cash_amount ?? 0,
+    cashSalesCount: row?.cash_count ?? 0,
+    creditSalesAmount: row?.credit_amount ?? 0,
+    creditSalesCount: row?.credit_count ?? 0,
   };
 }
 

@@ -14,11 +14,11 @@ import { ScreenHeader } from '../components/ui';
 import { ArrowDown, ArrowUp } from '../components/icons/SimpleIcons';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
-  getDailySalesReport,
   getCashFlowReport,
   getReceivablesReport,
   getDebtsReport,
   getTopProductsReport,
+  getSalesByPaymentMethod,
   type TopItem,
 } from '../db/reports';
 
@@ -164,27 +164,16 @@ export default function BusinessReportsScreen({ navigation }: BusinessReportsScr
       // --- Flux de caisse de la période (KPIs) ---
       const cashFlow = await getCashFlowReport(shopId, startISO, endISO);
 
-      // --- Agrégation des ventes jour par jour sur la période ---
-      let salesCount = 0;
-      let cashSalesAmount = 0;
-      let creditSalesAmount = 0;
-      const dayCursor = new Date(start);
-      while (dayCursor <= end) {
-        const dayReport = await getDailySalesReport(shopId, dayCursor.toISOString());
-        salesCount += dayReport.salesCount;
-        cashSalesAmount += dayReport.cashSales;
-        creditSalesAmount += dayReport.creditSales;
-        dayCursor.setDate(dayCursor.getDate() + 1);
-      }
-
-      // Répartition espèces vs crédit.
-      // Les comptes par mode ne sont pas stockés séparément : on répartit le
-      // nombre total de ventes au prorata des montants (approximation).
-      const totalSalesAmount = cashSalesAmount + creditSalesAmount;
-      const cashShare = totalSalesAmount > 0 ? cashSalesAmount / totalSalesAmount : 0;
-      const cashSalesCount = Math.round(salesCount * cashShare);
-      const creditSalesCount = Math.max(0, salesCount - cashSalesCount);
-      const cashSharePercent = Math.round(cashShare * 100);
+      // --- Répartition réelle espèces vs crédit sur la période ---
+      // Source = les ventes elles-mêmes (sales.payment_method) : montants ET
+      // comptes exacts, aucune approximation/prorata.
+      const salesByMode = await getSalesByPaymentMethod(shopId, startISO, endISO);
+      const salesCount = salesByMode.salesCount;
+      const cashSalesAmount = salesByMode.cashSalesAmount;
+      const creditSalesAmount = salesByMode.creditSalesAmount;
+      const cashSalesCount = salesByMode.cashSalesCount;
+      const creditSalesCount = salesByMode.creditSalesCount;
+      const cashSharePercent = salesCount > 0 ? Math.round((cashSalesCount / salesCount) * 100) : 0;
       const creditAvgTicket = creditSalesCount > 0 ? creditSalesAmount / creditSalesCount : 0;
 
       // --- Flux de caisse : 7 derniers jours (net par jour) ---
