@@ -297,19 +297,32 @@ export default function SaleScreen() {
     setPriceOptions([]);
   };
 
+  // Stock maximum vendable pour une ligne de panier. Pour un lot multi-prix
+  // choisi, on plafonne au stock du groupe de prix (cf. addToCartDirect) ;
+  // sinon au stock total du produit.
+  const getMaxStockForItem = (productId: string, batchId?: string): number => {
+    const product = products.find(p => p.id === productId);
+    const currentStock = product?.current_stock || 0;
+    if (batchId) {
+      const group = priceOptions.find(p => p.batches.some(b => b.id === batchId));
+      return group?.total_quantity ?? currentStock;
+    }
+    return currentStock;
+  };
+
   const updateQuantity = (productId: string, delta: number, batchId?: string) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    const currentStock = product.current_stock || 0;
+    const maxStock = getMaxStockForItem(productId, batchId);
 
     setCart(prevCart => {
       const updated = prevCart
         .map(item => {
           if (item.productId === productId && item.batchId === batchId) {
             const newQuantity = item.quantity + delta;
-            if (newQuantity > currentStock) {
-              Alert.alert('Stock insuffisant', `Stock disponible: ${currentStock} unités`);
+            if (newQuantity > maxStock) {
+              Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
               return item;
             }
             if (newQuantity <= 0) return null;
@@ -321,6 +334,34 @@ export default function SaleScreen() {
 
       return updated;
     });
+  };
+
+  // Saisie clavier de la quantité exacte. La valeur est nettoyée en entier ≥ 1,
+  // plafonnée au stock disponible (même règle que les boutons +/-). Une saisie
+  // vide ou invalide (0, non numérique) retombe sur 1.
+  const setExactQuantity = (productId: string, value: string, batchId?: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    const maxStock = getMaxStockForItem(productId, batchId);
+
+    // On ne garde que les chiffres pour éviter signes/décimales sur number-pad.
+    const digits = value.replace(/[^0-9]/g, '');
+    const parsed = parseInt(digits, 10);
+    let nextQuantity = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
+
+    if (nextQuantity > maxStock) {
+      nextQuantity = Math.max(maxStock, 1);
+      Alert.alert('Stock insuffisant', `Stock disponible: ${maxStock} unités`);
+    }
+
+    setCart(prevCart =>
+      prevCart.map(item =>
+        item.productId === productId && item.batchId === batchId
+          ? { ...item, quantity: nextQuantity }
+          : item
+      )
+    );
   };
 
   const removeFromCart = (productId: string, batchId?: string) => {
@@ -849,7 +890,16 @@ export default function SaleScreen() {
                         <Minus size={14} color={Colors.text} />
                       )}
                     </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{item.quantity}</Text>
+                    <TextInput
+                      style={styles.stepperValue}
+                      value={String(item.quantity)}
+                      onChangeText={text => setExactQuantity(item.productId, text, item.batchId)}
+                      keyboardType="number-pad"
+                      selectTextOnFocus
+                      maxLength={6}
+                      returnKeyType="done"
+                      accessibilityLabel={`Quantité de ${item.productName}`}
+                    />
                     <TouchableOpacity
                       style={styles.stepperButton}
                       onPress={() => updateQuantity(item.productId, 1, item.batchId)}
@@ -1490,7 +1540,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stepperValue: {
-    minWidth: 24,
+    minWidth: 36,
+    height: 30,
+    paddingVertical: 0,
+    paddingHorizontal: 2,
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '700',

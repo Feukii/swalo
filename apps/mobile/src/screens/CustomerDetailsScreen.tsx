@@ -35,7 +35,7 @@ import {
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
 import { formatMoney } from '../utils/money';
-import { formatPhoneOnInput, formatCameroonPhone } from '../utils/phone';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import {
@@ -842,6 +842,14 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
   const handleSubmitEdit = async () => {
     if (!editForm.name.trim()) {
       Alert.alert('Erreur', 'Le nom est requis');
+      return;
+    }
+
+    if (editForm.phone.trim() && !isValidCameroonPhone(editForm.phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
+      );
       return;
     }
 

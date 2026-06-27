@@ -18,6 +18,8 @@ import {
   ArrowDown,
   AlertTriangle,
   ChevronRight,
+  Edit,
+  ArrowLeftRight,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
@@ -101,6 +103,8 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const [showEntrySheet, setShowEntrySheet] = useState(false);
   const [showExitSheet, setShowExitSheet] = useState(false);
   const [showThresholdSheet, setShowThresholdSheet] = useState(false);
+  const [showPriceSheet, setShowPriceSheet] = useState(false);
+  const [showAdjustSheet, setShowAdjustSheet] = useState(false);
 
   // Entrée form
   const [entryQty, setEntryQty] = useState('');
@@ -113,6 +117,13 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
 
   // Seuil form
   const [thresholdValue, setThresholdValue] = useState('');
+
+  // Prix de vente form (éventuellement seuil au même endroit)
+  const [priceValue, setPriceValue] = useState('');
+  const [priceThresholdValue, setPriceThresholdValue] = useState('');
+
+  // Ajustement de stock form (quantité cible)
+  const [adjustValue, setAdjustValue] = useState('');
 
   const loadProduct = useCallback(async () => {
     if (!shopId) return;
@@ -190,6 +201,18 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     if (!product) return;
     setThresholdValue(String(product.alert_threshold));
     setShowThresholdSheet(true);
+  };
+
+  const openPriceSheet = () => {
+    if (!product) return;
+    setPriceValue(String(product.sell_price));
+    setPriceThresholdValue(String(product.alert_threshold));
+    setShowPriceSheet(true);
+  };
+
+  const openAdjustSheet = () => {
+    setAdjustValue(String(currentStock));
+    setShowAdjustSheet(true);
   };
 
   const computeEntryDateISO = (choice: EntryDateChoice): string => {
@@ -297,6 +320,99 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
       await loadProduct();
     } catch (error: unknown) {
       Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de mettre à jour le seuil');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Modifier le prix de vente (+ seuil optionnel au même endroit)
+  const handleSubmitPrice = async () => {
+    if (!product) return;
+    const price = parseInt(priceValue, 10);
+    if (isNaN(price) || price < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de vente valide');
+      return;
+    }
+    const threshold = parseInt(priceThresholdValue, 10);
+    if (isNaN(threshold) || threshold < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un seuil valide');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await updateProductOffline(product.id, {
+        sellPrice: price,
+        alertThreshold: threshold,
+      });
+      setShowPriceSheet(false);
+      await loadProduct();
+      Alert.alert('Succès', 'Prix de vente mis à jour');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de mettre à jour le prix');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Ajuster le stock à une quantité cible (correction d'inventaire)
+  // - cible < stock : déstockage FIFO + mouvement d'ajustement
+  // - cible > stock : nouveau lot daté (entrée) au PMP courant + mouvement d'ajustement
+  const handleSubmitAdjust = async () => {
+    if (!product || !shopId) return;
+    const target = parseInt(adjustValue, 10);
+    if (isNaN(target) || target < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer une quantité cible valide');
+      return;
+    }
+    const delta = target - currentStock;
+    if (delta === 0) {
+      setShowAdjustSheet(false);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const deviceInfo = await getDeviceInfo();
+
+      if (delta < 0) {
+        // Correction négative : on retire l'excédent en FIFO
+        const removeQty = -delta;
+        const deductions = await stockBatchRepo.deductFIFO(shopId, product.id, removeQty);
+        const totalDeducted = deductions.reduce((s, d) => s + d.deducted, 0);
+
+        const movement: Partial<LocalInventoryMovement> = {
+          id: generateId(),
+          shop_id: shopId,
+          product_id: product.id,
+          type: 'ADJUSTMENT',
+          qty: -totalDeducted,
+          reason: 'Ajustement de stock',
+          ref_type: 'manual',
+          ref_id: null,
+          unit_cost: pmp,
+          device_id: deviceInfo.device_id,
+          client_op_id: `inv_adj_${product.id}_${Date.now()}`,
+          version: 1,
+        };
+        await inventoryMovementRepo.create(movement);
+      } else {
+        // Correction positive : on crée un lot d'entrée (au PMP courant)
+        // createStockBatchOffline crée déjà le mouvement d'inventaire IN associé.
+        await createStockBatchOffline({
+          shopId,
+          productId: product.id,
+          quantity: delta,
+          costPrice: pmp,
+          sellPrice: product.sell_price,
+          notes: 'Ajustement de stock',
+        });
+      }
+
+      setShowAdjustSheet(false);
+      await loadProduct();
+      Alert.alert('Succès', 'Stock ajusté');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible d'ajuster le stock");
     } finally {
       setIsSubmitting(false);
     }
@@ -410,28 +526,57 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           </TouchableOpacity>
         </View>
 
-        {/* BOUTONS ENTRÉE / SORTIE */}
+        {/* BOUTONS ENTRÉE / SORTIE — MANAGER+ uniquement */}
         {canEditProduct ? (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonEntry]}
-              onPress={openEntrySheet}
-            >
-              <View style={[styles.actionIcon, styles.actionIconEntry]}>
-                <ArrowUp size={16} color={Colors.success.foreground} />
-              </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
-            </TouchableOpacity>
+          <View style={styles.actionGroup}>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonEntry]}
+                onPress={openEntrySheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconEntry]}>
+                  <ArrowUp size={16} color={Colors.success.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonExit]}
-              onPress={openExitSheet}
-            >
-              <View style={[styles.actionIcon, styles.actionIconExit]}>
-                <ArrowDown size={16} color={Colors.danger.foreground} />
-              </View>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonExit]}
+                onPress={openExitSheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconExit]}>
+                  <ArrowDown size={16} color={Colors.danger.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* MODIFIER LE PRIX / AJUSTER LE STOCK */}
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonNeutral]}
+                onPress={openPriceSheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconNeutral]}>
+                  <Edit size={16} color={Colors.primary.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextNeutral]}>
+                  Modifier le prix
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.actionButtonNeutral]}
+                onPress={openAdjustSheet}
+              >
+                <View style={[styles.actionIcon, styles.actionIconNeutral]}>
+                  <ArrowLeftRight size={16} color={Colors.primary.foreground} />
+                </View>
+                <Text style={[styles.actionButtonText, styles.actionButtonTextNeutral]}>
+                  Ajuster le stock
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
@@ -697,6 +842,136 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           </View>
         </View>
       </Modal>
+
+      {/* SHEET — PRIX DE VENTE */}
+      <Modal
+        visible={showPriceSheet}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPriceSheet(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Prix de vente</Text>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              {product.name} · PMP actuel {formatMoney(pmp)}
+            </Text>
+
+            <View style={styles.sheetBody}>
+              <Text style={styles.formLabel}>Prix de vente unitaire (FCFA)</Text>
+              <TextInput
+                style={styles.input}
+                value={priceValue}
+                onChangeText={text => setPriceValue(text.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.muted.foreground}
+              />
+
+              <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                Seuil d&apos;alerte ({product.unit})
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={priceThresholdValue}
+                onChangeText={text => setPriceThresholdValue(text.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.muted.foreground}
+              />
+
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={styles.sheetCancelButton}
+                  onPress={() => setShowPriceSheet(false)}
+                >
+                  <Text style={styles.sheetCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sheetSubmitButton, styles.sheetSubmitSky]}
+                  onPress={handleSubmitPrice}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
+                  ) : (
+                    <Text style={styles.sheetSubmitText}>Enregistrer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SHEET — AJUSTER LE STOCK (correction d'inventaire) */}
+      <Modal
+        visible={showAdjustSheet}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAdjustSheet(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Ajuster le stock</Text>
+              <Text style={styles.sheetStock}>
+                Stock : {currentStock} {product.unit}
+              </Text>
+            </View>
+            <Text style={styles.sheetSubtitle}>
+              {product.name} · Corriger la quantité réelle en stock
+            </Text>
+
+            <View style={styles.sheetBody}>
+              <Text style={styles.formLabel}>Quantité cible ({product.unit})</Text>
+              <TextInput
+                style={styles.input}
+                value={adjustValue}
+                onChangeText={text => setAdjustValue(text.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.muted.foreground}
+              />
+              <Text style={styles.adjustHint}>
+                {(() => {
+                  const target = parseInt(adjustValue, 10);
+                  if (isNaN(target)) return 'Saisissez la quantité réellement présente.';
+                  const delta = target - currentStock;
+                  if (delta === 0) return 'Aucun changement.';
+                  if (delta > 0)
+                    return `Entrée de ${delta} ${product.unit} (nouveau lot au PMP ${formatMoney(pmp)}).`;
+                  return `Sortie de ${-delta} ${product.unit} (déstockage FIFO).`;
+                })()}
+              </Text>
+
+              <View style={styles.sheetActions}>
+                <TouchableOpacity
+                  style={styles.sheetCancelButton}
+                  onPress={() => setShowAdjustSheet(false)}
+                >
+                  <Text style={styles.sheetCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sheetSubmitButton, styles.sheetSubmitSky]}
+                  onPress={handleSubmitAdjust}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
+                  ) : (
+                    <Text style={styles.sheetSubmitText}>Valider l&apos;ajustement</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -837,6 +1112,9 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   // ACTION BUTTONS
+  actionGroup: {
+    gap: Spacing.md,
+  },
   actionButtons: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -861,6 +1139,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.danger.background,
     borderColor: Colors.danger.main + '55',
   },
+  actionButtonNeutral: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.border,
+  },
   actionIcon: {
     width: 24,
     height: 24,
@@ -874,6 +1156,9 @@ const styles = StyleSheet.create({
   actionIconExit: {
     backgroundColor: Colors.danger.main,
   },
+  actionIconNeutral: {
+    backgroundColor: Colors.action,
+  },
   actionButtonText: {
     fontSize: 15,
     fontWeight: '700',
@@ -883,6 +1168,9 @@ const styles = StyleSheet.create({
   },
   actionButtonTextExit: {
     color: Colors.danger.text,
+  },
+  actionButtonTextNeutral: {
+    color: Colors.text,
   },
   // SECTION
   section: {
@@ -1059,6 +1347,12 @@ const styles = StyleSheet.create({
   },
   formLabelSpaced: {
     marginTop: Spacing.lg,
+  },
+  adjustHint: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+    marginTop: Spacing.sm,
+    lineHeight: 18,
   },
   input: {
     borderWidth: 1.5,
