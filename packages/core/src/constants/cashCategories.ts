@@ -40,6 +40,11 @@ export type CashCategoryKey =
   | 'loyers'
   | 'reglement_fournisseur'
   | 'depenses_courantes'
+  | 'salaires'
+  | 'transport'
+  | 'electricite_eau'
+  | 'taxes_impots'
+  | 'retrait_personnel'
   | 'divers';
 
 /**
@@ -77,6 +82,25 @@ export function normalizeCashCategory(category: string | null | undefined): Cash
     // Dépenses courantes
     depenses_courantes: 'depenses_courantes',
     depense_courante: 'depenses_courantes',
+    // Salaires
+    salaires: 'salaires',
+    salaire: 'salaires',
+    // Transport
+    transport: 'transport',
+    transports: 'transport',
+    // Électricité / eau
+    electricite_eau: 'electricite_eau',
+    electricite: 'electricite_eau',
+    eau: 'electricite_eau',
+    'electricite_/_eau': 'electricite_eau',
+    // Taxes & impôts
+    taxes_impots: 'taxes_impots',
+    taxes: 'taxes_impots',
+    impots: 'taxes_impots',
+    'taxes_&_impots': 'taxes_impots',
+    // Retrait personnel (prélèvement de l'exploitant)
+    retrait_personnel: 'retrait_personnel',
+    retrait: 'retrait_personnel',
     // Divers
     divers: 'divers',
   };
