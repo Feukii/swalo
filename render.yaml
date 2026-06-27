@@ -8,8 +8,10 @@ services:
     branch: main
     # Build optimisé pour démarrage rapide
     buildCommand: |
-      # Install dependencies
-      pnpm install
+      # Install dependencies (--prod=false : NODE_ENV=production fait sauter les
+      #  devDependencies à pnpm ; or le build a besoin des @types/* et de @nestjs/cli
+      #  pour le type-check → on force leur installation)
+      pnpm install --prod=false
       # Build le package partagé @swalo/core AVANT l'API
       # (l'API importe @swalo/core et @swalo/core/accounting → dist/ requis au runtime ;
       #  pas de script prepare, dist non versionné → il faut le bâtir explicitement)
