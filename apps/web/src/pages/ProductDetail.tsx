@@ -48,9 +48,9 @@ interface BatchStats {
   total_value: number;
 }
 
-/** Formatte un montant en centimes -> "12 345 F". */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 345 F". */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
@@ -473,7 +473,7 @@ function PackagingModal({
     currentUnitsPerPackage ? String(currentUnitsPerPackage) : ''
   );
   const [packagePrice, setPackagePrice] = useState(
-    currentPackagePrice ? String(Math.round(currentPackagePrice / 100)) : ''
+    currentPackagePrice ? String(Math.round(currentPackagePrice)) : ''
   );
   const [submitting, setSubmitting] = useState(false);
 
@@ -487,7 +487,7 @@ function PackagingModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const units = parseInt(unitsPerPackage, 10);
-    const price = Math.round(parseFloat(packagePrice) * 100);
+    const price = Math.round(parseFloat(packagePrice));
     if (!packagingTypeId) {
       alert('Sélectionnez un type de conditionnement');
       return;
@@ -600,14 +600,14 @@ function StockInModal({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [quantity, setQuantity] = useState('');
-  const [costPrice, setCostPrice] = useState(String(Math.round(defaultCost / 100)));
+  const [costPrice, setCostPrice] = useState(String(Math.round(defaultCost)));
   const [date, setDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const qty = parseInt(quantity, 10);
-    const cost = Math.round(parseFloat(costPrice) * 100);
+    const cost = Math.round(parseFloat(costPrice));
     if (!qty || qty <= 0) {
       alert('Quantité invalide');
       return;

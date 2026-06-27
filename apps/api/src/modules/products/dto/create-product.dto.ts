@@ -51,7 +51,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  package_price?: number; // Prix du conditionnement complet (en centimes)
+  package_price?: number; // Prix du conditionnement complet (en FCFA)
 
   @IsOptional()
   @IsNumber()
@@ -60,11 +60,11 @@ export class CreateProductDto {
 
   @IsInt()
   @Min(0)
-  cost_price: number; // En centimes
+  cost_price: number; // En FCFA
 
   @IsInt()
   @Min(0)
-  sell_price: number; // En centimes
+  sell_price: number; // En FCFA
 
   @IsOptional()
   @IsBoolean()

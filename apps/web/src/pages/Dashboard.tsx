@@ -82,8 +82,8 @@ export default function Dashboard() {
         description: formData.description,
         category: formData.category,
         unit: formData.unit,
-        cost_price: Math.round(parseFloat(formData.cost_price) * 100),
-        sell_price: Math.round(parseFloat(formData.sell_price) * 100),
+        cost_price: Math.round(parseFloat(formData.cost_price)),
+        sell_price: Math.round(parseFloat(formData.sell_price)),
         alert_threshold: parseInt(formData.alert_threshold),
       });
       setShowModal(false);

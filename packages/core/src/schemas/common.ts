@@ -8,7 +8,7 @@ import { z } from 'zod';
 export const UUID = z.string().uuid();
 export const ISODateTime = z.string().datetime();
 export const PositiveInt = z.number().int().nonnegative();
-export const Currency = z.number().int().nonnegative(); // En centimes
+export const Currency = z.number().int().nonnegative(); // En FCFA
 
 // Enums
 export const UserRole = z.enum(['EMPLOYEE', 'MANAGER', 'BOSS', 'SUPERADMIN']);

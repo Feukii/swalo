@@ -61,10 +61,9 @@ type PaymentMethod = 'cash' | 'credit';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Formate un montant stocke en CENTIMES vers FCFA (÷100), separateurs de milliers.
- *  (Cohérent avec les autres pages web qui divisent par 100.) */
-const formatFCFA = (cents: number): string =>
-  Math.round((cents ?? 0) / 100).toLocaleString('fr-FR') + ' FCFA';
+/** Formate un montant en FCFA, separateurs de milliers. */
+const formatFCFA = (value: number): string =>
+  Math.round(value ?? 0).toLocaleString('fr-FR') + ' FCFA';
 
 /**
  * Libelle d'affichage d'un article. On prend TOUJOURS le NOM de l'article en

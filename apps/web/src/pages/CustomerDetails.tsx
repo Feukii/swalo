@@ -160,9 +160,9 @@ export default function CustomerDetails() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(paymentAmount) * 100);
+    const amount = Math.round(parseFloat(paymentAmount));
 
-    if (isNaN(amountInCentimes) || amountInCentimes <= 0) {
+    if (isNaN(amount) || amount <= 0) {
       alert('Montant invalide');
       return;
     }
@@ -181,7 +181,7 @@ export default function CustomerDetails() {
     try {
       const receivableId = pendingReceivables[0].id;
       await receivablesApi.addPayment(receivableId, {
-        amount: amountInCentimes,
+        amount,
         payment_method: 'Espèces',
         note: paymentNote || `Paiement de ${getPersonName()}`,
       });
@@ -206,7 +206,7 @@ export default function CustomerDetails() {
       phone: customer.phone ? formatCameroonPhone(customer.phone) : '',
       email: customer.email || '',
       address: customer.address || '',
-      credit_limit: customer.credit_limit ? (customer.credit_limit / 100).toString() : '',
+      credit_limit: customer.credit_limit ? customer.credit_limit.toString() : '',
       email_notifications_enabled: customer.email_notifications_enabled ?? true,
       sms_notifications_enabled: customer.sms_notifications_enabled ?? false,
       whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled ?? false,
@@ -233,9 +233,9 @@ export default function CustomerDetails() {
     try {
       let creditLimit: number | undefined;
       if (editForm.credit_limit) {
-        const creditLimitInCentimes = Math.round(parseFloat(editForm.credit_limit) * 100);
-        if (!isNaN(creditLimitInCentimes) && creditLimitInCentimes >= 0) {
-          creditLimit = creditLimitInCentimes;
+        const parsedCreditLimit = Math.round(parseFloat(editForm.credit_limit));
+        if (!isNaN(parsedCreditLimit) && parsedCreditLimit >= 0) {
+          creditLimit = parsedCreditLimit;
         }
       }
 

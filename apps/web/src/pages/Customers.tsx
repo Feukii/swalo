@@ -50,15 +50,15 @@ interface RawCustomer {
   whatsapp_notifications_enabled?: boolean;
 }
 
-/** Formatte un montant en centimes -> "12 500 F" (présentation, maquette). */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 500 F" (présentation, maquette). */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 
-/** Formatte un montant en centimes en version compacte KPI -> "2,34 M F". */
-function formatCompactF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA en version compacte KPI -> "2,34 M F". */
+function formatCompactF(value: number): string {
+  const amount = Math.round(value ?? 0);
   if (amount >= 1_000_000) {
     return `${(amount / 1_000_000).toLocaleString('fr-FR', {
       minimumFractionDigits: 2,
@@ -225,7 +225,7 @@ export default function Customers() {
         phone: customer.phone ? formatCameroonPhone(customer.phone) : '',
         email: customer.email || '',
         address: customer.address || '',
-        credit_limit: customer.credit_limit ? String(customer.credit_limit / 100) : '',
+        credit_limit: customer.credit_limit ? String(customer.credit_limit) : '',
         email_notifications_enabled: customer.email_notifications_enabled ?? true,
         sms_notifications_enabled: customer.sms_notifications_enabled ?? false,
         whatsapp_notifications_enabled: customer.whatsapp_notifications_enabled ?? false,
@@ -279,7 +279,7 @@ export default function Customers() {
       phone: phoneValue ? cleanPhoneNumber(phoneValue) : undefined,
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
-      credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue) * 100) : undefined,
+      credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue)) : undefined,
       email_notifications_enabled: formData.email_notifications_enabled,
       sms_notifications_enabled: formData.sms_notifications_enabled,
       whatsapp_notifications_enabled: formData.whatsapp_notifications_enabled,

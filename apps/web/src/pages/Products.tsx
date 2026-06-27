@@ -30,9 +30,9 @@ interface Stats {
   total_inventory_value: number;
 }
 
-/** Formatte un montant en centimes -> "12 345 F" (présentation, maquette). */
-function formatF(cents: number): string {
-  const amount = Math.round((cents ?? 0) / 100);
+/** Formatte un montant en FCFA -> "12 345 F" (présentation, maquette). */
+function formatF(value: number): string {
+  const amount = Math.round(value ?? 0);
   return `${new Intl.NumberFormat('fr-FR').format(amount)} F`;
 }
 

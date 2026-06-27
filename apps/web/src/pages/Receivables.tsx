@@ -113,7 +113,7 @@ export default function Receivables() {
     try {
       await receivablesApi.create({
         customer_id: createForm.customer_id,
-        amount: Math.round(parseFloat(createForm.amount) * 100),
+        amount: Math.round(parseFloat(createForm.amount)),
         description: createForm.description || undefined,
         due_date: createForm.due_date || undefined,
       });
@@ -129,7 +129,7 @@ export default function Receivables() {
     e.preventDefault();
     if (!paymentModal) return;
     try {
-      const amount = Math.round(parseFloat(paymentAmount) * 100);
+      const amount = Math.round(parseFloat(paymentAmount));
 
       // Create cash entry for the payment
       const cashEntry = await cashApi.createEntry({
@@ -276,7 +276,7 @@ export default function Receivables() {
                       <button
                         onClick={() => {
                           setPaymentModal(r);
-                          setPaymentAmount(String(remaining / 100));
+                          setPaymentAmount(String(remaining));
                         }}
                         className="btn-success btn-sm flex-1"
                       >

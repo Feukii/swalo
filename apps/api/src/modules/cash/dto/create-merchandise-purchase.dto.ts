@@ -6,7 +6,7 @@ export class CreateMerchandisePurchaseDto {
 
   @IsInt()
   @Min(1, { message: 'Le montant doit être supérieur à 0' })
-  amount: number; // Montant en centimes
+  amount: number; // Montant en FCFA
 
   @IsOptional()
   @IsString()
