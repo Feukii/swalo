@@ -3,7 +3,7 @@
  * de résultat. Garantit : Σdébit = Σcrédit et Actif = Passif (si un solde
  * d'ouverture des classes 1–5 est présent).
  */
-import {
+import type {
   AccountingResult,
   BalanceSheet,
   BilanLine,

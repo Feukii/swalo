@@ -1,7 +1,7 @@
 /**
  * Traduction des opérations métier en écritures comptables équilibrées.
  */
-import { Ecriture, EcritureLine, OperationInput } from './types';
+import type { Ecriture, EcritureLine, OperationInput } from './types';
 import { treasuryAccount } from './accounts';
 
 function d(account: string, amount: number): EcritureLine {

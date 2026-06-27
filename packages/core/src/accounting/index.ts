@@ -7,7 +7,7 @@ export { ACCOUNTS, getAccount, treasuryAccount } from './accounts';
 export { operationsToEcritures } from './operations';
 export { postJournal } from './journal';
 
-import { OperationInput, AccountingResult } from './types';
+import type { OperationInput, AccountingResult } from './types';
 import { operationsToEcritures } from './operations';
 import { postJournal } from './journal';
 

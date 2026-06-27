@@ -2,7 +2,7 @@
  * Plan de comptes SYSCOHADA simplifié (stocké comme donnée pour être ajustable
  * sans toucher à la logique du moteur).
  */
-import { Account, Treasury } from './types';
+import type { Account, Treasury } from './types';
 
 export const ACCOUNTS: Account[] = [
   // Classe 1 — Capitaux
