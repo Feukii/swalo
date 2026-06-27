@@ -245,6 +245,9 @@ interface SupplierDetails {
   address: string | null;
   borrowing_limit: number;
   is_active: number | boolean;
+  sms_notifications_enabled: boolean;
+  whatsapp_notifications_enabled: boolean;
+  email_notifications_enabled: boolean;
   debts: DebtWithPayments[];
   cash_entries: LocalCashEntry[];
   stats: {
@@ -272,8 +275,8 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     SMS: true,
     WHATSAPP: false,
   });
-  // Préférences de canaux (état local uniquement : le modèle Supplier n'a pas
-  // encore de colonnes sms/whatsapp/email_notifications_enabled — voir note).
+  // Préférences de canaux, initialisées depuis le fournisseur chargé puis
+  // persistées (colonnes sms/whatsapp/email_notifications_enabled).
   const [notifPrefs, setNotifPrefs] = useState<{ sms: boolean; whatsapp: boolean; email: boolean }>(
     { sms: true, whatsapp: true, email: true }
   );
@@ -371,6 +374,9 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         address: sup.address,
         borrowing_limit: sup.borrowing_limit ?? 0,
         is_active: sup.is_active,
+        sms_notifications_enabled: (sup.sms_notifications_enabled ?? 1) === 1,
+        whatsapp_notifications_enabled: (sup.whatsapp_notifications_enabled ?? 1) === 1,
+        email_notifications_enabled: (sup.email_notifications_enabled ?? 1) === 1,
         debts: debtsWithPayments,
         cash_entries: cashEntries,
         stats: {
@@ -383,6 +389,13 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       };
 
       setSupplier(supplierDetails);
+
+      // Initialiser les préférences de canaux depuis les colonnes persistées.
+      setNotifPrefs({
+        sms: supplierDetails.sms_notifications_enabled,
+        whatsapp: supplierDetails.whatsapp_notifications_enabled,
+        email: supplierDetails.email_notifications_enabled,
+      });
 
       // Résumé des notifications de dettes — best-effort en ligne, n'empêche
       // jamais l'affichage offline-first. Masqué proprement si indisponible.
@@ -882,17 +895,41 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     }
   };
 
-  // Bascule la préférence d'un canal. NOTE : le modèle Supplier n'ayant pas
-  // encore de colonnes de préférences de notification, l'état n'est conservé
-  // que localement (non persisté). Voir le rapport pour la colonne manquante.
-  const handleToggleChannel = (channel: ReminderChannel) => {
+  // Bascule la préférence d'un canal et la persiste (table locale `suppliers` +
+  // payload de synchro vers le serveur). En cas d'échec, on restaure l'état.
+  const handleToggleChannel = async (channel: ReminderChannel) => {
+    const previous = notifPrefs;
+    const next = {
+      sms: channel === 'SMS' ? !previous.sms : previous.sms,
+      whatsapp: channel === 'WHATSAPP' ? !previous.whatsapp : previous.whatsapp,
+      email: channel === 'EMAIL' ? !previous.email : previous.email,
+    };
+
     setTogglingChannel(channel);
-    setNotifPrefs(prev => ({
-      sms: channel === 'SMS' ? !prev.sms : prev.sms,
-      whatsapp: channel === 'WHATSAPP' ? !prev.whatsapp : prev.whatsapp,
-      email: channel === 'EMAIL' ? !prev.email : prev.email,
-    }));
-    setTogglingChannel(null);
+    setNotifPrefs(next);
+    try {
+      await updateSupplierOffline(id, {
+        smsNotificationsEnabled: next.sms,
+        whatsappNotificationsEnabled: next.whatsapp,
+        emailNotificationsEnabled: next.email,
+      });
+      setSupplier(prev =>
+        prev
+          ? {
+              ...prev,
+              sms_notifications_enabled: next.sms,
+              whatsapp_notifications_enabled: next.whatsapp,
+              email_notifications_enabled: next.email,
+            }
+          : prev
+      );
+    } catch (error: unknown) {
+      console.error('Erreur lors de la mise à jour des canaux:', error);
+      setNotifPrefs(previous);
+      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de mettre à jour les canaux');
+    } finally {
+      setTogglingChannel(null);
+    }
   };
 
   const getAllTransactions = () => {

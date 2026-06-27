@@ -383,6 +383,10 @@ export interface OfflineSupplierInput {
   address?: string;
   borrowingLimit?: number;
   notes?: string;
+  /** Canaux de notification d'échéance/relance fournisseur. */
+  smsNotificationsEnabled?: boolean;
+  whatsappNotificationsEnabled?: boolean;
+  emailNotificationsEnabled?: boolean;
 }
 
 export async function createSupplierOffline(
@@ -390,6 +394,10 @@ export async function createSupplierOffline(
 ): Promise<{ supplierId: string }> {
   const { deviceId } = await generateClientOpId('supplier');
   const supplierId = generateId();
+
+  const smsEnabled = input.smsNotificationsEnabled ?? true;
+  const whatsappEnabled = input.whatsappNotificationsEnabled ?? true;
+  const emailEnabled = input.emailNotificationsEnabled ?? true;
 
   await supplierRepo.create({
     id: supplierId,
@@ -403,6 +411,9 @@ export async function createSupplierOffline(
     borrowing_limit: input.borrowingLimit ?? 0,
     notes: input.notes || null,
     is_active: 1,
+    sms_notifications_enabled: smsEnabled ? 1 : 0,
+    whatsapp_notifications_enabled: whatsappEnabled ? 1 : 0,
+    email_notifications_enabled: emailEnabled ? 1 : 0,
     version: 1,
   } as Partial<LocalSupplier>);
 
@@ -422,6 +433,9 @@ export async function createSupplierOffline(
       borrowing_limit: input.borrowingLimit ?? 0,
       notes: input.notes || null,
       is_active: true,
+      sms_notifications_enabled: smsEnabled,
+      whatsapp_notifications_enabled: whatsappEnabled,
+      email_notifications_enabled: emailEnabled,
     },
     clientOpId: `supplier_${supplierId}`,
     deviceId,
@@ -444,14 +458,31 @@ export async function updateSupplierOffline(
   if (data.borrowingLimit !== undefined) updateData.borrowing_limit = data.borrowingLimit;
   if (data.notes !== undefined) updateData.notes = data.notes;
 
-  await supplierRepo.update(supplierId, updateData as Partial<LocalSupplier>);
+  // Préférences de notification : stockées localement (colonnes 0/1) ET envoyées
+  // au serveur (booléens) via le payload de sync.
+  const localData: Record<string, unknown> = { ...updateData };
+  const syncData: Record<string, unknown> = { ...updateData };
+  if (data.smsNotificationsEnabled !== undefined) {
+    localData.sms_notifications_enabled = data.smsNotificationsEnabled ? 1 : 0;
+    syncData.sms_notifications_enabled = data.smsNotificationsEnabled;
+  }
+  if (data.whatsappNotificationsEnabled !== undefined) {
+    localData.whatsapp_notifications_enabled = data.whatsappNotificationsEnabled ? 1 : 0;
+    syncData.whatsapp_notifications_enabled = data.whatsappNotificationsEnabled;
+  }
+  if (data.emailNotificationsEnabled !== undefined) {
+    localData.email_notifications_enabled = data.emailNotificationsEnabled ? 1 : 0;
+    syncData.email_notifications_enabled = data.emailNotificationsEnabled;
+  }
+
+  await supplierRepo.update(supplierId, localData as Partial<LocalSupplier>);
 
   const { deviceId } = await generateClientOpId('supplier_upd');
   await enqueueAndSync({
     entity: 'suppliers',
     op: 'update',
     entityId: supplierId,
-    data: { id: supplierId, ...updateData },
+    data: { id: supplierId, ...syncData },
     clientOpId: `supplier_upd_${supplierId}_${Date.now()}`,
     deviceId,
   });

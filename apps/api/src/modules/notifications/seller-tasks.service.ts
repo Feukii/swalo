@@ -441,11 +441,11 @@ export class SellerTasksService {
    * PENDING/PARTIAL SupplierDebts and dispatches a courteous reminder. No
    * SellerTask is required.
    *
-   * NOTE: the Supplier model currently has no per-channel notification
-   * preference columns (sms/whatsapp/email_notifications_enabled). Until those
-   * columns exist, every channel is considered opted-in and availability is
-   * gated only by the presence of a phone (SMS/WhatsApp) or email (EMAIL) and by
-   * the optional `channels` filter.
+   * Respects the supplier's per-channel notification preferences
+   * (sms/whatsapp/email_notifications_enabled) exactly like customers, and gates
+   * each channel on the matching contact field (phone for SMS/WhatsApp, email for
+   * EMAIL) plus the optional `channels` filter. Uses the nearest debt due date
+   * for the échéance wording.
    *
    * - If `channels` is given, only those channels are used (when usable).
    * - Otherwise all usable channels are used.
@@ -461,7 +461,16 @@ export class SellerTasksService {
       const [supplier, shop, debts] = await Promise.all([
         this.prisma.supplier.findFirst({
           where: { id: supplierId, shop_id: shopId, deleted: false },
-          select: { id: true, name: true, first_name: true, phone: true, email: true },
+          select: {
+            id: true,
+            name: true,
+            first_name: true,
+            phone: true,
+            email: true,
+            email_notifications_enabled: true,
+            sms_notifications_enabled: true,
+            whatsapp_notifications_enabled: true,
+          },
         }),
         this.prisma.shop.findUnique({ where: { id: shopId }, select: { name: true } }),
         this.prisma.supplierDebt.findMany({
@@ -471,7 +480,7 @@ export class SellerTasksService {
             deleted: false,
             status: { in: [DebtStatus.PENDING, DebtStatus.PARTIAL] },
           },
-          select: { balance: true },
+          select: { balance: true, due_date: true },
         }),
       ]);
 
@@ -486,16 +495,9 @@ export class SellerTasksService {
         return { ok: false, error: "Ce fournisseur n'a aucun solde à régler" };
       }
 
-      // Supplier has no per-channel preference columns yet: treat every channel
-      // as opted-in (availability still requires the matching contact field).
-      const channelResolvable = {
-        email: supplier.email,
-        phone: supplier.phone,
-        email_notifications_enabled: true,
-        sms_notifications_enabled: true,
-        whatsapp_notifications_enabled: true,
-      };
-      const allChannels = this.dispatcher.resolveCustomerChannels(channelResolvable);
+      // Canaux activés pour ce fournisseur (mêmes préférences que les clients),
+      // l'envoi sur un canal exige toujours la coordonnée correspondante.
+      const allChannels = this.dispatcher.resolveCustomerChannels(supplier);
       const resolved =
         channels && channels.length > 0
           ? allChannels.filter(c => channels.includes(c.channel))
@@ -511,12 +513,18 @@ export class SellerTasksService {
         };
       }
 
+      // Échéance la plus proche parmi les dettes en cours (si datées).
+      const dueDate =
+        debts
+          .map(d => d.due_date)
+          .filter((d): d is Date => d !== null)
+          .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+
       const shopName = shop?.name ?? 'votre boutique';
       const body = this.buildSupplierReminderMessage({
         supplier,
         balance: totalBalance,
-        // SupplierDebt has no due_date column.
-        dueDate: null,
+        dueDate,
         shopName,
       });
       const subject = 'Règlement fournisseur';

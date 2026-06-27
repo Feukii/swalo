@@ -395,6 +395,9 @@ model Supplier {
   borrowing_limit Int               @default(0)
   notes           String?
   is_active    Boolean           @default(true)
+  sms_notifications_enabled      Boolean    @default(true)
+  whatsapp_notifications_enabled Boolean    @default(true)
+  email_notifications_enabled    Boolean    @default(true)
   created_at   DateTime          @default(now())
   updated_at   DateTime          @updatedAt
   deleted      Boolean           @default(false)
@@ -420,6 +423,7 @@ model SupplierDebt {
   description String?
   notes       String?
   status      DebtStatus            @default(PENDING)
+  due_date    DateTime?
   created_at  DateTime              @default(now())
   updated_at  DateTime              @updatedAt
   deleted     Boolean               @default(false)

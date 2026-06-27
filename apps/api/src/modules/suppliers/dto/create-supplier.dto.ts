@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, Min, IsBoolean } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString()
@@ -28,6 +28,18 @@ export class CreateSupplierDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  sms_notifications_enabled?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  whatsapp_notifications_enabled?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  email_notifications_enabled?: boolean;
 
   @IsInt()
   @Min(0)

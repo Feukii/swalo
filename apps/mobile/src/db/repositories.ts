@@ -462,6 +462,9 @@ export interface LocalSupplier extends LocalRecord {
   borrowing_limit: number;
   notes: string | null;
   is_active: number;
+  sms_notifications_enabled: number;
+  whatsapp_notifications_enabled: number;
+  email_notifications_enabled: number;
   version: number;
 }
 
@@ -493,6 +496,7 @@ export interface LocalSupplierDebt extends LocalRecord {
   description: string | null;
   notes: string | null;
   status: string;
+  due_date: string | null;
   version: number;
 }
 

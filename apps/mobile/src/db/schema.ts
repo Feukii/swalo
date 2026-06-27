@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'swalo.db';
 /** Current target schema version (see runMigrations). Kept for documentation. */
-const _DB_VERSION = 8;
+const _DB_VERSION = 9;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 /**
@@ -403,6 +403,9 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         borrowing_limit INTEGER NOT NULL DEFAULT 0,
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
+        sms_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        whatsapp_notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        email_notifications_enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted INTEGER NOT NULL DEFAULT 0,
@@ -425,6 +428,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
         description TEXT,
         notes TEXT,
         status TEXT NOT NULL DEFAULT 'PENDING',
+        due_date TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted INTEGER NOT NULL DEFAULT 0,
@@ -812,6 +816,26 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       // Table already exists, ignore
     }
     await db.runAsync('UPDATE _schema_version SET version = 8');
+  }
+
+  if (currentVersion < 9) {
+    // Migration v9: préférences de notification fournisseur + échéance des dettes
+    // (parité fournisseur ↔ client). Try/catch car les colonnes peuvent déjà
+    // exister sur des installs récents.
+    const alterStatements = [
+      'ALTER TABLE suppliers ADD COLUMN sms_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE suppliers ADD COLUMN whatsapp_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE suppliers ADD COLUMN email_notifications_enabled INTEGER NOT NULL DEFAULT 1;',
+      'ALTER TABLE supplier_debts ADD COLUMN due_date TEXT;',
+    ];
+    for (const stmt of alterStatements) {
+      try {
+        await db.execAsync(stmt);
+      } catch {
+        // Column already exists, ignore
+      }
+    }
+    await db.runAsync('UPDATE _schema_version SET version = 9');
   }
 }
 

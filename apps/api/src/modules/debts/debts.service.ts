@@ -55,6 +55,7 @@ export class DebtsService {
         description,
         notes: dto.notes,
         status,
+        due_date: dto.due_date ? new Date(dto.due_date) : undefined,
         shop: {
           connect: { id: shopId },
         },
