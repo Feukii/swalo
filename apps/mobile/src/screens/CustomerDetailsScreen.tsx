@@ -853,6 +853,11 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
       return;
     }
 
+    if (editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) {
+      Alert.alert('Email invalide', 'Entrez une adresse email valide (ex: nom@exemple.com).');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await updateCustomerOffline(id, {
@@ -982,15 +987,6 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     }
   };
 
-  const canEditOrDelete = () => {
-    return (
-      userRole === 'OWNER' ||
-      userRole === 'BOSS' ||
-      userRole === 'MANAGER' ||
-      userRole === 'SUPERADMIN'
-    );
-  };
-
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -1071,19 +1067,22 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
         rightAction={
           <View style={styles.headerActions}>
             <SyncPill />
-            {canEditOrDelete() && (
-              <>
-                {can('customers', 'edit') && (
-                  <IconButton onPress={handleOpenEditModal} style={styles.headerIconBtn}>
-                    <Edit size={20} color={Colors.action} />
-                  </IconButton>
-                )}
-                {can('customers', 'delete') && (
-                  <IconButton onPress={handleDelete}>
-                    <Trash size={20} color={Colors.danger.main} />
-                  </IconButton>
-                )}
-              </>
+            {can('customers', 'edit') && (
+              <TouchableOpacity
+                onPress={handleOpenEditModal}
+                style={styles.editPill}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Modifier le client"
+              >
+                <Edit size={16} color={Colors.action} />
+                <Text style={styles.editPillText}>Modifier</Text>
+              </TouchableOpacity>
+            )}
+            {can('customers', 'delete') && (
+              <IconButton onPress={handleDelete}>
+                <Trash size={20} color={Colors.danger.main} />
+              </IconButton>
             )}
           </View>
         }
@@ -1859,8 +1858,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
   },
-  headerIconBtn: {
+  editPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    borderWidth: 1,
+    borderColor: Colors.action,
     marginRight: Spacing.xs,
+  },
+  editPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.action,
   },
   scroll: {
     flex: 1,

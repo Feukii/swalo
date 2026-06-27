@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { customersApi } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
 
 interface CustomerReceivable {
   id: string;
@@ -216,7 +222,7 @@ export default function Customers() {
       setFormData({
         name: customer.name,
         first_name: customer.first_name || '',
-        phone: customer.phone || '',
+        phone: customer.phone ? formatCameroonPhone(customer.phone) : '',
         email: customer.email || '',
         address: customer.address || '',
         credit_limit: customer.credit_limit ? String(customer.credit_limit / 100) : '',
@@ -260,11 +266,17 @@ export default function Customers() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const phoneValue = formData.phone.trim();
+    if (phoneValue && !isValidCameroonPhone(phoneValue)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     const creditLimitValue = formData.credit_limit?.trim();
     const payload = {
       name: formData.name.trim(),
       first_name: formData.first_name.trim() || undefined,
-      phone: formData.phone.trim() || undefined,
+      phone: phoneValue ? cleanPhoneNumber(phoneValue) : undefined,
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
       credit_limit: creditLimitValue ? Math.round(parseFloat(creditLimitValue) * 100) : undefined,
@@ -453,7 +465,9 @@ export default function Customers() {
                         </div>
                       </td>
                       {/* TÉLÉPHONE */}
-                      <td className="px-6 py-4 text-sm text-slate-600">{customer.phone || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {customer.phone ? formatCameroonPhone(customer.phone) : '—'}
+                      </td>
                       {/* DOIT */}
                       <td className="px-6 py-4 text-right">
                         {balance > 0 ? (
@@ -588,9 +602,11 @@ export default function Customers() {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={e =>
+                      setFormData({ ...formData, phone: formatPhoneOnInput(e.target.value) })
+                    }
                     className="input"
-                    placeholder="+221 XX XXX XX XX"
+                    placeholder="+237 6XX XXX XXX"
                   />
                 </div>
 

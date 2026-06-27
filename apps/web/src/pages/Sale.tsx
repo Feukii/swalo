@@ -8,6 +8,7 @@ import {
   receivablesApi,
 } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { formatCameroonPhone } from '../utils/phone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +20,7 @@ interface Product {
   name: string;
   category?: string;
   family?: string;
+  article_type?: string;
   brand?: string;
   reference?: string;
   cost_price: number;
@@ -59,8 +61,21 @@ type PaymentMethod = 'cash' | 'credit';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Formate un montant entier FCFA avec separateurs de milliers. */
-const formatFCFA = (amount: number): string => amount.toLocaleString('fr-FR') + ' FCFA';
+/** Formate un montant stocke en CENTIMES vers FCFA (÷100), separateurs de milliers.
+ *  (Cohérent avec les autres pages web qui divisent par 100.) */
+const formatFCFA = (cents: number): string =>
+  Math.round((cents ?? 0) / 100).toLocaleString('fr-FR') + ' FCFA';
+
+/**
+ * Libelle d'affichage d'un article. On prend TOUJOURS le NOM de l'article en
+ * premier (et non la famille/categorie). Fallback sur type/marque puis famille
+ * quand le nom est vide — meme logique que le mobile (cf. SaleScreen.productLabel).
+ */
+const productLabel = (product: Product): string =>
+  product.name ||
+  [product.article_type, product.brand].filter(Boolean).join(' ') ||
+  product.family ||
+  product.sku;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -219,7 +234,9 @@ export default function Sale() {
         const currentStock = product.current_stock ?? 0;
         const totalInCart = cartQtyByProduct.get(product.id) || 0;
         if (totalInCart >= currentStock) {
-          setErrorMessage(`Stock insuffisant pour ${product.name} (${currentStock} disponibles)`);
+          setErrorMessage(
+            `Stock insuffisant pour ${productLabel(product)} (${currentStock} disponibles)`
+          );
           setTimeout(() => setErrorMessage(''), 3000);
           return prev;
         }
@@ -234,7 +251,7 @@ export default function Sale() {
         ...prev,
         {
           productId: product.id,
-          productName: product.name,
+          productName: productLabel(product),
           sku: product.sku,
           qty: 1,
           unitPrice,
@@ -583,7 +600,7 @@ export default function Sale() {
                       )}
 
                       <p className="text-sm font-semibold text-slate-900 line-clamp-1 leading-tight">
-                        {product.name}
+                        {productLabel(product)}
                       </p>
 
                       <div className="mt-1.5 flex items-end justify-between gap-2">
@@ -648,7 +665,7 @@ export default function Sale() {
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>
                     {c.first_name ? `${c.first_name} ${c.name}` : c.name}
-                    {c.phone ? ` (${c.phone})` : ''}
+                    {c.phone ? ` (${formatCameroonPhone(c.phone)})` : ''}
                   </option>
                 ))}
               </select>
@@ -887,7 +904,9 @@ export default function Sale() {
                 <div>
                   <h3 className="text-lg font-bold">Choisir le prix</h3>
                   {priceModalProduct && (
-                    <p className="text-sm text-white/80 mt-0.5">{priceModalProduct.name}</p>
+                    <p className="text-sm text-white/80 mt-0.5">
+                      {productLabel(priceModalProduct)}
+                    </p>
                   )}
                 </div>
                 <button

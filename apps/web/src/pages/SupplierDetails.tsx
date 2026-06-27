@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { suppliersApi, debtsApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
 
 interface SupplierDetails {
   id: string;
@@ -208,7 +214,7 @@ export default function SupplierDetails() {
     setEditForm({
       name: supplier.name,
       first_name: supplier.first_name || '',
-      phone: supplier.phone || '',
+      phone: supplier.phone ? formatCameroonPhone(supplier.phone) : '',
       email: supplier.email || '',
       address: supplier.address || '',
       borrowing_limit: supplier.borrowing_limit ? String(supplier.borrowing_limit) : '',
@@ -226,12 +232,17 @@ export default function SupplierDetails() {
       return;
     }
 
+    if (editForm.phone && !isValidCameroonPhone(editForm.phone)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const updateData: any = {
         name: editForm.name,
         first_name: editForm.first_name || undefined,
-        phone: editForm.phone || undefined,
+        phone: editForm.phone ? cleanPhoneNumber(editForm.phone) : undefined,
         email: editForm.email || undefined,
         address: editForm.address || undefined,
       };
@@ -413,7 +424,7 @@ export default function SupplierDetails() {
           {supplier.phone && (
             <div>
               <p className="text-sm text-slate-500">Téléphone</p>
-              <p className="font-medium text-slate-900">{supplier.phone}</p>
+              <p className="font-medium text-slate-900">{formatCameroonPhone(supplier.phone)}</p>
             </div>
           )}
           {supplier.email && (
@@ -792,7 +803,10 @@ export default function SupplierDetails() {
                   <input
                     type="tel"
                     value={editForm.phone}
-                    onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                    onChange={e =>
+                      setEditForm({ ...editForm, phone: formatPhoneOnInput(e.target.value) })
+                    }
+                    placeholder="+237 6XX XXX XXX"
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>

@@ -48,6 +48,56 @@ const SYNC_INTERVAL_LOW_BATTERY_MS = 300_000; // 5 minutes
 /** Entities considered "reference data" (safe for auto-resolution via LWW) */
 const REFERENCE_ENTITIES = new Set(['products', 'customers', 'suppliers', 'packaging_types']);
 
+/**
+ * Champs monétaires par entité. Le serveur stocke en CENTIMES, le local SQLite
+ * en FCFA entiers : on convertit au passage de la sync (÷100 au pull, ×100 au push).
+ * Centralisé ici pour rester cohérent à tous les niveaux.
+ */
+const MONEY_FIELDS: Record<string, string[]> = {
+  products: ['cost_price', 'sell_price'],
+  stock_batches: ['cost_price', 'sell_price'],
+  customers: ['credit_limit'],
+  suppliers: ['borrowing_limit'],
+  sales: [
+    'subtotal',
+    'discount',
+    'tax_total',
+    'net_total',
+    'grand_total',
+    'paid_total',
+    'change',
+    'expected_total',
+  ],
+  sale_items: ['unit_price', 'discount', 'subtotal', 'tax_total', 'total'],
+  cash_entries: ['amount'],
+  client_receivables: ['amount', 'paid_amount', 'balance'],
+  client_receivable_payments: ['amount'],
+  supplier_debts: ['amount', 'paid_amount', 'balance'],
+  supplier_debt_payments: ['amount'],
+  payments: ['amount'],
+  invoices: ['subtotal', 'discount', 'tax_total', 'grand_total', 'paid_total', 'balance_due'],
+  invoice_items: ['unit_price', 'discount', 'subtotal', 'tax_total', 'total'],
+  inventory_movements: ['unit_cost'],
+};
+
+/** Convertit les champs monétaires d'un enregistrement. 'toLocal' = centimes→FCFA (÷100), 'toServer' = FCFA→centimes (×100). */
+function convertMoneyFields<T extends Record<string, unknown>>(
+  entity: string,
+  data: T,
+  direction: 'toLocal' | 'toServer'
+): T {
+  const fields = MONEY_FIELDS[entity];
+  if (!fields) return data;
+  const out: Record<string, unknown> = { ...data };
+  for (const f of fields) {
+    const v = out[f];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[f] = direction === 'toLocal' ? Math.round(v / 100) : Math.round(v * 100);
+    }
+  }
+  return out as T;
+}
+
 type SyncListener = (event: SyncEvent) => void;
 
 export interface SyncEvent {
@@ -398,7 +448,12 @@ class SyncEngine {
       changes[mutation.entity].push({
         op: mutation.op,
         id: mutation.entity_id,
-        data: JSON.parse(mutation.data),
+        // Conversion FCFA (local) -> centimes (serveur) sur les champs monétaires.
+        data: convertMoneyFields(
+          mutation.entity,
+          JSON.parse(mutation.data) as Record<string, unknown>,
+          'toServer'
+        ),
         client_op_id: mutation.client_op_id,
         device_id: mutation.device_id,
         timestamp: mutation.timestamp,
@@ -531,10 +586,13 @@ class SyncEngine {
         } as Record<string, unknown> & { id: string };
       });
 
+      // Conversion centimes (serveur) -> FCFA (local) sur les champs monétaires.
+      const converted = localRecords.map(r => convertMoneyFields(entity, r, 'toLocal'));
+
       // Résilience : l'échec d'une entité ne doit pas bloquer les autres
       // (ex. les produits doivent s'écrire même si une autre table échoue).
       try {
-        await repo.bulkUpsertFromServer(localRecords);
+        await repo.bulkUpsertFromServer(converted);
       } catch (applyErr) {
         const msg = applyErr instanceof Error ? applyErr.message : String(applyErr);
         this.lastPullSummary.errors.push(`${entity}: ${msg}`);

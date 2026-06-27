@@ -3,6 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { customersApi, receivablesApi } from '../lib/api';
 import { formatCurrency } from '@swalo/core/utils';
 import { usePermissions } from '../hooks/usePermissions';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
 
 interface NotificationLogEntry {
   id: string;
@@ -197,7 +203,7 @@ export default function CustomerDetails() {
     setEditForm({
       name: customer.name,
       first_name: customer.first_name || '',
-      phone: customer.phone || '',
+      phone: customer.phone ? formatCameroonPhone(customer.phone) : '',
       email: customer.email || '',
       address: customer.address || '',
       credit_limit: customer.credit_limit ? (customer.credit_limit / 100).toString() : '',
@@ -218,6 +224,11 @@ export default function CustomerDetails() {
       return;
     }
 
+    if (editForm.phone && !isValidCameroonPhone(editForm.phone)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       let creditLimit: number | undefined;
@@ -231,7 +242,7 @@ export default function CustomerDetails() {
       const updateData = {
         name: editForm.name,
         first_name: editForm.first_name || undefined,
-        phone: editForm.phone || undefined,
+        phone: editForm.phone ? cleanPhoneNumber(editForm.phone) : undefined,
         email: editForm.email || undefined,
         address: editForm.address || undefined,
         credit_limit: creditLimit,
@@ -489,7 +500,7 @@ export default function CustomerDetails() {
           {customer.phone && (
             <div>
               <p className="text-sm text-slate-500">Téléphone</p>
-              <p className="font-medium text-slate-900">{customer.phone}</p>
+              <p className="font-medium text-slate-900">{formatCameroonPhone(customer.phone)}</p>
             </div>
           )}
           {customer.email && (
@@ -868,7 +879,10 @@ export default function CustomerDetails() {
                   <input
                     type="tel"
                     value={editForm.phone}
-                    onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                    onChange={e =>
+                      setEditForm({ ...editForm, phone: formatPhoneOnInput(e.target.value) })
+                    }
+                    placeholder="+237 6XX XXX XXX"
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-action-500"
                   />
                 </div>

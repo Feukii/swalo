@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@swalo/core/utils';
 import { suppliersApi } from '../lib/api';
 import { usePermissions } from '../hooks/usePermissions';
+import {
+  formatPhoneOnInput,
+  formatCameroonPhone,
+  isValidCameroonPhone,
+  cleanPhoneNumber,
+} from '../utils/phone';
 
 interface Supplier {
   id: string;
@@ -75,7 +81,7 @@ export default function Suppliers() {
       setFormData({
         name: supplier.name,
         first_name: supplier.first_name || '',
-        phone: supplier.phone || '',
+        phone: supplier.phone ? formatCameroonPhone(supplier.phone) : '',
         email: supplier.email || '',
         address: supplier.address || '',
         borrowing_limit: supplier.borrowing_limit ? String(supplier.borrowing_limit) : '',
@@ -115,10 +121,16 @@ export default function Suppliers() {
       return;
     }
 
+    const phoneValue = formData.phone.trim();
+    if (phoneValue && !isValidCameroonPhone(phoneValue)) {
+      alert('Numéro de téléphone invalide. Format attendu : +237 6XX XXX XXX.');
+      return;
+    }
+
     const payload = {
       name: formData.name.trim(),
       first_name: formData.first_name.trim() || undefined,
-      phone: formData.phone.trim() || undefined,
+      phone: phoneValue ? cleanPhoneNumber(phoneValue) : undefined,
       email: formData.email.trim() || undefined,
       address: formData.address.trim() || undefined,
       borrowing_limit: formData.borrowing_limit.trim()
@@ -322,7 +334,9 @@ export default function Suppliers() {
 
                       {/* Téléphone */}
                       <td className="px-6 py-4">
-                        <p className="text-sm text-slate-600">{supplier.phone || '—'}</p>
+                        <p className="text-sm text-slate-600">
+                          {supplier.phone ? formatCameroonPhone(supplier.phone) : '—'}
+                        </p>
                       </td>
 
                       {/* Vous devez */}
@@ -465,9 +479,11 @@ export default function Suppliers() {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={e =>
+                      setFormData({ ...formData, phone: formatPhoneOnInput(e.target.value) })
+                    }
                     className="input"
-                    placeholder="+221 XX XXX XX XX"
+                    placeholder="+237 6XX XXX XXX"
                   />
                 </div>
 
