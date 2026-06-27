@@ -968,6 +968,9 @@ export const adminApi = {
 };
 
 // Seller Tasks API (Taches vendeur — relances dettes/creances)
+/** Canaux de notification d'une relance (alignés sur l'enum Prisma). */
+export type ReminderChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+
 export interface SellerTask {
   id: string;
   type: string;
@@ -979,10 +982,25 @@ export interface SellerTask {
   receivable_id?: string;
   created_at: string;
   done_at?: string;
+  /** Client associé (enrichi par l'API), avec nom + téléphone. */
+  customer?: { id?: string; name: string; phone?: string | null } | null;
+  /** Solde restant dû (FCFA entier), null si aucune créance liée. */
+  amount?: number | null;
+  /** Canaux activés par le client pour cette relance. */
+  channels?: ReminderChannel[];
+  /** Message courtois prêt à envoyer (généré par l'API). */
+  preview_message?: string | null;
 }
 
 export interface SellerTaskCount {
   count: number;
+}
+
+/** Résultat d'un envoi manuel de relance. */
+export interface RemindResult {
+  ok: boolean;
+  channelsSent?: ReminderChannel[];
+  error?: string;
 }
 
 export const sellerTasksApi = {
@@ -996,6 +1014,36 @@ export const sellerTasksApi = {
   },
   markDone: async (id: string): Promise<SellerTask> => {
     const response = await api.post<SellerTask>(`/seller-tasks/${id}/done`);
+    return response.data;
+  },
+  /**
+   * Envoie une relance maintenant pour la tâche donnée.
+   * @param id - identifiant de la tâche vendeur.
+   * @param channel - canal unique à utiliser ; si omis, tous les canaux
+   *   activés par le client sont utilisés.
+   */
+  remind: async (id: string, channel?: ReminderChannel): Promise<RemindResult> => {
+    const response = await api.post<RemindResult>(
+      `/seller-tasks/${id}/remind`,
+      channel ? { channel } : {}
+    );
+    return response.data;
+  },
+  /**
+   * Envoie une relance maintenant à un client SANS tâche vendeur préexistante.
+   * Le message est construit côté API à partir du solde dû actuel du client
+   * (créances PENDING/PARTIAL).
+   * @param customerId - identifiant du client à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux activés par le client.
+   */
+  manualRemind: async (
+    customerId: string,
+    channels?: ReminderChannel[]
+  ): Promise<RemindResult> => {
+    const response = await api.post<RemindResult>('/seller-tasks/manual-remind', {
+      customer_id: customerId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
     return response.data;
   },
 };
