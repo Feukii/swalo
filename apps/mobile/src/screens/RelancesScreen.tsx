@@ -79,7 +79,8 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  /** Tâches dont l'appel "terminer" est en cours (id -> true). */
+  const [completing, setCompleting] = useState<Record<string, boolean>>({});
 
   // Bottom-sheet de relance
   const [sheetTask, setSheetTask] = useState<SellerTask | null>(null);
@@ -142,9 +143,33 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
     Linking.openURL(`tel:${phone}`).catch(() => undefined);
   };
 
-  const toggleSelected = (id: string) => {
-    setSelected(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  /**
+   * Marque une tâche comme terminée : retrait optimiste de la liste,
+   * puis restauration si l'appel API échoue.
+   */
+  const markDone = useCallback(
+    async (task: SellerTask) => {
+      if (completing[task.id]) return;
+      setCompleting(prev => ({ ...prev, [task.id]: true }));
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+      try {
+        await sellerTasksApi.markDone(task.id);
+      } catch {
+        // Échec : on remet la tâche dans la liste et on prévient.
+        setTasks(prev => (prev.some(t => t.id === task.id) ? prev : [...prev, task]));
+        Alert.alert(
+          'Action impossible',
+          "La tâche n'a pas pu être marquée comme terminée. Réessayez plus tard."
+        );
+      } finally {
+        setCompleting(prev => {
+          const { [task.id]: _removed, ...rest } = prev;
+          return rest;
+        });
+      }
+    },
+    [completing]
+  );
 
   const openSheet = (task: SellerTask) => {
     setSheetTask(task);
@@ -161,18 +186,25 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
 
   const handleSend = async () => {
     if (!sheetTask) return;
+    const task = sheetTask;
     setSending(true);
     try {
-      const result = await sellerTasksApi.remind(sheetTask.id, sheetChannel);
+      const result = await sellerTasksApi.remind(task.id, sheetChannel);
       if (result.ok) {
         const sent = result.channelsSent?.length
           ? result.channelsSent.map(c => CHANNEL_LABEL[c]).join(', ')
           : null;
+        closeSheet();
+        // Propose de clôturer la tâche maintenant que la relance est partie.
         Alert.alert(
           'Relance envoyée',
-          sent ? `Envoyée sur : ${sent}` : 'La relance a été envoyée.'
+          (sent ? `Envoyée sur : ${sent}.` : 'La relance a été envoyée.') +
+            '\n\nMarquer cette tâche comme terminée ?',
+          [
+            { text: 'Plus tard', style: 'cancel' },
+            { text: 'Terminer', onPress: () => markDone(task) },
+          ]
         );
-        closeSheet();
       } else {
         Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
       }
@@ -263,17 +295,24 @@ export default function RelancesScreen({ navigation }: RelancesScreenProps) {
           visibleTasks.map(task => {
             const status = computeDueStatus(task.due_date);
             const name = task.customer?.name ?? task.title;
-            const isChecked = !!selected[task.id];
+            const isCompleting = !!completing[task.id];
             const channels = task.channels ?? [];
             return (
               <View key={task.id} style={styles.card}>
                 <View style={styles.cardTop}>
                   <Pressable
-                    onPress={() => toggleSelected(task.id)}
+                    onPress={() => markDone(task)}
+                    disabled={isCompleting}
                     hitSlop={8}
-                    style={[styles.checkbox, isChecked && styles.checkboxChecked]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Marquer comme terminée"
+                    style={styles.checkbox}
                   >
-                    {isChecked ? <Check size={14} color="#FFFFFF" /> : null}
+                    {isCompleting ? (
+                      <ActivityIndicator size="small" color={Colors.action} />
+                    ) : (
+                      <Check size={14} color={Colors.borderStrong} />
+                    )}
                   </Pressable>
 
                   <View style={styles.cardInfo}>
@@ -517,10 +556,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
-  },
-  checkboxChecked: {
-    backgroundColor: Colors.action,
-    borderColor: Colors.action,
   },
   cardInfo: { flex: 1, gap: 2 },
   cardName: { fontSize: 15.5, fontWeight: '700', color: Colors.text },

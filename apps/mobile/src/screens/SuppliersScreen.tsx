@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Building, Plus, Eye, Search } from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton, SyncPill } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
-import { formatPhoneOnInput } from '../utils/phone';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
 import { useLocalSuppliers, useLocalSupplierDebts } from '../hooks/useLocalData';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
@@ -123,6 +123,15 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
       Alert.alert(
         'Fournisseur existant',
         `Un fournisseur avec le nom "${firstName.trim() ? `${firstName.trim()} ${name.trim()}` : name.trim()}" existe déjà.`
+      );
+      return;
+    }
+
+    // Valider le téléphone camerounais si fourni
+    if (phone.trim() && !isValidCameroonPhone(phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
       );
       return;
     }
@@ -338,7 +347,7 @@ export default function SuppliersScreen({ navigation }: SuppliersScreenProps) {
                     </View>
                     {supplier.phone ? (
                       <Text style={styles.supplierPhone} numberOfLines={1}>
-                        {supplier.phone}
+                        {formatCameroonPhone(supplier.phone)}
                       </Text>
                     ) : null}
                   </View>

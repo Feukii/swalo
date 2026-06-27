@@ -25,7 +25,7 @@ import {
 import { ScreenHeader, IconButton, SyncPill } from '../components/ui';
 import { Colors, Spacing, Shadows } from '../constants/theme-v2';
 import { formatDate } from '../utils/date';
-import { formatPhoneOnInput } from '../utils/phone';
+import { formatPhoneOnInput, formatCameroonPhone, isValidCameroonPhone } from '../utils/phone';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { usePermissions } from '../hooks/usePermissions';
 import { useLocalCustomers, useLocalClientReceivables } from '../hooks/useLocalData';
@@ -255,6 +255,15 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
       return;
     }
 
+    // Valider le téléphone camerounais si fourni
+    if (phone.trim() && !isValidCameroonPhone(phone)) {
+      Alert.alert(
+        'Téléphone invalide',
+        'Entrez un numéro camerounais valide au format +237 6XX XXX XXX.'
+      );
+      return;
+    }
+
     // Valider la limite de crédit si fournie (0 ou vide = illimité)
     let creditLimitValue: number | undefined;
     if (creditLimit.trim()) {
@@ -466,7 +475,7 @@ export default function CustomersScreen({ navigation }: CustomersScreenProps) {
                     </Text>
                     {customer.phone ? (
                       <Text style={styles.customerPhone} numberOfLines={1}>
-                        {customer.phone}
+                        {formatCameroonPhone(customer.phone)}
                       </Text>
                     ) : null}
                   </View>
