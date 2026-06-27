@@ -300,7 +300,8 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
             if (res.ok) {
               Alert.alert(
                 'Resynchronisation terminée',
-                `${res.products} produit(s) synchronisé(s).`
+                `${res.products} produit(s) synchronisé(s).` +
+                  (res.detail ? `\n\n${res.detail}` : '')
               );
             } else {
               Alert.alert('Échec de la synchronisation', res.error ?? 'Erreur inconnue');

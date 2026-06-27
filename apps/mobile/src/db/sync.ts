@@ -133,6 +133,11 @@ class SyncEngine {
   private _pendingCount = 0;
   private _isLowBattery = false;
   private _maintenanceRan = false;
+  /** Diagnostic du dernier pull : nb d'enregistrements reçus par entité + erreurs d'écriture. */
+  private lastPullSummary: { received: Record<string, number>; errors: string[] } = {
+    received: {},
+    errors: [],
+  };
 
   get isOnline(): boolean {
     return this._isOnline;
@@ -335,7 +340,12 @@ class SyncEngine {
    * Renvoie le nombre de produits réellement écrits en local (ou l'erreur exacte).
    * Utilisé par le bouton "Forcer la resynchronisation" — répare + diagnostique.
    */
-  async forceFullResync(): Promise<{ ok: boolean; products: number; error?: string }> {
+  async forceFullResync(): Promise<{
+    ok: boolean;
+    products: number;
+    error?: string;
+    detail?: string;
+  }> {
     try {
       this.emit({ type: 'sync_start' });
       await resetLocalDatabase();
@@ -350,7 +360,12 @@ class SyncEngine {
       );
       const products = row?.n ?? 0;
       this.emit({ type: 'sync_complete', pendingCount: this._pendingCount });
-      return { ok: true, products };
+      const received = this.lastPullSummary.received.products ?? 0;
+      let detail = `Reçu du serveur : ${received} produit(s).`;
+      if (this.lastPullSummary.errors.length > 0) {
+        detail += `\n\nErreurs d'écriture locale :\n- ${this.lastPullSummary.errors.join('\n- ')}`;
+      }
+      return { ok: true, products, detail };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.emit({ type: 'sync_error', error: message });
@@ -491,9 +506,11 @@ class SyncEngine {
     };
 
     const changesByEntity: Record<string, ServerRecord[]> = result.changes || {};
+    this.lastPullSummary = { received: {}, errors: [] };
     for (const [entity, records] of Object.entries(changesByEntity)) {
       const repo = repoMap[entity];
       if (!repo || !Array.isArray(records) || records.length === 0) continue;
+      this.lastPullSummary.received[entity] = records.length;
 
       // Convert server records to local format
       const localRecords = records.map((r: ServerRecord) => {
@@ -519,10 +536,9 @@ class SyncEngine {
       try {
         await repo.bulkUpsertFromServer(localRecords);
       } catch (applyErr) {
-        console.log(
-          `[Sync] échec application "${entity}":`,
-          applyErr instanceof Error ? applyErr.message : String(applyErr)
-        );
+        const msg = applyErr instanceof Error ? applyErr.message : String(applyErr);
+        this.lastPullSummary.errors.push(`${entity}: ${msg}`);
+        console.log(`[Sync] échec application "${entity}":`, msg);
       }
     }
 
