@@ -23,6 +23,19 @@ interface Supplier {
   is_active: boolean;
 }
 
+/**
+ * Filtre par catégorie de solde (sémantique inversée vs clients : un solde
+ * positif = on doit au fournisseur, un solde négatif = il nous doit).
+ */
+type BalanceFilter = 'all' | 'we_owe' | 'settled' | 'they_owe';
+
+const BALANCE_FILTERS: { key: BalanceFilter; label: string }[] = [
+  { key: 'all', label: 'Tous' },
+  { key: 'we_owe', label: 'On leur doit' },
+  { key: 'settled', label: 'À jour' },
+  { key: 'they_owe', label: 'Ils nous doivent' },
+];
+
 export default function Suppliers() {
   const navigate = useNavigate();
   const { can } = usePermissions();
@@ -33,6 +46,7 @@ export default function Suppliers() {
   const [showModal, setShowModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -155,11 +169,19 @@ export default function Suppliers() {
   const filteredSuppliers = suppliers.filter(supplier => {
     const fullName = `${supplier.first_name || ''} ${supplier.name}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch =
       fullName.includes(query) ||
       supplier.phone?.includes(query) ||
-      supplier.email?.toLowerCase().includes(query)
-    );
+      supplier.email?.toLowerCase().includes(query);
+
+    const debt = supplier.current_debt || 0;
+    const matchesBalance =
+      balanceFilter === 'all' ||
+      (balanceFilter === 'we_owe' && debt > 0) ||
+      (balanceFilter === 'settled' && debt === 0) ||
+      (balanceFilter === 'they_owe' && debt < 0);
+
+    return matchesSearch && matchesBalance;
   });
 
   const stats = {
@@ -251,6 +273,23 @@ export default function Suppliers() {
           )}
         </div>
 
+        {/* Filtres par catégorie de solde */}
+        <div className="flex flex-wrap gap-2 mb-5">
+          {BALANCE_FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setBalanceFilter(f.key)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                balanceFilter === f.key
+                  ? 'bg-action-500 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="w-12 h-12 spinner"></div>
@@ -261,9 +300,11 @@ export default function Suppliers() {
               <span className="text-3xl">🏪</span>
             </div>
             <p className="text-slate-500">
-              {searchQuery ? 'Aucun fournisseur trouvé' : 'Aucun fournisseur enregistré'}
+              {searchQuery || balanceFilter !== 'all'
+                ? 'Aucun fournisseur trouvé'
+                : 'Aucun fournisseur enregistré'}
             </p>
-            {!searchQuery && canCreate && (
+            {!searchQuery && balanceFilter === 'all' && canCreate && (
               <button onClick={() => handleOpenModal()} className="btn-primary mt-4">
                 Créer le premier fournisseur
               </button>
@@ -309,7 +350,6 @@ export default function Suppliers() {
                     : nearLimit
                       ? 'bg-warning-500'
                       : 'bg-success-500';
-                  const settled = debt <= 0;
 
                   return (
                     <tr key={supplier.id} className="hover:bg-slate-50 transition-colors">
@@ -342,9 +382,19 @@ export default function Suppliers() {
                       {/* Vous devez */}
                       <td className="px-6 py-4 text-right">
                         {debt > 0 ? (
-                          <p className="text-sm font-bold text-warning-600">
-                            {formatCurrency(debt)}
-                          </p>
+                          <div className="flex flex-col items-end leading-tight">
+                            <span className="text-sm font-bold text-warning-600">
+                              {formatCurrency(debt)}
+                            </span>
+                            <span className="text-[11px] text-slate-400">Vous devez</span>
+                          </div>
+                        ) : debt < 0 ? (
+                          <div className="flex flex-col items-end leading-tight">
+                            <span className="text-sm font-bold text-sky-600">
+                              {formatCurrency(Math.abs(debt))}
+                            </span>
+                            <span className="text-[11px] text-slate-400">À recevoir</span>
+                          </div>
                         ) : (
                           <p className="text-sm font-semibold text-success-600">À jour</p>
                         )}
@@ -378,10 +428,12 @@ export default function Suppliers() {
 
                       {/* Statut */}
                       <td className="px-6 py-4">
-                        {settled ? (
-                          <span className="badge bg-success-100 text-success-700">Soldé</span>
-                        ) : (
+                        {debt > 0 ? (
                           <span className="badge bg-warning-100 text-warning-700">En cours</span>
+                        ) : debt < 0 ? (
+                          <span className="badge bg-sky-100 text-sky-700">Crédit</span>
+                        ) : (
+                          <span className="badge bg-success-100 text-success-700">Soldé</span>
                         )}
                       </td>
 

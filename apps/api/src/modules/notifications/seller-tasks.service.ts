@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  DebtStatus,
   NotificationChannel,
   NotificationType,
   ReceivableStatus,
@@ -101,6 +102,26 @@ export class SellerTasksService {
       : ' reste à régler';
 
     return `Bonjour ${this.displayName(customer)}, nous vous rappelons courtoisement que votre solde de ${amountText}${dueText}. Merci de votre confiance. — ${shopName}`;
+  }
+
+  /**
+   * Build a courteous payment-reminder message for a SUPPLIER (inverted debt:
+   * the shop owes the supplier). Acknowledges the outstanding amount the shop
+   * still has to settle.
+   */
+  private buildSupplierReminderMessage(params: {
+    supplier: { name: string; first_name: string | null };
+    balance: number;
+    dueDate: Date | null;
+    shopName: string;
+  }): string {
+    const { supplier, balance, dueDate, shopName } = params;
+    const amountText = `${this.formatAmount(balance)} FCFA`;
+    const dueText = dueDate
+      ? ` à régler avant le ${this.formatDate(dueDate)}`
+      : ' que nous réglerons dans les meilleurs délais';
+
+    return `Bonjour ${this.displayName(supplier)}, nous vous confirmons que notre solde à régler envers vous s'élève à ${amountText}${dueText}. Merci de votre confiance. — ${shopName}`;
   }
 
   /**
@@ -394,6 +415,125 @@ export class SellerTasksService {
           targetId: customer.id,
           // Manual reminder: timestamped dedup key so repeats are allowed.
           dedupKey: `manual_reminder:customer:${customer.id}:${ch}:${new Date().toISOString()}`,
+        });
+        if (outcome === 'SENT' || outcome === 'QUEUED') {
+          channelsSent.push(ch);
+        }
+      }
+
+      if (channelsSent.length === 0) {
+        return { ok: false, error: "Échec de l'envoi sur tous les canaux" };
+      }
+
+      return { ok: true, channelsSent };
+    } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, error: message };
+    }
+  }
+
+  /**
+   * Send a payment reminder NOW for a SUPPLIER (inverted debt: the shop owes the
+   * supplier). Aggregates the supplier's current outstanding balance from its
+   * PENDING/PARTIAL SupplierDebts and dispatches a courteous reminder. No
+   * SellerTask is required.
+   *
+   * NOTE: the Supplier model currently has no per-channel notification
+   * preference columns (sms/whatsapp/email_notifications_enabled). Until those
+   * columns exist, every channel is considered opted-in and availability is
+   * gated only by the presence of a phone (SMS/WhatsApp) or email (EMAIL) and by
+   * the optional `channels` filter.
+   *
+   * - If `channels` is given, only those channels are used (when usable).
+   * - Otherwise all usable channels are used.
+   * - Returns a clear error if the supplier has no outstanding balance or no usable channel.
+   * - Best-effort: never throws on a send failure; returns { ok: false, error } instead.
+   */
+  async manualRemindSupplier(
+    shopId: string,
+    supplierId: string,
+    channels?: NotificationChannel[]
+  ): Promise<SendReminderResult> {
+    try {
+      const [supplier, shop, debts] = await Promise.all([
+        this.prisma.supplier.findFirst({
+          where: { id: supplierId, shop_id: shopId, deleted: false },
+          select: { id: true, name: true, first_name: true, phone: true, email: true },
+        }),
+        this.prisma.shop.findUnique({ where: { id: shopId }, select: { name: true } }),
+        this.prisma.supplierDebt.findMany({
+          where: {
+            shop_id: shopId,
+            supplier_id: supplierId,
+            deleted: false,
+            status: { in: [DebtStatus.PENDING, DebtStatus.PARTIAL] },
+          },
+          select: { balance: true },
+        }),
+      ]);
+
+      if (!supplier) {
+        throw new NotFoundException('Fournisseur non trouvé');
+      }
+
+      // Outstanding balance = sum of remaining balances on PENDING/PARTIAL debts
+      // (positive = the shop still owes the supplier).
+      const totalBalance = debts.reduce((sum, d) => sum + d.balance, 0);
+      if (totalBalance <= 0) {
+        return { ok: false, error: "Ce fournisseur n'a aucun solde à régler" };
+      }
+
+      // Supplier has no per-channel preference columns yet: treat every channel
+      // as opted-in (availability still requires the matching contact field).
+      const channelResolvable = {
+        email: supplier.email,
+        phone: supplier.phone,
+        email_notifications_enabled: true,
+        sms_notifications_enabled: true,
+        whatsapp_notifications_enabled: true,
+      };
+      const allChannels = this.dispatcher.resolveCustomerChannels(channelResolvable);
+      const resolved =
+        channels && channels.length > 0
+          ? allChannels.filter(c => channels.includes(c.channel))
+          : allChannels;
+
+      if (resolved.length === 0) {
+        return {
+          ok: false,
+          error:
+            channels && channels.length > 0
+              ? "Aucun des canaux demandés n'est disponible pour ce fournisseur"
+              : "Aucun canal de notification n'est disponible pour ce fournisseur",
+        };
+      }
+
+      const shopName = shop?.name ?? 'votre boutique';
+      const body = this.buildSupplierReminderMessage({
+        supplier,
+        balance: totalBalance,
+        // SupplierDebt has no due_date column.
+        dueDate: null,
+        shopName,
+      });
+      const subject = 'Règlement fournisseur';
+
+      const channelsSent: NotificationChannel[] = [];
+      for (const { channel: ch, recipient } of resolved) {
+        const outcome = await this.dispatcher.dispatch({
+          shopId,
+          type: NotificationType.PAYMENT_REMINDER,
+          channel: ch,
+          recipient,
+          subject,
+          body,
+          targetType: 'supplier',
+          targetId: supplier.id,
+          // Manual reminder: timestamped dedup key so repeats are allowed.
+          dedupKey: `manual_reminder:supplier:${supplier.id}:${ch}:${new Date().toISOString()}`,
         });
         if (outcome === 'SENT' || outcome === 'QUEUED') {
           channelsSent.push(ch);

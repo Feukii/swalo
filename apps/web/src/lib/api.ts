@@ -342,6 +342,10 @@ export const suppliersApi = {
     email?: string;
     address?: string;
     notes?: string;
+    borrowing_limit?: number;
+    email_notifications_enabled?: boolean;
+    sms_notifications_enabled?: boolean;
+    whatsapp_notifications_enabled?: boolean;
   }) => {
     const response = await api.post('/suppliers', data);
     return response.data;
@@ -358,6 +362,10 @@ export const suppliersApi = {
       address?: string;
       notes?: string;
       is_active: boolean;
+      borrowing_limit?: number;
+      email_notifications_enabled?: boolean;
+      sms_notifications_enabled?: boolean;
+      whatsapp_notifications_enabled?: boolean;
     }>
   ) => {
     const response = await api.put(`/suppliers/${id}`, data);
@@ -366,6 +374,22 @@ export const suppliersApi = {
 
   delete: async (id: string) => {
     const response = await api.delete(`/suppliers/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Envoie une relance maintenant à un fournisseur (sans tâche préexistante).
+   * Le message + le solde dû sont construits côté API à partir des dettes
+   * PENDING/PARTIAL du fournisseur. Sémantique inversée : nous devons au
+   * fournisseur.
+   * @param supplierId - identifiant du fournisseur à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux activés.
+   */
+  manualRemind: async (supplierId: string, channels?: string[]) => {
+    const response = await api.post('/seller-tasks/manual-remind-supplier', {
+      supplier_id: supplierId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
     return response.data;
   },
 };

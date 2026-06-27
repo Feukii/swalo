@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Linking,
+  Switch,
 } from 'react-native';
 import {
   DollarSign,
@@ -20,6 +22,8 @@ import {
   FileText,
   Building,
   CreditCard,
+  Bell,
+  Send,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader, StatusBadge, TransactionDetailModal, IconButton } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
@@ -43,6 +47,7 @@ import {
   createSupplierDebtOffline,
   paySupplierDebtOffline,
 } from '../db/offlineWrite';
+import { suppliersApi, ReminderChannel } from '../lib/api';
 
 interface SupplierDetailsNavigation {
   goBack: () => void;
@@ -71,6 +76,134 @@ interface SelectedTransaction {
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
+}
+
+// ─── Notifications (transparence dettes fournisseurs) ────────────────
+type NotificationStatus = 'SENT' | 'QUEUED' | 'FAILED' | string;
+
+interface NotificationEntry {
+  channel: string;
+  type: string;
+  status: NotificationStatus;
+  created_at?: string | null;
+  error?: string | null;
+}
+
+interface NotificationsSummary {
+  total: number;
+  by_status?: Record<string, number>;
+  by_channel?: Record<string, number>;
+  recent?: NotificationEntry[];
+}
+
+function parseNotificationsSummary(raw: unknown): NotificationsSummary | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const total = typeof obj.total === 'number' ? obj.total : 0;
+  const recentRaw = Array.isArray(obj.recent) ? obj.recent : [];
+  const recent: NotificationEntry[] = recentRaw
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map(e => ({
+      channel: typeof e.channel === 'string' ? e.channel : '—',
+      type: typeof e.type === 'string' ? e.type : '—',
+      status: typeof e.status === 'string' ? e.status : '—',
+      created_at:
+        typeof e.sent_at === 'string'
+          ? e.sent_at
+          : typeof e.created_at === 'string'
+            ? e.created_at
+            : null,
+      error: typeof e.error === 'string' ? e.error : null,
+    }));
+  return { total, recent };
+}
+
+// Étiquette courte d'un canal (badges "SMS Livré", "WA Livré"...)
+const NOTIF_CHANNEL_SHORT: Record<string, string> = {
+  EMAIL: 'E-mail',
+  SMS: 'SMS',
+  WHATSAPP: 'WA',
+};
+
+const NOTIF_TYPE_LABELS: Record<string, string> = {
+  PAYMENT_REMINDER: 'Relance de règlement',
+  DEBT_PAYMENT: 'Paiement effectué',
+  DEBT_CREATED: 'Dette créée',
+};
+
+function getNotifTypeLabel(type: string): string {
+  return NOTIF_TYPE_LABELS[type] ?? 'Notification';
+}
+
+function getDeliveryLabel(status: string): string {
+  switch (status) {
+    case 'SENT':
+      return 'Livré';
+    case 'QUEUED':
+    case 'PENDING':
+      return 'En file';
+    case 'FAILED':
+      return 'Échec';
+    default:
+      return status;
+  }
+}
+
+const NOTIF_STATUS_META: Record<
+  string,
+  { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }
+> = {
+  SENT: { label: 'Envoyé', variant: 'success' },
+  QUEUED: { label: 'En file', variant: 'warning' },
+  PENDING: { label: 'En file', variant: 'warning' },
+  FAILED: { label: 'Échec', variant: 'danger' },
+};
+
+function getNotifStatusMeta(status: string): {
+  label: string;
+  variant: 'success' | 'warning' | 'danger' | 'default';
+} {
+  return NOTIF_STATUS_META[status] ?? { label: status, variant: 'default' };
+}
+
+// Évènement d'historique : un envoi de relance peut produire plusieurs lignes
+// (une par canal). On regroupe par type + jour pour afficher une seule ligne.
+interface ReminderEvent {
+  key: string;
+  type: string;
+  date: string | null;
+  isReminder: boolean;
+  channels: Array<{
+    short: string;
+    label: string;
+    variant: 'success' | 'warning' | 'danger' | 'default';
+  }>;
+}
+
+function groupNotifications(recent: NotificationEntry[]): ReminderEvent[] {
+  const groups = new Map<string, ReminderEvent>();
+  for (const n of recent) {
+    const day = n.created_at ? n.created_at.slice(0, 10) : 'na';
+    const key = `${n.type}|${day}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        type: n.type,
+        date: n.created_at ?? null,
+        isReminder: n.type === 'PAYMENT_REMINDER',
+        channels: [],
+      };
+      groups.set(key, group);
+    }
+    const meta = getNotifStatusMeta(n.status);
+    group.channels.push({
+      short: NOTIF_CHANNEL_SHORT[n.channel] ?? n.channel,
+      label: getDeliveryLabel(n.status),
+      variant: meta.variant,
+    });
+  }
+  return Array.from(groups.values());
 }
 
 // Initiales (max 2 lettres) pour l'avatar de la carte hero
@@ -125,12 +258,31 @@ interface SupplierDetails {
 
 export default function SupplierDetailsScreen({ navigation, route }: SupplierDetailsScreenProps) {
   const { id } = route.params;
-  const { user, shopId, userId } = useCurrentUser();
+  const { user, shop, shopId, userId } = useCurrentUser();
   const userRole = user?.role || 'EMPLOYEE';
   const { can } = usePermissions();
 
   const [supplier, setSupplier] = useState<SupplierDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Relance manuelle (depuis la fiche fournisseur)
+  const [isReminding, setIsReminding] = useState(false);
+  const [showRemindSheet, setShowRemindSheet] = useState(false);
+  const [remindChannels, setRemindChannels] = useState<{ SMS: boolean; WHATSAPP: boolean }>({
+    SMS: true,
+    WHATSAPP: false,
+  });
+  // Préférences de canaux (état local uniquement : le modèle Supplier n'a pas
+  // encore de colonnes sms/whatsapp/email_notifications_enabled — voir note).
+  const [notifPrefs, setNotifPrefs] = useState<{ sms: boolean; whatsapp: boolean; email: boolean }>(
+    { sms: true, whatsapp: true, email: true }
+  );
+  const [togglingChannel, setTogglingChannel] = useState<ReminderChannel | null>(null);
+  // Résumé des notifications (best-effort en ligne ; absent si l'API ne l'expose
+  // pas encore pour les fournisseurs).
+  const [notificationsSummary, setNotificationsSummary] = useState<NotificationsSummary | null>(
+    null
+  );
 
   // Modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -231,6 +383,17 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
       };
 
       setSupplier(supplierDetails);
+
+      // Résumé des notifications de dettes — best-effort en ligne, n'empêche
+      // jamais l'affichage offline-first. Masqué proprement si indisponible.
+      try {
+        const remote = await suppliersApi.getOne(id);
+        setNotificationsSummary(
+          parseNotificationsSummary((remote as Record<string, unknown>).notifications_summary)
+        );
+      } catch {
+        // Hors ligne ou serveur indisponible / non exposé : section masquée.
+      }
 
       // Show alert if supplier has negative balance (supplier owes us money)
       if (totalBalance < 0) {
@@ -668,6 +831,70 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     );
   };
 
+  // Appel téléphonique direct au fournisseur.
+  const handleCall = () => {
+    if (!supplier?.phone) {
+      Alert.alert('Aucun numéro', "Ce fournisseur n'a pas de téléphone enregistré.");
+      return;
+    }
+    Linking.openURL(`tel:${supplier.phone}`).catch(() => undefined);
+  };
+
+  // Ouvre le bottom sheet de relance en pré-cochant les canaux disponibles.
+  const handleOpenRemindSheet = () => {
+    if (!supplier) return;
+    const phoneOk = !!supplier.phone;
+    let sms = notifPrefs.sms && phoneOk;
+    let wa = notifPrefs.whatsapp && phoneOk;
+    if (!sms && !wa) {
+      sms = phoneOk;
+      wa = phoneOk;
+    }
+    setRemindChannels({ SMS: sms, WHATSAPP: wa });
+    setShowRemindSheet(true);
+  };
+
+  // Relance manuelle : envoie sur les canaux sélectionnés. Le message + le solde
+  // dû sont construits côté API à partir des dettes en cours du fournisseur.
+  const handleSendReminder = async () => {
+    if (!supplier) return;
+    const channels = (Object.keys(remindChannels) as Array<'SMS' | 'WHATSAPP'>).filter(
+      c => remindChannels[c]
+    );
+    if (channels.length === 0) {
+      Alert.alert('Aucun canal', "Sélectionnez au moins un canal d'envoi.");
+      return;
+    }
+    setIsReminding(true);
+    try {
+      const result = await suppliersApi.manualRemind(supplier.id, channels as ReminderChannel[]);
+      if (result.ok) {
+        setShowRemindSheet(false);
+        Alert.alert('Relance envoyée', 'La relance a été envoyée au fournisseur.');
+        loadSupplier();
+      } else {
+        Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
+      }
+    } catch {
+      Alert.alert('Erreur', "Impossible d'envoyer la relance. Réessayez plus tard.");
+    } finally {
+      setIsReminding(false);
+    }
+  };
+
+  // Bascule la préférence d'un canal. NOTE : le modèle Supplier n'ayant pas
+  // encore de colonnes de préférences de notification, l'état n'est conservé
+  // que localement (non persisté). Voir le rapport pour la colonne manquante.
+  const handleToggleChannel = (channel: ReminderChannel) => {
+    setTogglingChannel(channel);
+    setNotifPrefs(prev => ({
+      sms: channel === 'SMS' ? !prev.sms : prev.sms,
+      whatsapp: channel === 'WHATSAPP' ? !prev.whatsapp : prev.whatsapp,
+      email: channel === 'EMAIL' ? !prev.email : prev.email,
+    }));
+    setTogglingChannel(null);
+  };
+
   const getAllTransactions = () => {
     if (!supplier) return [];
 
@@ -747,6 +974,51 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
     ? Math.min(100, Math.round((Math.max(0, currentDebt) / supplier.borrowing_limit) * 100))
     : 0;
   const limitBarColor = limitPct >= 80 ? Colors.danger.main : Colors.success.main;
+
+  // Relance autorisée pour les rôles de gestion (l'API restreint à BOSS/MANAGER).
+  const canRemind = canEditOrDelete();
+
+  // Canaux de notification (préférence locale + disponibilité côté boutique).
+  const channelRows: Array<{
+    key: ReminderChannel;
+    short: 'SMS' | 'WA' | '@';
+    label: string;
+    enabled: boolean;
+    shopAvailable: boolean;
+  }> = [
+    {
+      key: 'SMS',
+      short: 'SMS',
+      label: 'SMS',
+      enabled: notifPrefs.sms,
+      shopAvailable: !!supplier.phone,
+    },
+    {
+      key: 'WHATSAPP',
+      short: 'WA',
+      label: 'WhatsApp',
+      enabled: notifPrefs.whatsapp,
+      shopAvailable: !!supplier.phone,
+    },
+    {
+      key: 'EMAIL',
+      short: '@',
+      label: 'E-mail',
+      enabled: notifPrefs.email,
+      shopAvailable: !!supplier.email,
+    },
+  ];
+
+  const recentNotifications = notificationsSummary?.recent ?? [];
+  const reminderEvents = groupNotifications(recentNotifications);
+
+  // Aperçu du message de relance (sémantique inversée : la boutique doit au
+  // fournisseur). Le solde affiché est le solde dû en cours.
+  const reminderName = (supplier.first_name && supplier.first_name.trim()) || supplier.name;
+  const shopName = shop?.name || 'la boutique';
+  const reminderMessage = `Bonjour ${reminderName}, nous vous confirmons que notre solde à régler envers vous s'élève à ${formatMoney(
+    Math.abs(currentDebt)
+  )} que nous réglerons dans les meilleurs délais. Merci de votre confiance. — ${shopName}`;
 
   return (
     <View style={styles.container}>
@@ -861,6 +1133,98 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
                 </Text>
               </View>
             )}
+          </View>
+        )}
+
+        {/* Appeler + Relancer maintenant */}
+        <View style={styles.clientActions}>
+          <TouchableOpacity style={styles.callButton} onPress={handleCall} activeOpacity={0.85}>
+            <Smartphone size={18} color={Colors.action} />
+            <Text style={styles.callButtonText}>Appeler</Text>
+          </TouchableOpacity>
+          {canRemind && (
+            <TouchableOpacity
+              style={styles.remindButton}
+              onPress={handleOpenRemindSheet}
+              activeOpacity={0.85}
+            >
+              <Bell size={18} color="#FFFFFF" />
+              <Text style={styles.remindButtonText}>Relancer maintenant</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* CANAUX DE NOTIFICATION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>CANAUX DE NOTIFICATION</Text>
+          <View style={styles.listCard}>
+            {channelRows.map((row, idx) => (
+              <View
+                key={row.key}
+                style={[
+                  styles.channelRow,
+                  idx < channelRows.length - 1 && styles.channelRowBordered,
+                ]}
+              >
+                <View style={styles.channelBadge}>
+                  <Text style={styles.channelBadgeText}>{row.short}</Text>
+                </View>
+                <View style={styles.channelInfo}>
+                  <Text style={styles.channelLabel}>{row.label}</Text>
+                  {!row.shopAvailable ? (
+                    <Text style={styles.channelDisabled}>Indisponible (coordonnée manquante)</Text>
+                  ) : null}
+                </View>
+                <Switch
+                  value={row.enabled && row.shopAvailable}
+                  disabled={!row.shopAvailable || togglingChannel === row.key}
+                  onValueChange={() => handleToggleChannel(row.key)}
+                  trackColor={{ false: Colors.muted.main, true: Colors.accent }}
+                  thumbColor={Colors.surface}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* HISTORIQUE & TRANSPARENCE — statuts de notification */}
+        {reminderEvents.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>HISTORIQUE & TRANSPARENCE</Text>
+            <View style={styles.listCard}>
+              {reminderEvents.slice(0, 8).map((evt, idx) => {
+                const visibleCount = Math.min(reminderEvents.length, 8);
+                const isLast = idx >= visibleCount - 1;
+                const title = evt.isReminder ? 'Relance envoyée' : getNotifTypeLabel(evt.type);
+                return (
+                  <View key={evt.key} style={[styles.notifRow, !isLast && styles.notifRowBordered]}>
+                    <View style={styles.notifIconCol}>
+                      <View style={styles.notifIcon}>
+                        <Bell size={16} color={Colors.action} />
+                      </View>
+                      {!isLast && <View style={styles.notifConnector} />}
+                    </View>
+                    <View style={styles.notifBody}>
+                      <Text style={styles.notifTitle} numberOfLines={1}>
+                        {title}
+                      </Text>
+                      {evt.date ? (
+                        <Text style={styles.notifDate}>{formatDate(evt.date)}</Text>
+                      ) : null}
+                      <View style={styles.notifBadges}>
+                        {evt.channels.map((c, ci) => (
+                          <StatusBadge
+                            key={`${evt.key}-${ci}`}
+                            text={`${c.short} ${c.label}`}
+                            variant={c.variant}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -1476,6 +1840,94 @@ export default function SupplierDetailsScreen({ navigation, route }: SupplierDet
         </View>
       </Modal>
 
+      {/* Relance bottom sheet ("Relancer maintenant") */}
+      <Modal
+        visible={showRemindSheet}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRemindSheet(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalBody}>
+              {/* Titre + ton */}
+              <View style={styles.remindTitleRow}>
+                <Text style={styles.modalHeaderTitle}>Relance fournisseur</Text>
+                <View style={styles.tonePill}>
+                  <Text style={styles.tonePillText}>Courtois</Text>
+                </View>
+              </View>
+
+              {/* Ligne fournisseur */}
+              <Text style={styles.remindClientLine}>
+                {getPersonName(supplier)} ·{' '}
+                <Text style={styles.remindAmount}>{formatMoney(Math.abs(currentDebt))}</Text>
+              </Text>
+
+              {/* Canaux */}
+              <Text style={styles.remindSectionLabel}>Envoyer sur</Text>
+              <View style={styles.chipRow}>
+                {(
+                  [
+                    ['SMS', 'SMS', Colors.info.main],
+                    ['WHATSAPP', 'WhatsApp', Colors.success.main],
+                  ] as Array<['SMS' | 'WHATSAPP', string, string]>
+                ).map(([key, label, dot]) => {
+                  const active = remindChannels[key];
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.channelChip, active && styles.channelChipActive]}
+                      onPress={() => setRemindChannels(prev => ({ ...prev, [key]: !prev[key] }))}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.chipDot, { backgroundColor: dot }]} />
+                      <Text
+                        style={[styles.channelChipText, active && styles.channelChipTextActive]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Aperçu du message */}
+              <Text style={styles.remindSectionLabel}>Aperçu du message</Text>
+              <View style={styles.previewBox}>
+                <Text style={styles.previewText}>{reminderMessage}</Text>
+              </View>
+
+              {/* Footer */}
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowRemindSheet(false)}
+                  disabled={isReminding}
+                >
+                  <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, styles.remindSubmitButton]}
+                  onPress={handleSendReminder}
+                  disabled={isReminding}
+                >
+                  {isReminding ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Send size={18} color={Colors.primary.foreground} />
+                      <Text style={styles.modalSubmitButtonText}>Envoyer la relance</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Transaction Detail Modal */}
       <TransactionDetailModal
         visible={showDetailModal}
@@ -1608,6 +2060,144 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.text,
     lineHeight: 20,
+  },
+  // APPELER + RELANCER
+  clientActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  callButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  callButtonText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  remindButton: {
+    flex: 1.6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: Colors.action,
+  },
+  remindButtonText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // SECTIONS
+  section: {
+    gap: Spacing.md,
+  },
+  sectionLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    letterSpacing: 0.6,
+  },
+  listCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  // CANAUX DE NOTIFICATION
+  channelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  channelRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  channelBadge: {
+    minWidth: 36,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  channelBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.action,
+  },
+  channelInfo: { flex: 1, gap: 1 },
+  channelLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  channelDisabled: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning.main,
+  },
+  // NOTIFICATIONS (historique & transparence)
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  notifRowBordered: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  notifIconCol: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  notifIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifConnector: {
+    width: 2,
+    flex: 1,
+    minHeight: 8,
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.border,
+  },
+  notifBody: { flex: 1, gap: 4 },
+  notifTitle: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  notifDate: {
+    fontSize: 12.5,
+    color: Colors.textColors.tertiary,
+  },
+  notifBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
   },
   // ACTION BUTTONS
   actionButtons: {
@@ -1834,5 +2424,88 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.primary.foreground,
+  },
+  // RELANCE BOTTOM SHEET
+  remindTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  tonePill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.info.background,
+  },
+  tonePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.action,
+  },
+  remindClientLine: {
+    marginTop: Spacing.sm,
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  remindAmount: {
+    color: Colors.danger.main,
+    fontWeight: '800',
+  },
+  remindSectionLabel: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textColors.secondary,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  channelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  channelChipActive: {
+    borderColor: Colors.action,
+    backgroundColor: Colors.info.background,
+  },
+  chipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  channelChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  channelChipTextActive: {
+    color: Colors.action,
+  },
+  previewBox: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceAlt,
+    padding: Spacing.md,
+  },
+  previewText: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: Colors.text,
+  },
+  remindSubmitButton: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
 });

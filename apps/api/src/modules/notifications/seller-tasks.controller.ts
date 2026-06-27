@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationChannel, Role } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { SellerTasksService } from './seller-tasks.service';
 
 type AuthenticatedRequest = Request & {
@@ -15,6 +16,12 @@ interface RemindDto {
 /** Body for POST /seller-tasks/manual-remind (relance sans tâche préexistante). */
 interface ManualRemindDto {
   customer_id: string;
+  channels?: NotificationChannel[];
+}
+
+/** Body for POST /seller-tasks/manual-remind-supplier (relance fournisseur). */
+interface ManualRemindSupplierDto {
+  supplier_id: string;
   channels?: NotificationChannel[];
 }
 
@@ -49,6 +56,24 @@ export class SellerTasksController {
   @Post('manual-remind')
   async manualRemind(@Req() req: AuthenticatedRequest, @Body() body: ManualRemindDto) {
     return this.sellerTasksService.manualRemind(req.user.shopId, body.customer_id, body.channels);
+  }
+
+  /**
+   * Manual on-demand reminder for a SUPPLIER WITHOUT a pre-existing seller task.
+   * Builds the message from the supplier's current outstanding debt balance
+   * (inverted semantics: the shop owes the supplier). Restricted to BOSS/MANAGER.
+   */
+  @Post('manual-remind-supplier')
+  @Roles(Role.BOSS, Role.MANAGER)
+  async manualRemindSupplier(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: ManualRemindSupplierDto
+  ) {
+    return this.sellerTasksService.manualRemindSupplier(
+      req.user.shopId,
+      body.supplier_id,
+      body.channels
+    );
   }
 
   @Post(':id/remind')

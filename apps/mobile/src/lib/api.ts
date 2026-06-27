@@ -365,6 +365,19 @@ export const suppliersApi = {
   merge: async (keepId: string, mergeId: string) => {
     return api.post<JsonRecord>('/suppliers/merge', { keep_id: keepId, merge_id: mergeId });
   },
+  /**
+   * Envoie une relance maintenant à un fournisseur SANS tâche vendeur préexistante.
+   * Le message est construit côté API à partir du solde dû actuel (dettes
+   * PENDING/PARTIAL) — sémantique inversée : la boutique doit au fournisseur.
+   * @param supplierId - identifiant du fournisseur à relancer.
+   * @param channels - canaux à utiliser ; si omis, tous les canaux disponibles.
+   */
+  manualRemind: async (supplierId: string, channels?: ReminderChannel[]): Promise<RemindResult> => {
+    return api.post<RemindResult>('/seller-tasks/manual-remind-supplier', {
+      supplier_id: supplierId,
+      ...(channels && channels.length > 0 ? { channels } : {}),
+    });
+  },
 };
 
 // Customers API
