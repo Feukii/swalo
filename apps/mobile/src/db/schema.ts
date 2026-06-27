@@ -10,6 +10,14 @@ const DB_NAME = 'swalo.db';
 const _DB_VERSION = 6;
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+/**
+ * Promesse d'ouverture partagée : garantit que la base n'est ouverte qu'UNE
+ * seule fois même si plusieurs appelants concurrents (init, sync engine, repos)
+ * appellent getDatabase() avant la fin de l'ouverture. Sans ce guard, deux
+ * connexions WAL sont ouvertes en parallèle -> "NativeDatabase.prepareSync has
+ * been rejected" et base verrouillée.
+ */
+let dbOpenPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
  * Sync status for local records
@@ -21,10 +29,21 @@ export type SyncStatus = 'synced' | 'pending' | 'conflict';
  */
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
-  await dbInstance.execAsync('PRAGMA journal_mode = WAL;');
-  await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
-  return dbInstance;
+  // Une seule ouverture, partagée par tous les appelants concurrents.
+  if (!dbOpenPromise) {
+    dbOpenPromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      await db.execAsync('PRAGMA journal_mode = WAL;');
+      await db.execAsync('PRAGMA foreign_keys = ON;');
+      dbInstance = db;
+      return db;
+    })().catch(err => {
+      // En cas d'échec, on réinitialise pour permettre une nouvelle tentative.
+      dbOpenPromise = null;
+      throw err;
+    });
+  }
+  return dbOpenPromise;
 }
 
 /**
