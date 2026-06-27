@@ -8,8 +8,8 @@ import { calculateTax, sumCents } from './currency';
 /**
  * Calcule les totaux d'une ligne de vente/facture
  * @param qty - Quantité
- * @param unitPrice - Prix unitaire (en centimes)
- * @param discount - Remise (en centimes)
+ * @param unitPrice - Prix unitaire (en FCFA)
+ * @param discount - Remise (en FCFA)
  * @param taxRate - Taux de taxe (ex: 0.18 pour 18%)
  */
 export function calculateLineTotal(
@@ -36,7 +36,7 @@ export function calculateLineTotal(
 /**
  * Calcule les totaux d'une vente ou facture
  * @param items - Lignes de vente/facture
- * @param globalDiscount - Remise globale (en centimes)
+ * @param globalDiscount - Remise globale (en FCFA)
  */
 export function calculateDocumentTotal(
   items: Array<Pick<SaleItem | InvoiceItem, 'subtotal' | 'tax_total' | 'total'>>,
@@ -64,8 +64,8 @@ export function calculateDocumentTotal(
 
 /**
  * Calcule la monnaie à rendre
- * @param total - Montant total (en centimes)
- * @param paid - Montant payé (en centimes)
+ * @param total - Montant total (en FCFA)
+ * @param paid - Montant payé (en FCFA)
  */
 export function calculateChange(total: number, paid: number): number {
   return Math.max(0, paid - total);
@@ -73,8 +73,8 @@ export function calculateChange(total: number, paid: number): number {
 
 /**
  * Calcule le solde dû
- * @param total - Montant total (en centimes)
- * @param paid - Montant payé (en centimes)
+ * @param total - Montant total (en FCFA)
+ * @param paid - Montant payé (en FCFA)
  */
 export function calculateBalance(total: number, paid: number): number {
   return Math.max(0, total - paid);
@@ -82,8 +82,8 @@ export function calculateBalance(total: number, paid: number): number {
 
 /**
  * Calcule la marge
- * @param sellPrice - Prix de vente (en centimes)
- * @param costPrice - Prix d'achat (en centimes)
+ * @param sellPrice - Prix de vente (en FCFA)
+ * @param costPrice - Prix d'achat (en FCFA)
  */
 export function calculateMargin(sellPrice: number, costPrice: number): number {
   return sellPrice - costPrice;
@@ -91,8 +91,8 @@ export function calculateMargin(sellPrice: number, costPrice: number): number {
 
 /**
  * Calcule le taux de marge
- * @param sellPrice - Prix de vente (en centimes)
- * @param costPrice - Prix d'achat (en centimes)
+ * @param sellPrice - Prix de vente (en FCFA)
+ * @param costPrice - Prix d'achat (en FCFA)
  */
 export function calculateMarginRate(sellPrice: number, costPrice: number): number {
   if (costPrice === 0) return 0;

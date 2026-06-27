@@ -126,9 +126,9 @@ export default function SupplierDetails() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(paymentAmount) * 100);
+    const amount = Math.round(parseFloat(paymentAmount));
 
-    if (isNaN(amountInCentimes) || amountInCentimes <= 0) {
+    if (isNaN(amount) || amount <= 0) {
       alert('Montant invalide');
       return;
     }
@@ -147,7 +147,7 @@ export default function SupplierDetails() {
     try {
       const debtId = pendingDebts[0].id;
       await debtsApi.addPayment(debtId, {
-        amount: amountInCentimes,
+        amount,
         payment_method: 'Espèces',
         note: paymentNote || `Paiement à ${getPersonName()}`,
       });
@@ -182,9 +182,9 @@ export default function SupplierDetails() {
       return;
     }
 
-    const amountInCentimes = Math.round(parseFloat(debtAmount) * 100);
+    const amount = Math.round(parseFloat(debtAmount));
 
-    if (isNaN(amountInCentimes) || amountInCentimes <= 0) {
+    if (isNaN(amount) || amount <= 0) {
       alert('Montant invalide');
       return;
     }
@@ -193,7 +193,7 @@ export default function SupplierDetails() {
     try {
       await debtsApi.create({
         supplier_id: id!,
-        amount: amountInCentimes,
+        amount,
         description: debtNote || `Dette contractée auprès de ${getPersonName()}`,
       });
 

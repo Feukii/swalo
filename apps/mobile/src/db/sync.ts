@@ -49,9 +49,9 @@ const SYNC_INTERVAL_LOW_BATTERY_MS = 300_000; // 5 minutes
 const REFERENCE_ENTITIES = new Set(['products', 'customers', 'suppliers', 'packaging_types']);
 
 /**
- * Champs monétaires par entité. Le serveur stocke en CENTIMES, le local SQLite
- * en FCFA entiers : on convertit au passage de la sync (÷100 au pull, ×100 au push).
- * Centralisé ici pour rester cohérent à tous les niveaux.
+ * Champs monétaires par entité. Les montants sont des ENTIERS FCFA de bout en bout
+ * (serveur == local) : le FCFA n'a pas de centimes, donc AUCUNE conversion d'échelle
+ * à la sync. On normalise seulement en entier par sécurité.
  */
 const MONEY_FIELDS: Record<string, string[]> = {
   products: ['cost_price', 'sell_price', 'package_price'],
@@ -80,11 +80,11 @@ const MONEY_FIELDS: Record<string, string[]> = {
   inventory_movements: ['unit_cost'],
 };
 
-/** Convertit les champs monétaires d'un enregistrement. 'toLocal' = centimes→FCFA (÷100), 'toServer' = FCFA→centimes (×100). */
+/** Normalise les champs monétaires en entiers FCFA. Aucune conversion d'échelle (pas de centimes). */
 function convertMoneyFields<T extends Record<string, unknown>>(
   entity: string,
   data: T,
-  direction: 'toLocal' | 'toServer'
+  _direction: 'toLocal' | 'toServer'
 ): T {
   const fields = MONEY_FIELDS[entity];
   if (!fields) return data;
@@ -92,7 +92,7 @@ function convertMoneyFields<T extends Record<string, unknown>>(
   for (const f of fields) {
     const v = out[f];
     if (typeof v === 'number' && Number.isFinite(v)) {
-      out[f] = direction === 'toLocal' ? Math.round(v / 100) : Math.round(v * 100);
+      out[f] = Math.round(v);
     }
   }
   return out as T;

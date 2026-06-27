@@ -8,7 +8,7 @@ import * as schemas from '../schemas';
 // Types de base
 export type UUID = string;
 export type ISODateTime = string;
-export type Currency = number; // En centimes
+export type Currency = number; // En FCFA
 
 // Types d'entités
 export type Shop = z.infer<typeof schemas.Shop>;

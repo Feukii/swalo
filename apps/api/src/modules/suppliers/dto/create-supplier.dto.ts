@@ -32,5 +32,5 @@ export class CreateSupplierDto {
   @IsInt()
   @Min(0)
   @IsOptional()
-  initial_balance?: number; // Montant initial de la dette en centimes
+  initial_balance?: number; // Montant initial de la dette en FCFA
 }

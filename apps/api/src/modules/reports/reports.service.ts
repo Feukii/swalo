@@ -301,7 +301,7 @@ export class ReportsService {
 
   /**
    * Comptabilité : bilan (instantané) + compte de résultat (sur période) + journal.
-   * Montants en centimes (comme les autres rapports).
+   * Montants en FCFA (entiers).
    */
   async getAccountingReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
     const createdAtFilter: Prisma.DateTimeFilter = {};

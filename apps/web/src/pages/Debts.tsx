@@ -113,7 +113,7 @@ export default function Debts() {
     try {
       await debtsApi.create({
         supplier_id: createForm.supplier_id,
-        amount: Math.round(parseFloat(createForm.amount) * 100),
+        amount: Math.round(parseFloat(createForm.amount)),
         description: createForm.description || undefined,
         due_date: createForm.due_date || undefined,
       });
@@ -129,7 +129,7 @@ export default function Debts() {
     e.preventDefault();
     if (!paymentModal) return;
     try {
-      const amount = Math.round(parseFloat(paymentAmount) * 100);
+      const amount = Math.round(parseFloat(paymentAmount));
 
       // Create cash exit for the payment
       const cashEntry = await cashApi.createEntry({
@@ -275,7 +275,7 @@ export default function Debts() {
                       <button
                         onClick={() => {
                           setPaymentModal(d);
-                          setPaymentAmount(String(remaining / 100));
+                          setPaymentAmount(String(remaining));
                         }}
                         className="btn-primary btn-sm flex-1"
                       >

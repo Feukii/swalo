@@ -10,10 +10,10 @@ import type { NetworkReport, NetworkShopReport, ShopHealth } from '../lib/api';
  * - >= 1 000 000 F  ->  "5,87 M F"
  * - >= 1 000 F      ->  "12,5 k F"
  * - sinon           ->  "1 500 F"
- * Les montants reçus de l'API sont en centimes (÷100 à l'affichage).
+ * Les montants reçus de l'API sont en FCFA (affichés tels quels).
  */
-function formatNetworkAmount(cents: number): string {
-  const amount = cents / 100;
+function formatNetworkAmount(value: number): string {
+  const amount = value;
   const sign = amount < 0 ? '-' : '';
   const abs = Math.abs(amount);
 
