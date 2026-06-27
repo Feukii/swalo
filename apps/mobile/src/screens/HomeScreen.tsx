@@ -372,27 +372,27 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* CLIENTS À RELANCER */}
-        {relanceCount > 0 ? (
-          <View style={styles.section}>
-            <Pressable
-              style={({ pressed }) => [styles.relanceCard, pressed && styles.relancePressed]}
-              onPress={() => navigation.navigate('Relances' as never)}
-            >
-              <View style={styles.relanceIcon}>
-                <Bell size={20} color={Colors.warning.main} />
+        {/* CLIENTS À RELANCER — toujours visible (le badge est masqué quand 0) */}
+        <View style={styles.section}>
+          <Pressable
+            style={({ pressed }) => [styles.relanceCard, pressed && styles.relancePressed]}
+            onPress={() => navigation.navigate('Relances' as never)}
+          >
+            <View style={styles.relanceIcon}>
+              <Bell size={20} color={Colors.warning.main} />
+              {relanceCount > 0 ? (
                 <View style={styles.relanceBadge}>
                   <Text style={styles.relanceBadgeText}>{relanceCount}</Text>
                 </View>
-              </View>
-              <View style={styles.relanceBody}>
-                <Text style={styles.relanceTitle}>Clients à relancer</Text>
-                <Text style={styles.relanceSubtitle}>Échéances proches ou dépassées</Text>
-              </View>
-              <ChevronRight size={20} color={Colors.textColors.tertiary} />
-            </Pressable>
-          </View>
-        ) : null}
+              ) : null}
+            </View>
+            <View style={styles.relanceBody}>
+              <Text style={styles.relanceTitle}>Clients à relancer</Text>
+              <Text style={styles.relanceSubtitle}>Échéances proches ou dépassées</Text>
+            </View>
+            <ChevronRight size={20} color={Colors.textColors.tertiary} />
+          </Pressable>
+        </View>
 
         {/* VENTES DU JOUR */}
         <View style={styles.section}>

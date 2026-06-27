@@ -13,10 +13,8 @@ import {
   Switch,
 } from 'react-native';
 import {
-  DollarSign,
   Edit,
   Trash,
-  Plus,
   Smartphone,
   Mail,
   MapPin,
@@ -25,6 +23,7 @@ import {
   X,
   Calendar,
   Bell,
+  Receipt,
 } from '../components/icons/SimpleIcons';
 import {
   ScreenHeader,
@@ -1234,23 +1233,40 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
             <View style={styles.actionButtons}>
               {canRefundReceivable && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: Colors.success.main }]}
+                  style={[
+                    styles.actionButton,
+                    {
+                      backgroundColor: Colors.success.background,
+                      borderColor: Colors.success.main,
+                    },
+                  ]}
                   onPress={handleOpenRefundModal}
                   activeOpacity={0.85}
                 >
-                  <DollarSign size={20} color={Colors.success.foreground} />
-                  <Text style={styles.actionButtonText}>Recevoir paiement</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.success.main }]}>
+                    <ArrowDown size={18} color={Colors.success.foreground} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.success.text }]}>
+                    Recevoir un paiement
+                  </Text>
                 </TouchableOpacity>
               )}
 
               {canCreateReceivable && (
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: Colors.warning.main }]}
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: Colors.info.background, borderColor: Colors.action },
+                  ]}
                   onPress={handleOpenCreateReceivableModal}
                   activeOpacity={0.85}
                 >
-                  <Plus size={20} color={Colors.warning.foreground} />
-                  <Text style={styles.actionButtonText}>Créer créance</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.action }]}>
+                    <Receipt size={18} color={Colors.onMarine} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.info.text }]}>
+                    Créer une créance
+                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -1260,13 +1276,17 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
                   style={[
                     styles.actionButton,
                     styles.actionButtonFull,
-                    { backgroundColor: Colors.danger.main },
+                    { backgroundColor: Colors.danger.background, borderColor: Colors.danger.main },
                   ]}
                   onPress={handleOpenCustomerRefundModal}
                   activeOpacity={0.85}
                 >
-                  <DollarSign size={20} color={Colors.danger.foreground} />
-                  <Text style={styles.actionButtonText}>Rembourser le client</Text>
+                  <View style={[styles.actionIcon, { backgroundColor: Colors.danger.main }]}>
+                    <ArrowUp size={18} color={Colors.danger.foreground} />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: Colors.danger.text }]}>
+                    Rembourser le client
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -2089,22 +2109,29 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     minWidth: '45%',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: 12,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 999,
+    borderWidth: 1,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.sm,
-    minHeight: 48,
+    minHeight: 52,
     ...Shadows.sm,
   },
   actionButtonFull: {
     minWidth: '100%',
   },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionButtonText: {
-    color: Colors.onMarine,
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '700',
   },
 

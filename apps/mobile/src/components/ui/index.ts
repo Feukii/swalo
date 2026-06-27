@@ -6,3 +6,4 @@ export { ScreenHeader, SyncPill } from './ScreenHeader';
 export { SearchableSelect } from './SearchableSelect';
 export { TransactionDetailModal } from './TransactionDetailModal';
 export { IconButton } from './IconButton';
+export { default as DatePickerField } from './DatePickerField';

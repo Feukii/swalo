@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Smartphone, Lock } from '../components/icons/SimpleIcons';
+import { Plus, Smartphone, Lock, Trash, Check } from '../components/icons/SimpleIcons';
 import { ScreenHeader, IconButton } from '../components/ui';
 import { pinInvitesApi, adminApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../utils/date';
-import { Colors, Spacing, Shadows } from '../constants/theme-v2';
+import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 
 interface ShopAdminScreenProps {
   navigation: {
@@ -269,16 +269,16 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
     return person.first_name ? `${person.first_name} ${person.name}` : person.name;
   };
 
-  const getRoleBadgeStyle = (role: string) => {
+  // Teintes de chip de rôle (tokens uniquement) — alignées avec UserManagementScreen
+  const getRoleTint = (role: string): { bg: string; fg: string } => {
     switch (role) {
-      case 'EMPLOYEE':
-        return styles.badgeEmployee;
-      case 'MANAGER':
-        return styles.badgeManager;
       case 'BOSS':
-        return styles.badgeOwner;
+        return { bg: Colors.danger.background, fg: Colors.danger.text };
+      case 'MANAGER':
+        return { bg: Colors.warning.background, fg: Colors.warning.text };
+      case 'EMPLOYEE':
       default:
-        return styles.badgeEmployee;
+        return { bg: Colors.primary[100], fg: Colors.primary[700] };
     }
   };
 
@@ -316,99 +316,131 @@ export default function ShopAdminScreen({ navigation }: ShopAdminScreenProps) {
           </View>
         ) : (
           <>
-            {/* PIN Stats */}
-            {pinStats && (
-              <View style={styles.statsRow}>
-                <View style={[styles.statCard, styles.statCardPrimary]}>
-                  <Text style={styles.statLabel}>Codes actifs</Text>
-                  <Text style={styles.statValue}>{pinStats.active}</Text>
+            {/* Carte HERO — Codes PIN actifs */}
+            <View style={styles.hero}>
+              <Text style={styles.heroLabel}>Codes PIN actifs</Text>
+              <Text style={styles.heroAmount}>{pinStats?.active ?? 0}</Text>
+              <View style={styles.heroStats}>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{pinStats?.used ?? 0}</Text>
+                  <Text style={styles.heroStatLabel}>Codes utilisés</Text>
                 </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>Codes utilisés</Text>
-                  <Text style={styles.statValue}>{pinStats.used}</Text>
+                <View style={styles.heroDivider} />
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{devices.length}</Text>
+                  <Text style={styles.heroStatLabel}>Appareils</Text>
                 </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>Appareils</Text>
-                  <Text style={styles.statValue}>{devices.length}</Text>
-                </View>
+              </View>
+            </View>
+
+            {/* Codes PIN d'invitation */}
+            <Text style={styles.sectionTitle}>Codes PIN d'invitation</Text>
+            {pinInvites.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Lock size={40} color={Colors.muted.foreground} />
+                <Text style={styles.emptyText}>Aucun code PIN créé</Text>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                {pinInvites.map((invite, index) => {
+                  const tint = getRoleTint(invite.role);
+                  return (
+                    <View
+                      key={invite.id}
+                      style={[styles.row, index < pinInvites.length - 1 && styles.rowDivider]}
+                    >
+                      <View style={[styles.iconSquare, { backgroundColor: tint.bg }]}>
+                        <Lock size={20} color={tint.fg} />
+                      </View>
+                      <View style={styles.rowInfo}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {invite.invited_name}
+                        </Text>
+                        <Text style={styles.rowSubtitle}>Code : {invite.pin_code}</Text>
+                        <Text style={styles.rowSubtitle}>
+                          Expire le {formatDate(invite.expires_at)}
+                        </Text>
+                      </View>
+                      <View style={styles.rowRight}>
+                        <View style={[styles.roleChip, { backgroundColor: tint.bg }]}>
+                          <Text style={[styles.roleChipText, { color: tint.fg }]}>
+                            {getRoleLabel(invite.role)}
+                          </Text>
+                        </View>
+                        {invite.is_used ? (
+                          <View style={styles.usedChip}>
+                            <Check size={12} color={Colors.success.main} />
+                            <Text style={styles.usedChipText}>Utilisé</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => handleRevokePin(invite)}
+                            style={styles.revokeButton}
+                            activeOpacity={0.7}
+                          >
+                            <Trash size={13} color={Colors.danger.main} />
+                            <Text style={styles.revokeText}>Révoquer</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             )}
 
-            {/* PIN Invites Section */}
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Codes PIN d'invitation</Text>
-              {pinInvites.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Lock size={40} color={Colors.muted.foreground} />
-                  <Text style={styles.emptyText}>Aucun code PIN créé</Text>
-                </View>
-              ) : (
-                pinInvites.map(invite => (
-                  <View key={invite.id} style={styles.listItem}>
-                    <View style={styles.listItemLeft}>
-                      <Text style={styles.listItemTitle}>{invite.invited_name}</Text>
-                      <Text style={styles.listItemSubtitle}>Code: {invite.pin_code}</Text>
-                      <Text style={styles.listItemSubtitle}>
-                        Expire: {formatDate(invite.expires_at)}
-                      </Text>
-                    </View>
-                    <View style={styles.listItemRight}>
-                      <View style={[styles.badge, getRoleBadgeStyle(invite.role)]}>
-                        <Text style={styles.badgeText}>{getRoleLabel(invite.role)}</Text>
+            {/* Appareils connectés */}
+            <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
+              Appareils connectés
+            </Text>
+            {devices.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Smartphone size={40} color={Colors.muted.foreground} />
+                <Text style={styles.emptyText}>Aucun appareil connecté</Text>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                {devices.map((device, index) => {
+                  const tint = getRoleTint(device.user.role);
+                  return (
+                    <View
+                      key={device.id}
+                      style={[styles.row, index < devices.length - 1 && styles.rowDivider]}
+                    >
+                      <View style={[styles.iconSquare, { backgroundColor: tint.bg }]}>
+                        <Smartphone size={20} color={tint.fg} />
                       </View>
-                      {invite.is_used ? (
-                        <View style={[styles.badge, styles.badgeUsed]}>
-                          <Text style={styles.badgeText}>Utilisé</Text>
+                      <View style={styles.rowInfo}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {device.device_name}
+                        </Text>
+                        <Text style={styles.rowSubtitle} numberOfLines={1}>
+                          {getPersonName(device.user)}
+                        </Text>
+                        <Text style={styles.rowSubtitle} numberOfLines={1}>
+                          Dernière utilisation : {formatDateTime(device.last_used_at)}
+                        </Text>
+                      </View>
+                      <View style={styles.rowRight}>
+                        <View style={[styles.roleChip, { backgroundColor: tint.bg }]}>
+                          <Text style={[styles.roleChipText, { color: tint.fg }]}>
+                            {getRoleLabel(device.user.role)}
+                          </Text>
                         </View>
-                      ) : (
                         <TouchableOpacity
-                          onPress={() => handleRevokePin(invite)}
+                          onPress={() => handleRevokeDevice(device)}
                           style={styles.revokeButton}
+                          activeOpacity={0.7}
                         >
+                          <Trash size={13} color={Colors.danger.main} />
                           <Text style={styles.revokeText}>Révoquer</Text>
                         </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-
-            {/* Devices Section */}
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Appareils connectés</Text>
-              {devices.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Smartphone size={40} color={Colors.muted.foreground} />
-                  <Text style={styles.emptyText}>Aucun appareil connecté</Text>
-                </View>
-              ) : (
-                devices.map(device => (
-                  <View key={device.id} style={styles.listItem}>
-                    <View style={styles.listItemLeft}>
-                      <Text style={styles.listItemTitle}>{device.device_name}</Text>
-                      <Text style={styles.listItemSubtitle}>
-                        Utilisateur: {getPersonName(device.user)}
-                      </Text>
-                      <Text style={styles.listItemSubtitle}>
-                        Dernière utilisation: {formatDateTime(device.last_used_at)}
-                      </Text>
-                    </View>
-                    <View style={styles.listItemRight}>
-                      <View style={[styles.badge, getRoleBadgeStyle(device.user.role)]}>
-                        <Text style={styles.badgeText}>{getRoleLabel(device.user.role)}</Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => handleRevokeDevice(device)}
-                        style={styles.revokeButton}
-                      >
-                        <Text style={styles.revokeText}>Révoquer</Text>
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                ))
-              )}
-            </View>
+                  );
+                })}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -509,113 +541,151 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['3xl'],
     alignItems: 'center',
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
+  // Hero marine
+  hero: {
+    backgroundColor: Colors.primary[900],
+    borderRadius: 20,
+    padding: Spacing.xl,
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    ...Shadows.sm,
-  },
-  statCardPrimary: {
-    backgroundColor: Colors.primary[50],
-  },
-  statLabel: {
-    fontSize: 11,
-    color: Colors.textColors.tertiary,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  sectionCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    ...Shadows.sm,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.lg,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: Spacing['3xl'],
-    gap: Spacing.md,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textColors.tertiary,
-  },
-  listItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  listItemLeft: {
-    flex: 1,
-  },
-  listItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  listItemSubtitle: {
+  heroLabel: {
     fontSize: 13,
-    color: Colors.textColors.tertiary,
+    fontWeight: '600',
+    color: Colors.primary[300],
+    marginBottom: Spacing.xs,
+  },
+  heroAmount: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: Colors.onMarine,
+    letterSpacing: -0.5,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  heroStat: {
+    flex: 1,
+  },
+  heroStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.onMarine,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: Colors.primary[300],
     marginTop: 2,
   },
-  listItemRight: {
+  heroDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.primary[700],
+  },
+  // Sections
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  sectionTitleSpaced: {
+    marginTop: Spacing.xl,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+  },
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  iconSquare: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowInfo: {
+    flex: 1,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  rowSubtitle: {
+    fontSize: 13,
+    color: Colors.textColors.tertiary,
+    marginTop: 1,
+  },
+  rowRight: {
     alignItems: 'flex-end',
     gap: Spacing.sm,
   },
-  badge: {
+  roleChip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  badgeEmployee: {
-    backgroundColor: Colors.info.background,
-  },
-  badgeAdmin: {
-    backgroundColor: Colors.warning.background,
-  },
-  badgeManager: {
-    backgroundColor: Colors.warning.background,
-  },
-  badgeOwner: {
-    backgroundColor: Colors.danger.background,
-  },
-  badgeUsed: {
-    backgroundColor: Colors.muted.main,
-  },
-  badgeText: {
-    fontSize: 12,
+  roleChipText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: Colors.textColors.secondary,
   },
-  revokeButton: {
+  usedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.success.background,
+  },
+  usedChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.success.text,
+  },
+  revokeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     backgroundColor: Colors.danger.background,
   },
   revokeText: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.danger.main,
+  },
+  emptyCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    paddingVertical: Spacing['3xl'],
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.textColors.tertiary,
   },
   // Modal styles — bottom sheet
   modalOverlay: {
@@ -625,8 +695,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: BorderRadius.sheet,
+    borderTopRightRadius: BorderRadius.sheet,
     paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing.md,
     paddingBottom: Spacing['3xl'],
@@ -662,7 +732,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: BorderRadius.sm,
     padding: Spacing.md,
     fontSize: 16,
     color: Colors.text,
@@ -679,7 +749,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: Spacing.md,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceAlt,

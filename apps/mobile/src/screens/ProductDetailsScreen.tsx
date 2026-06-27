@@ -12,7 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Package, Plus, Minus, AlertTriangle, ChevronRight } from '../components/icons/SimpleIcons';
+import {
+  Package,
+  ArrowUp,
+  ArrowDown,
+  AlertTriangle,
+  ChevronRight,
+} from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
 import { formatMoney } from '../utils/money';
@@ -412,7 +418,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
               onPress={openEntrySheet}
             >
               <View style={[styles.actionIcon, styles.actionIconEntry]}>
-                <Plus size={16} color={Colors.success.foreground} />
+                <ArrowUp size={16} color={Colors.success.foreground} />
               </View>
               <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
             </TouchableOpacity>
@@ -422,7 +428,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
               onPress={openExitSheet}
             >
               <View style={[styles.actionIcon, styles.actionIconExit]}>
-                <Minus size={16} color={Colors.danger.foreground} />
+                <ArrowDown size={16} color={Colors.danger.foreground} />
               </View>
               <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
             </TouchableOpacity>
