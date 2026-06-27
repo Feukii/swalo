@@ -231,6 +231,17 @@ export async function createCashEntryOffline(
   const { clientOpId, deviceId } = await generateClientOpId('cash');
   const entryId = generateId();
 
+  // Garde defensive: la caisse ne peut jamais devenir negative.
+  // Pour une sortie (OUT) on calcule le solde local (somme IN - somme OUT)
+  // et on refuse si le solde resultant serait negatif.
+  if (input.type === 'OUT' && input.amount > 0) {
+    const { totalIn, totalOut } = await cashEntryRepo.getBalance(input.shopId);
+    const balance = totalIn - totalOut;
+    if (balance - input.amount < 0) {
+      throw new Error('Solde de caisse insuffisant');
+    }
+  }
+
   // Create cash entry locally
   await cashEntryRepo.create({
     id: entryId,

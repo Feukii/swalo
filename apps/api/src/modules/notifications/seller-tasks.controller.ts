@@ -12,6 +12,12 @@ interface RemindDto {
   channel?: NotificationChannel;
 }
 
+/** Body for POST /seller-tasks/manual-remind (relance sans tâche préexistante). */
+interface ManualRemindDto {
+  customer_id: string;
+  channels?: NotificationChannel[];
+}
+
 /**
  * Seller follow-up tasks (debt reminders, ...).
  * Protected by the global JwtAuthGuard; accessible to any authenticated user
@@ -34,6 +40,15 @@ export class SellerTasksController {
   @Get(':id/preview')
   async preview(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.sellerTasksService.preview(req.user.shopId, id);
+  }
+
+  /**
+   * Manual on-demand reminder for a customer WITHOUT a pre-existing seller task.
+   * Builds the message from the customer's current outstanding receivable balance.
+   */
+  @Post('manual-remind')
+  async manualRemind(@Req() req: AuthenticatedRequest, @Body() body: ManualRemindDto) {
+    return this.sellerTasksService.manualRemind(req.user.shopId, body.customer_id, body.channels);
   }
 
   @Post(':id/remind')

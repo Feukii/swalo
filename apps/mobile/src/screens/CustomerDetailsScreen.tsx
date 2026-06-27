@@ -957,8 +957,9 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     setShowRemindSheet(true);
   };
 
-  // Relance manuelle : retrouve la tâche vendeur liée à ce client puis envoie
-  // la relance sur les canaux sélectionnés dans le sheet.
+  // Relance manuelle : envoie la relance sur les canaux sélectionnés dans le
+  // sheet, sans dépendre d'une tâche vendeur. Le message + le solde dû sont
+  // construits côté API à partir des créances en cours du client.
   const handleSendReminder = async () => {
     if (!customer) return;
     const channels = (Object.keys(remindChannels) as Array<'SMS' | 'WHATSAPP'>).filter(
@@ -970,25 +971,13 @@ export default function CustomerDetailsScreen({ navigation, route }: CustomerDet
     }
     setIsReminding(true);
     try {
-      const tasks = await sellerTasksApi.getTasks();
-      const task = tasks.find(t => t.customer_id === customer.id || t.customer?.id === customer.id);
-      if (!task) {
-        Alert.alert(
-          'Aucune relance',
-          "Ce client n'a pas de tâche de relance en cours (créance échue)."
-        );
-        return;
-      }
-      const results = await Promise.all(
-        channels.map(c => sellerTasksApi.remind(task.id, c as ReminderChannel))
-      );
-      if (results.some(r => r.ok)) {
+      const result = await sellerTasksApi.manualRemind(customer.id, channels as ReminderChannel[]);
+      if (result.ok) {
         setShowRemindSheet(false);
         Alert.alert('Relance envoyée', 'La relance a été envoyée au client.');
         loadCustomer();
       } else {
-        const err = results.find(r => r.error)?.error;
-        Alert.alert('Envoi impossible', err ?? "La relance n'a pas pu être envoyée.");
+        Alert.alert('Envoi impossible', result.error ?? "La relance n'a pas pu être envoyée.");
       }
     } catch {
       Alert.alert('Erreur', "Impossible d'envoyer la relance. Réessayez plus tard.");

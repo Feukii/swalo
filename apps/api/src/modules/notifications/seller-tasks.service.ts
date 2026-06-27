@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationChannel, NotificationType, SellerTaskStatus } from '@prisma/client';
+import {
+  NotificationChannel,
+  NotificationType,
+  ReceivableStatus,
+  SellerTaskStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationDispatcherService } from './notification-dispatcher.service';
 
@@ -271,6 +276,124 @@ export class SellerTasksService {
           targetId: receivable?.id ?? customer.id,
           // Manual reminder: timestamped dedup key so repeats are allowed.
           dedupKey: `manual_reminder:${task.id}:${ch}:${new Date().toISOString()}`,
+        });
+        if (outcome === 'SENT' || outcome === 'QUEUED') {
+          channelsSent.push(ch);
+        }
+      }
+
+      if (channelsSent.length === 0) {
+        return { ok: false, error: "Échec de l'envoi sur tous les canaux" };
+      }
+
+      return { ok: true, channelsSent };
+    } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, error: message };
+    }
+  }
+
+  /**
+   * Send a payment reminder NOW for a customer WITHOUT requiring a pre-existing
+   * SellerTask. Aggregates the customer's current outstanding balance from its
+   * PENDING/PARTIAL ClientReceivables and dispatches a courteous reminder.
+   *
+   * - If `channels` is given, only those channels are used (when the customer opted in).
+   * - Otherwise all channels the customer opted into are used.
+   * - Returns a clear error if the customer has no outstanding balance or no usable channel.
+   * - Best-effort: never throws on a send failure; returns { ok: false, error } instead.
+   */
+  async manualRemind(
+    shopId: string,
+    customerId: string,
+    channels?: NotificationChannel[]
+  ): Promise<SendReminderResult> {
+    try {
+      const [customer, shop, receivables] = await Promise.all([
+        this.prisma.customer.findFirst({
+          where: { id: customerId, shop_id: shopId, deleted: false },
+          select: {
+            id: true,
+            name: true,
+            first_name: true,
+            phone: true,
+            email: true,
+            email_notifications_enabled: true,
+            sms_notifications_enabled: true,
+            whatsapp_notifications_enabled: true,
+          },
+        }),
+        this.prisma.shop.findUnique({ where: { id: shopId }, select: { name: true } }),
+        this.prisma.clientReceivable.findMany({
+          where: {
+            shop_id: shopId,
+            customer_id: customerId,
+            deleted: false,
+            status: { in: [ReceivableStatus.PENDING, ReceivableStatus.PARTIAL] },
+          },
+          select: { balance: true, due_date: true },
+        }),
+      ]);
+
+      if (!customer) {
+        throw new NotFoundException('Client non trouvé');
+      }
+
+      // Outstanding balance = sum of remaining balances on PENDING/PARTIAL receivables.
+      const totalBalance = receivables.reduce((sum, r) => sum + r.balance, 0);
+      if (totalBalance <= 0) {
+        return { ok: false, error: "Ce client n'a aucun solde à régler" };
+      }
+
+      // Nearest due date among outstanding receivables (if any are dated).
+      const dueDate =
+        receivables
+          .map(r => r.due_date)
+          .filter((d): d is Date => d !== null)
+          .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+
+      const allChannels = this.dispatcher.resolveCustomerChannels(customer);
+      const resolved =
+        channels && channels.length > 0
+          ? allChannels.filter(c => channels.includes(c.channel))
+          : allChannels;
+
+      if (resolved.length === 0) {
+        return {
+          ok: false,
+          error:
+            channels && channels.length > 0
+              ? "Le client n'a activé aucun des canaux demandés"
+              : "Le client n'a activé aucun canal de notification",
+        };
+      }
+
+      const shopName = shop?.name ?? 'votre boutique';
+      const body = this.buildPreviewMessage({
+        customer,
+        balance: totalBalance,
+        dueDate,
+        shopName,
+        fallbackMessage: null,
+      });
+      const subject = 'Rappel de paiement';
+
+      const channelsSent: NotificationChannel[] = [];
+      for (const { channel: ch, recipient } of resolved) {
+        const outcome = await this.dispatcher.dispatch({
+          shopId,
+          type: NotificationType.PAYMENT_REMINDER,
+          channel: ch,
+          recipient,
+          subject,
+          body,
+          targetType: 'customer',
+          targetId: customer.id,
+          // Manual reminder: timestamped dedup key so repeats are allowed.
+          dedupKey: `manual_reminder:customer:${customer.id}:${ch}:${new Date().toISOString()}`,
         });
         if (outcome === 'SENT' || outcome === 'QUEUED') {
           channelsSent.push(ch);

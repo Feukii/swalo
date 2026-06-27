@@ -618,8 +618,30 @@ export async function getSupervisionAlerts(
   }
 
   // Most recent first.
-  alerts.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return alerts;
+  // Exclure les alertes déjà acquittées (table locale).
+  const acks = await db.getAllAsync<{ alert_id: string }>(
+    `SELECT alert_id FROM alert_acknowledgements WHERE shop_id = ?`,
+    [shopId]
+  );
+  const acknowledged = new Set(acks.map(a => a.alert_id));
+  const active = alerts.filter(a => !acknowledged.has(a.id));
+
+  active.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return active;
+}
+
+/** Acquittement local d'une alerte (instantané ; le backend fait foi via l'API en ligne). */
+export async function acknowledgeAlertLocal(
+  shopId: string,
+  alertId: string,
+  userId: string | null
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO alert_acknowledgements (id, shop_id, alert_id, acknowledged_by, acknowledged_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [`ack-${alertId}`, shopId, alertId, userId, new Date().toISOString()]
+  );
 }
 
 export interface JournalEntry {

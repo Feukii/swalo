@@ -466,13 +466,14 @@ export default function CashScreen() {
     }
 
     const exitAmount = parseFloat(amount);
-    const currentBal = cashStats.balance || 0;
+    const currentBal = Number.isFinite(cashStats.balance) ? cashStats.balance : 0;
 
-    // Validation du solde: seulement si paiement en cash (pas pour crédit)
-    if (exitPaymentMode === 'cash' && exitAmount > currentBal) {
+    // Validation du solde: la caisse ne peut jamais devenir negative.
+    // Seulement si paiement en cash (un achat a credit ne sort pas d'argent).
+    if (exitPaymentMode === 'cash' && currentBal - exitAmount < 0) {
       Alert.alert(
         'Solde insuffisant',
-        `Impossible de retirer ${formatMoney(exitAmount)}.\nSolde actuel de la caisse: ${formatMoney(currentBal)}`
+        `Le solde de caisse (${formatMoney(currentBal)}) ne permet pas cette sortie de ${formatMoney(exitAmount)}.`
       );
       return;
     }

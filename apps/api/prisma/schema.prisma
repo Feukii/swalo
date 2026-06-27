@@ -964,3 +964,24 @@ model SystemConfig {
 
   @@map("system_configs")
 }
+
+/// Acquittement d'une alerte de supervision (les alertes sont dérivées des
+/// données ; on persiste seulement l'acquittement par alert_id stable).
+model AlertAcknowledgement {
+  id              String   @id @default(uuid())
+  shop_id         String
+  alert_id        String
+  acknowledged_by String
+  acknowledged_at DateTime @default(now())
+  note            String?
+  // Champs de sync (alignés sur les autres entités).
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  deleted         Boolean  @default(false)
+  deleted_at      DateTime?
+  version         Int      @default(1)
+
+  @@unique([shop_id, alert_id])
+  @@index([shop_id])
+  @@map("alert_acknowledgements")
+}

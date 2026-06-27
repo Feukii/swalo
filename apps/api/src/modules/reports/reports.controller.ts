@@ -1,8 +1,18 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { IsString, IsOptional } from 'class-validator';
 import { ReportsService } from './reports.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
+
+class AcknowledgeAlertDto {
+  @IsString()
+  alert_id!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
 
 interface AuthenticatedUser {
   userId: string;
@@ -117,5 +127,15 @@ export class ReportsController {
     if (startDate) filters.start_date = startDate;
     if (endDate) filters.end_date = endDate;
     return this.reportsService.getSupervisionReport(user.shopId, filters);
+  }
+
+  /**
+   * POST /api/reports/supervision/ack
+   * Acquitter une alerte de supervision (réservé au boss).
+   */
+  @Post('supervision/ack')
+  @Roles(Role.BOSS)
+  acknowledgeAlert(@CurrentUser() user: AuthenticatedUser, @Body() dto: AcknowledgeAlertDto) {
+    return this.reportsService.acknowledgeAlert(user.shopId, dto.alert_id, user.userId, dto.note);
   }
 }
