@@ -279,6 +279,8 @@ export async function createCashEntryOffline(
 export interface OfflineStockBatchInput {
   shopId: string;
   productId: string;
+  // Unité ATOMIQUE = la PIÈCE. Une réception saisie EN CARTONS doit être convertie par
+  // l'appelant : quantity = cartons × UPP, costPrice = round(coût_carton / UPP).
   quantity: number;
   costPrice: number;
   sellPrice: number;
@@ -1049,6 +1051,23 @@ export interface OfflineProductInput {
 }
 
 /**
+ * Plancher du prix de DÉTAIL (pièce) : ceil(package_price / UPP). Le détail ne peut
+ * jamais être inférieur au gros ramené à la pièce. N'a de sens qu'avec un
+ * sous-conditionnement (UPP > 1) et un prix de détail saisi (> 0). 0 = pas de détail.
+ */
+function clampSellPriceToFloor(
+  sellPrice: number,
+  packagePrice: number | null | undefined,
+  unitsPerPackage: number | null | undefined
+): number {
+  if (!sellPrice || sellPrice <= 0) return sellPrice;
+  if (!unitsPerPackage || unitsPerPackage <= 1) return sellPrice;
+  if (!packagePrice || packagePrice <= 0) return sellPrice;
+  const floor = Math.ceil(packagePrice / unitsPerPackage);
+  return sellPrice < floor ? floor : sellPrice;
+}
+
+/**
  * Generate a local SKU if none provided (device-prefixed to avoid collisions)
  */
 async function generateLocalSku(shopId: string): Promise<string> {
@@ -1064,6 +1083,12 @@ export async function createProductOffline(
   const { clientOpId, deviceId } = await generateClientOpId('prod');
   const productId = generateId();
   const sku = input.sku || (await generateLocalSku(input.shopId));
+  // Intégrité du plancher de détail (pièce) ≥ gros/pièce.
+  const sellPrice = clampSellPriceToFloor(
+    input.sellPrice,
+    input.packagePrice,
+    input.unitsPerPackage
+  );
 
   await productRepo.create({
     id: productId,
@@ -1083,7 +1108,7 @@ export async function createProductOffline(
     package_price: input.packagePrice ?? null,
     tax_rate: input.taxRate ?? 0,
     cost_price: input.costPrice,
-    sell_price: input.sellPrice,
+    sell_price: sellPrice,
     is_active: 1,
     alert_threshold: input.alertThreshold ?? 5,
     image_url: input.imageUrl || null,
@@ -1114,7 +1139,7 @@ export async function createProductOffline(
       package_price: input.packagePrice ?? null,
       tax_rate: input.taxRate ?? 0,
       cost_price: input.costPrice,
-      sell_price: input.sellPrice,
+      sell_price: sellPrice,
       is_active: true,
       alert_threshold: input.alertThreshold ?? 5,
       image_url: input.imageUrl || null,
@@ -1148,7 +1173,18 @@ export async function updateProductOffline(
   if (data.packagePrice !== undefined) updateData.package_price = data.packagePrice;
   if (data.taxRate !== undefined) updateData.tax_rate = data.taxRate;
   if (data.costPrice !== undefined) updateData.cost_price = data.costPrice;
-  if (data.sellPrice !== undefined) updateData.sell_price = data.sellPrice;
+  if (data.sellPrice !== undefined) {
+    // Plancher de détail : on évalue UPP/package_price effectifs (valeur fournie sinon
+    // valeur en base) pour ne jamais descendre sell_price sous gros/pièce.
+    let upp = data.unitsPerPackage;
+    let pkg = data.packagePrice;
+    if (data.sellPrice > 0 && (upp === undefined || pkg === undefined)) {
+      const existing = await productRepo.getById(productId);
+      if (upp === undefined) upp = existing?.units_per_package ?? null;
+      if (pkg === undefined) pkg = existing?.package_price ?? null;
+    }
+    updateData.sell_price = clampSellPriceToFloor(data.sellPrice, pkg, upp);
+  }
   if (data.alertThreshold !== undefined) updateData.alert_threshold = data.alertThreshold;
   if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl;
 
