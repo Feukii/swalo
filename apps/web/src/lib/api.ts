@@ -177,6 +177,9 @@ export const productsApi = {
     sell_price: number;
     alert_threshold?: number;
     tax_rate?: number;
+    packaging_type_id?: string;
+    units_per_package?: number;
+    package_price?: number;
   }) => {
     const response = await api.post('/products', data);
     return response.data;
@@ -196,6 +199,9 @@ export const productsApi = {
       alert_threshold?: number;
       tax_rate?: number;
       is_active: boolean;
+      packaging_type_id?: string;
+      units_per_package?: number;
+      package_price?: number;
     }>
   ) => {
     const response = await api.put(`/products/${id}`, data);
@@ -1037,6 +1043,72 @@ export const reportsApi = {
     const response = await api.get<NetworkReport>('/reports/network');
     return response.data;
   },
+};
+
+// Accounting API (Comptabilité : journal, grand livre, bilan, résultat)
+// Tous les montants sont en centimes (÷100 à l'affichage).
+export interface AccountingBalanceSheet {
+  stock_value: number;
+  receivables: number;
+  cash: number;
+  total_actif: number;
+  debts: number;
+  equity: number;
+  total_passif: number;
+}
+
+export interface AccountingIncomeStatement {
+  revenue: number;
+  cogs: number;
+  gross_margin: number;
+  rent_charges: number;
+  salaries: number;
+  transport_misc: number;
+  net_profit: number;
+}
+
+export interface AccountingJournalEntry {
+  id: string;
+  created_at: string;
+  label: string;
+  reference: string;
+  amount: number;
+}
+
+export interface AccountingReport {
+  balance_sheet: AccountingBalanceSheet;
+  income_statement: AccountingIncomeStatement;
+  journal: AccountingJournalEntry[];
+}
+
+export const accountingApi = {
+  getReport: async (filters?: { start_date?: string; end_date?: string }): Promise<AccountingReport> =>
+    (await api.get<AccountingReport>('/reports/accounting', { params: filters })).data,
+};
+
+// Supervision API (Actions anormales du jour)
+export type SupervisionSeverity = 'critical' | 'review';
+
+export interface SupervisionAlert {
+  id: string;
+  kind: string;
+  severity: SupervisionSeverity;
+  title: string;
+  detail: string;
+  author: string | null;
+  created_at: string;
+}
+
+export interface SupervisionReport {
+  alerts: SupervisionAlert[];
+  critical_count: number;
+  review_count: number;
+  total: number;
+}
+
+export const supervisionApi = {
+  getReport: async (filters?: { start_date?: string; end_date?: string }): Promise<SupervisionReport> =>
+    (await api.get<SupervisionReport>('/reports/supervision', { params: filters })).data,
 };
 
 // Packaging Types API (Conditionnements)

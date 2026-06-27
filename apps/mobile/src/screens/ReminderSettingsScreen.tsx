@@ -4,15 +4,14 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
-  TouchableOpacity,
   Switch,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, Mail, Calendar, Check } from '../components/icons/SimpleIcons';
+import { Bell } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme-v2';
 import type { RootStackParamList } from '../../App';
@@ -22,34 +21,71 @@ interface ReminderSettingsScreenProps {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ReminderSettings'>;
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_CADENCE = 1;
-const MAX_CADENCE = 90;
+/** Couleur violette pour le badge E-mail (absente du thème). */
+const EMAIL_VIOLET = '#8B5CF6';
 
-/** Formate les offsets (ex: [-7, -3, 0]) en libellés lisibles (J-7, J-3, jour J). */
-function formatOffset(offset: number): string {
-  if (offset === 0) return 'le jour J';
-  if (offset < 0) return `J${offset}`;
-  return `J+${offset}`;
+/**
+ * Paliers du planificateur automatique. Chaque palier correspond à un décalage
+ * (en jours) avant l'échéance ; ils sont câblés sur le tableau `offsets`.
+ * Le backend expose ces décalages en lecture seule ([7, 3, 0]).
+ */
+const PALIERS: { offset: number; badge: string; title: string; subtitle: string }[] = [
+  { offset: 7, badge: 'J-7', title: 'Relance J-7', subtitle: '7 jours avant échéance' },
+  { offset: 3, badge: 'J-3', title: 'Relance J-3', subtitle: '3 jours avant échéance' },
+  { offset: 0, badge: 'J-0', title: 'Relance J-0', subtitle: "Le jour de l'échéance" },
+];
+
+interface ToggleRowProps {
+  badge: string;
+  badgeColor: string;
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  trackOnColor?: string;
+}
+
+/** Ligne réglage : badge carré coloré + titre + sous-titre + Switch. */
+function ToggleRow({
+  badge,
+  badgeColor,
+  title,
+  subtitle,
+  value,
+  onValueChange,
+  trackOnColor = Colors.action,
+}: ToggleRowProps) {
+  return (
+    <View style={styles.toggleRow}>
+      <View style={[styles.badge, { backgroundColor: `${badgeColor}1A` }]}>
+        <Text style={[styles.badgeText, { color: badgeColor }]}>{badge}</Text>
+      </View>
+      <View style={styles.toggleTextWrap}>
+        <Text style={styles.toggleLabel}>{title}</Text>
+        <Text style={styles.toggleHint}>{subtitle}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: Colors.muted.main, true: trackOnColor }}
+        thumbColor={Colors.surface}
+      />
+    </View>
+  );
 }
 
 export default function ReminderSettingsScreen({ navigation }: ReminderSettingsScreenProps) {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
-  const [enabled, setEnabled] = useState(false);
-  const [email, setEmail] = useState('');
-  const [cadence, setCadence] = useState('30');
-  const [offsets, setOffsets] = useState<number[]>([-7, -3, 0]);
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  // Canaux de la boutique — état local (l'API n'expose pas encore ces champs).
+  const [channels, setChannels] = useState({ sms: true, whatsapp: true, email: false });
+
+  // Planificateur automatique — décalages (en jours) avant l'échéance.
+  const [offsets, setOffsets] = useState<number[]>([7, 3, 0]);
 
   const applySettings = useCallback((settings: ReminderSettings) => {
-    setEnabled(settings.payment_reminders_enabled);
-    setEmail(settings.notification_email ?? '');
-    setCadence(String(settings.payment_reminder_cadence_days));
     if (Array.isArray(settings.offsets) && settings.offsets.length > 0) {
       setOffsets(settings.offsets);
     }
@@ -75,45 +111,42 @@ export default function ReminderSettingsScreen({ navigation }: ReminderSettingsS
     }, [load])
   );
 
-  const handleSave = async () => {
+  /**
+   * Persiste l'état des paliers. L'API ne stocke pas les décalages eux-mêmes
+   * (lecture seule) ni les canaux ; on enregistre donc l'activation globale
+   * des relances, dérivée de la présence d'au moins un palier actif.
+   */
+  const persistOffsets = useCallback(async (nextOffsets: number[]) => {
     setSaveError(null);
-    setSuccess(false);
-
-    const trimmedEmail = email.trim();
-    if (trimmedEmail && !EMAIL_REGEX.test(trimmedEmail)) {
-      setSaveError('Adresse e-mail invalide.');
-      return;
-    }
-
-    const cadenceValue = parseInt(cadence, 10);
-    if (Number.isNaN(cadenceValue) || cadenceValue < MIN_CADENCE || cadenceValue > MAX_CADENCE) {
-      setSaveError(`La cadence doit être comprise entre ${MIN_CADENCE} et ${MAX_CADENCE} jours.`);
-      return;
-    }
-
-    setSaving(true);
     try {
-      const updated = await reminderSettingsApi.update({
-        payment_reminders_enabled: enabled,
-        notification_email: trimmedEmail || null,
-        payment_reminder_cadence_days: cadenceValue,
+      await reminderSettingsApi.update({
+        payment_reminders_enabled: nextOffsets.length > 0,
       });
-      applySettings(updated);
-      setSuccess(true);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '';
       setSaveError(message || 'Impossible d’enregistrer les réglages.');
-    } finally {
-      setSaving(false);
     }
-  };
+  }, []);
+
+  const toggleOffset = useCallback(
+    (offset: number) => {
+      setOffsets(prev => {
+        const next = prev.includes(offset)
+          ? prev.filter(o => o !== offset)
+          : [...prev, offset].sort((a, b) => b - a);
+        void persistOffsets(next);
+        return next;
+      });
+    },
+    [persistOffsets]
+  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <ScreenHeader
           title="Réglages relances"
-          subtitle="Relances automatiques des créances"
+          subtitle="Canaux & préférences"
           showBack
           onBack={() => navigation.goBack()}
         />
@@ -128,12 +161,12 @@ export default function ReminderSettingsScreen({ navigation }: ReminderSettingsS
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScreenHeader
         title="Réglages relances"
-        subtitle="Relances automatiques des créances"
+        subtitle="Canaux & préférences"
         showBack
         onBack={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content}>
         {loadError ? (
           <View style={styles.errorCard}>
             <Text style={styles.errorText}>{loadError}</Text>
@@ -143,111 +176,68 @@ export default function ReminderSettingsScreen({ navigation }: ReminderSettingsS
           </View>
         ) : null}
 
-        {/* Carte info : calendrier des relances */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIconSquare}>
-            <Calendar size={20} color={Colors.info.main} />
-          </View>
-          <View style={styles.infoTextWrap}>
-            <Text style={styles.infoTitle}>Calendrier des relances</Text>
-            <Text style={styles.infoText}>
-              Les relances sont envoyées {offsets.map(formatOffset).join(', ')}.
-            </Text>
-          </View>
-        </View>
-
-        {/* Toggle activation */}
+        {/* Section 1 — Canaux de la boutique */}
+        <Text style={styles.sectionHeader}>CANAUX DE LA BOUTIQUE</Text>
         <View style={styles.card}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleIconSquare}>
-              <Bell size={20} color={Colors.warning.main} />
-            </View>
-            <View style={styles.toggleTextWrap}>
-              <Text style={styles.toggleLabel}>Activer les relances automatiques</Text>
-              <Text style={styles.toggleHint}>
-                Envoie automatiquement les rappels d’échéance aux clients concernés.
-              </Text>
-            </View>
-            <Switch
-              value={enabled}
-              onValueChange={setEnabled}
-              trackColor={{ false: Colors.muted.main, true: Colors.action }}
-              thumbColor={Colors.surface}
-            />
-          </View>
+          <ToggleRow
+            badge="SMS"
+            badgeColor={Colors.action}
+            title="SMS"
+            subtitle="Message texte standard"
+            value={channels.sms}
+            onValueChange={v => setChannels(c => ({ ...c, sms: v }))}
+          />
+          <View style={styles.divider} />
+          <ToggleRow
+            badge="WA"
+            badgeColor={Colors.success.main}
+            title="WhatsApp"
+            subtitle="Via WhatsApp Business"
+            value={channels.whatsapp}
+            onValueChange={v => setChannels(c => ({ ...c, whatsapp: v }))}
+            trackOnColor={Colors.success.main}
+          />
+          <View style={styles.divider} />
+          <ToggleRow
+            badge="@"
+            badgeColor={EMAIL_VIOLET}
+            title="E-mail"
+            subtitle="Avec accusé de lecture"
+            value={channels.email}
+            onValueChange={v => setChannels(c => ({ ...c, email: v }))}
+          />
         </View>
 
-        {/* Champs */}
+        {/* Section 2 — Planificateur automatique */}
+        <Text style={styles.sectionHeader}>PLANIFICATEUR AUTOMATIQUE</Text>
         <View style={styles.card}>
-          <View style={styles.formGroup}>
-            <View style={styles.formLabelRow}>
-              <Mail size={14} color={Colors.textColors.secondary} />
-              <Text style={styles.formLabelInline}>E-mail de notification</Text>
-            </View>
-            <TextInput
-              style={[styles.input, focusedInput === 'email' && styles.inputFocused]}
-              value={email}
-              onChangeText={text => {
-                setEmail(text);
-                setSuccess(false);
-              }}
-              onFocus={() => setFocusedInput('email')}
-              onBlur={() => setFocusedInput(null)}
-              placeholder="exemple@boutique.com"
-              placeholderTextColor={Colors.muted.foreground}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={[styles.formGroup, styles.formGroupLast]}>
-            <Text style={styles.formLabel}>Cadence de rappel (jours)</Text>
-            <TextInput
-              style={[styles.input, focusedInput === 'cadence' && styles.inputFocused]}
-              value={cadence}
-              onChangeText={text => {
-                setCadence(text.replace(/[^0-9]/g, ''));
-                setSuccess(false);
-              }}
-              onFocus={() => setFocusedInput('cadence')}
-              onBlur={() => setFocusedInput(null)}
-              placeholder="30"
-              placeholderTextColor={Colors.muted.foreground}
-              keyboardType="numeric"
-              maxLength={2}
-            />
-            <Text style={styles.formHint}>
-              Entre {MIN_CADENCE} et {MAX_CADENCE} jours.
-            </Text>
-          </View>
+          {PALIERS.map((palier, index) => (
+            <React.Fragment key={palier.offset}>
+              {index > 0 ? <View style={styles.divider} /> : null}
+              <ToggleRow
+                badge={palier.badge}
+                badgeColor={Colors.action}
+                title={palier.title}
+                subtitle={palier.subtitle}
+                value={offsets.includes(palier.offset)}
+                onValueChange={() => toggleOffset(palier.offset)}
+              />
+            </React.Fragment>
+          ))}
         </View>
-
-        {/* Note canaux */}
-        <Text style={styles.note}>
-          Les canaux (SMS / WhatsApp / E-mail) se configurent par client sur sa fiche.
-        </Text>
 
         {saveError ? <Text style={styles.saveErrorText}>{saveError}</Text> : null}
-        {success ? (
-          <View style={styles.successBanner}>
-            <Check size={16} color={Colors.success.text} />
-            <Text style={styles.successText}>Réglages enregistrés.</Text>
-          </View>
-        ) : null}
 
-        {/* Bouton enregistrer */}
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-          onPress={() => void handleSave()}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color={Colors.primary.foreground} />
-          ) : (
-            <Text style={styles.saveButtonText}>Enregistrer</Text>
-          )}
-        </TouchableOpacity>
+        {/* Note anti-doublon */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoIconSquare}>
+            <Bell size={18} color={Colors.info.main} />
+          </View>
+          <Text style={styles.infoText}>
+            Une seule relance est envoyée par échéance et par palier (anti-doublon). Les préférences
+            par client priment sur ces réglages.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -291,42 +281,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    backgroundColor: Colors.info.background,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  infoIconSquare: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: `${Colors.info.main}1A`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoTextWrap: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 14,
+  sectionHeader: {
+    fontSize: 12,
     fontWeight: '700',
-    color: Colors.info.text,
-    marginBottom: 2,
-  },
-  infoText: {
-    fontSize: 13,
-    color: Colors.info.text,
-    lineHeight: 18,
+    letterSpacing: 0.6,
+    color: Colors.textColors.tertiary,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.xs,
   },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
     ...Shadows.sm,
   },
   toggleRow: {
@@ -334,13 +301,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  toggleIconSquare: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.md,
+  },
+  badge: {
     width: 40,
     height: 40,
     borderRadius: BorderRadius.sm,
-    backgroundColor: `${Colors.warning.main}1A`,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   toggleTextWrap: {
     flex: 1,
@@ -355,90 +330,32 @@ const styles = StyleSheet.create({
     color: Colors.muted.foreground,
     marginTop: 2,
   },
-  formGroup: {
-    marginBottom: Spacing.lg,
-  },
-  formGroupLast: {
-    marginBottom: 0,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textColors.secondary,
-    marginBottom: Spacing.sm,
-  },
-  formLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
-  formLabelInline: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textColors.secondary,
-  },
-  input: {
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: 16,
-    color: Colors.text,
-  },
-  inputFocused: {
-    borderColor: Colors.action,
-    backgroundColor: Colors.surface,
-  },
-  formHint: {
-    fontSize: 12,
-    color: Colors.muted.foreground,
-    marginTop: Spacing.xs,
-  },
-  note: {
-    fontSize: 13,
-    color: Colors.textColors.tertiary,
-    lineHeight: 18,
-    marginBottom: Spacing.lg,
-    paddingHorizontal: Spacing.xs,
-  },
   saveErrorText: {
     fontSize: 14,
     color: Colors.danger.main,
     marginBottom: Spacing.md,
     textAlign: 'center',
   },
-  successBanner: {
+  infoCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    backgroundColor: Colors.info.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+  },
+  infoIconSquare: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: `${Colors.info.main}1A`,
     justifyContent: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.success.background,
-    borderRadius: 10,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  successText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.success.text,
-  },
-  saveButton: {
-    backgroundColor: Colors.action,
-    borderRadius: 12,
-    paddingVertical: Spacing.lg,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
   },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.primary.foreground,
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.info.text,
+    lineHeight: 18,
   },
 });

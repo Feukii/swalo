@@ -174,6 +174,8 @@ model Product {
   reference              String?               @db.VarChar(100)
   unit                   String                @default("unit") @db.VarChar(20)
   packaging_type_id      String?
+  units_per_package      Int?
+  package_price          Int?
   tax_rate               Float                 @default(0)
   cost_price             Int
   sell_price             Int

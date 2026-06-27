@@ -374,10 +374,11 @@ lorsque `canEditProduct === false`. Voir §2.7b (permissions fines).
 | **Plateformes** | Web, API                                                                              |
 | **Module**      | Étendu                                                                                |
 | **Endpoints**   | `GET/POST/PUT/DELETE /api/packaging-types`, `POST /api/packaging-types/init-defaults` |
-| **Modèle**      | `PackagingType` (name, symbol, is_default)                                            |
+| **Modèle**      | `PackagingType` (name, symbol, is_default) ; `Product.packaging_type_id`, `Product.units_per_package`, `Product.package_price` |
 
 - Conditionnements par défaut initialisables par boutique
 - Chaque boutique peut personnaliser ses conditionnements
+- **Conditionnement produit avec quantité & prix (Mobile + Web)** : un produit peut porter un conditionnement (ex. Carton) avec `units_per_package` (pièces, ex. 24) et `package_price` (prix du pack complet). Le prix/pièce du pack en découle (`package_price / units_per_package`). **Mobile** : édition depuis la fiche produit (feuille « Modifier l'article » → section Conditionnement) ; affichage carte « Prix par conditionnement », badge `Carton ×24` et ligne de conditionnement dans la vente (`SaleScreen`). **Web** : édition via `PackagingModal` (`ProductDetail.tsx`) + carte « Prix par conditionnement ». **Web-admin** : colonne « Cond. » dans la console produits (lecture seule). Stocké en centimes côté serveur, FCFA en local (champ monétaire de sync).
 
 ### 3.10 Entrée / Sortie / Ajustement de stock (réception datée, FIFO + motif)
 
@@ -884,6 +885,43 @@ Sections disponibles :
 | **Plateformes** | Mobile                                                   |
 | **Module**      | Étendu                                                   |
 | **Fichier**     | `apps/mobile/src/screens/TransactionHistoryScreen.tsx`   |
+
+### 8.5 Comptabilité (Journal, Grand livre, Bilan, Résultat)
+
+| Propriété         | Valeur                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| **Description**   | Comptabilité : journal des écritures, grand livre par compte, bilan (Actif = Passif) et compte de résultat (marge brute, charges, bénéfice net) |
+| **Plateformes**   | Mobile (offline, agrégats SQLite locaux), Web (dashboard boutique), Web-admin (console lecture seule), API |
+| **Module**        | Premium (pilotage)                                                                                |
+| **Endpoints**     | `GET /reports/accounting` (BOSS/MANAGER), `GET /admin/shops/:id/accounting` (SUPERADMIN, console) |
+| **Fichiers clés** | Mobile : `apps/mobile/src/screens/ComptabilityScreen.tsx`, `apps/mobile/src/db/reports.ts`. API : `reports.service.ts` (`getAccountingReport`), `admin.service.ts` (`getShopAccounting`). Web : `apps/web/src/pages/Accounting.tsx`. Web-admin : `apps/web-admin/src/pages/console/EnterpriseAccounting.tsx` |
+
+Caractéristiques :
+
+- **Sélecteur de périmètre boutique** : « Toutes les boutiques » (agrégation des `shop_id` présents en local) ou une boutique précise.
+- **Filtres de période** : Jour / Semaine / Mois / Année (le bilan est un instantané ; le résultat dépend de la période).
+- **Bilan** : Actif (Stock marchandises, Créances clients, Caisse) = Passif (Dettes fournisseurs, Capital & résultat équilibrant), bannière « Bilan équilibré ».
+- **Résultat** : Marge brute, Chiffre d'affaires, Coût des marchandises vendues (PMP × quantités), Loyers & charges, Salaires, Transport & divers, Bénéfice net.
+- **Journal** : mouvements de caisse chronologiques signés. **Grand livre** : soldes par compte (Caisse, Stock, Créances, Dettes, Ventes, Charges).
+
+### 8.6 Supervision (journal des actions anormales)
+
+| Propriété         | Valeur                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| **Description**   | Tableau de supervision listant les actions anormales du jour, chacune avec auteur et heure, classées Critique / À vérifier |
+| **Plateformes**   | Mobile (offline, détection sur données locales), Web (dashboard boutique), Web-admin (console lecture seule), API |
+| **Module**        | Premium (pilotage)                                                                                |
+| **Endpoints**     | `GET /reports/supervision` (BOSS/MANAGER), `GET /admin/shops/:id/supervision` (SUPERADMIN, console) |
+| **Fichiers clés** | Mobile : `apps/mobile/src/screens/SupervisionScreen.tsx`, `apps/mobile/src/db/reports.ts` (`getSupervisionAlerts`). API : `reports.service.ts` (`getSupervisionReport`, `SupervisionAlert`), `admin.service.ts` (`getShopSupervision`). Web : `apps/web/src/pages/Supervision.tsx`. Web-admin : `apps/web-admin/src/pages/console/EnterpriseSupervision.tsx` |
+
+Alertes détectées :
+
+- **Sortie de stock sans vente** (mouvement OUT non lié à une vente) — Critique.
+- **Correction de caisse négative** (sortie annotée « erreur » / « correction ») — Critique.
+- **Modification manuelle du stock** (ajustement d'inventaire) — À vérifier.
+- **Remise inhabituelle** (remise ≥ 25 % du total de la vente) — À vérifier.
+
+Compteurs en tête (Critiques / À vérifier / Total du jour). L'auteur est résolu depuis la liste des utilisateurs de la boutique (`adminApi.getShopUsers`, dégradation silencieuse hors-ligne).
 
 ---
 
@@ -1629,7 +1667,7 @@ Chaque opération :
 | Propriété       | Valeur                                                                 |
 | --------------- | ---------------------------------------------------------------------- |
 | **Description** | Importer un catalogue produit complet depuis un fichier CSV ou Excel   |
-| **Plateformes** | Web, API                                                               |
+| **Plateformes** | Mobile, Web, API                                                       |
 | **Module**      | Premium (import)                                                       |
 | **Endpoints**   | `POST /api/import/catalog/preview`, `POST /api/import/catalog/confirm` |
 | **Rôles**       | BOSS, MANAGER                                                          |
@@ -1639,10 +1677,12 @@ Chaque opération :
 1. **Preview** : upload du fichier, mapping des colonnes, validation, détection des doublons
 2. **Confirm** : exécution de l'import après validation
 
-- Mapping automatique des colonnes
+- Mapping automatique des colonnes (`column-mapping.ts`)
 - Détection de doublons SKU
 - Validation des données (types, formats, valeurs)
 - Rapport d'erreurs détaillé
+- **Colonnes de conditionnement** : `Cond.` / `Conditionnement` → nom du conditionnement (résolu/créé en `PackagingType`, `packaging_type_id`) ; `Sous-cond.` / `Pièces / cart` → `units_per_package` ; `Prix carton` / `Prix du conditionnement` → `package_price` (optionnel). Les conditionnements absents sont créés à la volée (cache anti-doublon sur `[shop_id, name]`).
+- Déclenché côté **mobile** depuis `ProductCatalogScreen` (`importApi.previewCatalog`/`confirmCatalog`, sélection de fichier `expo-document-picker`).
 
 ---
 
@@ -1729,6 +1769,8 @@ Composants : `ScreenHeader`, `KPICard`, `ListItem`, `SearchableSelect`, `Balance
 | Plus    | `MoreScreen`            | Menu         |
 
 - L'onglet **Vente** est rendu comme un bouton flottant central surélevé (`CustomTabBar`, fond `Colors.action` Sky #0EA5E9).
+
+Le menu **Plus** (`MoreScreen`) est organisé en sections : **Relances client** (Relances & tâches, Réglages relances), **Gestion** (Clients & créances, Fournisseurs & dettes, Produits & prix), **Pilotage** (Rapports, Supervision, Comptabilité, Factures, Historique des transactions), **Boutique** (Transferts inter-boutiques, Mes boutiques, Utilisateurs, Synchronisation, Administration).
 
 ### 14.5 Layout web (sidebar + top bar) - Module-aware
 
@@ -2028,6 +2070,10 @@ Les réponses d'authentification (`login`, `loginWithPin`, `getMe`) incluent l'o
 
 | Date       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Auteur      |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 2026-06-27 | **Comptabilité + Supervision portées sur Web & Web-admin (§8.5, §8.6)**. **API** : nouveaux endpoints `GET /reports/accounting` et `GET /reports/supervision` (BOSS/MANAGER) dans `reports.service.ts`/`reports.controller.ts` (bilan + compte de résultat + journal ; détection d'anomalies avec auteur résolu via `cashier.display_name`, type `SupervisionAlert` exporté) ; drill-down console `GET /admin/shops/:id/accounting` et `/supervision` (SUPERADMIN) délégant à `ReportsService` (injecté via `ReportsModule` dans `AdminModule`) ; `getShopProducts` renvoie désormais `packaging`/`units_per_package`/`package_price`. **Web** (`apps/web`) : pages `Accounting.tsx` (périmètre période Jour/Semaine/Mois/Année, onglets Bilan/Résultat/Journal/Grand livre) et `Supervision.tsx`, entrées de menu Pilotage activées, conditionnement éditable sur la fiche produit (`PackagingModal` + carte « Prix par conditionnement »). **Web-admin** (`apps/web-admin`) : vues console `EnterpriseAccounting.tsx` + `EnterpriseSupervision.tsx` (lecture seule, scope boutique), nav Pilotage activée, colonne « Cond. » dans la console produits. Validation : type-check api+web+web-admin OK, lint 0 erreur partout, tests API 144. | Claude Code |
+| 2026-06-27 | **Import catalogue — colonnes de conditionnement (§13.1)**. Mapping ajouté dans `column-mapping.ts` : `Cond.`/`Conditionnement` → `packaging` (nom), `Sous-cond.`/`Pièces / cart` → `units_per_package`, `Prix carton`/`Prix du conditionnement` → `package_price` (+ `OPTIONAL_COLUMNS`). `ImportService` : extraction des champs (preview + confirm), résolution/création du `PackagingType` à la volée (`resolvePackagingTypeId`, cache anti-doublon `[shop_id, name]`), `parsePositiveInt`, persistance de `packaging_type_id`/`units_per_package`/`package_price` à la création. Flux mobile inchangé (`ProductCatalogScreen` → preview/confirm). Tests : +3 cas de mapping (27 import, **144 API au total**), type-check + lint API OK. | Claude Code |
+| 2026-06-27 | **Conditionnement produit (quantité + prix) — schéma + UI**. Ajout de `units_per_package` et `package_price` au modèle `Product` (Prisma + migration `20260627120000_add_product_packaging_qty_price`, `@swalo/core` `Product` schema, DTO/service API create+update, SQLite mobile migration v7, `MONEY_FIELDS.products += package_price`, `OfflineProductInput`/`updateProductOffline`/`createProductOffline`, `LocalProduct`). UI : carte « Prix par conditionnement » réelle (fiche produit §3.9), section Conditionnement éditable dans la feuille « Modifier l'article » (sélecteur de type + pièces/cond. + prix/cond.), badge `Carton ×24` piloté par `units_per_package` et option de conditionnement (prix de pack + prix/pièce) dans la feuille de vente. Validation : Prisma generate OK, core build OK, type-check api+mobile OK, lint api+mobile 0 erreur, tests API 141 + mobile OK. | Claude Code |
+| 2026-06-27 | Refonte mobile selon les maquettes « v2 ». **Comptabilité (NOUVEL écran mobile, §8.5)** : `ComptabilityScreen` offline avec sélecteur de **périmètre boutique** (Toutes les boutiques / boutique précise), filtres **Jour/Semaine/Mois/Année**, onglets **Journal / Grand livre / Bilan / Résultat** (Actif = Passif, marge brute → bénéfice net) ; agrégats SQLite `getBalanceSheet`/`getIncomeStatement`/`getJournalEntries`/`getCashBalance`/`getLocalShopIds`. **Supervision (NOUVEL écran mobile, §8.6)** : `SupervisionScreen` — journal des actions anormales du jour (sortie de stock sans vente, correction de caisse négative, modification manuelle du stock, remise inhabituelle), **chacune avec auteur et heure**, compteurs Critiques/À vérifier/Total (`getSupervisionAlerts`). **Menu Plus restructuré (§14.4)** : fusion « Clients & créances » et « Fournisseurs & dettes », nouvelle section **PILOTAGE** (Rapports, Supervision, Comptabilité, Factures). **Écrans alignés sur les maquettes** : Caisse (10 catégories de sortie), Vente (conditionnement, toggle « Générer une facture », crédit en ligne + canaux de relance SMS/WA/email, « Valider à crédit »), Fiche client (crayon dans la carte, feuille « Relance J-x » avec aperçu, édition « Nom complet »/limite de crédit, timeline « Relance envoyée »), Produits (carte « Prix par conditionnement », feuille unifiée « Modifier l'article »), Fournisseurs (en-tête dettes, « Plafond d'emprunt »), Factures (carte facture vedette PDF/Envoyer, « TOUTES LES FACTURES »), Rapports (KPI 2×2, flux de caisse, espèces vs crédit, top produits), Réglages relances (canaux boutique + planificateur J-7/J-3/J-0), Transferts & import (import catalogue CSV/Excel + mapping colonnes), Utilisateurs (« Inviter un employé », présence, accès actif). _Limite connue_ : les multiplicateurs de conditionnement (`Carton ×24`, prix/pièce) nécessitent un champ `units_per_package` au modèle `PackagingType`/`Product` (non présent) — libellés réels affichés sans chiffres fabriqués. Validation : lint 0 erreur, type-check OK, tests mobile OK. | Claude Code |
 | 2026-06-27 | Recensement exhaustif des fonctionnalités récentes. **Produits & prix** : codification SKU auto par famille (`generateSku`, préfixes GLASSES→GLA, CHARGEURS→CHA, KIT BLUETOOTH→KIT, CARTES MEMOIRES→CAR ; §3.2b) ; opérations stock Entrée (réception datée) / Sortie (FIFO + motif) / Ajustement depuis la fiche produit (§3.10) ; **édition prix & stock réservée MANAGER+** via `products.edit` (§3.1) ; cohérence Stock ↔ Produits & prix ↔ Vente via repositories locaux partagés (§3.11). **Vente** : quantité éditable au clavier (`setExactQuantity`, `TextInput` number-pad ; §4.2). **Clients/Fournisseurs** : téléphone **Cameroun +237 6XX XXX XXX** (format + validation `utils/phone.ts` ; §15.7), édition des infos personnelles depuis la fiche client (§6.2). **Notifications** : transport email **RÉEL** SMTP (Gmail mot de passe d'application, repli Ethereal en dev ; §11.9), écran **Réglages relances** par boutique (web `/reminder-settings` + mobile, `/shops/me/reminder-settings` ; §11.10). **Offline** : auto-réparation de la base locale (delete-and-rebuild ; §9.11), bouton « Forcer la resynchronisation » (`forceFullResync` ; §9.12), connectivité = réseau présent (`expo-network.isConnected`, sans `isInternetReachable` ; §9.13). Mise à jour de la matrice plateformes (§17). | Claude Code |
 | 2026-06-26 | Plan 031 (design) + Plan 032 (livraisons) : **Rebranding Swalo** + design system unifié (tokens `@swalo/core/brand`, palette Marine #0B2A45 + Sky #0EA5E9, preset Tailwind `tailwind-preset.cjs`, theme-v2 mobile aligné) ; refonte UI selon maquettes (mobile tab bar à bouton central/FAB Vente, hero, bottom-sheets ; web & web-admin sidebars/pages). **Système de dettes & notifications** : échéance obligatoire sur `ClientReceivable.due_date`, notifications de transparence `DEBT_CREATED`/`DEBT_PAYMENT`, relances auto J-7/J-3/J-0, **tâches vendeur** (écran Relances mobile + page web, `SellerTask`, `/seller-tasks`), **dispatcher multi-canal** (Email réel ; SMS/WhatsApp adaptateurs `NotificationChannelAdapter` prêts à brancher), historique client + `notifications_summary`, préférences canaux par client (`sms_/whatsapp_notifications_enabled`). **Console super-admin** : Vue d'ensemble avec MRR réel (`Enterprise.monthly_price`) + drill-down lecture seule par entreprise (`/admin/shops/:id/{pos,products,customers,suppliers}`, `/admin/enterprises/:id/reports`, pages `console/`). **Permissions fines** module × rôle × capacités (`@swalo/core/modules/permissions`, `Shop.module_permissions`/`Enterprise.default_module_permissions`, `/auth/me` permissions effectives, `@RequireCapability`+`CapabilityGuard`, page web-admin `EnterprisePermissions`). Harmonisation rôles `EMPLOYEE/MANAGER/BOSS/SUPERADMIN`. Switch de boutique : rechargement complet du contexte. Code boutique alphanumérique (déjà livré Plan 030). | Claude Code |
 | 2026-06-25 | Plan 030 (incrément 1) : code boutique alphanumérique (4–10 maj., normalisé `[A-Z0-9]`, anciens codes numériques conservés) sur api/core/mobile/web/web-admin ; rapport financier consolidé PDG (`GET /enterprises/:id/financial-summary`, récap santé par boutique + total) ; alertes stock bas par email + rappels de paiement (CRON quotidiens, `NotificationLog`, `ClientReceivable.due_date`, réglages notifications par boutique) ; fix rôle `OWNER`→`BOSS` (web). Validation OK (lint 0 warning, type-check, 134 tests API, e2e 16, builds web/web-admin) | Claude Code |

@@ -1038,6 +1038,9 @@ export interface OfflineProductInput {
   brand?: string;
   reference?: string;
   unit?: string;
+  packagingTypeId?: string | null;
+  unitsPerPackage?: number | null;
+  packagePrice?: number | null;
   taxRate?: number;
   costPrice: number;
   sellPrice: number;
@@ -1075,6 +1078,9 @@ export async function createProductOffline(
     brand: input.brand || null,
     reference: input.reference || null,
     unit: input.unit || 'unit',
+    packaging_type_id: input.packagingTypeId || null,
+    units_per_package: input.unitsPerPackage ?? null,
+    package_price: input.packagePrice ?? null,
     tax_rate: input.taxRate ?? 0,
     cost_price: input.costPrice,
     sell_price: input.sellPrice,
@@ -1103,6 +1109,9 @@ export async function createProductOffline(
       brand: input.brand || null,
       reference: input.reference || null,
       unit: input.unit || 'unit',
+      packaging_type_id: input.packagingTypeId || null,
+      units_per_package: input.unitsPerPackage ?? null,
+      package_price: input.packagePrice ?? null,
       tax_rate: input.taxRate ?? 0,
       cost_price: input.costPrice,
       sell_price: input.sellPrice,
@@ -1134,6 +1143,9 @@ export async function updateProductOffline(
   if (data.brand !== undefined) updateData.brand = data.brand;
   if (data.reference !== undefined) updateData.reference = data.reference;
   if (data.unit !== undefined) updateData.unit = data.unit;
+  if (data.packagingTypeId !== undefined) updateData.packaging_type_id = data.packagingTypeId;
+  if (data.unitsPerPackage !== undefined) updateData.units_per_package = data.unitsPerPackage;
+  if (data.packagePrice !== undefined) updateData.package_price = data.packagePrice;
   if (data.taxRate !== undefined) updateData.tax_rate = data.taxRate;
   if (data.costPrice !== undefined) updateData.cost_price = data.costPrice;
   if (data.sellPrice !== undefined) updateData.sell_price = data.sellPrice;

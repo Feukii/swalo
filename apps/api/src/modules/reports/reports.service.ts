@@ -2,6 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
+export interface SupervisionAlert {
+  id: string;
+  kind: string;
+  severity: 'critical' | 'review';
+  title: string;
+  detail: string;
+  author: string | null;
+  created_at: Date;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
@@ -286,6 +296,274 @@ export class ReportsService {
       sales,
       stock,
       cash,
+    };
+  }
+
+  /**
+   * Comptabilité : bilan (instantané) + compte de résultat (sur période) + journal.
+   * Montants en centimes (comme les autres rapports).
+   */
+  async getAccountingReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
+    const createdAtFilter: Prisma.DateTimeFilter = {};
+    if (filters?.start_date) createdAtFilter.gte = new Date(filters.start_date);
+    if (filters?.end_date) createdAtFilter.lte = new Date(filters.end_date);
+    const hasDateFilter = createdAtFilter.gte !== undefined || createdAtFilter.lte !== undefined;
+    const dateClause = hasDateFilter ? { created_at: createdAtFilter } : {};
+
+    // --- Compte de résultat (sur la période) ---
+    const saleWhere: Prisma.SaleWhereInput = {
+      shop_id: shopId,
+      deleted: false,
+      status: 'COMPLETED',
+      ...dateClause,
+    };
+
+    const [revenueAgg, saleItems, cashOutByCategory] = await Promise.all([
+      this.prisma.sale.aggregate({ where: saleWhere, _sum: { grand_total: true } }),
+      this.prisma.saleItem.findMany({
+        where: { deleted: false, sale: saleWhere },
+        select: { qty: true, product: { select: { cost_price: true } } },
+      }),
+      this.prisma.cashEntry.groupBy({
+        by: ['category'],
+        where: { shop_id: shopId, deleted: false, type: 'OUT', ...dateClause },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const revenue = revenueAgg._sum.grand_total ?? 0;
+    const cogs = saleItems.reduce((sum, i) => sum + i.product.cost_price * i.qty, 0);
+    const grossMargin = revenue - cogs;
+
+    let rentCharges = 0;
+    let salaries = 0;
+    let transportMisc = 0;
+    for (const c of cashOutByCategory) {
+      const cat = (c.category ?? '').toLowerCase();
+      const amount = c._sum.amount ?? 0;
+      if (cat.includes('salaire')) salaries += amount;
+      else if (
+        cat.includes('loyer') ||
+        cat.includes('electricite') ||
+        cat.includes('eau') ||
+        cat.includes('taxe')
+      )
+        rentCharges += amount;
+      else if (cat.includes('transport') || cat.includes('divers') || cat.includes('retrait'))
+        transportMisc += amount;
+    }
+    const netProfit = grossMargin - rentCharges - salaries - transportMisc;
+
+    // --- Bilan (instantané) ---
+    const [stock, receivablesAgg, debtsAgg, allIn, allOut, journalRows] = await Promise.all([
+      this.getStockReport(shopId),
+      this.prisma.clientReceivable.aggregate({
+        where: { shop_id: shopId, deleted: false, status: { in: ['PENDING', 'PARTIAL'] } },
+        _sum: { balance: true },
+      }),
+      this.prisma.supplierDebt.aggregate({
+        where: { shop_id: shopId, deleted: false, status: { in: ['PENDING', 'PARTIAL'] } },
+        _sum: { balance: true },
+      }),
+      this.prisma.cashEntry.aggregate({
+        where: { shop_id: shopId, deleted: false, type: 'IN' },
+        _sum: { amount: true },
+      }),
+      this.prisma.cashEntry.aggregate({
+        where: { shop_id: shopId, deleted: false, type: 'OUT' },
+        _sum: { amount: true },
+      }),
+      this.prisma.cashEntry.findMany({
+        where: { shop_id: shopId, deleted: false, ...dateClause },
+        orderBy: { created_at: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          created_at: true,
+          type: true,
+          amount: true,
+          category: true,
+          note: true,
+        },
+      }),
+    ]);
+
+    const stockValue = stock.total_stock_value;
+    const receivables = receivablesAgg._sum.balance ?? 0;
+    const debts = debtsAgg._sum.balance ?? 0;
+    const cash = (allIn._sum.amount ?? 0) - (allOut._sum.amount ?? 0);
+    const totalActif = stockValue + receivables + cash;
+    const equity = totalActif - debts;
+
+    const journal = journalRows.map(r => ({
+      id: r.id,
+      created_at: r.created_at,
+      label:
+        (r.note ?? '').trim() || r.category || (r.type === 'IN' ? 'Encaissement' : 'Décaissement'),
+      reference: r.type === 'IN' ? 'Caisse · Entrée' : 'Caisse · Sortie',
+      amount: r.type === 'IN' ? r.amount : -r.amount,
+    }));
+
+    return {
+      balance_sheet: {
+        stock_value: stockValue,
+        receivables,
+        cash,
+        total_actif: totalActif,
+        debts,
+        equity,
+        total_passif: debts + equity,
+      },
+      income_statement: {
+        revenue,
+        cogs,
+        gross_margin: grossMargin,
+        rent_charges: rentCharges,
+        salaries,
+        transport_misc: transportMisc,
+        net_profit: netProfit,
+      },
+      journal,
+    };
+  }
+
+  /**
+   * Supervision : journal des actions anormales sur une période (par défaut le jour).
+   * Chaque alerte porte un auteur (quand disponible) et une heure.
+   */
+  async getSupervisionReport(shopId: string, filters?: { start_date?: string; end_date?: string }) {
+    const start = filters?.start_date
+      ? new Date(filters.start_date)
+      : new Date(new Date().setHours(0, 0, 0, 0));
+    const end = filters?.end_date
+      ? new Date(filters.end_date)
+      : new Date(new Date().setHours(23, 59, 59, 999));
+    const dateClause = { created_at: { gte: start, lte: end } };
+
+    const UNUSUAL_DISCOUNT_PCT = 0.25;
+
+    const [movements, cashCorrections, discountedSales] = await Promise.all([
+      this.prisma.inventoryMovement.findMany({
+        where: { shop_id: shopId, deleted: false, ...dateClause },
+        select: {
+          id: true,
+          type: true,
+          qty: true,
+          reason: true,
+          ref_type: true,
+          created_at: true,
+          product: { select: { name: true } },
+        },
+      }),
+      this.prisma.cashEntry.findMany({
+        where: {
+          shop_id: shopId,
+          deleted: false,
+          type: 'OUT',
+          ...dateClause,
+          OR: [
+            { note: { contains: 'erreur', mode: 'insensitive' } },
+            { note: { contains: 'correction', mode: 'insensitive' } },
+            { note: { contains: 'négativ', mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          amount: true,
+          note: true,
+          created_at: true,
+          cashier: { select: { display_name: true } },
+        },
+      }),
+      this.prisma.sale.findMany({
+        where: {
+          shop_id: shopId,
+          deleted: false,
+          status: 'COMPLETED',
+          discount: { gt: 0 },
+          ...dateClause,
+        },
+        select: {
+          id: true,
+          discount: true,
+          grand_total: true,
+          created_at: true,
+          cashier: { select: { display_name: true } },
+        },
+      }),
+    ]);
+
+    const alerts: SupervisionAlert[] = [];
+
+    for (const m of movements) {
+      const product = m.product?.name ?? 'Produit';
+      const refType = (m.ref_type ?? '').toUpperCase();
+      const reason = (m.reason ?? '').toLowerCase();
+      const reducesStock = m.qty < 0;
+      const isManual = m.type === 'ADJUSTMENT' || m.type === 'INVENTORY';
+      if (reducesStock && m.type !== 'SALE' && refType !== 'SALE') {
+        alerts.push({
+          id: `mv-${m.id}`,
+          kind: 'stock_out_no_sale',
+          severity: 'critical',
+          title: 'Sortie de stock sans vente',
+          detail: `${product} · −${Math.abs(m.qty)} unités${m.reason ? ` · motif « ${m.reason} »` : ''}`,
+          author: null,
+          created_at: m.created_at,
+        });
+      } else if (
+        isManual ||
+        reason.includes('ajust') ||
+        reason.includes('correction') ||
+        reason.includes('inventaire')
+      ) {
+        alerts.push({
+          id: `mv-${m.id}`,
+          kind: 'manual_stock_edit',
+          severity: 'review',
+          title: 'Modification manuelle du stock',
+          detail: `${product} · ${m.qty >= 0 ? '+' : '−'}${Math.abs(m.qty)} unités`,
+          author: null,
+          created_at: m.created_at,
+        });
+      }
+    }
+
+    for (const c of cashCorrections) {
+      alerts.push({
+        id: `cc-${c.id}`,
+        kind: 'cash_correction',
+        severity: 'critical',
+        title: 'Correction de caisse négative',
+        detail: `−${c.amount} · « ${c.note ?? ''} »`,
+        author: c.cashier?.display_name ?? null,
+        created_at: c.created_at,
+      });
+    }
+
+    for (const s of discountedSales) {
+      const base = s.grand_total + s.discount;
+      const pct = base > 0 ? s.discount / base : 0;
+      if (pct >= UNUSUAL_DISCOUNT_PCT) {
+        alerts.push({
+          id: `ds-${s.id}`,
+          kind: 'unusual_discount',
+          severity: 'review',
+          title: 'Remise inhabituelle',
+          detail: `Vente · −${Math.round(pct * 100)} % sur le total`,
+          author: s.cashier?.display_name ?? null,
+          created_at: s.created_at,
+        });
+      }
+    }
+
+    alerts.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+
+    return {
+      alerts,
+      critical_count: alerts.filter(a => a.severity === 'critical').length,
+      review_count: alerts.filter(a => a.severity === 'review').length,
+      total: alerts.length,
     };
   }
 }

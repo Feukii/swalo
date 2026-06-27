@@ -95,6 +95,9 @@ export interface AdminShopProduct {
   value: number;
   multi_price: boolean;
   is_active: boolean;
+  packaging: string | null;
+  units_per_package: number | null;
+  package_price: number | null;
 }
 
 export type AdminPartyStatus = 'A jour' | 'Doit' | 'A rembourser';
@@ -162,6 +165,59 @@ export interface AdminEnterpriseReports {
     marge_reseau: number;
     marge_moyenne: number;
   };
+}
+
+export interface AdminAccountingBalanceSheet {
+  stock_value: number;
+  receivables: number;
+  cash: number;
+  total_actif: number;
+  debts: number;
+  equity: number;
+  total_passif: number;
+}
+
+export interface AdminAccountingIncomeStatement {
+  revenue: number;
+  cogs: number;
+  gross_margin: number;
+  rent_charges: number;
+  salaries: number;
+  transport_misc: number;
+  net_profit: number;
+}
+
+export interface AdminAccountingJournalEntry {
+  id: string;
+  created_at: string;
+  label: string;
+  reference: string;
+  amount: number;
+}
+
+export interface AdminShopAccounting {
+  balance_sheet: AdminAccountingBalanceSheet;
+  income_statement: AdminAccountingIncomeStatement;
+  journal: AdminAccountingJournalEntry[];
+}
+
+export type AdminSupervisionSeverity = 'critical' | 'review';
+
+export interface AdminSupervisionAlert {
+  id: string;
+  kind: string;
+  severity: AdminSupervisionSeverity;
+  title: string;
+  detail: string;
+  author: string | null;
+  created_at: string;
+}
+
+export interface AdminShopSupervision {
+  alerts: AdminSupervisionAlert[];
+  critical_count: number;
+  review_count: number;
+  total: number;
 }
 
 // Admin API
@@ -420,6 +476,16 @@ export const adminApi = {
     const response = await api.get<AdminEnterpriseReports>(
       `/admin/enterprises/${enterpriseId}/reports`
     );
+    return response.data;
+  },
+
+  getShopAccounting: async (shopId: string): Promise<AdminShopAccounting> => {
+    const response = await api.get<AdminShopAccounting>(`/admin/shops/${shopId}/accounting`);
+    return response.data;
+  },
+
+  getShopSupervision: async (shopId: string): Promise<AdminShopSupervision> => {
+    const response = await api.get<AdminShopSupervision>(`/admin/shops/${shopId}/supervision`);
     return response.data;
   },
 

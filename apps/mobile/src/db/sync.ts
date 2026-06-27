@@ -54,7 +54,7 @@ const REFERENCE_ENTITIES = new Set(['products', 'customers', 'suppliers', 'packa
  * Centralisé ici pour rester cohérent à tous les niveaux.
  */
 const MONEY_FIELDS: Record<string, string[]> = {
-  products: ['cost_price', 'sell_price'],
+  products: ['cost_price', 'sell_price', 'package_price'],
   stock_batches: ['cost_price', 'sell_price'],
   customers: ['credit_limit'],
   suppliers: ['borrowing_limit'],

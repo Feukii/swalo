@@ -22,6 +22,9 @@ export interface LocalProduct extends LocalRecord {
   brand: string | null;
   reference: string | null;
   unit: string;
+  packaging_type_id: string | null;
+  units_per_package: number | null;
+  package_price: number | null;
   tax_rate: number;
   cost_price: number;
   sell_price: number;

@@ -40,6 +40,20 @@ export class CreateProductDto {
   unit?: string;
 
   @IsOptional()
+  @IsString()
+  packaging_type_id?: string; // Conditionnement (Carton, Boîte…)
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  units_per_package?: number; // Pièces par conditionnement (ex: 24)
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  package_price?: number; // Prix du conditionnement complet (en centimes)
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   tax_rate?: number;

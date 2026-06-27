@@ -14,12 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Package,
-  ArrowUp,
-  ArrowDown,
+  Plus,
+  Minus,
   AlertTriangle,
   ChevronRight,
   Edit,
-  ArrowLeftRight,
+  TrendingUp,
 } from '../components/icons/SimpleIcons';
 import { ScreenHeader } from '../components/ui';
 import { Colors, Spacing, Shadows, BorderRadius } from '../constants/theme-v2';
@@ -30,6 +30,7 @@ import {
   productRepo,
   stockBatchRepo,
   inventoryMovementRepo,
+  packagingTypeRepo,
   LocalStockBatch,
   LocalInventoryMovement,
 } from '../db/repositories';
@@ -56,8 +57,12 @@ interface ProductDetail {
   brand: string | null;
   reference: string | null;
   unit: string;
+  cost_price: number;
   sell_price: number;
   alert_threshold: number;
+  packaging_type_id: string | null;
+  units_per_package: number | null;
+  package_price: number | null;
 }
 
 /** Motifs de sortie de stock (FIFO). */
@@ -95,6 +100,12 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const canEditProduct = can('products', 'edit');
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [packagingName, setPackagingName] = useState<string | null>(null);
+  const [packagingList, setPackagingList] = useState<{ id: string; name: string }[]>([]);
+  // Conditionnement (édition)
+  const [editPkgTypeId, setEditPkgTypeId] = useState<string | null>(null);
+  const [editUnitsPerPackage, setEditUnitsPerPackage] = useState('');
+  const [editPackagePrice, setEditPackagePrice] = useState('');
   const [batches, setBatches] = useState<LocalStockBatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,8 +114,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   const [showEntrySheet, setShowEntrySheet] = useState(false);
   const [showExitSheet, setShowExitSheet] = useState(false);
   const [showThresholdSheet, setShowThresholdSheet] = useState(false);
-  const [showPriceSheet, setShowPriceSheet] = useState(false);
-  const [showAdjustSheet, setShowAdjustSheet] = useState(false);
+  const [showEditSheet, setShowEditSheet] = useState(false);
 
   // Entrée form
   const [entryQty, setEntryQty] = useState('');
@@ -118,12 +128,11 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   // Seuil form
   const [thresholdValue, setThresholdValue] = useState('');
 
-  // Prix de vente form (éventuellement seuil au même endroit)
-  const [priceValue, setPriceValue] = useState('');
-  const [priceThresholdValue, setPriceThresholdValue] = useState('');
-
-  // Ajustement de stock form (quantité cible)
-  const [adjustValue, setAdjustValue] = useState('');
+  // Édition de l'article (nom, prix, ajustement de stock) — sheet unifiée
+  const [editName, setEditName] = useState('');
+  const [editCost, setEditCost] = useState('');
+  const [editSell, setEditSell] = useState('');
+  const [editStock, setEditStock] = useState('');
 
   const loadProduct = useCallback(async () => {
     if (!shopId) return;
@@ -143,9 +152,21 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         brand: local.brand,
         reference: local.reference,
         unit: local.unit,
+        cost_price: local.cost_price,
         sell_price: local.sell_price,
         alert_threshold: local.alert_threshold,
+        packaging_type_id: local.packaging_type_id,
+        units_per_package: local.units_per_package,
+        package_price: local.package_price,
       });
+      if (local.packaging_type_id) {
+        const pkg = await packagingTypeRepo.getById(local.packaging_type_id);
+        setPackagingName(pkg?.name ?? null);
+      } else {
+        setPackagingName(null);
+      }
+      const pkgList = await packagingTypeRepo.getAll(shopId, { orderBy: 'name ASC' });
+      setPackagingList(pkgList.map(p => ({ id: p.id, name: p.name })));
       const localBatches = await stockBatchRepo.getByProduct(shopId, id, false);
       setBatches(localBatches);
     } catch (error: unknown) {
@@ -203,16 +224,17 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     setShowThresholdSheet(true);
   };
 
-  const openPriceSheet = () => {
+  const openEditSheet = () => {
     if (!product) return;
-    setPriceValue(String(product.sell_price));
-    setPriceThresholdValue(String(product.alert_threshold));
-    setShowPriceSheet(true);
-  };
-
-  const openAdjustSheet = () => {
-    setAdjustValue(String(currentStock));
-    setShowAdjustSheet(true);
+    setEditName(product.name);
+    // Prix de revient : on pré-remplit avec le PMP courant (sinon le coût catalogue)
+    setEditCost(String(pmp > 0 ? pmp : product.cost_price));
+    setEditSell(String(product.sell_price));
+    setEditStock(String(currentStock));
+    setEditPkgTypeId(product.packaging_type_id);
+    setEditUnitsPerPackage(product.units_per_package ? String(product.units_per_package) : '');
+    setEditPackagePrice(product.package_price ? String(product.package_price) : '');
+    setShowEditSheet(true);
   };
 
   const computeEntryDateISO = (choice: EntryDateChoice): string => {
@@ -325,94 +347,99 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
     }
   };
 
-  // Modifier le prix de vente (+ seuil optionnel au même endroit)
-  const handleSubmitPrice = async () => {
-    if (!product) return;
-    const price = parseInt(priceValue, 10);
-    if (isNaN(price) || price < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix de vente valide');
-      return;
-    }
-    const threshold = parseInt(priceThresholdValue, 10);
-    if (isNaN(threshold) || threshold < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un seuil valide');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await updateProductOffline(product.id, {
-        sellPrice: price,
-        alertThreshold: threshold,
+  // Ajustement de stock à une quantité cible (correction d'inventaire tracée)
+  // - cible < stock : déstockage FIFO + mouvement d'ajustement
+  // - cible > stock : nouveau lot daté (entrée) au PMP courant + mouvement d'ajustement
+  // Ne déclenche pas loadProduct/alerte : utilisé en composition par handleSubmitEdit.
+  const applyStockAdjustment = async (target: number, costForNewBatch: number) => {
+    if (!product || !shopId) return;
+    const delta = target - currentStock;
+    if (delta === 0) return;
+
+    const deviceInfo = await getDeviceInfo();
+
+    if (delta < 0) {
+      // Correction négative : on retire l'excédent en FIFO
+      const removeQty = -delta;
+      const deductions = await stockBatchRepo.deductFIFO(shopId, product.id, removeQty);
+      const totalDeducted = deductions.reduce((s, d) => s + d.deducted, 0);
+
+      const movement: Partial<LocalInventoryMovement> = {
+        id: generateId(),
+        shop_id: shopId,
+        product_id: product.id,
+        type: 'ADJUSTMENT',
+        qty: -totalDeducted,
+        reason: 'Ajustement de stock',
+        ref_type: 'manual',
+        ref_id: null,
+        unit_cost: pmp,
+        device_id: deviceInfo.device_id,
+        client_op_id: `inv_adj_${product.id}_${Date.now()}`,
+        version: 1,
+      };
+      await inventoryMovementRepo.create(movement);
+    } else {
+      // Correction positive : on crée un lot d'entrée (au prix de revient saisi)
+      // createStockBatchOffline crée déjà le mouvement d'inventaire IN associé.
+      await createStockBatchOffline({
+        shopId,
+        productId: product.id,
+        quantity: delta,
+        costPrice: costForNewBatch,
+        sellPrice: product.sell_price,
+        notes: 'Ajustement de stock',
       });
-      setShowPriceSheet(false);
-      await loadProduct();
-      Alert.alert('Succès', 'Prix de vente mis à jour');
-    } catch (error: unknown) {
-      Alert.alert('Erreur', getErrorMessage(error) ?? 'Impossible de mettre à jour le prix');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  // Ajuster le stock à une quantité cible (correction d'inventaire)
-  // - cible < stock : déstockage FIFO + mouvement d'ajustement
-  // - cible > stock : nouveau lot daté (entrée) au PMP courant + mouvement d'ajustement
-  const handleSubmitAdjust = async () => {
+  // Sheet unifiée « Modifier l'article » : nom + prix (revient/vente) + ajustement de stock.
+  const handleSubmitEdit = async () => {
     if (!product || !shopId) return;
-    const target = parseInt(adjustValue, 10);
-    if (isNaN(target) || target < 0) {
-      Alert.alert('Erreur', 'Veuillez entrer une quantité cible valide');
+    const name = editName.trim();
+    if (!name) {
+      Alert.alert('Erreur', 'Veuillez saisir une désignation');
       return;
     }
-    const delta = target - currentStock;
-    if (delta === 0) {
-      setShowAdjustSheet(false);
+    const cost = parseInt(editCost, 10);
+    if (isNaN(cost) || cost < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de revient valide');
+      return;
+    }
+    const sell = parseInt(editSell, 10);
+    if (isNaN(sell) || sell < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix de vente valide');
+      return;
+    }
+    const target = parseInt(editStock, 10);
+    if (isNaN(target) || target < 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un stock valide');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const deviceInfo = await getDeviceInfo();
+      // 1) Nom + prix + conditionnement (mise à jour produit + sync)
+      const unitsPerPackage = parseInt(editUnitsPerPackage, 10);
+      const packagePrice = parseInt(editPackagePrice, 10);
+      const hasPackaging =
+        !!editPkgTypeId && !isNaN(unitsPerPackage) && unitsPerPackage > 0 && !isNaN(packagePrice);
+      await updateProductOffline(product.id, {
+        name,
+        costPrice: cost,
+        sellPrice: sell,
+        packagingTypeId: hasPackaging ? editPkgTypeId : null,
+        unitsPerPackage: hasPackaging ? unitsPerPackage : null,
+        packagePrice: hasPackaging ? packagePrice : null,
+      });
+      // 2) Ajustement de stock (mouvement d'inventaire tracé si écart)
+      await applyStockAdjustment(target, cost);
 
-      if (delta < 0) {
-        // Correction négative : on retire l'excédent en FIFO
-        const removeQty = -delta;
-        const deductions = await stockBatchRepo.deductFIFO(shopId, product.id, removeQty);
-        const totalDeducted = deductions.reduce((s, d) => s + d.deducted, 0);
-
-        const movement: Partial<LocalInventoryMovement> = {
-          id: generateId(),
-          shop_id: shopId,
-          product_id: product.id,
-          type: 'ADJUSTMENT',
-          qty: -totalDeducted,
-          reason: 'Ajustement de stock',
-          ref_type: 'manual',
-          ref_id: null,
-          unit_cost: pmp,
-          device_id: deviceInfo.device_id,
-          client_op_id: `inv_adj_${product.id}_${Date.now()}`,
-          version: 1,
-        };
-        await inventoryMovementRepo.create(movement);
-      } else {
-        // Correction positive : on crée un lot d'entrée (au PMP courant)
-        // createStockBatchOffline crée déjà le mouvement d'inventaire IN associé.
-        await createStockBatchOffline({
-          shopId,
-          productId: product.id,
-          quantity: delta,
-          costPrice: pmp,
-          sellPrice: product.sell_price,
-          notes: 'Ajustement de stock',
-        });
-      }
-
-      setShowAdjustSheet(false);
+      setShowEditSheet(false);
       await loadProduct();
-      Alert.alert('Succès', 'Stock ajusté');
+      Alert.alert('Succès', 'Article mis à jour');
     } catch (error: unknown) {
-      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible d'ajuster le stock");
+      Alert.alert('Erreur', getErrorMessage(error) ?? "Impossible de mettre à jour l'article");
     } finally {
       setIsSubmitting(false);
     }
@@ -430,6 +457,43 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
   }
 
   const breadcrumb = buildBreadcrumb(product);
+
+  // Prix par conditionnement.
+  // Le produit peut porter UN conditionnement (ex: Carton de 24) avec son prix de
+  // pack ; le prix/pièce du pack en découle (prix pack / qté). La tuile « à l'unité »
+  // utilise toujours le prix de vente unitaire.
+  const packTiles =
+    product.units_per_package && product.units_per_package > 0 && product.package_price
+      ? [
+          {
+            key: 'pack',
+            title: `${packagingName ?? 'Conditionnement'} · ${product.units_per_package} ${product.unit}`,
+            price: product.package_price,
+            sub: `soit ${formatMoney(
+              Math.round(product.package_price / product.units_per_package)
+            )} / ${product.unit}`,
+            subColor: Colors.success.main,
+          },
+        ]
+      : [];
+  const packagingTiles = [
+    ...packTiles,
+    {
+      key: 'unit',
+      title: `Sous-cond. · ${product.unit}`,
+      price: sellPrice,
+      sub: "à l'unité",
+      subColor: Colors.textColors.tertiary,
+    },
+  ];
+
+  // Marge estimée en direct dans la sheet d'édition.
+  const editSellNum = parseInt(editSell, 10);
+  const editCostNum = parseInt(editCost, 10);
+  const editMarginPct =
+    !isNaN(editSellNum) && editSellNum > 0 && !isNaN(editCostNum)
+      ? Math.round(((editSellNum - editCostNum) / editSellNum) * 100)
+      : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -461,20 +525,31 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 </Text>
               ) : null}
             </View>
-            <View
-              style={[
-                styles.statusBadge,
-                isLowStock ? styles.statusBadgeLow : styles.statusBadgeOk,
-              ]}
-            >
-              <Text
+            <View style={styles.cardTopRight}>
+              <View
                 style={[
-                  styles.statusBadgeText,
-                  isLowStock ? styles.statusBadgeTextLow : styles.statusBadgeTextOk,
+                  styles.statusBadge,
+                  isLowStock ? styles.statusBadgeLow : styles.statusBadgeOk,
                 ]}
               >
-                {statusLabel}
-              </Text>
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    isLowStock ? styles.statusBadgeTextLow : styles.statusBadgeTextOk,
+                  ]}
+                >
+                  {statusLabel}
+                </Text>
+              </View>
+              {canEditProduct ? (
+                <TouchableOpacity
+                  style={styles.editIconButton}
+                  onPress={openEditSheet}
+                  activeOpacity={0.7}
+                >
+                  <Edit size={16} color={Colors.action} />
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
 
@@ -526,6 +601,27 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
           </TouchableOpacity>
         </View>
 
+        {/* PRIX PAR CONDITIONNEMENT */}
+        <View style={styles.packCard}>
+          <View style={styles.packTitleRow}>
+            <Package size={18} color={Colors.success.main} />
+            <Text style={styles.packTitle}>Prix par conditionnement</Text>
+          </View>
+          <View style={styles.packTiles}>
+            {packagingTiles.map(tile => (
+              <View key={tile.key} style={styles.packTile}>
+                <Text style={styles.packTileLabel} numberOfLines={1}>
+                  {tile.title}
+                </Text>
+                <Text style={styles.packTilePrice}>{formatMoney(tile.price)}</Text>
+                <Text style={[styles.packTileSub, { color: tile.subColor }]} numberOfLines={1}>
+                  {tile.sub}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* BOUTONS ENTRÉE / SORTIE — MANAGER+ uniquement */}
         {canEditProduct ? (
           <View style={styles.actionGroup}>
@@ -535,7 +631,7 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 onPress={openEntrySheet}
               >
                 <View style={[styles.actionIcon, styles.actionIconEntry]}>
-                  <ArrowUp size={16} color={Colors.success.foreground} />
+                  <Plus size={16} color={Colors.success.foreground} />
                 </View>
                 <Text style={[styles.actionButtonText, styles.actionButtonTextEntry]}>Entrée</Text>
               </TouchableOpacity>
@@ -545,36 +641,9 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
                 onPress={openExitSheet}
               >
                 <View style={[styles.actionIcon, styles.actionIconExit]}>
-                  <ArrowDown size={16} color={Colors.danger.foreground} />
+                  <Minus size={16} color={Colors.danger.foreground} />
                 </View>
                 <Text style={[styles.actionButtonText, styles.actionButtonTextExit]}>Sortie</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* MODIFIER LE PRIX / AJUSTER LE STOCK */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonNeutral]}
-                onPress={openPriceSheet}
-              >
-                <View style={[styles.actionIcon, styles.actionIconNeutral]}>
-                  <Edit size={16} color={Colors.primary.foreground} />
-                </View>
-                <Text style={[styles.actionButtonText, styles.actionButtonTextNeutral]}>
-                  Modifier le prix
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, styles.actionButtonNeutral]}
-                onPress={openAdjustSheet}
-              >
-                <View style={[styles.actionIcon, styles.actionIconNeutral]}>
-                  <ArrowLeftRight size={16} color={Colors.primary.foreground} />
-                </View>
-                <Text style={[styles.actionButtonText, styles.actionButtonTextNeutral]}>
-                  Ajuster le stock
-                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -843,128 +912,171 @@ export default function ProductDetailsScreen({ navigation, route }: ProductDetai
         </View>
       </Modal>
 
-      {/* SHEET — PRIX DE VENTE */}
+      {/* SHEET — MODIFIER L'ARTICLE (nom + prix + ajustement de stock) */}
       <Modal
-        visible={showPriceSheet}
+        visible={showEditSheet}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowPriceSheet(false)}
+        onRequestClose={() => setShowEditSheet(false)}
       >
         <View style={styles.sheetOverlay}>
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Prix de vente</Text>
+              <Text style={styles.sheetTitle}>Modifier l&apos;article</Text>
             </View>
-            <Text style={styles.sheetSubtitle}>
-              {product.name} · PMP actuel {formatMoney(pmp)}
-            </Text>
+            <Text style={styles.sheetSubtitle}>Corrigez le nom, les prix et ajustez le stock</Text>
 
             <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Prix de vente unitaire (FCFA)</Text>
+              <Text style={styles.formLabel}>Désignation</Text>
               <TextInput
                 style={styles.input}
-                value={priceValue}
-                onChangeText={text => setPriceValue(text.replace(/[^0-9]/g, ''))}
-                keyboardType="numeric"
-                placeholder="0"
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Nom de l'article"
                 placeholderTextColor={Colors.muted.foreground}
               />
 
+              <View style={styles.editPriceRow}>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>Prix de revient</Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editCost}
+                      onChangeText={text => setEditCost(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                </View>
+                <View style={styles.editPriceCol}>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>Prix de vente</Text>
+                  <View style={styles.inputSuffixWrap}>
+                    <TextInput
+                      style={styles.inputSuffix}
+                      value={editSell}
+                      onChangeText={text => setEditSell(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={Colors.muted.foreground}
+                    />
+                    <Text style={styles.inputSuffixText}>F</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.marginRow}>
+                <TrendingUp size={16} color={Colors.info.text} />
+                <Text style={styles.marginRowLabel}>Marge estimée</Text>
+                <Text style={styles.marginRowValue}>{editMarginPct} %</Text>
+              </View>
+
               <Text style={[styles.formLabel, styles.formLabelSpaced]}>
-                Seuil d&apos;alerte ({product.unit})
+                Stock (ajustement d&apos;inventaire)
               </Text>
-              <TextInput
-                style={styles.input}
-                value={priceThresholdValue}
-                onChangeText={text => setPriceThresholdValue(text.replace(/[^0-9]/g, ''))}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={Colors.muted.foreground}
-              />
+              <View style={styles.inputSuffixWrap}>
+                <TextInput
+                  style={styles.inputSuffix}
+                  value={editStock}
+                  onChangeText={text => setEditStock(text.replace(/[^0-9]/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.muted.foreground}
+                />
+                <Text style={styles.inputSuffixText}>{product.unit}</Text>
+              </View>
+              <Text style={styles.adjustHint}>
+                Modifier le stock crée un mouvement d&apos;inventaire tracé (écart corrigé).
+              </Text>
+
+              {packagingList.length > 0 && (
+                <>
+                  <Text style={[styles.formLabel, styles.formLabelSpaced]}>
+                    Conditionnement (optionnel)
+                  </Text>
+                  <View style={styles.pkgChipRow}>
+                    <TouchableOpacity
+                      style={[styles.pkgChip, !editPkgTypeId && styles.pkgChipActive]}
+                      onPress={() => setEditPkgTypeId(null)}
+                    >
+                      <Text
+                        style={[styles.pkgChipText, !editPkgTypeId && styles.pkgChipTextActive]}
+                      >
+                        Aucun
+                      </Text>
+                    </TouchableOpacity>
+                    {packagingList.map(pkg => (
+                      <TouchableOpacity
+                        key={pkg.id}
+                        style={[styles.pkgChip, editPkgTypeId === pkg.id && styles.pkgChipActive]}
+                        onPress={() => setEditPkgTypeId(pkg.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.pkgChipText,
+                            editPkgTypeId === pkg.id && styles.pkgChipTextActive,
+                          ]}
+                        >
+                          {pkg.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {!!editPkgTypeId && (
+                    <View style={styles.editPriceRow}>
+                      <View style={styles.editPriceCol}>
+                        <Text style={styles.formLabel}>Pièces / cond.</Text>
+                        <View style={styles.inputSuffixWrap}>
+                          <TextInput
+                            style={styles.inputSuffix}
+                            value={editUnitsPerPackage}
+                            onChangeText={t => setEditUnitsPerPackage(t.replace(/[^0-9]/g, ''))}
+                            keyboardType="numeric"
+                            placeholder="24"
+                            placeholderTextColor={Colors.muted.foreground}
+                          />
+                          <Text style={styles.inputSuffixText}>{product.unit}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.editPriceCol}>
+                        <Text style={styles.formLabel}>Prix du cond.</Text>
+                        <View style={styles.inputSuffixWrap}>
+                          <TextInput
+                            style={styles.inputSuffix}
+                            value={editPackagePrice}
+                            onChangeText={t => setEditPackagePrice(t.replace(/[^0-9]/g, ''))}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor={Colors.muted.foreground}
+                          />
+                          <Text style={styles.inputSuffixText}>F</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </>
+              )}
 
               <View style={styles.sheetActions}>
                 <TouchableOpacity
                   style={styles.sheetCancelButton}
-                  onPress={() => setShowPriceSheet(false)}
+                  onPress={() => setShowEditSheet(false)}
                 >
                   <Text style={styles.sheetCancelText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.sheetSubmitButton, styles.sheetSubmitSky]}
-                  onPress={handleSubmitPrice}
+                  onPress={handleSubmitEdit}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator size="small" color={Colors.primary.foreground} />
                   ) : (
                     <Text style={styles.sheetSubmitText}>Enregistrer</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* SHEET — AJUSTER LE STOCK (correction d'inventaire) */}
-      <Modal
-        visible={showAdjustSheet}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowAdjustSheet(false)}
-      >
-        <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Ajuster le stock</Text>
-              <Text style={styles.sheetStock}>
-                Stock : {currentStock} {product.unit}
-              </Text>
-            </View>
-            <Text style={styles.sheetSubtitle}>
-              {product.name} · Corriger la quantité réelle en stock
-            </Text>
-
-            <View style={styles.sheetBody}>
-              <Text style={styles.formLabel}>Quantité cible ({product.unit})</Text>
-              <TextInput
-                style={styles.input}
-                value={adjustValue}
-                onChangeText={text => setAdjustValue(text.replace(/[^0-9]/g, ''))}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={Colors.muted.foreground}
-              />
-              <Text style={styles.adjustHint}>
-                {(() => {
-                  const target = parseInt(adjustValue, 10);
-                  if (isNaN(target)) return 'Saisissez la quantité réellement présente.';
-                  const delta = target - currentStock;
-                  if (delta === 0) return 'Aucun changement.';
-                  if (delta > 0)
-                    return `Entrée de ${delta} ${product.unit} (nouveau lot au PMP ${formatMoney(pmp)}).`;
-                  return `Sortie de ${-delta} ${product.unit} (déstockage FIFO).`;
-                })()}
-              </Text>
-
-              <View style={styles.sheetActions}>
-                <TouchableOpacity
-                  style={styles.sheetCancelButton}
-                  onPress={() => setShowAdjustSheet(false)}
-                >
-                  <Text style={styles.sheetCancelText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sheetSubmitButton, styles.sheetSubmitSky]}
-                  onPress={handleSubmitAdjust}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color={Colors.primary.foreground} />
-                  ) : (
-                    <Text style={styles.sheetSubmitText}>Valider l&apos;ajustement</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -1027,6 +1139,20 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: Colors.textColors.tertiary,
     marginTop: 1,
+  },
+  cardTopRight: {
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+  },
+  editIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: Colors.action + '14',
+    borderWidth: 1,
+    borderColor: Colors.action + '33',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -1139,10 +1265,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.danger.background,
     borderColor: Colors.danger.main + '55',
   },
-  actionButtonNeutral: {
-    backgroundColor: Colors.surface,
-    borderColor: Colors.border,
-  },
   actionIcon: {
     width: 24,
     height: 24,
@@ -1156,9 +1278,6 @@ const styles = StyleSheet.create({
   actionIconExit: {
     backgroundColor: Colors.danger.main,
   },
-  actionIconNeutral: {
-    backgroundColor: Colors.action,
-  },
   actionButtonText: {
     fontSize: 15,
     fontWeight: '700',
@@ -1169,8 +1288,55 @@ const styles = StyleSheet.create({
   actionButtonTextExit: {
     color: Colors.danger.text,
   },
-  actionButtonTextNeutral: {
+  // PRIX PAR CONDITIONNEMENT
+  packCard: {
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  packTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  packTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.success.text,
+  },
+  packTiles: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  packTile: {
+    flex: 1,
+    minWidth: 140,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: 4,
+  },
+  packTileLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+  },
+  packTilePrice: {
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  packTileSub: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   // SECTION
   section: {
@@ -1354,6 +1520,32 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     lineHeight: 18,
   },
+  pkgChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  pkgChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pkgChipActive: {
+    backgroundColor: Colors.action,
+    borderColor: Colors.action,
+  },
+  pkgChipText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: Colors.textColors.secondary,
+  },
+  pkgChipTextActive: {
+    color: '#FFFFFF',
+  },
   input: {
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -1363,6 +1555,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text,
     backgroundColor: Colors.surfaceAlt,
+  },
+  inputSuffixWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  inputSuffix: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  inputSuffixText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textColors.tertiary,
+    marginLeft: Spacing.sm,
+  },
+  editPriceRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  editPriceCol: {
+    flex: 1,
+  },
+  marginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.info.background,
+  },
+  marginRowLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.info.text,
+  },
+  marginRowValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.info.text,
+    fontVariant: ['tabular-nums'],
   },
   chipsRow: {
     flexDirection: 'row',

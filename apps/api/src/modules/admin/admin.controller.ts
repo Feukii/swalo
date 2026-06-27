@@ -217,6 +217,32 @@ export class AdminController {
     return this.adminService.getShopPos(shopId);
   }
 
+  @Get('shops/:shopId/accounting')
+  @Roles(Role.SUPERADMIN)
+  async getShopAccounting(
+    @Param('shopId') shopId: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.adminService.getShopAccounting(shopId, filters);
+  }
+
+  @Get('shops/:shopId/supervision')
+  @Roles(Role.SUPERADMIN)
+  async getShopSupervision(
+    @Param('shopId') shopId: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string
+  ) {
+    const filters: { start_date?: string; end_date?: string } = {};
+    if (startDate) filters.start_date = startDate;
+    if (endDate) filters.end_date = endDate;
+    return this.adminService.getShopSupervision(shopId, filters);
+  }
+
   @Get('enterprises/:id/reports')
   @Roles(Role.SUPERADMIN)
   async getEnterpriseReports(@Param('id') id: string) {
