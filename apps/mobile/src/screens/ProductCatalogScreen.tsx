@@ -196,6 +196,10 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
   const [importPreview, setImportPreview] = useState<{
     valid_count: number;
     invalid_count: number;
+    to_create?: number;
+    to_update?: number;
+    columns_found?: string[];
+    columns_mapped?: Record<string, string>;
     errors: Array<{ row: number; field: string; message: string }>;
     preview_rows: Array<{
       name?: string;
@@ -672,6 +676,10 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
       const preview = await importApi.previewCatalog<{
         valid_count: number;
         invalid_count: number;
+        to_create?: number;
+        to_update?: number;
+        columns_found?: string[];
+        columns_mapped?: Record<string, string>;
         errors: Array<{ row: number; field: string; message: string }>;
         preview_rows: Array<{
           name?: string;
@@ -701,10 +709,19 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
     if (!importFile) return;
     try {
       setIsImporting(true);
-      await importApi.confirmCatalog(importFile.content, importFile.name);
+      const result = (await importApi.confirmCatalog(importFile.content, importFile.name)) as {
+        created_count?: number;
+        updated_count?: number;
+      };
+      const createdCount = result?.created_count ?? 0;
+      const updatedCount = result?.updated_count ?? 0;
       setImportStep('success');
-      Alert.alert('Import reussi', 'Le catalogue a ete mis a jour avec succes.');
+      Alert.alert(
+        'Import reussi',
+        `${createdCount} article(s) cree(s), ${updatedCount} mis a jour.`
+      );
       closeImportModal();
+      // Recharge la liste + le stock pour refleter immediatement prix et quantites.
       loadData();
     } catch (error: unknown) {
       Alert.alert(
@@ -1863,7 +1880,7 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                   <Text style={styles.importHint}>
                     Colonnes requises: Code Article, Libellé Article{'\n'}
                     Colonnes optionnelles: Famille, Article, Marque, Référence, Prix achat, Prix
-                    vente
+                    vente, Stock
                   </Text>
                   <TouchableOpacity
                     style={styles.importPickButton}
@@ -1886,8 +1903,16 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                 <View style={styles.importPreviewContainer}>
                   <View style={styles.importPreviewHeader}>
                     <View style={styles.importPreviewStat}>
-                      <Text style={styles.importPreviewStatValue}>{importPreview.valid_count}</Text>
-                      <Text style={styles.importPreviewStatLabel}>Valides</Text>
+                      <Text style={styles.importPreviewStatValue}>
+                        {importPreview.to_create ?? importPreview.valid_count}
+                      </Text>
+                      <Text style={styles.importPreviewStatLabel}>À créer</Text>
+                    </View>
+                    <View style={styles.importPreviewStat}>
+                      <Text style={[styles.importPreviewStatValue, { color: Colors.action }]}>
+                        {importPreview.to_update ?? 0}
+                      </Text>
+                      <Text style={styles.importPreviewStatLabel}>À mettre à jour</Text>
                     </View>
                     <View style={styles.importPreviewStat}>
                       <Text style={[styles.importPreviewStatValue, { color: Colors.danger.main }]}>
@@ -1903,6 +1928,24 @@ export default function ProductCatalogScreen({ navigation }: ProductCatalogScree
                       <Text style={styles.importFileName}>{importFile.name}</Text>
                     </View>
                   )}
+
+                  {importPreview.columns_mapped &&
+                    Object.keys(importPreview.columns_mapped).length > 0 && (
+                      <View style={styles.importColumnsBox}>
+                        <Text style={styles.importColumnsTitle}>Colonnes détectées</Text>
+                        {Object.entries(importPreview.columns_mapped).map(([source, target]) => (
+                          <View key={source} style={styles.importColumnRow}>
+                            <Text style={styles.importColumnSource} numberOfLines={1}>
+                              {source}
+                            </Text>
+                            <Text style={styles.importColumnArrow}>→</Text>
+                            <Text style={styles.importColumnTarget} numberOfLines={1}>
+                              {target}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
 
                   {importPreview.errors.length > 0 && (
                     <View style={styles.importErrors}>
@@ -3271,5 +3314,40 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.5,
+  },
+  importColumnsBox: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  importColumnsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  importColumnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  importColumnSource: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.muted.foreground,
+  },
+  importColumnArrow: {
+    fontSize: 13,
+    color: Colors.action,
+    marginHorizontal: Spacing.sm,
+  },
+  importColumnTarget: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
   },
 });
