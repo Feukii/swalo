@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import * as XLSX from 'xlsx';
 import { mapColumnName, REQUIRED_COLUMNS, DEFAULT_VALUES } from './column-mapping';
@@ -17,6 +18,8 @@ interface ImportRow {
   packaging?: string; // Nom du conditionnement (ex: Carton)
   units_per_package?: number; // Pieces par conditionnement (ex: 24)
   package_price?: number; // Prix du conditionnement complet
+  stock?: number; // Stock cible (quantité) a importer
+  action?: 'create' | 'update'; // create = nouveau SKU, update = SKU existant
 }
 
 interface ValidationError {
@@ -31,6 +34,8 @@ export interface ImportPreviewResult {
   invalid_count: number;
   valid_rows: number; // Alias for valid_count
   invalid_rows: number; // Alias for invalid_count
+  to_create: number; // Nombre de nouveaux produits (SKU inconnu)
+  to_update: number; // Nombre de produits existants (SKU connu) a mettre a jour
   errors: ValidationError[];
   preview_rows: ImportRow[];
   preview: ImportRow[]; // Alias for preview_rows
@@ -153,14 +158,9 @@ export class ImportService {
       if (!sku) {
         errors.push({ row: rowNumber, field: 'sku', message: 'SKU requis' });
         hasError = true;
-      } else if (existingSKUSet.has(sku.toLowerCase())) {
-        errors.push({
-          row: rowNumber,
-          field: 'sku',
-          message: `SKU "${sku}" existe déjà`,
-        });
-        hasError = true;
       } else if (seenSKUs.has(sku.toLowerCase())) {
+        // Un SKU existant n'est PAS une erreur (= mise a jour). Seul un doublon
+        // a l'interieur du fichier reste une vraie erreur.
         errors.push({
           row: rowNumber,
           field: 'sku',
@@ -195,6 +195,14 @@ export class ImportService {
 
       if (!hasError && costPrice !== null && sellPrice !== null) {
         seenSKUs.add(sku.toLowerCase());
+        const action: 'create' | 'update' = existingSKUSet.has(sku.toLowerCase())
+          ? 'update'
+          : 'create';
+        const stockRaw = normalizedRow.stock;
+        const stock =
+          stockRaw !== undefined && stockRaw !== ''
+            ? (this.parseNumber(stockRaw) ?? undefined)
+            : undefined;
         validRows.push({
           sku,
           name,
@@ -209,9 +217,14 @@ export class ImportService {
           packaging: this.toOptionalString(normalizedRow.packaging),
           units_per_package: this.parsePositiveInt(normalizedRow.units_per_package),
           package_price: this.parseNumber(normalizedRow.package_price) ?? undefined,
+          stock,
+          action,
         });
       }
     }
+
+    const toCreate = validRows.filter(r => r.action === 'create').length;
+    const toUpdate = validRows.filter(r => r.action === 'update').length;
 
     return {
       total_rows: jsonData.length,
@@ -220,6 +233,8 @@ export class ImportService {
       // Aliases for backward compatibility
       valid_rows: validRows.length,
       invalid_rows: jsonData.length - validRows.length,
+      to_create: toCreate,
+      to_update: toUpdate,
       errors: errors.slice(0, 100), // Limiter a 100 erreurs
       preview_rows: validRows.slice(0, 10), // Apercu des 10 premiers
       preview: validRows.slice(0, 10), // Alias
@@ -254,12 +269,16 @@ export class ImportService {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-    // Récupérer les SKU existants
-    const existingSKUs = await this.prisma.product.findMany({
+    // Récupérer les produits existants (id + sku) pour distinguer création / mise à jour.
+    // Un SKU connu (même boutique, non supprimé, insensible à la casse) => UPDATE par son id.
+    const existingProducts = await this.prisma.product.findMany({
       where: { shop_id: shopId, deleted: false },
-      select: { sku: true },
+      select: { id: true, sku: true },
     });
-    const existingSKUSet = new Set(existingSKUs.map(p => p.sku.toLowerCase()));
+    const existingProductMap = new Map<string, string>(); // sku lowercase -> product id
+    for (const p of existingProducts) {
+      existingProductMap.set(p.sku.toLowerCase(), p.id);
+    }
 
     // Précharger les conditionnements existants (résolution / création à la volée)
     const existingPackaging = await this.prisma.packagingType.findMany({
@@ -271,8 +290,9 @@ export class ImportService {
       packagingCache.set(pt.name.trim().toLowerCase(), pt.id);
     }
 
-    // Importer les produits valides
-    let imported = 0;
+    // Importer / mettre à jour les produits valides
+    let created = 0;
+    let updated = 0;
     let skipped = 0;
     const seenSKUs = new Set<string>();
 
@@ -299,13 +319,12 @@ export class ImportService {
           ? this.parseNumber(sellPriceRaw)
           : (DEFAULT_VALUES.sell_price as number);
 
-      // Skip si invalide ou doublon
+      // Skip si invalide ou doublon DANS le fichier (un SKU existant n'est PAS skippé : update)
       if (
         !sku ||
         !name ||
         costPrice === null ||
         sellPrice === null ||
-        existingSKUSet.has(sku.toLowerCase()) ||
         seenSKUs.has(sku.toLowerCase())
       ) {
         skipped++;
@@ -323,27 +342,75 @@ export class ImportService {
         packagingTypeId = await this.resolvePackagingTypeId(shopId, packagingName, packagingCache);
       }
 
+      // Stock cible : seulement si la colonne « stock » est présente et non vide pour la ligne.
+      const stockRaw = normalizedRow.stock;
+      const targetStock =
+        stockRaw !== undefined && stockRaw !== '' ? this.parseNumber(stockRaw) : null;
+
+      const existingId = existingProductMap.get(sku.toLowerCase());
+
       try {
-        await this.prisma.product.create({
-          data: {
-            shop_id: shopId,
-            sku,
-            name,
-            family: this.toNullableString(normalizedRow.family),
-            article_type: this.toNullableString(normalizedRow.article_type),
-            brand: this.toNullableString(normalizedRow.brand),
-            reference: this.toNullableString(normalizedRow.reference),
-            cost_price: costPrice,
-            sell_price: sellPrice,
-            unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
-            alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
-            packaging_type_id: packagingTypeId,
-            units_per_package: unitsPerPackage ?? null,
-            package_price: packagePrice ?? null,
-            is_active: true,
-          },
-        });
-        imported++;
+        let productId: string;
+        if (existingId) {
+          // UPDATE : ne pas écraser un champ existant avec une valeur vide du fichier.
+          const updateData: Record<string, unknown> = { name }; // name est requis (toujours présent)
+          if (this.hasValue(normalizedRow.family))
+            updateData.family = this.toNullableString(normalizedRow.family);
+          if (this.hasValue(normalizedRow.article_type))
+            updateData.article_type = this.toNullableString(normalizedRow.article_type);
+          if (this.hasValue(normalizedRow.brand))
+            updateData.brand = this.toNullableString(normalizedRow.brand);
+          if (this.hasValue(normalizedRow.reference))
+            updateData.reference = this.toNullableString(normalizedRow.reference);
+          if (this.hasValue(normalizedRow.cost_price)) updateData.cost_price = costPrice;
+          if (this.hasValue(normalizedRow.sell_price)) updateData.sell_price = sellPrice;
+          if (this.hasValue(normalizedRow.unit))
+            updateData.unit = this.toTrimmedString(normalizedRow.unit) || 'unit';
+          if (this.hasValue(normalizedRow.alert_threshold))
+            updateData.alert_threshold = this.parseNumber(normalizedRow.alert_threshold) ?? 5;
+          if (packagingTypeId) updateData.packaging_type_id = packagingTypeId;
+          if (unitsPerPackage !== undefined) updateData.units_per_package = unitsPerPackage;
+          if (packagePrice !== null) updateData.package_price = packagePrice;
+
+          await this.prisma.product.update({ where: { id: existingId }, data: updateData });
+          productId = existingId;
+          updated++;
+        } else {
+          const createdProduct = await this.prisma.product.create({
+            data: {
+              shop_id: shopId,
+              sku,
+              name,
+              family: this.toNullableString(normalizedRow.family),
+              article_type: this.toNullableString(normalizedRow.article_type),
+              brand: this.toNullableString(normalizedRow.brand),
+              reference: this.toNullableString(normalizedRow.reference),
+              cost_price: costPrice,
+              sell_price: sellPrice,
+              unit: this.toTrimmedString(normalizedRow.unit) || 'unit',
+              alert_threshold: this.parseNumber(normalizedRow.alert_threshold) ?? 5,
+              packaging_type_id: packagingTypeId,
+              units_per_package: unitsPerPackage ?? null,
+              package_price: packagePrice ?? null,
+              is_active: true,
+            },
+            select: { id: true },
+          });
+          productId = createdProduct.id;
+          created++;
+        }
+
+        // Import du stock : ajuste le stock à la cible via UN mouvement INVENTORY (delta).
+        if (targetStock !== null) {
+          await this.applyStockTarget(
+            shopId,
+            productId,
+            targetStock,
+            costPrice,
+            sellPrice,
+            !!existingId
+          );
+        }
       } catch (error) {
         // Log l'erreur avec le détail du produit concerné
         const errorMessage = error instanceof Error ? error.message : '';
@@ -361,15 +428,80 @@ export class ImportService {
       }
     }
 
+    const imported = created + updated;
     return {
-      message: `Import terminé: ${String(imported)} produit(s) importé(s)`,
-      imported,
+      message: `Import terminé: ${String(created)} créé(s), ${String(updated)} mis à jour`,
+      imported, // Alias = created + updated
       skipped,
       total: jsonData.length,
-      // Aliases for frontend compatibility
-      created_count: imported,
-      updated_count: 0, // This import only creates, doesn't update
+      // Counts réels pour le frontend
+      created_count: created,
+      updated_count: updated,
     };
+  }
+
+  /**
+   * Ajuste le stock d'un produit pour atteindre la cible `targetStock`.
+   * Le stock = somme des inventory_movements.qty. On crée donc UN mouvement de type
+   * INVENTORY avec qty = targetStock - stock_actuel (rien si delta = 0). Pour un delta
+   * positif on crée aussi un StockBatch (cohérence valorisation FIFO).
+   */
+  private async applyStockTarget(
+    shopId: string,
+    productId: string,
+    targetStock: number,
+    costPrice: number,
+    sellPrice: number,
+    isExisting: boolean
+  ): Promise<void> {
+    let currentStock = 0;
+    if (isExisting) {
+      const movements = await this.prisma.inventoryMovement.findMany({
+        where: { product_id: productId, shop_id: shopId, deleted: false },
+        select: { qty: true },
+      });
+      currentStock = movements.reduce((sum, m) => sum + m.qty, 0);
+    }
+
+    const delta = targetStock - currentStock;
+    if (delta === 0) return;
+
+    await this.prisma.inventoryMovement.create({
+      data: {
+        shop_id: shopId,
+        product_id: productId,
+        type: 'INVENTORY',
+        qty: delta,
+        reason: 'Import catalogue',
+        ref_type: 'IMPORT',
+        unit_cost: costPrice,
+        device_id: 'import',
+        client_op_id: randomUUID(),
+      },
+    });
+
+    // Delta positif : créer un lot pour la valorisation FIFO. Delta négatif : mouvement seul.
+    if (delta > 0) {
+      await this.prisma.stockBatch.create({
+        data: {
+          shop_id: shopId,
+          product_id: productId,
+          quantity: delta,
+          remaining_quantity: delta,
+          cost_price: costPrice,
+          sell_price: sellPrice,
+        },
+      });
+    }
+  }
+
+  /**
+   * Vrai si la valeur de cellule est présente et non vide (après trim pour les chaînes).
+   */
+  private hasValue(value: unknown): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') return value.trim() !== '';
+    return true;
   }
 
   /**
