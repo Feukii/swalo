@@ -130,6 +130,15 @@ export const COLUMN_ALIASES: Record<string, string> = {
   seuil_alerte: 'alert_threshold',
   'stock minimum': 'alert_threshold',
   'stock min': 'alert_threshold',
+
+  // Stock / Quantité (stock initial à importer)
+  stock: 'stock',
+  quantite: 'stock',
+  qty: 'stock',
+  quantity: 'stock',
+  'stock initial': 'stock',
+  stock_initial: 'stock',
+  quantite_stock: 'stock',
 };
 
 /**
@@ -178,6 +187,7 @@ export const OPTIONAL_COLUMNS = [
   'packaging',
   'units_per_package',
   'package_price',
+  'stock',
 ];
 
 /**
