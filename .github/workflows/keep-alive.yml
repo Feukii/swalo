@@ -18,9 +18,13 @@ on:
   workflow_dispatch: # Permet le déclenchement manuel
 
 env:
-  API_URL: https://swalo-api.onrender.com/api/health
+  # /health/ready réchauffe AUSSI la base Neon (SELECT 1), pas seulement l'API.
+  # NB: ceci n'est qu'un filet de secours — le mécanisme principal est un
+  # moniteur externe (UptimeRobot / cron-job.org), plus fiable que le cron
+  # GitHub Actions qui peut avoir 10-30 min de retard.
+  API_URL: https://swalo-api.onrender.com/api/health/ready
   # URL staging (optionnel - décommenter si service staging séparé)
-  # STAGING_API_URL: https://swalo-api-staging.onrender.com/api/health
+  # STAGING_API_URL: https://swalo-api-staging.onrender.com/api/health/ready
 
 jobs:
   ping-production:

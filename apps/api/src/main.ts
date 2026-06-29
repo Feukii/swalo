@@ -1,10 +1,38 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+const processLogger = new Logger('Process');
+
+/**
+ * Garde-fous niveau process : sur Render free tier, une seule promesse rejetée
+ * non gérée (tâche de fond, scan de notifications, appel « non bloquant »…)
+ * suffit à tuer tout le serveur Node (comportement par défaut depuis Node 15),
+ * ce qui se traduit par « l'API tombe » jusqu'au prochain cold start.
+ * On loggue et on garde le serveur en vie : la priorité ici est la disponibilité.
+ */
+function installProcessGuards() {
+  process.on('unhandledRejection', (reason: unknown) => {
+    const message = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+    processLogger.error(`Unhandled promise rejection (serveur maintenu en vie): ${message}`);
+  });
+
+  process.on('uncaughtException', (error: Error) => {
+    processLogger.error(
+      `Uncaught exception (serveur maintenu en vie): ${error.stack ?? error.message}`
+    );
+  });
+}
+
 async function bootstrap() {
+  installProcessGuards();
+
   const app = await NestFactory.create(AppModule);
+
+  // Arrêts/redéploiements Render propres : déclenche onModuleDestroy (déconnexion Prisma)
+  // sur SIGTERM/SIGINT au lieu de couper brutalement.
+  app.enableShutdownHooks();
 
   // Global exception filter pour logger toutes les erreurs
   app.useGlobalFilters(new HttpExceptionFilter());
