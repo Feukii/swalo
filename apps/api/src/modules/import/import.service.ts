@@ -57,13 +57,21 @@ export class ImportService {
     fileContent: string,
     fileName: string
   ): Promise<ImportPreviewResult> {
-    // Décoder le contenu base64
-    const buffer = Buffer.from(fileContent, 'base64');
+    // Parse le fichier UNE SEULE FOIS puis valide. confirmCatalogImport réutilise
+    // exactement le même découpage (parseFile + buildPreview) afin de ne jamais
+    // parser le fichier deux fois (coûteux en mémoire/CPU sur Render free tier).
+    const jsonData = this.parseFile(fileContent, fileName);
+    return this.buildPreview(shopId, jsonData);
+  }
 
-    // Déterminer le type de fichier
+  /**
+   * Décode le base64 et lit le classeur (CSV ou XLSX) en une seule passe.
+   * Toute la lecture du fichier est centralisée ici.
+   */
+  private parseFile(fileContent: string, fileName: string): Record<string, unknown>[] {
+    const buffer = Buffer.from(fileContent, 'base64');
     const isCSV = fileName.toLowerCase().endsWith('.csv');
 
-    // Parser le fichier
     let workbook: XLSX.WorkBook;
     try {
       if (isCSV) {
@@ -76,21 +84,31 @@ export class ImportService {
       throw new BadRequestException('Impossible de lire le fichier. Vérifiez le format.');
     }
 
-    // Prendre la première feuille
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
       throw new BadRequestException('Le fichier est vide');
     }
 
     const sheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
     if (jsonData.length === 0) {
       throw new BadRequestException('Aucune donnée trouvée dans le fichier');
     }
 
+    return jsonData;
+  }
+
+  /**
+   * Valide les lignes déjà parsées et construit l'aperçu (mapping de colonnes,
+   * colonnes requises, détection création/mise à jour). Ne relit PAS le fichier.
+   */
+  private async buildPreview(
+    shopId: string,
+    jsonData: Record<string, unknown>[]
+  ): Promise<ImportPreviewResult> {
     // Verifier les colonnes et appliquer le mapping
-    const firstRow = jsonData[0] as Record<string, unknown>;
+    const firstRow = jsonData[0];
     const originalColumns = Object.keys(firstRow);
     const columnMapping: Record<string, string> = {};
 
@@ -126,7 +144,7 @@ export class ImportService {
     const seenSKUs = new Set<string>();
 
     for (let i = 0; i < jsonData.length; i++) {
-      const row = jsonData[i] as Record<string, unknown>;
+      const row = jsonData[i];
       const rowNumber = i + 2; // +2 car ligne 1 = headers, index commence a 0
 
       // Normaliser les cles avec le mapping de colonnes
@@ -247,27 +265,14 @@ export class ImportService {
    * Confirmer et exécuter l'import du catalogue
    */
   async confirmCatalogImport(shopId: string, fileContent: string, fileName: string) {
-    // Re-parser et valider
-    const preview = await this.previewCatalogImport(shopId, fileContent, fileName);
+    // Parse le fichier UNE SEULE FOIS, puis valide sur ces mêmes lignes
+    // (plus de double parsing : parseFile + buildPreview partagés avec le preview).
+    const jsonData = this.parseFile(fileContent, fileName);
+    const preview = await this.buildPreview(shopId, jsonData);
 
     if (preview.valid_rows === 0) {
       throw new BadRequestException('Aucune ligne valide à importer');
     }
-
-    // Parser à nouveau pour récupérer toutes les lignes valides
-    const buffer = Buffer.from(fileContent, 'base64');
-    const isCSV = fileName.toLowerCase().endsWith('.csv');
-
-    let workbook: XLSX.WorkBook;
-    if (isCSV) {
-      const csvContent = buffer.toString('utf-8');
-      workbook = XLSX.read(csvContent, { type: 'string' });
-    } else {
-      workbook = XLSX.read(buffer, { type: 'buffer' });
-    }
-
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
     // Récupérer les produits existants (id + sku) pour distinguer création / mise à jour.
     // Un SKU connu (même boutique, non supprimé, insensible à la casse) => UPDATE par son id.
@@ -299,7 +304,7 @@ export class ImportService {
     for (const row of jsonData) {
       // Normaliser les cles avec le mapping de colonnes
       const normalizedRow: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+      for (const [key, value] of Object.entries(row)) {
         const mappedKey = mapColumnName(key);
         normalizedRow[mappedKey] = value;
       }
