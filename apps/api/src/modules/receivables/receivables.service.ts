@@ -23,6 +23,15 @@ export class ReceivablesService {
           ? 'Remboursement - Ajustement de solde'
           : undefined;
 
+    // Une nouvelle créance (montant positif) doit obligatoirement avoir une
+    // date d'échéance. Les ajustements de solde / remboursements (montant
+    // négatif) n'en ont pas besoin.
+    if (!isNegativeAmount && dto.amount > 0 && !dto.due_date) {
+      throw new BadRequestException(
+        "La date d'échéance est obligatoire pour une nouvelle créance."
+      );
+    }
+
     // Vérifier la limite de crédit pour les montants positifs (nouvelles créances)
     if (!isNegativeAmount && dto.amount > 0) {
       const customer = await this.prisma.customer.findFirst({
@@ -51,7 +60,7 @@ export class ReceivablesService {
       }
     }
 
-    const dueDate = new Date(dto.due_date);
+    const dueDate = dto.due_date ? new Date(dto.due_date) : null;
 
     const receivable = await this.prisma.clientReceivable.create({
       data: {
