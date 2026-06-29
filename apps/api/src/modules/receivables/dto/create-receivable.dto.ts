@@ -7,9 +7,12 @@ export class CreateReceivableDto {
   @IsInt()
   amount: number; // Removed @Min(0) to allow negative amounts (refunds)
 
-  // Date d'échéance obligatoire pour toute nouvelle créance.
+  // Date d'échéance : obligatoire pour une nouvelle créance (montant positif),
+  // facultative pour un ajustement de solde / remboursement (montant négatif).
+  // La règle métier est appliquée dans le service.
+  @IsOptional()
   @IsDateString()
-  due_date: string;
+  due_date?: string;
 
   @IsOptional()
   @IsString()
