@@ -2,7 +2,7 @@
 
 # Test spécifique du système de créances clients
 
-API_URL="https://swalo-api.onrender.com/api"
+API_URL="https://swalo-api-prod.onrender.com/api"
 
 echo "🧪 Test du système de créances clients"
 echo "======================================="

@@ -58,7 +58,7 @@ jobs:
           cd apps/api && pnpm exec prisma generate && pnpm build
           cd ../web && pnpm build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://swalo-api.onrender.com/api' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://swalo-api-prod.onrender.com/api' }}
 
   # Deploy Web to Vercel
   deploy-web:
@@ -147,7 +147,7 @@ jobs:
         run: |
           for i in $(seq 1 10); do
             echo "Health check attempt $i/10..."
-            if curl -sf https://swalo-api.onrender.com/api/health; then
+            if curl -sf https://swalo-api-prod.onrender.com/api/health; then
               echo ""
               echo "API is healthy!"
               exit 0

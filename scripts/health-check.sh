@@ -21,7 +21,7 @@ ENV="${1:-prod}"
 # Configure URLs based on environment
 case "$ENV" in
   --prod|prod)
-    API_URL="https://swalo-api.onrender.com/api/health"
+    API_URL="https://swalo-api-prod.onrender.com/api/health"
     WEB_URL="https://swalo-web.vercel.app"
     ENV_NAME="Production"
     ;;

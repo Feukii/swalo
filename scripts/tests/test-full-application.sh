@@ -3,7 +3,7 @@
 # Test complet de toutes les fonctionnalités de SWALO
 # Date: 2025-12-20
 
-API_URL="https://swalo-api.onrender.com/api"
+API_URL="https://swalo-api-prod.onrender.com/api"
 
 echo "🧪 TEST COMPLET DE L'APPLICATION SWALO"
 echo "======================================"

@@ -9,7 +9,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://swalo-api.onrender.com/api/:path*"
+      "destination": "https://swalo-api-prod.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
