@@ -4,21 +4,20 @@ on:
   schedule:
     # Optimisé pour disponibilité 6h-22h UTC+1 (Afrique Centrale)
     # En UTC: 5h-21h
-    # Ping toutes les 14 minutes (sous le seuil de 15min de Render)
+    # Ping toutes les 10 minutes (sous le seuil de 15min de Render)
     #
     # Warm-up matinal à 4h55 UTC (5h55 UTC+1) pour être prêt à 6h
     - cron: '55 4 * * *'
     #
-    # Pings réguliers toutes les 14 minutes de 5h à 21h UTC
-    # Minutes: 0, 14, 28, 42, 56
-    - cron: '0,14,28,42,56 5-20 * * *'
+    # Pings réguliers toutes les 10 minutes de 5h à 21h UTC
+    - cron: '*/10 5-20 * * *'
     #
     # Dernier ping à 21h UTC (22h UTC+1)
     - cron: '0 21 * * *'
   workflow_dispatch: # Permet le déclenchement manuel
 
 env:
-  API_URL: https://swalo-api.onrender.com/api/health
+  API_URL: https://swalo-api-prod.onrender.com/api/health
   # URL staging (optionnel - décommenter si service staging séparé)
   # STAGING_API_URL: https://swalo-api-staging.onrender.com/api/health
 
@@ -66,7 +65,7 @@ jobs:
         if: always()
         run: |
           echo "Keep-alive completed at $(date -u) UTC"
-          echo "Next ping in ~14 minutes"
+          echo "Next ping in ~10 minutes"
 
   # Optionnel: Ping staging si service séparé configuré
   # ping-staging:

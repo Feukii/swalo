@@ -64,7 +64,7 @@ jobs:
       - name: Build Web
         run: cd apps/web && pnpm build
         env:
-          VITE_API_URL: ${{ vars.STAGING_API_URL || 'https://swalo-api.onrender.com/api' }}
+          VITE_API_URL: ${{ vars.STAGING_API_URL || 'https://swalo-api-prod.onrender.com/api' }}
 
   # Deploy Web to Vercel (Preview)
   deploy-web-staging:
@@ -136,4 +136,4 @@ jobs:
           echo ""
           echo "Staging URLs:"
           echo "- Web: Check Vercel Dashboard for preview URL"
-          echo "- API: https://swalo-api.onrender.com/api/health"
+          echo "- API: https://swalo-api-prod.onrender.com/api/health"

@@ -3,7 +3,7 @@
 # Script de test complet de l'API SWALO
 # Tests de toutes les fonctionnalités et règles métier
 
-API_URL="https://swalo-api.onrender.com/api"
+API_URL="https://swalo-api-prod.onrender.com/api"
 SHOP_CODE="011225"
 PIN="0000"
 
