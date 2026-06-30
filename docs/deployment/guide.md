@@ -54,7 +54,7 @@ Ce document décrit l'architecture de déploiement complète de SWALO, un mini-E
 ### Production
 
 - **Branche Git** : `main`
-- **API URL** : `https://swalo-api.onrender.com`
+- **API URL** : `https://swalo-api-prod.onrender.com`
 - **Web URL** : `https://swalo-web.vercel.app` (ou domaine personnalisé)
 - **Database** : Neon branche `main`
 
@@ -107,7 +107,7 @@ Ce document décrit l'architecture de déploiement complète de SWALO, un mini-E
    - **Output Directory** : `apps/web/dist`
 
 4. Variables d'environnement :
-   - `VITE_API_URL` : `https://swalo-api.onrender.com/api`
+   - `VITE_API_URL` : `https://swalo-api-prod.onrender.com/api`
 
 5. Récupérer les secrets pour GitHub Actions :
    - Settings > Tokens > Create
@@ -146,7 +146,7 @@ TURBO_TOKEN=xxx (optionnel, pour remote caching)
 
 ```
 TURBO_TEAM=your-team-name
-VITE_API_URL=https://swalo-api.onrender.com/api
+VITE_API_URL=https://swalo-api-prod.onrender.com/api
 ```
 
 **Environments** (Settings > Environments) :
@@ -266,7 +266,7 @@ Services exposés:
 
 1. Créer un compte gratuit sur [uptimerobot.com](https://uptimerobot.com)
 2. Ajouter des monitors :
-   - **API Health** : `https://swalo-api.onrender.com/api/health`
+   - **API Health** : `https://swalo-api-prod.onrender.com/api/health`
    - **Web Dashboard** : URL Vercel
 3. Configurer les alertes email
 

@@ -8,7 +8,7 @@ Ce guide décrit la séparation des environnements de développement, staging et
 | -------------- | ----------- | ------------------- | ---------------------- | ----------- |
 | **Local**      | Toutes      | Docker PostgreSQL   | localhost:3000         | Manuel      |
 | **Staging**    | `develop`   | Neon (branche dev)  | Preview Vercel         | Automatique |
-| **Production** | `main`      | Neon (branche main) | swalo-api.onrender.com | Automatique |
+| **Production** | `main`      | Neon (branche main) | swalo-api-prod.onrender.com | Automatique |
 
 ## Environnement Local
 
@@ -90,8 +90,8 @@ Le déploiement production est automatique sur merge vers `main`:
 
 | Service    | URL                                       |
 | ---------- | ----------------------------------------- |
-| API        | https://swalo-api.onrender.com/api        |
-| API Health | https://swalo-api.onrender.com/api/health |
+| API        | https://swalo-api-prod.onrender.com/api        |
+| API Health | https://swalo-api-prod.onrender.com/api/health |
 | Web        | https://swalo-web.vercel.app              |
 
 ### Secrets (Render Dashboard + GitHub)

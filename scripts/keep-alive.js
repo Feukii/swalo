@@ -8,13 +8,13 @@
  *
  * Usage:
  * 1. Configurer sur cron-job.org (gratuit)
- * 2. URL � pinger: https://swalo-api.onrender.com/api/health
+ * 2. URL � pinger: https://swalo-api-prod.onrender.com/api/health
  * 3. Intervalle: toutes les 10 minutes
  *
  * Alternative: D�ployer ce script sur un autre service gratuit
  */
 
-const API_URL = process.env.API_URL || 'https://swalo-api.onrender.com/api/health';
+const API_URL = process.env.API_URL || 'https://swalo-api-prod.onrender.com/api/health';
 const INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 async function ping() {

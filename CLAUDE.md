@@ -248,7 +248,7 @@ Production API restricts origins via `ALLOWED_ORIGINS` environment variable (com
 | ----------- | ----------------------------- | ---------------------- |
 | Local       | Docker PostgreSQL (localhost) | localhost:3000         |
 | Staging     | Neon branch `development`     | Preview                |
-| Production  | Neon branch `main`            | swalo-api.onrender.com |
+| Production  | Neon branch `main`            | swalo-api-prod.onrender.com |
 
 See `docs/deployment/environments.md` for full details.
 

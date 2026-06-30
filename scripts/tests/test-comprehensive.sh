@@ -2,7 +2,7 @@
 
 # Test complet de toutes les règles métier et l'intégrité mathématique
 
-API_URL="https://swalo-api.onrender.com/api"
+API_URL="https://swalo-api-prod.onrender.com/api"
 
 echo "🧪 TEST COMPLET - Intégrité Mathématique et Règles Métier"
 echo "=========================================================="
