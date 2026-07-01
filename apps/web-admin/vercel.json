@@ -1,11 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm turbo build --filter=@swalo/web-admin",
-  "outputDirectory": "apps/web-admin/dist",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- . apps/web-admin packages/core",
+  "buildCommand": "pnpm turbo run build --filter=@swalo/web-admin",
+  "outputDirectory": "dist",
   "build": {
     "env": {
       "VITE_API_URL": "/api"
